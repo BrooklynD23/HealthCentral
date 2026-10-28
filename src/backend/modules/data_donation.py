@@ -17,7 +17,7 @@ from sqlalchemy import delete, or_, select
 from models.chat_session import ChatTurn
 from models.data_donation import DonatedRecord, DonationConsent
 from models.response_feedback import ResponseFeedback
-from modules.phi_second_pass import detect
+from modules.phi_second_pass import PhiNerUnavailableError, detect, ensure_model
 from modules.redaction import RedactionEngine
 from modules.rl_dataset import _redact
 
@@ -27,6 +27,9 @@ from modules.rl_dataset import _redact
 CURRENT_CONSENT_TEXT_VERSION = "2026-10-27-v3"
 
 SOURCE_KIND = "response_feedback"
+# Fixed text returned (never a path, never an error message) when the on-device
+# model is missing or fails its pin: nothing is read or kept (RSI1-DONATE fail closed).
+DONATION_UNAVAILABLE_REASON = "on-device PHI model unavailable; nothing was donated"
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,7 @@ class CollectCounts:
     dropped_records: int = 0  # records dropped (a record hitting N categories counts once)
     dropped: dict[str, int] = field(default_factory=dict)  # Safe Harbor category -> records
     strict_redaction_count: int = 0
+    reason: Optional[str] = None  # fixed text when nothing was read or kept
 
 
 async def get_active_consent(
@@ -170,6 +174,11 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
     # Fail closed: no active, current consent -> nothing is read (DON-STALE).
     if not await has_current_consent(profile_db, profile_id, purpose):
         return CollectCounts()
+    # Fail closed: no verified on-device model -> no rules-only donation.
+    try:
+        ensure_model()
+    except PhiNerUnavailableError:
+        return CollectCounts(reason=DONATION_UNAVAILABLE_REASON)
 
     already = set((await profile_db.execute(
         select(DonatedRecord.source_id).where(
@@ -208,11 +217,15 @@ async def collect(profile_db, profile_id: str, purpose: str) -> CollectCounts:
             incomplete += 1
             continue
         question, answer = pair
-        text, n, categories = _screen(engine, {
-            "prompt": question,
-            "response": answer,
-            "correction": row.correction_text or None,
-        })
+        try:
+            text, n, categories = _screen(engine, {
+                "prompt": question,
+                "response": answer,
+                "correction": row.correction_text or None,
+            })
+        except PhiNerUnavailableError:
+            await profile_db.rollback()
+            return CollectCounts(reason=DONATION_UNAVAILABLE_REASON)
         if categories:
             dropped_records += 1
             for category in categories:

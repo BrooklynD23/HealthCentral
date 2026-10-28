@@ -158,6 +158,17 @@ PURPOSE = "fine_tune"
 GAP_TEXT = "The portal logged a visit from IP 192.168.1.1 yesterday."  # strict leaves IPv4 intact
 
 
+@pytest.fixture(autouse=True)
+def _model_that_finds_nothing(monkeypatch):
+    """Collect tests run with a loaded model that finds nothing: no bundle needed.
+
+    HC-DON-025 replaces this with the real loader (no bundle, bad sha) and a control.
+    """
+    import modules.phi_second_pass as psp
+
+    monkeypatch.setattr(psp, "_MODEL_OVERRIDE", _NoSpans())
+
+
 @pytest_asyncio.fixture
 async def vault():
     engine = create_async_engine("sqlite+aiosqlite://")
@@ -366,3 +377,81 @@ async def test_collect_rolls_back_when_consent_revoked_before_commit(vault, monk
 
     assert counts.collected == 0 and len(calls) == 2
     assert await _donated(vault) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bundle", ["missing", "sha_mismatch"])
+async def test_hc_don_025_bad_model_bundle_stores_nothing_with_fixed_reason(vault, monkeypatch, tmp_path, bundle):
+    import modules.phi_second_pass as psp
+    from core.config import settings
+    from modules.data_donation import DONATION_UNAVAILABLE_REASON, collect
+
+    if bundle == "sha_mismatch":
+        model_dir = tmp_path / "deid"
+        model_dir.mkdir()
+        for name in psp.PHI_NER_FETCH_FILES:
+            (model_dir / name).write_bytes(b"not the pinned weights")
+    else:
+        model_dir = tmp_path / "absent"
+    monkeypatch.setattr(psp, "_MODEL_OVERRIDE", None)
+    monkeypatch.setattr(psp, "_MODEL_CACHE", None)
+    monkeypatch.setattr(settings, "phi_ner_model_path", str(model_dir))
+
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?")
+    vault.statements.clear()
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert counts.collected == 0 and counts.reason == DONATION_UNAVAILABLE_REASON
+    assert not [s for s in vault.statements if "donated_records" in s]
+    assert await _donated(vault) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_don_025_positive_control_same_profile_with_model_stores_rows(vault, monkeypatch):
+    import modules.phi_second_pass as psp
+    from modules.data_donation import collect
+
+    monkeypatch.setattr(psp, "_MODEL_OVERRIDE", _NoSpans())
+    await _consent(vault)
+    await _feedback(vault, "What does a high LDL mean?")
+
+    counts = await collect(vault, PID, PURPOSE)
+
+    assert counts.collected >= 1 and counts.reason is None
+
+
+class _NoSpans:
+    """A loaded model that finds nothing: keeps the rule-level tests bundle-independent."""
+
+    def labelled_spans(self, text: str) -> list[tuple[str, str]]:
+        return []
+
+
+@pytest.mark.asyncio
+async def test_hc_don_014d_v2_grant_collects_nothing_and_v3_regrant_collects(vault):
+    """Delta 2026-10-20, second + DON-COPY-V3: a rated turn under the superseded v2 wording donates 0 rows."""
+    from datetime import datetime
+
+    from modules.data_donation import collect
+
+    await _consent(vault, version="2026-10-20-v2")
+    await _feedback(vault, "What does a high LDL mean?")
+
+    stale = await collect(vault, PID, PURPOSE)
+    assert stale.collected == 0 and await _donated(vault) == []
+
+    row = await get_active_consent_row(vault)
+    row.revoked_at = datetime(2026, 10, 28)
+    await vault.commit()
+    await _consent(vault)  # re-agreed on the current (v3) wording
+
+    fresh = await collect(vault, PID, PURPOSE)
+    assert fresh.collected == 1
+
+
+async def get_active_consent_row(db):
+    return (await db.execute(
+        select(DonationConsent).where(DonationConsent.profile_id == PID, DonationConsent.revoked_at.is_(None))
+    )).scalars().one()

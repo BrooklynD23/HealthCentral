@@ -8,6 +8,7 @@ record in modules/data_donation.collect.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,11 +114,165 @@ class Hit:
     category: str
 
 
-def detect(text: str | None) -> list[Hit]:
-    """Return one Hit per matching category occurrence in ``text``."""
+class PhiNerUnavailableError(RuntimeError):
+    """The on-device PHI model is missing, fails its sha256 pin, or cannot load offline.
+
+    Messages are path-free (they reach logs). Nothing degrades to rules only.
+    """
+
+
+_SPELLED_AGE = {"ninety": 90, "one hundred": 100, "a hundred": 100, "hundred": 100}
+_AGE_UNITS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9}
+# Test seam: a duck-typed model with labelled_spans(text). None means use the bundle.
+_MODEL_OVERRIDE = None
+# The verified, loaded bundle for this process (a failure is never cached).
+_MODEL_CACHE = None
+
+
+def _age_value(span: str) -> int | None:
+    m = re.search(r"\d{1,3}", span)
+    if m:
+        return int(m.group())
+    m = re.search(
+        r"\b(one hundred|a hundred|hundred|ninety)(?:[\s-]+(one|two|three|four|five|six|seven|eight|nine))?\b",
+        span.lower(),
+    )
+    if not m:
+        return None
+    return _SPELLED_AGE[m.group(1)] + (_AGE_UNITS[m.group(2)] if m.group(2) and m.group(1) == "ninety" else 0)
+
+
+class PhiNerModel:
+    """obi/deid_roberta_i2b2 loaded offline. Returns (label, span text) pairs only inside the module."""
+
+    def __init__(self, tokenizer, model):
+        self._tok = tokenizer
+        self._model = model
+        self._id2label = model.config.id2label
+
+    def labelled_spans(self, text: str) -> list[tuple[str, str]]:
+        """(base label, span text) per run of same-label tokens with probability >= threshold."""
+        import torch
+
+        enc = self._tok(
+            text, return_offsets_mapping=True, truncation=True, max_length=PHI_NER_WINDOW,
+            stride=PHI_NER_STRIDE, return_overflowing_tokens=True, padding=True, return_tensors="pt",
+        )
+        offsets = enc.pop("offset_mapping")
+        enc.pop("overflow_to_sample_mapping", None)
+        with torch.no_grad():
+            logits = self._model(**{k: v for k, v in enc.items() if k in ("input_ids", "attention_mask", "token_type_ids")}).logits
+        probs = logits.softmax(-1)
+        spans: list[tuple[str, str]] = []
+        for w in range(probs.shape[0]):
+            p, idx = probs[w].max(-1)
+            cur, start, end = None, 0, 0
+            for t in range(probs.shape[1]):
+                a, b = offsets[w][t].tolist()
+                label = self._id2label[int(idx[t])]
+                base = label.split("-", 1)[-1] if "-" in label else label
+                ok = a != b and base != "O" and float(p[t]) >= PHI_NER_THRESHOLD
+                if ok and base == cur and a <= end + 1:
+                    end = b
+                    continue
+                if cur is not None:
+                    spans.append((cur, text[start:end]))
+                cur, start, end = (base, a, b) if ok else (None, 0, 0)
+            if cur is not None:
+                spans.append((cur, text[start:end]))
+        return spans
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _verify_bundle(directory: Path) -> None:
+    missing = [name for name in PHI_NER_FETCH_FILES if not (directory / name).is_file()]
+    if missing:
+        raise PhiNerUnavailableError(
+            f"on-device PHI model not installed ({len(missing)} files missing). "
+            "Fetch it once with: cd src/backend && python scripts/download_models.py phi-ner"
+        )
+    if _sha256(directory / "model.safetensors") != PHI_NER_WEIGHTS_SHA256:
+        raise PhiNerUnavailableError("on-device PHI model weights do not match the pinned sha256")
+
+
+def _load_model() -> PhiNerModel:
+    """Load the verified bundle from the local directory only (local_files_only=True)."""
+    import logging
+
+    directory = resolve_phi_ner_model_dir()
+    _verify_bundle(directory)
+    try:
+        from transformers import AutoModelForTokenClassification, AutoTokenizer
+    except ImportError:
+        raise PhiNerUnavailableError("transformers is not installed") from None
+    # transformers logs the model path at INFO while loading; keep it out of log sinks.
+    quiet = [logging.getLogger(n) for n in ("transformers",)]
+    prev_levels = [lg.level for lg in quiet]
+    for lg in quiet:
+        lg.setLevel(max(lg.getEffectiveLevel(), logging.WARNING))
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(str(directory), local_files_only=True)
+        model = AutoModelForTokenClassification.from_pretrained(str(directory), local_files_only=True).eval()
+    except Exception as exc:  # corrupt or incompatible files: fail closed, never download
+        raise PhiNerUnavailableError(f"on-device PHI model failed to load: {type(exc).__name__}") from None
+    finally:
+        for lg, level in zip(quiet, prev_levels):
+            lg.setLevel(level)
+    return PhiNerModel(tokenizer, model)
+
+
+def _get_model():
+    global _MODEL_CACHE
+    if _MODEL_OVERRIDE is not None:
+        return _MODEL_OVERRIDE
+    if _MODEL_CACHE is None:
+        _MODEL_CACHE = _load_model()
+    return _MODEL_CACHE
+
+
+def ensure_model() -> None:
+    """Raise PhiNerUnavailableError unless the verified model is available."""
+    _get_model()
+
+
+def rule_hits(text: str | None) -> list[Hit]:
+    """Rules only (configuration C0): one Hit per matching category occurrence."""
     if not text:
         return []
     hits: list[Hit] = []
     for category, pattern in _PATTERNS:
         hits.extend(Hit(category) for _ in pattern.finditer(text))
     return hits
+
+
+def model_hits(text: str | None) -> list[Hit]:
+    """The on-device model's hits, mapped to categories. Raises PhiNerUnavailableError if absent."""
+    if not text:
+        return []
+    hits: list[Hit] = []
+    for label, span in _get_model().labelled_spans(text):
+        if label == "AGE":
+            value = _age_value(span)
+            if value is not None and value >= 90:
+                hits.append(Hit("age_over_89"))
+        elif label in PHI_NER_LABEL_CATEGORY:
+            hits.append(Hit(PHI_NER_LABEL_CATEGORY[label]))
+    return hits
+
+
+def detect(text: str | None) -> list[Hit]:
+    """Return one Hit per matching occurrence: the rules (C0) plus the on-device model (C1).
+
+    Category only, never the matched value. Raises PhiNerUnavailableError when
+    the model is not available: a missing model is never a rules-only answer.
+    """
+    if not text:
+        return []
+    return rule_hits(text) + model_hits(text)

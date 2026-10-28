@@ -18,7 +18,27 @@ def _corpus() -> dict:
     return json.loads(CORPUS.read_text())
 
 
-def test_hc_don_010_detects_each_category_and_no_false_positive_on_labs():
+@pytest.fixture(autouse=True)
+def _rules_with_a_model_that_finds_nothing(monkeypatch):
+    """Rule-level tests run with a loaded model that finds nothing, so they need no bundle.
+
+    Tests that measure recall with the pinned bundle request ``real_phi_model``.
+    """
+    from modules import phi_second_pass as psp
+
+    monkeypatch.setattr(psp, "_MODEL_OVERRIDE", _FakePhiModel({}))
+
+
+@pytest.fixture
+def real_phi_model(monkeypatch):
+    """The pinned on-device bundle, loaded offline. Absent bundle = failure, never a skip."""
+    from modules import phi_second_pass as psp
+
+    monkeypatch.setattr(psp, "_MODEL_OVERRIDE", None)
+    monkeypatch.setattr(psp, "_MODEL_CACHE", None)
+
+
+def test_hc_don_010_detects_each_category_and_no_false_positive_on_labs(real_phi_model):
     from modules.phi_second_pass import CATEGORIES, detect
 
     corpus = _corpus()
@@ -131,15 +151,85 @@ def _r2() -> dict:
     return json.loads((Path(__file__).parent / "fixtures/phi_recall/corpus_v2.json").read_text())
 
 
-def test_hc_don_013_corpus_meets_recall_target():
-    from scripts.measure_phi_recall import measure, merge_corpora, meets_target
+def test_hc_don_013_corpus_meets_recall_target(real_phi_model):
+    from scripts.measure_phi_recall import measure, meets_target, merge_corpora
 
     result = measure(merge_corpora(_corpus(), _r2()))
     assert meets_target(result), result
 
 
-def test_hc_don_013b_r2_gate_meets_recall_target():
+def test_hc_don_013b_r2_gate_meets_recall_target(real_phi_model):
     from scripts.measure_phi_recall import gate_half, measure, meets_target
 
     result = measure(gate_half(_r2()))
     assert meets_target(result), result
+
+
+class _FakePhiModel:
+    """Stands in for the verified on-device model: returns (label, span) pairs."""
+
+    def __init__(self, spans_by_text: dict[str, list[tuple[str, str]]]):
+        self._spans = spans_by_text
+
+    def labelled_spans(self, text: str) -> list[tuple[str, str]]:
+        return [pair for needle, pairs in self._spans.items() if needle in text for pair in pairs]
+
+
+def test_hc_don_026_model_name_span_drops_record_and_detect_returns_category_only(monkeypatch):
+    from modules import phi_second_pass as psp
+
+    # Lowercase name: the rules miss it, so the model's PATIENT span is the only source.
+    text = "my sister ana voss called about her lipids today"
+    monkeypatch.setattr(psp, "_MODEL_OVERRIDE", _FakePhiModel({"ana voss": [("PATIENT", "ana voss")]}))
+    assert psp.rule_hits(text) == []
+
+    hits = psp.detect(text)
+
+    assert [h.category for h in hits] == ["name"]
+    for hit in hits:
+        assert set(vars(hit)) == {"category"}
+        assert all("ana" not in str(v) and "voss" not in str(v) for v in vars(hit).values())
+    assert psp.detect("Lipid panel results are in range.") == []
+
+
+def test_hc_don_027_model_loads_local_files_only_and_makes_no_socket_call(tmp_path, monkeypatch):
+    import socket
+    from types import SimpleNamespace
+
+    import transformers
+
+    from modules import phi_second_pass as psp
+
+    attempts: list[object] = []
+
+    def _refuse(*args, **kwargs):
+        attempts.append(args[:1])
+        raise OSError("network blocked by HC-DON-027 guard")
+
+    monkeypatch.setattr(socket.socket, "connect", _refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", _refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", _refuse)
+
+    kwargs_seen: list[dict] = []
+
+    class _Stub:
+        config = SimpleNamespace(id2label={})
+
+        @classmethod
+        def from_pretrained(cls, path, **kwargs):
+            kwargs_seen.append(kwargs)
+            return cls()
+
+        def eval(self):
+            return self
+
+    monkeypatch.setattr(transformers, "AutoTokenizer", _Stub)
+    monkeypatch.setattr(transformers, "AutoModelForTokenClassification", _Stub)
+    monkeypatch.setattr(psp, "_verify_bundle", lambda directory: None)
+    monkeypatch.setattr(psp, "resolve_phi_ner_model_dir", lambda: tmp_path)
+
+    model = psp._load_model()
+
+    assert model is not None
+    assert kwargs_seen == [{"local_files_only": True}, {"local_files_only": True}]
+    assert attempts == []
