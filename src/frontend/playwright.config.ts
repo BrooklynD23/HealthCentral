@@ -57,7 +57,8 @@ export default defineConfig({
   reporter: 'html',
 
   use: {
-    baseURL: 'http://127.0.0.1:3000',
+    // HC_E2E_BASE_URL points specs at a `vite preview` build (UI-GATES); unset, it is the dev server.
+    baseURL: process.env.HC_E2E_BASE_URL || 'http://127.0.0.1:3000',
     extraHTTPHeaders: {
       Origin: 'http://127.0.0.1:3000',
     },

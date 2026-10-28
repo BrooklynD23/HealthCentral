@@ -9,6 +9,7 @@ TDD Tests that verify:
 """
 
 import sys
+import time
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -524,7 +525,7 @@ class TestExtractFormats:
         assert sorted(o.analyte_raw for o in result.observations) == ["Glucose", "TSH"]
 
     @pytest.mark.asyncio
-    async def test_hc_exf_006_no_text_fallback_when_tables_yield(self, extract_module, tmp_path):
+    async def test_hc_exf_006_no_duplicate_when_text_repeats_table(self, extract_module, tmp_path):
         page = MagicMock()
         page.extract_text.return_value = "Glucose: 95 mg/dL (70-100)\nCreatinine: 1.1 mg/dL (0.7-1.3)"
         page.extract_tables.return_value = [
@@ -534,11 +535,13 @@ class TestExtractFormats:
                 ["Creatinine", "1.1", "mg/dL", "0.7-1.3", ""],
             ]
         ]
-        with patch("pdfplumber.open", return_value=self._pdf(page)), \
-                patch.object(ExtractModule, "_extract_from_text") as text_parser:
+        with patch("pdfplumber.open", return_value=self._pdf(page)):
             result = await extract_module.extract_from_pdf(tmp_path / "b.pdf", "doc")
         assert len(result.observations) == 2
-        text_parser.assert_not_called()
+        assert sorted((o.analyte_raw, o.value, o.extraction_method) for o in result.observations) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
 
     @pytest.mark.asyncio
     async def test_hc_exf_005b_no_tables_page_keeps_unitless_rows(self, extract_module, tmp_path):
@@ -549,3 +552,609 @@ class TestExtractFormats:
             result = await extract_module.extract_from_pdf(tmp_path / "c.pdf", "doc")
         # The unit filter applies only on pages that have tables.
         assert [o.analyte_raw for o in result.observations] == ["Glucose"]
+
+
+class TestMgPerLiterUnit:
+    """EXTRACT-UNIT-MGL: `mg/L` (CRP) is a known unit on all three text-line patterns."""
+
+    @pytest.fixture
+    def extract_module(self):
+        return ExtractModule()
+
+    @pytest.mark.parametrize(
+        "line,pattern",
+        [
+            ("CRP: 4.2 mg/L (0.0-5.0)", "LINE_PATTERN"),
+            # ALT_LINE_PATTERN only takes a parenthesised range; a bare range is a column line.
+            ("CRP 4.2 mg/L (0.0-5.0)", "ALT_LINE_PATTERN"),
+            ("CRP 4.2 mg/L 0.0-5.0", "COLUMN_LINE_PATTERN"),
+            ("CRP   4.2   mg/L   0.0-5.0", "COLUMN_LINE_PATTERN"),
+        ],
+        ids=["colon", "alt-parenthesised", "column-single-space", "column-padded"],
+    )
+    def test_hc_exu_001_mg_per_l_line_is_kept(self, extract_module, line, pattern):
+        obs = extract_module._extract_from_text(line, page_num=1, document_id="t")
+        assert len(obs) == 1
+        assert obs[0].analyte_raw == "CRP"
+        assert obs[0].value == 4.2
+        assert obs[0].unit == "mg/L"
+        assert obs[0].ref_low == 0.0
+        assert obs[0].ref_high == 5.0
+        # The line must reach the pattern this case is meant to exercise (the earlier
+        # patterns must not take it), so the three cases cover three different patterns.
+        order = ["LINE_PATTERN", "ALT_LINE_PATTERN", "COLUMN_LINE_PATTERN"]
+        for name in order[: order.index(pattern)]:
+            assert getattr(ExtractModule, name).match(line) is None, name
+        assert getattr(ExtractModule, pattern).match(line) is not None
+
+    def test_hc_exu_002_mg_per_dl_keeps_longer_unit(self, extract_module):
+        # Pin: `mg/dL` stays listed before `mg/L`/`g/dL` so it is never truncated.
+        obs = extract_module._extract_from_text("LDL: 128 mg/dL (0-100)", page_num=1, document_id="t")
+        assert len(obs) == 1
+        assert obs[0].value == 128.0
+        assert obs[0].unit == "mg/dL"
+
+
+class TestTableCellFullParse:
+    """EXTRACT-TABLE-VALUE: a table result cell is parsed whole, not by its first digits."""
+
+    @staticmethod
+    def _row(cell, flag_cell="", unit_cell="", flag_col=-1):
+        row = ["Analyte", cell, unit_cell, "", flag_cell]
+        return ExtractModule()._parse_table_row(
+            row, name_col=0, value_col=1, unit_col=2 if unit_cell else -1,
+            range_col=-1, flag_col=4 if flag_col < 0 and flag_cell else flag_col, page_num=1,
+        )
+
+    def test_hc_etv_001_thousands_separator_is_one_number(self):
+        obs = self._row("1,234")
+        assert obs.value == 1234.0
+        assert obs.value_text is None
+
+    @pytest.mark.parametrize("cell", ["<0.5", ">90", "<=5"])
+    def test_hc_etv_002_comparator_is_never_an_exact_number(self, cell):
+        obs = self._row(cell)
+        assert obs.value is None
+        assert obs.value_text == cell
+
+    @pytest.mark.parametrize(
+        "cell,flag", [("5.9 H", "H"), ("(H) 5.9", "H"), ("5.9*", "A")]
+    )
+    def test_hc_etv_003_in_cell_flag_sets_flag(self, cell, flag):
+        obs = self._row(cell)
+        assert obs.value == 5.9
+        assert obs.flag == flag
+
+    def test_hc_etv_004_partial_match_is_text_not_a_number(self):
+        obs = self._row("12.5 (calc)")
+        assert obs.value is None
+        assert obs.value_text == "12.5 (calc)"
+
+    def test_hc_etv_005_flag_column_wins_over_in_cell_flag(self):
+        obs = self._row("105 L", flag_cell="H")
+        assert obs.value == 105.0
+        assert obs.flag == "H"
+
+    def test_hc_etv_006_value_with_unit_in_cell_still_parses(self):
+        obs = self._row("4.2 mg/L")
+        assert obs.value == 4.2
+
+    @pytest.mark.parametrize(
+        "cell",
+        [
+            pytest.param("(H) 5" + " " * 20000 + "x", id="flag5-spaces20000-x"),
+            pytest.param("5" + " " * 5000 + "x", id="5-spaces5000-x"),
+        ],
+    )
+    def test_hc_etv_008_long_whitespace_run_parses_in_linear_time(self, cell):
+        import time
+
+        start = time.perf_counter()
+        obs = self._row(cell)
+        elapsed = time.perf_counter() - start
+        assert obs.value is None
+        assert elapsed < 1.0, f"table-cell parse took {elapsed:.2f}s on a whitespace run"
+
+    @pytest.mark.parametrize("cell", ["0,123", "00,123", "0,123.4"])
+    def test_hc_etv_009_leading_zero_thousands_group_stays_text(self, cell):
+        """A decimal-comma 0,123 must not become the exact value 123.0."""
+        obs = self._row(cell)
+        assert obs.value is None
+        assert obs.value_text == cell
+
+    @pytest.mark.parametrize(
+        "cell,value", [("1,234", 1234.0), ("10,000", 10000.0), ("12,345.6", 12345.6)]
+    )
+    def test_hc_etv_009b_valid_thousands_groups_still_parse(self, cell, value):
+        assert self._row(cell).value == value
+
+    @pytest.mark.asyncio
+    async def test_hc_etv_007_ruled_grid_pdf_through_import(
+        self, monkeypatch, tmp_path
+    ):
+        """Ruled-grid PDF -> real pdfplumber table -> POST /documents/import -> stored rows."""
+        import hashlib
+        import io
+
+        from sqlalchemy import select
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+        import modules
+        from api import documents as documents_api
+        from api.documents import router as documents_router
+        from core.auth import get_profile_db_session
+        from core.profile_database import ProfileDatabaseBase
+        from models import Observation
+        from modules.ingest import ImportResult
+        from tests.support.routes import route_client
+        from tests.test_documents_api import _CommitTrackingMasterDb
+
+        rows = [
+            ["Test", "Result", "Unit"],
+            ["Alpha", "1,234", ""],
+            ["Bravo", "<0.5", ""],
+            ["Charlie", "5.9 H", ""],
+            ["Delta", "4.2 mg/L", ""],
+        ]
+        col_x, row_h, top = [50, 200, 350, 450], 24, 740
+        ops = ["0.5 w"]
+        n_rows = len(rows)
+        for i in range(n_rows + 1):
+            y = top - i * row_h
+            ops.append(f"{col_x[0]} {y} m {col_x[-1]} {y} l S")
+        for x in col_x:
+            ops.append(f"{x} {top} m {x} {top - n_rows * row_h} l S")
+        ops += ["BT", "/F1 11 Tf"]
+        for r, row in enumerate(rows):
+            for c, text in enumerate(row):
+                if text:
+                    esc = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+                    ops.append(f"1 0 0 1 {col_x[c] + 6} {top - r * row_h - 16} Tm ({esc}) Tj")
+        ops.append("ET")
+        stream = "\n".join(ops).encode("latin-1")
+        objs = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+            b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        ]
+        out = io.BytesIO()
+        out.write(b"%PDF-1.4\n")
+        offsets = []
+        for number, body in enumerate(objs, start=1):
+            offsets.append(out.tell())
+            out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref = out.tell()
+        out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+        out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+        out.write(
+            f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+        )
+        pdf = out.getvalue()
+
+        stored: dict[str, bytes] = {}
+
+        class _PdfIngest:
+            def __init__(self, *_a, **_k):
+                pass
+
+            async def import_document(self, *, file, **_k):
+                data = file.read()
+                doc_id = str(uuid.uuid4())
+                stored[doc_id] = data
+                return ImportResult(
+                    document_id=doc_id,
+                    path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                    content_hash=hashlib.sha256(data).hexdigest(),
+                    doc_type="lab_pdf",
+                    page_count=1,
+                    is_duplicate=False,
+                    metadata={},
+                    encrypted=True,
+                )
+
+        async def _no_classify(**_k):
+            return None
+
+        monkeypatch.setattr(
+            type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+        )
+        monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _p: b"x" * 32)
+        monkeypatch.setattr(modules, "IngestModule", _PdfIngest)
+        monkeypatch.setattr(
+            documents_api, "get_decrypted_document", lambda _p, d: io.BytesIO(stored[d])
+        )
+        monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+
+        engine = create_async_engine("sqlite+aiosqlite://")
+        async with engine.begin() as conn:
+            await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+        session = AsyncSession(engine, expire_on_commit=False)
+        try:
+            with route_client(
+                documents_router, "/documents", profile_id="profile-a",
+                master_db=_CommitTrackingMasterDb(),
+            ) as client:
+
+                async def _override_profile_db():
+                    return session
+
+                client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+                resp = client.post(
+                    "/documents/import",
+                    files={"file": ("grid.pdf", pdf, "application/pdf")},
+                )
+            assert resp.status_code == 201, resp.text
+            obs = (await session.execute(select(Observation))).scalars().all()
+        finally:
+            await session.close()
+            await engine.dispose()
+
+        by_name = {o.analyte_raw: o for o in obs}
+        assert set(by_name) == {"Alpha", "Bravo", "Charlie", "Delta"}, sorted(by_name)
+        assert by_name["Alpha"].value == 1234.0
+        assert by_name["Alpha"].flag is None
+        assert by_name["Alpha"].is_abnormal is False
+        assert by_name["Bravo"].value is None
+        assert by_name["Bravo"].value_text == "<0.5"
+        assert by_name["Bravo"].flag is None
+        assert by_name["Bravo"].is_abnormal is False
+        assert by_name["Charlie"].value == 5.9
+        assert by_name["Charlie"].flag == "H"
+        assert by_name["Charlie"].is_abnormal is True
+        assert by_name["Delta"].value == 4.2
+        assert by_name["Delta"].flag is None
+        assert by_name["Delta"].is_abnormal is False
+
+
+def _epm_pdf(grids, lines):
+    """Raw-bytes one-page PDF: ruled grids [(rows, top_y)] and free text lines [(y, text)]."""
+    import io
+
+    col_x, row_h = [50, 200, 350, 450], 24
+    ops = ["0.5 w", "BT", "/F1 11 Tf", "ET"]
+
+    def esc(s):
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    for rows, top in grids:
+        ncols = len(rows[0])
+        xs = col_x[: ncols + 1]
+        for i in range(len(rows) + 1):
+            y = top - i * row_h
+            ops.append(f"{xs[0]} {y} m {xs[-1]} {y} l S")
+        for x in xs:
+            ops.append(f"{x} {top} m {x} {top - len(rows) * row_h} l S")
+        ops.append("BT")
+        for r, row in enumerate(rows):
+            for c, text in enumerate(row):
+                if text:
+                    ops.append(f"1 0 0 1 {xs[c] + 6} {top - r * row_h - 16} Tm /F1 11 Tf ({esc(text)}) Tj")
+        ops.append("ET")
+    ops.append("BT")
+    for y, text in lines:
+        ops.append(f"1 0 0 1 50 {y} Tm /F1 11 Tf ({esc(text)}) Tj")
+    ops.append("ET")
+    stream = "\n".join(ops).encode("latin-1")
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objs, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+    out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+_EPM_LAB_GRID = [
+    ["Test Name", "Result", "Units", "Reference Range"],
+    ["Glucose", "95", "mg/dL", "70-100"],
+    ["Creatinine", "1.1", "mg/dL", "0.7-1.3"],
+]
+
+
+class TestExtractPageMerge:
+    """EXTRACT-PAGE-MERGE: text pass outside yielding tables, real pdfplumber on raw PDF bytes."""
+
+    @staticmethod
+    async def _run(grids, lines):
+        import io
+
+        result = await ExtractModule().extract_from_pdf(io.BytesIO(_epm_pdf(grids, lines)), "doc")
+        return result.observations
+
+    @staticmethod
+    def _key(obs):
+        return sorted((o.analyte_raw, o.value, o.extraction_method) for o in obs)
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_001_summary_box_does_not_hide_analyte_lines(self):
+        box = [["Summary", "Status"], ["Overall", "Normal"], ["Reviewed", "Yes"]]
+        lines = [
+            (600, "Glucose: 95 mg/dL (70-100)"),
+            (580, "HbA1c: 5.4 % (4.0-5.6)"),
+            (560, "Creatinine: 1.1 mg/dL (0.7-1.3)"),
+            (540, "TSH: 2.1 mIU/L (0.4-4.0)"),
+            (520, "Sodium: 140 mmol/L (135-145)"),
+            (500, "Potassium: 4.2 mmol/L (3.5-5.1)"),
+        ]
+        obs = await self._run([(box, 740)], lines)
+        from_text = [o for o in obs if o.extraction_method != "pdf_table"]
+        assert sorted(o.analyte_raw for o in from_text) == [
+            "Creatinine", "Glucose", "HbA1c", "Potassium", "Sodium", "TSH",
+        ]
+        assert {"Glucose", "HbA1c"} <= {o.analyte_raw for o in obs}
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_002_ruled_lab_grid_unchanged_no_duplicates(self):
+        expected = [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
+        obs = await self._run([(_EPM_LAB_GRID, 740)], [])
+        assert self._key(obs) == expected
+        # Grid starting at y=805 on a 792 pt page: its bbox reaches past the
+        # page. A strict crop would raise and fail the whole document.
+        obs = await self._run([(_EPM_LAB_GRID, 805)], [])
+        assert self._key(obs) == expected
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_003_grid_row_repeated_as_text_gives_one_observation(self):
+        obs = await self._run([(_EPM_LAB_GRID, 740)], [(600, "Glucose: 95 mg/dL (70-100)")])
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_004_identifier_lines_around_grid_stay_out(self):
+        lines = [
+            (770, "MRN: 00482913"),
+            (755, "Patient ID: 7731942"),
+            (600, "Age: 54"),
+            (585, "Collected: 01/15/2026 08:10"),
+            (570, "Page 1 of 2"),
+            (555, "Reference range: 70-99 mg/dL"),
+        ]
+        obs = await self._run([(_EPM_LAB_GRID, 740)], lines)
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Glucose", 95.0, "pdf_table"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_hc_epm_005_zero_yield_table_keeps_its_text_lines(self):
+        grid = [
+            ["Panel", "Result", "Unit"],
+            ["", "Glucose 95 mg/dL", ""],
+            ["", "Creatinine 1.1 mg/dL", ""],
+        ]
+        obs = await self._run([(grid, 740)], [])
+        assert sorted((o.analyte_raw, o.value) for o in obs) == [("Creatinine", 1.1), ("Glucose", 95.0)]
+        assert all(o.extraction_method != "pdf_table" for o in obs)
+
+        # Mixed page: a yielding lab grid plus a zero-yield table. Only the
+        # yielding table is cut, so the zero-yield table keeps its lines.
+        quiet = [
+            ["Panel", "Result", "Unit"],
+            ["", "Ferritin 80 ng/mL", ""],
+            ["", "Sodium 140 mmol/L", ""],
+        ]
+        obs = await self._run([(_EPM_LAB_GRID, 740), (quiet, 600)], [])
+        assert self._key(obs) == [
+            ("Creatinine", 1.1, "pdf_table"),
+            ("Ferritin", 80.0, "pdf_text"),
+            ("Glucose", 95.0, "pdf_table"),
+            ("Sodium", 140.0, "pdf_text"),
+        ]
+
+
+def _text_then_image_pdf(text_lines):
+    """Raw-bytes two-page PDF: page 1 text lines, page 2 one image and no text operators."""
+    import io
+
+    def esc(s):
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    page1 = ["BT", "/F1 11 Tf", "14 TL", "50 740 Td"]
+    page1 += [f"({esc(line)}) Tj T*" for line in text_lines]
+    page1.append("ET")
+    page2 = ["q", "300 0 0 300 100 400 cm", "/Im1 Do", "Q"]
+    stream1 = "\n".join(page1).encode("latin-1")
+    stream2 = "\n".join(page2).encode("latin-1")
+    pixels = bytes([0, 64, 128, 255] * 4)  # 4x4 greyscale, 8 bits per component
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /XObject << /Im1 7 0 R >> >> /Contents 8 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(stream1) + stream1 + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceGray "
+        b"/BitsPerComponent 8 /Length 16 >>\nstream\n" + pixels + b"\nendstream",
+        b"<< /Length %d >>\nstream\n" % len(stream2) + stream2 + b"\nendstream",
+    ]
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objs, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+    out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+class TestImportScannedPage:
+    """IMPORT-SCANNED-PAGE: pages with no readable text are reported; real pdfplumber on raw PDF bytes."""
+
+    @pytest.mark.asyncio
+    async def test_hc_isp_001_image_only_page_is_reported(self):
+        import io
+
+        lines = [
+            "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
+            "Glucose: 95 mg/dL (70-100)",
+            "Creatinine: 1.1 mg/dL (0.7-1.3)",
+            "Sodium: 140 mmol/L (135-145)",
+        ]
+        result = await ExtractModule().extract_from_pdf(
+            io.BytesIO(_text_then_image_pdf(lines)), "doc"
+        )
+        assert result.pages_without_text == [2]
+        # Page 1 is still read; only the image page is reported.
+        assert {"Glucose", "Creatinine", "Sodium"} <= {o.analyte_raw for o in result.observations}
+
+    @pytest.mark.asyncio
+    async def test_hc_isp_003_all_text_pdf_reports_no_pages(self):
+        import io
+
+        from tests.support.minimal_pdf import minimal_pdf
+
+        pdf = minimal_pdf([
+            ["Glucose: 95 mg/dL (70-100)", "Creatinine: 1.1 mg/dL (0.7-1.3)"],
+            ["Sodium: 140 mmol/L (135-145)", "Potassium: 4.2 mmol/L (3.5-5.1)"],
+        ])
+        result = await ExtractModule().extract_from_pdf(io.BytesIO(pdf), "doc")
+        assert len(result.observations) == 4
+        assert result.pages_without_text == []
+
+
+class TestExtractTextForms:
+    """EXTRACT-TEXT-FORMS: Quest/LabCorp text lines (units, comparators, flag slot, one-bound ranges)."""
+
+    @pytest.fixture
+    def extract_module(self):
+        return ExtractModule()
+
+    def test_hc_etf_001_x10e3_unit_with_flag_before_unit(self, extract_module):
+        obs = extract_module._parse_text_line("WBC 5.9 H x10E3/uL 3.4-10.8", 1)
+        assert obs is not None
+        assert obs.analyte_raw == "WBC"
+        assert obs.value == 5.9
+        assert obs.unit == "x10E3/uL"
+        assert obs.flag == "H"
+        assert (obs.ref_low, obs.ref_high) == (3.4, 10.8)
+
+    def test_hc_etf_002_less_than_comparator_is_not_a_number(self, extract_module):
+        obs = extract_module._parse_text_line("Creatinine <0.5 mg/dL 0.5-1.2", 1)
+        assert obs is not None
+        assert obs.value is None
+        assert obs.value_text == "<0.5"
+        assert obs.unit == "mg/dL"
+        assert (obs.ref_low, obs.ref_high) == (0.5, 1.2)
+
+    def test_hc_etf_003_greater_than_comparator_and_or_equal_range(self, extract_module):
+        obs = extract_module._parse_text_line("eGFR >90 mL/min/1.73m2 >OR=60", 1)
+        assert obs is not None
+        assert obs.value is None
+        assert obs.value_text == ">90"
+        assert obs.unit == "mL/min/1.73m2"
+        assert (obs.ref_low, obs.ref_high) == (60.0, None)
+        assert obs.ref_range_text == ">OR=60"
+
+    @pytest.mark.parametrize(
+        "line,ref_low,ref_high,ref_range_text",
+        [
+            ("Ferritin 60 ng/mL <=150", None, 150.0, "<=150"),
+            ("Ferritin 60 ng/mL <OR=150", None, 150.0, "<OR=150"),
+            ("Hemoglobin 13.5 g/dL >=12", 12.0, None, ">=12"),
+        ],
+    )
+    def test_hc_etf_003b_one_bound_range_forms_set_one_bound(
+        self, extract_module, line, ref_low, ref_high, ref_range_text
+    ):
+        obs = extract_module._parse_text_line(line, 1)
+        assert obs is not None
+        assert obs.value is not None
+        assert (obs.ref_low, obs.ref_high) == (ref_low, ref_high)
+        assert obs.ref_range_text == ref_range_text
+
+    def test_hc_etf_004_flag_between_unit_and_range(self, extract_module):
+        obs = extract_module._parse_text_line("Glucose 105 mg/dL H 70-99", 1)
+        assert obs is not None
+        assert (obs.value, obs.unit, obs.flag) == (105.0, "mg/dL", "H")
+        assert (obs.ref_low, obs.ref_high) == (70.0, 99.0)
+
+    @pytest.mark.parametrize(
+        "line,analyte,value,unit,flag,ref_low,ref_high,ref_range_text",
+        [
+            ("Glucose 105 mg/dL 70-99 H", "Glucose", 105.0, "mg/dL", "H", 70.0, 99.0, "70-99"),
+            ("WBC 5.9 K/uL 3.4-10.8", "WBC", 5.9, "K/uL", None, 3.4, 10.8, "3.4-10.8"),
+            ("TSH 2.10 mIU/L 0.45-4.50", "TSH", 2.10, "mIU/L", None, 0.45, 4.50, "0.45-4.50"),
+            ("LDL Cholesterol 135 H mg/dL <100", "LDL Cholesterol", 135.0, "mg/dL", "H", None, 100.0, "<100"),
+            ("Vitamin D 120 ng/mL >30 h", "Vitamin D", 120.0, "ng/mL", "H", 30.0, None, ">30"),
+        ],
+    )
+    def test_hc_etf_005_existing_column_lines_unchanged(
+        self, extract_module, line, analyte, value, unit, flag, ref_low, ref_high, ref_range_text
+    ):
+        obs = extract_module._parse_text_line(line, 1)
+        assert obs is not None
+        assert (obs.analyte_raw, obs.value, obs.value_text, obs.unit) == (analyte, value, None, unit)
+        assert (obs.flag, obs.ref_low, obs.ref_high, obs.ref_range_text) == (
+            flag, ref_low, ref_high, ref_range_text,
+        )
+
+    def test_hc_etf_006_long_space_run_parses_in_linear_time(self, extract_module):
+        line = "WBC " + " " * 50000 + "x"
+        start = time.perf_counter()
+        obs = extract_module._parse_text_line(line, 1)
+        elapsed = time.perf_counter() - start
+        assert obs is None
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+    def test_hc_etf_007_labcorp_hba1c_footnote_block_gives_one_observation(self, extract_module):
+        # "Diabetes: >6.4" and "...: <7.0" are reference labels with no unit, not results.
+        text = "\n".join([
+            "Hemoglobin A1c 5.4 % 4.8-5.6",
+            "Prediabetes: 5.7 - 6.4",
+            "Diabetes: >6.4",
+            "Glycemic control for adults with diabetes: <7.0",
+        ])
+        observations = extract_module._extract_from_text(text, page_num=1, document_id="doc")
+        assert [o.analyte_raw for o in observations] == ["Hemoglobin A1c"]
+        assert observations[0].value == 5.4
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Desirable range <200 mg/dL",
+            "Normal: <5.7 %",
+            "Reference Range: <100 mg/dL",
+            "Optimal <100 mg/dL",
+            "High >=240 mg/dL",
+            "Normal >60 mL/min/1.73m2",
+            "Low risk <1.0 mg/L",
+            "Diabetes: >=6.5 %",
+        ],
+    )
+    def test_hc_etf_008_label_line_with_comparator_and_unit_is_not_a_result(self, extract_module, line):
+        # A comparator with a unit but no reference bound on the same line is a label, not a result.
+        assert extract_module._parse_text_line(line, 1) is None
+
+    def test_hc_etf_008_comparator_result_with_reference_range_is_kept(self, extract_module):
+        obs = extract_module._parse_text_line("Glucose: <70 mg/dL (70-100)", 1)
+        assert obs is not None
+        assert obs.analyte_raw == "Glucose"
+        assert obs.value is None
+        assert obs.value_text == "<70"
+        assert obs.unit == "mg/dL"
+        assert (obs.ref_low, obs.ref_high) == (70.0, 100.0)

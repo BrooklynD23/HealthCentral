@@ -44,7 +44,7 @@ Please be respectful and constructive in all interactions. We are committed to p
 
 ### SQLCipher Setup
 
-For database encryption support, see the SQLCipher Setup section in README.md.
+For database encryption support, see the [SQLCipher Setup](docs/dev/setup.md#sqlcipher-setup) section in `docs/dev/setup.md`.
 
 For development without SQLCipher, set in your `.env`:
 ```

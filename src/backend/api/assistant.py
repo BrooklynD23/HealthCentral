@@ -22,7 +22,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, audit_intent, create_audit_log
@@ -232,6 +232,37 @@ def get_rag_module() -> RAGModule:
             ),
         )
     return _rag_module
+
+
+# SAFETY-MODE-STRICT: the owner's "Stricter checks" option (0.75, as the option stated).
+# Not a measured value; the owner may change it, and only this constant changes.
+STRICT_MIN_SCORE = 0.75
+_strict_rag_module: Optional[RAGModule] = None
+
+
+def get_strict_rag_module() -> RAGModule:
+    """The legacy RAG module for a profile whose strict safety mode is on.
+
+    Built like get_rag_module, but both the faithfulness and the verifier
+    thresholds are STRICT_MIN_SCORE. Callers choose it only after
+    is_strict_safety_mode(profile_db) returns True.
+    """
+    global _strict_rag_module
+    if _strict_rag_module is None:
+        from core.config import settings as app_settings
+
+        _strict_rag_module = RAGModule(
+            enable_verification=True,
+            verification_config=VerificationConfig(
+                min_faithfulness_score=STRICT_MIN_SCORE,
+                fail_on_contradiction=True,
+                use_llm_entailment=app_settings.use_llm_entailment,
+            ),
+            faithfulness_config=FaithfulnessConfig(
+                min_overall_score=STRICT_MIN_SCORE,
+            ),
+        )
+    return _strict_rag_module
 
 
 def _legacy_serve_or_abstain(result: ValidatedResponse) -> ValidatedResponse:
@@ -625,6 +656,102 @@ async def update_memory_settings(
 
 
 # ---------------------------------------------------------------------------
+# Safety mode setting endpoint  (SAFETY-MODE-SETTING)
+# ---------------------------------------------------------------------------
+
+class SafetyModeResponse(BaseModel):
+    strict_safety_mode: bool
+
+
+class SafetyModeUpdate(BaseModel):
+    strict_safety_mode: bool
+
+
+async def is_strict_safety_mode(profile_db: AsyncSession) -> bool:
+    """True when this profile's strict safety mode is on, False otherwise.
+
+    Fails closed: True if ANY settings row in this DB has the flag set. Returns
+    False when there is no settings row. Duplicate rows can exist (profile_id
+    is indexed, not unique), so this never picks one row. The profile DB
+    belongs to one profile (vaults/<profile_id>), so no profile_id filter is
+    applied. SAFETY-MODE-STRICT and SAFETY-MODE-VERIFIED import this; keep the
+    signature stable.
+    """
+    result = await profile_db.execute(
+        select(exists().where(UserModelSettings.strict_safety_mode.is_(True)))
+    )
+    return bool(result.scalar())
+
+
+@router.get("/safety-mode", response_model=SafetyModeResponse)
+async def get_safety_mode(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Return the per-profile strict safety mode flag. Audited read."""
+    row = await _get_user_model_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="safety_mode_viewed",
+        action="safety_mode_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="safety_mode",
+    )
+    return SafetyModeResponse(
+        strict_safety_mode=bool(row.strict_safety_mode) if row else False,
+    )
+
+
+@router.patch("/safety-mode", response_model=SafetyModeResponse)
+async def update_safety_mode(
+    data: SafetyModeUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Set the per-profile strict safety mode flag. Commit, then audit."""
+    row = await _get_user_model_settings(session.profile_id, profile_db)
+    if row is None:
+        row = UserModelSettings(
+            id=str(uuid.uuid4()),
+            profile_id=session.profile_id,
+            created_at=utcnow(),
+            updated_at=utcnow(),
+        )
+        profile_db.add(row)
+
+    row.strict_safety_mode = data.strict_safety_mode
+    row.updated_at = utcnow()
+    await profile_db.commit()
+    await profile_db.refresh(row)
+    await create_audit_log(
+        db=master_db,
+        event_type="safety_mode_updated",
+        action="safety_mode_updated",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="safety_mode",
+        details={
+            "changed_fields": ["strict_safety_mode"],
+            "status": "enabled" if data.strict_safety_mode else "disabled",
+        },
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            "safety_mode_updated",
+            "safety_mode",
+        )
+        raise
+    return SafetyModeResponse(strict_safety_mode=bool(row.strict_safety_mode))
+
+
+# ---------------------------------------------------------------------------
 # Agent cutover helpers (Agent Overhaul S5-1, S5-2)
 # ---------------------------------------------------------------------------
 
@@ -652,12 +779,32 @@ async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
     to a value the cache had already seen, serving an answer about data that no
     longer existed (HC-CACHE-VER-001).
 
-    Two sources are fingerprinted because two feed the agent's tools: verified
-    observations (``query_observations``, ``compute_trend``) and verified
-    documents (``retrieve_chunks``, which filters on
-    ``Document.status == "verified"``). Each contributes a count paired with the
-    latest ``verified_at``, so the value changes on a verify, on a delete, and on
-    the delete-then-verify sequence that collides on count alone.
+    Each part below is the data one agent tool reads, so a change to it
+    changes the key:
+
+    - ``o:`` verified observations (``query_observations``, ``compute_trend``):
+      count and latest ``verified_at``.
+    - ``d:`` verified documents (``retrieve_chunks``, which filters on
+      ``Document.status == "verified"``): count and latest ``verified_at``.
+    - ``t:`` care tasks (``query_care_tasks``): count and latest
+      ``CarePlanTask.updated_at`` (title, status, due_date, source_quote).
+    - ``m:`` verified medication changes (``query_medication_changes``): count
+      and a sha256 prefix over the exact rows it reads (``DocumentEntity.id``,
+      ``doc_id``, ``entity_value``, ``quote``, ``Document.collection_date``);
+      the entity has no ``updated_at``, so the columns are hashed.
+    - ``a:`` ALL observations, verified or not (``query_timeline``,
+      ``check_verification`` and the ``retrieve_chunks`` analyte filter): count
+      and latest ``Observation.updated_at``.
+    - ``e:`` timeline document events (``query_timeline`` via
+      ``modules.timeline._document_events``): count of classified documents and
+      a hash over their ``id``, ``status``, ``collection_date``,
+      ``imported_at``, ``source``, category rows and date entities.
+    - ``r:`` medications (``query_timeline`` via ``_medication_events``): count
+      and latest ``Medication.updated_at``.
+
+    The value changes on a verify, on a delete, and on the delete-then-verify
+    sequence that collides on count alone. ``lookup_reference`` reads the shared
+    knowledge store, not profile data, so it has no part.
 
     Memory items are deliberately excluded: no agent tool reads them
     (``modules/agent/tools/`` has no memory tool), so they cannot change an
@@ -667,6 +814,18 @@ async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
     both microsecond ``verified_at`` maxima — a delete and a verify landing on
     the identical timestamp with compensating counts. Fingerprinting the full id
     set would close it exactly, at the cost of fetching every row per request.
+
+    Further residuals: the ``t:``, ``a:`` and ``r:`` timestamps miss a write
+    that bypasses SQLAlchemy ``onupdate`` (raw SQL, or code that sets
+    ``updated_at`` backwards); ``m:`` and ``e:`` are exact only for the columns
+    named above, so a tool that starts reading another column, and any new
+    tool, must be added here by hand (HC-CACHE-VER-013 catches a new tool, not
+    a new column); a change in any part re-keys every cached question for the
+    profile; entries under old keys stay in process memory, unreachable, until
+    restart.
+
+    The value is an in-memory cache key: never log it (the hashes are derived
+    from patient text).
     """
     obs_result = await profile_db.execute(
         select(func.count(Observation.id), func.max(Observation.verified_at)).where(
@@ -684,7 +843,94 @@ async def _profile_version(profile_id: str, profile_db: AsyncSession) -> str:
     )
     doc_count, doc_latest = doc_result.one()
 
-    return f"o:{obs_count or 0}:{obs_latest or ''}|d:{doc_count or 0}:{doc_latest or ''}"
+    import hashlib
+
+    from models.care_plan_task import CarePlanTask
+    from models.document_category import DocumentCategory, DocumentEntity
+    from models.medication import Medication
+    from modules.timeline import DATE_ENTITY_TYPES, DOCUMENT_EVENT_CATEGORIES
+
+    def _field(value) -> str:
+        if value is None:
+            return ""
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+    def _digest(rows) -> str:
+        if not rows:
+            return ""
+        blob = "\x1e".join("\x1f".join(_field(v) for v in row) for row in rows)
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
+
+    async def _count_latest(count_col, latest_col, *where) -> str:
+        count, latest = (
+            await profile_db.execute(
+                select(func.count(count_col), func.max(latest_col)).where(*where)
+            )
+        ).one()
+        return f"{count or 0}:{latest or ''}"
+
+    task_part = await _count_latest(CarePlanTask.id, CarePlanTask.updated_at)
+    all_obs_part = await _count_latest(
+        Observation.id, Observation.updated_at, Observation.profile_id == profile_id
+    )
+    med_part = await _count_latest(
+        Medication.id, Medication.updated_at, Medication.profile_id == profile_id
+    )
+
+    change_rows = (
+        await profile_db.execute(
+            select(
+                DocumentEntity.id, DocumentEntity.doc_id, DocumentEntity.entity_value,
+                DocumentEntity.quote, Document.collection_date,
+            )
+            .join(Document, DocumentEntity.doc_id == Document.id)
+            .where(
+                DocumentEntity.entity_type == "medication_change",
+                DocumentEntity.verified_by_user == True,  # noqa: E712
+            )
+            .order_by(DocumentEntity.id)
+        )
+    ).all()
+
+    event_rows = (
+        await profile_db.execute(
+            select(
+                Document.id, Document.status, Document.collection_date,
+                Document.imported_at, Document.source,
+                DocumentCategory.id, DocumentCategory.category,
+            )
+            .join(DocumentCategory, DocumentCategory.doc_id == Document.id)
+            .where(
+                Document.profile_id == profile_id,
+                DocumentCategory.category.in_(DOCUMENT_EVENT_CATEGORIES),
+            )
+            .order_by(Document.id, DocumentCategory.id)
+        )
+    ).all()
+    date_rows = []
+    if event_rows:
+        date_rows = (
+            await profile_db.execute(
+                select(
+                    DocumentEntity.id, DocumentEntity.doc_id,
+                    DocumentEntity.entity_value, DocumentEntity.confidence,
+                )
+                .where(
+                    DocumentEntity.doc_id.in_({row[0] for row in event_rows}),
+                    DocumentEntity.entity_type.in_(DATE_ENTITY_TYPES),
+                )
+                .order_by(DocumentEntity.id)
+            )
+        ).all()
+    event_part = (
+        f"{len({row[0] for row in event_rows})}:{_digest(event_rows + date_rows)}"
+    )
+
+    return (
+        f"o:{obs_count or 0}:{obs_latest or ''}|d:{doc_count or 0}:{doc_latest or ''}"
+        f"|t:{task_part}|m:{len(change_rows)}:{_digest(change_rows)}"
+        f"|a:{all_obs_part}|e:{event_part}|r:{med_part}"
+    )
 
 
 def _agent_terminal_to_response_parts(
@@ -936,7 +1182,10 @@ async def chat(
                 await db.commit()
 
         if not use_agent or agent_failed:
-            result = await rag.query(
+            # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75
+            # module. OFF keeps the 0.6 module, so OFF is unchanged.
+            legacy_rag = get_strict_rag_module() if await is_strict_safety_mode(profile_db) else rag
+            result = await legacy_rag.query(
                 question=request.question,
                 profile_id=session.profile_id,
                 selected_analytes=request.selected_analytes,
@@ -1071,9 +1320,10 @@ async def chat(
             except Exception:
                 await profile_db.rollback()
         return fallback
-    except Exception:
-        logger.exception(
-            "Assistant chat request failed",
+    except Exception as exc:
+        logger.error(
+            "Assistant chat request failed: %s",
+            type(exc).__name__,
             extra={"profile_id": session.profile_id},
         )
         raise HTTPException(
@@ -1268,9 +1518,24 @@ async def get_glossary_term(
 
 
 @router.get("/verification-status")
-async def get_verification_status(session: RequireAuth):
-    """Get current verification system status."""
+async def get_verification_status(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Get current verification system status. Audited read (SAFETY-MODE-STRICT):
+    reports the faithfulness threshold in force for this profile."""
     rag = get_rag_module()
+    min_score = STRICT_MIN_SCORE if await is_strict_safety_mode(profile_db) else 0.6
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="verification_status_viewed",
+        action="verification_status_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="verification_status",
+    )
     return {
         "verification_enabled": rag.enable_verification,
         "components": {
@@ -1280,7 +1545,7 @@ async def get_verification_status(session: RequireAuth):
             "faithfulness_scorer": "active",
         },
         "configuration": {
-            "min_faithfulness_score": 0.6,
+            "min_faithfulness_score": min_score,
             "fail_on_contradiction": True,
             "min_supporting_sources": 1,
         },
@@ -1319,7 +1584,7 @@ async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatRes
         due = f" (due {task.due_date.isoformat()})" if task.due_date else ""
         quote = sanitize_untrusted_field(task.source_quote)
         quote_part = f' The note says: "{quote}"' if quote else ""
-        lines.append(f"- {title}{due}.{quote_part}")
+        lines.append(f"- Open follow-up you saved (wording taken from your documents, not checked): {title}{due}.{quote_part}")
         citations.append(Citation(
             source_type="user_observation",
             doc_id=task.source_document_id,

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { DocumentInbox } from '@/pages/DocumentInbox';
+import { ApiError } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
 
 const mutateAsync = vi.fn();
@@ -190,6 +191,78 @@ describe('DocumentInbox Phase C warnings and confidence', () => {
   });
 });
 
+describe('DocumentInbox import failure alert', () => {
+  beforeEach(() => {
+    mutateAsync.mockReset();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  const uploadFile = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    await user.upload(
+      screen.getByLabelText(/upload medical documents/i),
+      new File(['x'], name, { type: 'application/pdf' })
+    );
+  };
+
+  it('HC-FIE-001: shows the server message and file name when an import fails', async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockRejectedValue(new ApiError(400, 'Bad Request', 'Unsupported file type'));
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await uploadFile(user, 'bad.pdf');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Unsupported file type');
+    expect(alert).toHaveTextContent('bad.pdf');
+  });
+
+  it('HC-FIE-002: shows fixed too-large copy for a 413', async () => {
+    const user = userEvent.setup();
+    mutateAsync.mockRejectedValue(new ApiError(413, 'Payload Too Large', 'raw server detail'));
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await uploadFile(user, 'huge.pdf');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('This file is too large to import.');
+    expect(alert).not.toHaveTextContent('raw server detail');
+  });
+
+  it('HC-FIE-003: a successful import after a failure removes the alert', async () => {
+    const user = userEvent.setup();
+    mutateAsync
+      .mockRejectedValueOnce(new ApiError(400, 'Bad Request', 'Unsupported file type'))
+      .mockResolvedValueOnce({
+        document: {
+          id: 'ok-doc',
+          profile_id: 'profile-123',
+          doc_type: 'lab_pdf',
+          source: 'ok.pdf',
+          status: 'parsed',
+          page_count: 1,
+          collection_date: '2026-07-01T00:00:00',
+          imported_at: '2026-07-13T10:00:00',
+          parsed_at: '2026-07-13T10:00:01',
+          verified_at: null,
+          extraction_confidence: 0.9,
+        },
+        observations_extracted: 1,
+        needs_verification: true,
+        duplicate_warning: null,
+      });
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    await uploadFile(user, 'bad.pdf');
+    await screen.findByRole('alert');
+
+    await uploadFile(user, 'ok.pdf');
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+  });
+});
+
 // TW4-HOVER-TOUCH: jsdom does not evaluate media queries, so this is a class
 // contract. Row actions may only be hidden behind a hover-capable media gate,
 // and must reveal on keyboard focus.
@@ -230,5 +303,66 @@ describe('DocumentInbox row actions on touch and keyboard', () => {
       await user.tab();
     }
     expect(container).toContainElement(document.activeElement as HTMLElement);
+  });
+});
+
+// IMPORT-SCANNED-PAGE: a page with no readable text is named on the last-import card.
+describe('DocumentInbox scanned-page notice', () => {
+  beforeEach(() => {
+    mutateAsync.mockReset();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  const importResponse = (id: string, source: string, pagesWithoutText: number[]) => ({
+    document: {
+      id,
+      profile_id: 'profile-123',
+      doc_type: 'lab_pdf',
+      source,
+      status: 'parsed',
+      page_count: 3,
+      collection_date: '2026-07-01T00:00:00',
+      imported_at: '2026-07-13T10:00:00',
+      parsed_at: '2026-07-13T10:00:01',
+      verified_at: null,
+      extraction_confidence: 0.6,
+    },
+    observations_extracted: 4,
+    needs_verification: true,
+    duplicate_warning: null,
+    import_summary: null,
+    pages_without_text: pagesWithoutText,
+  });
+
+  it('HC-ISP-004: the last-import card names the pages whose values were not read', async () => {
+    const user = userEvent.setup();
+    mutateAsync
+      .mockResolvedValueOnce(importResponse('scan-one', 'one-scan.pdf', [2]))
+      .mockResolvedValueOnce(importResponse('scan-two', 'two-scan.pdf', [2, 3]))
+      .mockResolvedValueOnce(importResponse('text-only', 'text.pdf', []));
+    render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
+    const input = screen.getByLabelText(/upload medical documents/i);
+
+    await user.upload(input, new File(['%PDF-1.4 a'], 'one-scan.pdf', { type: 'application/pdf' }));
+    const single = await screen.findByText(
+      'Page 2 has no readable text, so its values were not read. Check the original report.'
+    );
+    expect(single).toHaveAttribute('role', 'status');
+
+    await user.upload(input, new File(['%PDF-1.4 b'], 'two-scan.pdf', { type: 'application/pdf' }));
+    const plural = await screen.findByText(
+      'Pages 2 and 3 have no readable text, so their values were not read. Check the original report.'
+    );
+    expect(plural).toHaveAttribute('role', 'status');
+
+    await user.upload(input, new File(['%PDF-1.4 c'], 'text.pdf', { type: 'application/pdf' }));
+    await waitFor(() => {
+      expect(screen.getByText(/document imported: text\.pdf/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/no readable text/i)).not.toBeInTheDocument();
   });
 });

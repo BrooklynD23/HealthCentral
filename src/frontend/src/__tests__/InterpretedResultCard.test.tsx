@@ -1,11 +1,13 @@
 /**
- * InterpretedResultCard render tests (HC-IRC-001..006, INTERP-RENDER)
+ * InterpretedResultCard render tests (HC-IRC-001..006, INTERP-RENDER;
+ * HC-IRC-007..009, INTERP-RENDER-2)
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { InterpretedResultCard } from '@/components/lab-interpreter/InterpretedResultCard';
-import type { InterpretationResponse } from '@/services/types';
+import { PanelInterpretationDashboard } from '@/components/lab-interpreter/PanelInterpretationDashboard';
+import type { InterpretationResponse, PanelInterpretationResponse } from '@/services/types';
 
 vi.mock('framer-motion', async () => {
   const actual = await vi.importActual('framer-motion');
@@ -24,18 +26,20 @@ vi.mock('framer-motion', async () => {
     function MotionStub(props: React.PropsWithChildren<Record<string, unknown>>) {
       return <Tag {...filter(props)}>{props.children}</Tag>;
     };
+  const motionStubs = {
+    div: make('div'),
+    button: make('button'),
+    tr: make('tr'),
+    p: make('p'),
+    span: make('span'),
+    li: make('li'),
+    ul: make('ul'),
+    section: make('section'),
+  };
   return {
     ...actual,
-    motion: {
-      div: make('div'),
-      button: make('button'),
-      tr: make('tr'),
-      p: make('p'),
-      span: make('span'),
-      li: make('li'),
-      ul: make('ul'),
-      section: make('section'),
-    },
+    motion: motionStubs,
+    m: motionStubs,
     AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   };
 });
@@ -154,5 +158,99 @@ describe('InterpretedResultCard', () => {
     );
     expect(screen.getByText('Source: local model (local)')).toBeInTheDocument();
     expect(container.textContent ?? '').not.toContain('Model:');
+  });
+
+  it('HC-IRC-007: gauge axis includes an out-of-range value above the range, marker stays inside the track', () => {
+    const { container } = render(
+      <InterpretedResultCard
+        interpretation={makeInterpretation()}
+        value={118}
+        refLow={70}
+        refHigh={99}
+        unit="mg/dL"
+      />
+    );
+    expect(screen.getByText('126.7')).toBeInTheDocument();
+    expect(screen.queryByText('107.7')).not.toBeInTheDocument();
+
+    const lefts = Array.from(container.querySelectorAll<HTMLElement>('[style*="left"]'));
+    const marker = lefts[lefts.length - 1];
+    const leftPct = parseFloat(marker.style.left);
+    expect(leftPct).toBeLessThan(100);
+    expect(leftPct).toBeCloseTo(86.7, 0);
+  });
+
+  it('HC-IRC-008: gauge axis max follows a high value, min keeps the non-negative floor', () => {
+    render(
+      <InterpretedResultCard
+        interpretation={makeInterpretation()}
+        value={162}
+        refLow={0}
+        refHigh={100}
+        unit="mg/dL"
+      />
+    );
+    expect(screen.getByText('192.0')).toBeInTheDocument();
+    expect(screen.getByText('0.0')).toBeInTheDocument();
+    expect(screen.queryByText('-30.0')).not.toBeInTheDocument();
+  });
+});
+
+describe('citations with an empty id do not collide on React keys', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function makePanel(): PanelInterpretationResponse {
+    return {
+      id: 'panel-1',
+      panel_name: 'lipid',
+      collected_at: '2026-01-01T00:00:00Z',
+      observation_ids: ['obs-1'],
+      summary_text: 'Panel summary.',
+      overall_status: 'normal',
+      relationship_insights: null,
+      advice_text: null,
+      citations: [
+        { type: 'source', id: '', text: 'First source' },
+        { type: 'source', id: '', text: 'Second source' },
+      ],
+      confidence_score: 0.9,
+      requires_physician_review: false,
+      created_at: '2026-01-01T00:00:00Z',
+    };
+  }
+
+  function sameKeyErrors(spy: { mock: { calls: unknown[][] } }): string[] {
+    return spy.mock.calls
+      .map((args) => args.map(String).join(' '))
+      .filter((line) => line.includes('same key'));
+  }
+
+  it('HC-IRC-009: InterpretedResultCard has no duplicate-key warning for two empty-id citations', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <InterpretedResultCard
+        interpretation={makeInterpretation({
+          citations: [
+            { type: 'source', id: '', text: 'First source' },
+            { type: 'source', id: '', text: 'Second source' },
+          ],
+        })}
+      />
+    );
+    expect(screen.getByLabelText(/^Citation 1: /)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Citation 2: /)).toBeInTheDocument();
+    expect(sameKeyErrors(spy)).toEqual([]);
+  });
+
+  it('HC-IRC-009: PanelInterpretationDashboard has no duplicate-key warning for two empty-id citations', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(
+      <PanelInterpretationDashboard interpretation={makePanel()} isLoading={false} isError={false} />
+    );
+    expect(screen.getByLabelText(/^Citation 1: /)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Citation 2: /)).toBeInTheDocument();
+    expect(sameKeyErrors(spy)).toEqual([]);
   });
 });

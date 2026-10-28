@@ -5,7 +5,7 @@ Defect (measured at branch B, `src/backend/modules/agent/cache.py:31-35`):
 ``CacheKey`` is ``(normalized_question, profile_version)`` — no profile id.
 ``profile_version`` is a fingerprint of the profile's verified evidence
 (``api/assistant.py::_profile_version``); two profiles with the same
-fingerprint (for example two empty profiles, both ``"o:0:|d:0:"``) collide on
+fingerprint (for example two empty profiles, both ``"o:0:|d:0:|t:0:|m:0:|a:0:|e:0:|r:0:"``) collide on
 the same key and share cache entries for the same question text.
 
 HC-CACHE-ISO-001 goes through HTTP via ``tests/support/routes.py::route_client``,
@@ -68,7 +68,7 @@ def _client(profile_id, profile_db):
 @pytest.mark.asyncio
 async def test_hc_cache_iso_001_two_profiles_never_share_cached_answer():
     """Two profiles, same question, same (empty) evidence fingerprint
-    ("o:0:|d:0:") must each get their own answer over HTTP, never a cached
+    ("o:0:|d:0:|t:0:|m:0:|a:0:|e:0:|r:0:") must each get their own answer over HTTP, never a cached
     copy of the other profile's answer."""
     profile_a = str(uuid.uuid4())
     profile_b = str(uuid.uuid4())

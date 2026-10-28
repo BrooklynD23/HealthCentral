@@ -21,7 +21,7 @@ vi.mock('framer-motion', () => {
         return <El {...dom}>{children as React.ReactNode}</El>;
       }),
   });
-  return { motion, AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</> };
+  return { motion, m: motion, AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</> };
 });
 
 const badgesData: { badges: BadgeStatus[] } = { badges: [] };
@@ -69,6 +69,7 @@ vi.mock('@/components/MemoryManager', () => ({ MemoryManager: () => null }));
 vi.mock('@/components/settings/BackupCard', () => ({ BackupCard: () => null }));
 vi.mock('@/components/settings/RecoveryCodeCard', () => ({ RecoveryCodeCard: () => null }));
 vi.mock('@/components/settings/DangerZone', () => ({ DangerZone: () => null }));
+vi.mock('@/components/settings/AgentSettingsCard', () => ({ AgentSettingsCard: () => null }));
 
 const logDoseMutate = vi.fn();
 vi.mock('@/services/medications', () => ({

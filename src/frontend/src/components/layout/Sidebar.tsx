@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Inbox,
   CheckCircle,
@@ -73,7 +73,7 @@ export function Sidebar() {
               }
             >
               {isActive && (
-                <motion.div
+                <m.div
                   layoutId={prefersReducedMotion ? undefined : 'sidebar-active'}
                   className="absolute inset-0 bg-accent-subtle rounded-xl"
                   transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}

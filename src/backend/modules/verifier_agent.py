@@ -88,6 +88,13 @@ class VerificationConfig:
     use_llm_entailment: bool = False
 
 
+def _nli_fail_closed(result: EntailmentResult) -> bool:
+    """True for the NLI's own fail-closed returns (model absent, predict failed)."""
+    return result.label is EntailmentLabel.NEUTRAL and result.explanation.endswith(
+        "claim left unverified"
+    )
+
+
 class VerifierAgent:
     """
     Secondary agent that verifies claims against source evidence.
@@ -218,12 +225,15 @@ class VerifierAgent:
         """
         Check entailment relationship between claim and source.
 
-        Uses rule-based approach with optional LLM fallback.
+        Rules decide; with the NLI flag on, the NLI may only veto
+        (GC5-NEUTRAL-SCOPE (a)): a fail-closed NLI result or a contradiction
+        is returned, otherwise the rules result. Neutral is never support.
         """
         if self.config.use_llm_entailment:
-            return self._check_entailment_llm(claim, source)
-        else:
-            return self._check_entailment_rules(claim, source)
+            result = self._check_entailment_llm(claim, source)
+            if _nli_fail_closed(result) or result.label is EntailmentLabel.CONTRADICTION:
+                return result
+        return self._check_entailment_rules(claim, source)
 
     def _check_entailment_rules(
         self,
@@ -326,15 +336,25 @@ class VerifierAgent:
                 confidence=0.0,
                 explanation="NLI model not installed; claim left unverified",
             )
-        scores = encoder.predict([(source.source_text, claim)], apply_softmax=True)[0]
-        best = max(range(len(scores)), key=lambda i: scores[i])
-        label = EntailmentLabel(str(encoder.config.id2label[best]).lower())
-        return EntailmentResult(
-            source_id=source.source_id,
-            label=label,
-            confidence=float(scores[best]),
-            explanation=f"NLI cross-encoder: {label.value}",
-        )
+        try:
+            scores = encoder.predict([(source.source_text, claim)], apply_softmax=True)[0]
+            best = max(range(len(scores)), key=lambda i: scores[i])
+            label = EntailmentLabel(str(encoder.config.id2label[best]).lower())
+            return EntailmentResult(
+                source_id=source.source_id,
+                label=label,
+                confidence=float(scores[best]),
+                explanation=f"NLI cross-encoder: {label.value}",
+            )
+        except Exception as exc:
+            # Class name only: a library error can quote the claim or source text.
+            logging.getLogger(__name__).warning("NLI check failed (%s); claim left unverified", type(exc).__name__)
+            return EntailmentResult(
+                source_id=source.source_id,
+                label=EntailmentLabel.NEUTRAL,
+                confidence=0.0,
+                explanation="NLI check failed; claim left unverified",
+            )
 
     def _extract_values(self, text: str) -> list[str]:
         """Extract numeric values with units from text."""

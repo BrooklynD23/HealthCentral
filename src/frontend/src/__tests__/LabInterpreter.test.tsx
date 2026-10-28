@@ -1,9 +1,10 @@
 /**
  * LabInterpreter break-glass warning tests (HC-EXT-006)
+ * and grounded explanation rendering (HC-LAB-001)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LabInterpreter } from '@/pages/LabInterpreter';
@@ -42,18 +43,20 @@ vi.mock('framer-motion', async () => {
     function MotionStub(props: React.PropsWithChildren<Record<string, unknown>>) {
       return <Tag {...filter(props)}>{props.children}</Tag>;
     };
+  const motionStubs = {
+    div: make('div'),
+    button: make('button'),
+    tr: make('tr'),
+    p: make('p'),
+    span: make('span'),
+    li: make('li'),
+    ul: make('ul'),
+    section: make('section'),
+  };
   return {
     ...actual,
-    motion: {
-      div: make('div'),
-      button: make('button'),
-      tr: make('tr'),
-      p: make('p'),
-      span: make('span'),
-      li: make('li'),
-      ul: make('ul'),
-      section: make('section'),
-    },
+    motion: motionStubs,
+    m: motionStubs,
     AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   };
 });
@@ -144,5 +147,94 @@ describe('HC-EXT-006: break-glass warning on the lab interpreter page', () => {
 
     await settled();
     expect(screen.queryByText(/privacy protection override is on/i)).toBeNull();
+  });
+});
+
+describe('HC-LAB-001: grounded explanation panel renders bold runs, not raw markdown', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  async function generateGrounded(fullResponse: string) {
+    vi.mocked(api.apiGet).mockImplementation(async (url) => {
+      if (url === '/settings/model/external-api') {
+        return { use_external_api: false, api_key_configured: false };
+      }
+      if (url === '/observations/') return [observation];
+      // No stored interpretation yet -> the "Generate Interpretation" button shows.
+      if (String(url).includes('/interpretation')) {
+        throw new api.ApiError(404, 'Not Found', 'not found');
+      }
+      throw new Error(`unmocked ${url}`);
+    });
+    vi.mocked(api.apiPost).mockImplementation(async (url) => {
+      if (String(url).includes('/interpret-grounded')) {
+        return {
+          interpretation: {
+            id: 'interp-1',
+            observation_id: 'obs-1',
+            interpretation_text: 'Plain card text.',
+            severity_level: 'mild',
+            advice_text: null,
+            citations: [],
+            context: null,
+            model_id: 'template-v1',
+            model_tier: 'template',
+            confidence_score: 0.9,
+            requires_physician_review: false,
+            physician_review_reason: null,
+            viewed_at: null,
+            created_at: '2026-01-01T00:00:00Z',
+          },
+          grounded_segments: [],
+          full_response: fullResponse,
+          insufficient_context: false,
+          insufficient_reasons: [],
+          verification: {
+            enabled: true,
+            total_claims: 1,
+            verified_claims: 1,
+            failed_claims: 0,
+            faithfulness_score: 1,
+            authority_score: 1,
+            summary: '',
+            issues: [],
+          },
+          is_valid: true,
+          validation_errors: [],
+        };
+      }
+      throw new Error(`unmocked POST ${url}`);
+    });
+    const { container } = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText('Grounded explanation');
+    return container;
+  }
+
+  it('HC-LAB-001 shows **UNCERTAINTY** as a bold run with no literal asterisks', async () => {
+    const container = await generateGrounded('**UNCERTAINTY**\nMore context is needed.');
+
+    const bold = await screen.findByText('UNCERTAINTY');
+    expect(bold.tagName).toBe('STRONG');
+    expect(screen.getByText(/More context is needed\./)).toBeInTheDocument();
+    expect(container.textContent ?? '').not.toContain('**');
+  });
+
+  it('HC-LAB-001b renders HTML in the response as literal text, never as elements', async () => {
+    const container = await generateGrounded(
+      '**NOTE**\n<img src=x onerror=alert(1)> and <script>alert(2)</script>'
+    );
+
+    await screen.findByText('NOTE');
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.textContent ?? '').toContain('<img src=x onerror=alert(1)>');
+    expect(container.textContent ?? '').toContain('<script>alert(2)</script>');
   });
 });

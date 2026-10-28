@@ -15,6 +15,9 @@ CLASSIFICATION: dict[str, str] = {
     "api/assistant.py::create_session": "C",
     "api/assistant.py::delete_session": "A2",
     "api/assistant.py::update_memory_settings": "C",
+    "api/assistant.py::get_safety_mode": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::get_verification_status": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::update_safety_mode": "C",
     "api/assistant.py::chat": "C",
     "api/backup.py::list_backups": "excluded: read route, audit_and_commit only",
     "api/backup.py::create_backup": "excluded: writes backup files, master audit row only; no vault mutation",
@@ -79,18 +82,19 @@ CLASSIFICATION: dict[str, str] = {
     "api/memory.py::get_memory_item": "excluded: read route, audit_and_commit only",
     "api/memory.py::update_memory_item": "C",
     "api/memory.py::delete_memory_item": "A2",
+    # download-progress is an unaudited labelled exception: owner AUDIT-READ-SCOPE (a), owner-decisions 2026-10-21.
     "api/model_settings.py::get_model_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_external_api_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_timezone": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_voice_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::run_hardware_detection": "C",
     "api/model_settings.py::set_model_tier": "C",
-    "api/model_settings.py::list_tiers": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::start_model_download": "C",
     "api/model_settings.py::save_external_api_settings": "C",
     "api/model_settings.py::set_timezone": "C",
     "api/model_settings.py::update_voice_settings": "C",
     "api/model_settings.py::get_gamification_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::update_gamification_settings": "C",
-    "api/model_settings.py::get_environment_diagnostics": "excluded: read route, audit_and_commit only",
-    "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::update_ocr_settings": "C",
     "api/model_settings.py::update_agent_settings": "C",
     "api/notifications.py::get_notification_settings": "excluded: read route, audit_and_commit only",
@@ -154,6 +158,20 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "in-memory progress dict update; no session",
     "api/model_settings.py::start_model_download::background_tasks.add_task(_download_model_task)":
         "background download task; settings write is part of start_model_download (C)",
+    "api/model_settings.py::set_llm_provider::asyncio.to_thread(reset_provider)":
+        "unloads the in-memory LLM provider in a thread; no session",
+    "api/model_settings.py::get_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
+        "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
+        "hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run and re Match .start name collisions, "
+        "so the real probe path writes no profile data.",
+    "api/model_settings.py::recheck_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
+        "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
+        "hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run and re Match .start name collisions, "
+        "so the real probe path writes no profile data.",
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
@@ -220,6 +238,21 @@ def _rows_without_audit(classification, reach, g) -> list[str]:
 def test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call():
     """The class is a claim ("this handler audits"); this makes it checked."""
     assert _rows_without_audit(CLASSIFICATION, _REACH, _G) == []
+
+
+def test_hc_aud_ord_031_excluded_rows_reach_the_sink_they_name():
+    """An "excluded: ... <sink> only" label is a claim about the handler; check it.
+
+    Blind spot: the call graph is over-approximate and links calls by name
+    (tests/support/callgraph.py), so a label can be satisfied through a name
+    collision, e.g. `subprocess.run` -> an agent tool's `.run` ->
+    `emit_audit_event` -> `create_audit_log`. This test cannot catch that.
+    """
+    bad = sorted(
+        f"{k} ({v!r} names {s} but does not reach it)"
+        for k, v in CLASSIFICATION.items() if v.startswith("excluded: ")
+        for s in sorted(_AUDIT_SINKS) if s in v and not _G.reaches(_REACH[k], s))
+    assert not bad, f"excluded rows naming a sink they never reach: {bad}"
 
 
 def test_hc_aud_ord_030_dynamic_calls_are_named():
@@ -294,13 +327,20 @@ def test_hc_aud_ord_030_vault_commit_must_be_on_profile_db(tmp_path):
 
 
 def test_hc_aud_ord_030_break_it_c_handler_without_audit(tmp_path):
-    """A "C" row whose handler never reaches an audit call must be reported."""
+    """A "C" or "A2" row whose handler never reaches an audit call is reported.
+
+    Uses the overlay's own graph so the test stays right if Graph.reaches ever
+    depends on graph state (today _G and g give the same result).
+    """
     _, reach, _, _ = _overlay(tmp_path, (
         '@router.post("/bare")\nasync def h(profile_db=None):\n'
+        "    profile_db.add(1)\n    await profile_db.commit()\n"
+        '@router.post("/bare2")\nasync def h2(profile_db=None):\n'
         "    profile_db.add(1)\n    await profile_db.commit()\n"
         '@router.post("/audited")\nasync def ha(profile_db=None):\n'
         "    profile_db.add(1)\n    await profile_db.commit()\n"
         "    await create_audit_log(profile_db)\n"))
-    cls = {"api/zz.py::h": "C", "api/zz.py::ha": "C"}
-    assert _rows_without_audit(cls, reach, _G) == ["api/zz.py::h"]
-    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, _G) == []
+    g = Graph(tmp_path, ("api", "core", "modules"))
+    cls = {"api/zz.py::h": "C", "api/zz.py::h2": "A2", "api/zz.py::ha": "C"}
+    assert _rows_without_audit(cls, reach, g) == ["api/zz.py::h", "api/zz.py::h2"]
+    assert _rows_without_audit({"api/zz.py::ha": "C"}, reach, g) == []

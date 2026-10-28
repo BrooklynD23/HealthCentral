@@ -8,8 +8,9 @@ Design notes:
 - llama_cpp import is lazy/optional so unit tests run without the native lib.
 - Chat formatting defers to llama.cpp's built-in chat_format / chat_handler
   (auto-detected from GGUF metadata) so Gemma 4 templates work automatically.
-- generate() preserves the exact timeout / thread-pool behaviour of the old
-  ModelRunner so existing call-sites are unaffected.
+- generate() serialises use of the native model (LLAMA-SERIAL);
+  generate_async() keeps the old timeout result and never enters the model
+  after its own deadline.
 - Python 3.10-compatible: no 3.11+ syntax.
 """
 
@@ -17,6 +18,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import AsyncIterator, List, Optional
 
@@ -36,6 +39,20 @@ def _load_llama_class():
         from llama_cpp import Llama  # noqa: PLC0415
         _llama_class = Llama
     return _llama_class
+
+
+def _gpu_offload_supported() -> bool:
+    """True if the installed llama-cpp-python was built with GPU offload."""
+    try:
+        import llama_cpp  # noqa: PLC0415
+
+        return bool(llama_cpp.llama_supports_gpu_offload())
+    except (ImportError, AttributeError):
+        return False
+
+
+class _ModelLockTimeout(Exception):
+    """The model lock could not be taken inside the call's own time budget."""
 
 
 class LlamaCppProvider:
@@ -62,7 +79,18 @@ class LlamaCppProvider:
         self._n_gpu_layers = n_gpu_layers
         self._model = None
         self._initialized = False
+        self._closed = False  # set by unload(); a closed provider never reloads
         self._settings = settings
+        # LLAMA-SERIAL. The native model is not thread-safe, and a timed-out
+        # generation keeps running in its executor thread.
+        # _model_lock guards every use of self._model (generation and unload).
+        # _init_lock guards _ensure_initialized only, taken without waiting.
+        # is_available() and health_check() take only the init lock: they are
+        # sync, are called from async code, and must not wait behind a running
+        # generation or a first load.
+        # Lock order: model lock -> init lock, never the reverse.
+        self._model_lock = threading.Lock()
+        self._init_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -80,6 +108,8 @@ class LlamaCppProvider:
 
         patterns = [
             f"{self._settings.default_chat_model}*.gguf",
+            # CPU-DEFAULT-PHI4: CPU-only runs try Phi-4-mini before Gemma 4.
+            *(["*Phi-4-mini*.gguf"] if self._n_gpu_layers == 0 else []),
             "gemma4*.gguf",
             "gemma-4*.gguf",
             "phi-3*.gguf",
@@ -99,58 +129,74 @@ class LlamaCppProvider:
         return None
 
     def _ensure_initialized(self) -> bool:
-        """Lazy-load the model.  Returns True if model is ready."""
-        if self._initialized:
-            return self._model is not None
+        """Lazy-load the model.  Returns True if model is ready.
 
-        self._initialized = True
-        model_path = self._find_model_path()
-
-        if not model_path:
-            logger.warning(
-                "LlamaCppProvider: no GGUF model found in %s",
-                self._settings.models_path,
-            )
-            return False
-
-        # MODEL-INT-001: check the artifact against its pinned SHA256 before it
-        # is loaded. Advisory by design -- hard-failing would leave a
-        # local-first desktop user with a dead app and no path forward -- but
-        # a mismatch is logged loudly, because every guardrail threshold and
-        # golden eval in this repo was tuned against the pinned artifact.
+        Never waits: while another thread is loading the model, this returns
+        False at once (as before the init lock existed), so a sync caller on
+        the event loop never blocks behind a first load.
+        """
+        if not self._init_lock.acquire(blocking=False):
+            return self._initialized and self._model is not None
         try:
-            from modules.model_integrity import verify_and_log
+            if self._initialized:
+                return self._model is not None
+            if self._closed:
+                return False
 
-            verify_and_log(model_path, getattr(self._settings, "llm_model_tier", "low"))
-        except Exception:  # pragma: no cover - integrity check must never block loading
-            logger.debug("MODEL-INT-001: integrity check skipped", exc_info=True)
+            self._initialized = True
+            model_path = self._find_model_path()
 
-        try:
-            Llama = _load_llama_class()
-            logger.info("LlamaCppProvider: loading model from %s", model_path.name)
-            self._model = Llama(
-                model_path=str(model_path),
-                n_ctx=self._n_ctx,
-                n_threads=self._n_threads if self._n_threads > 0 else None,
-                n_gpu_layers=self._n_gpu_layers,
-                verbose=self._settings.debug,
-                # Let llama.cpp auto-detect chat template from GGUF metadata.
-                # Works for Gemma 4, Phi-3, Llama-3, Mistral, Qwen2.5, etc.
-                # chat_format="auto" is the default; explicit for clarity.
-                chat_format="auto",
-            )
-            logger.info("LlamaCppProvider: model loaded — %s", model_path.name)
-            return True
+            if not model_path:
+                logger.warning(
+                    "LlamaCppProvider: no GGUF model found in %s",
+                    Path(self._settings.models_path).name,
+                )
+                return False
 
-        except ImportError:
-            logger.error(
-                "llama-cpp-python not installed; "
-                "run: pip install llama-cpp-python"
-            )
-            return False
-        except Exception as exc:
-            logger.error("LlamaCppProvider: failed to load model: %s", exc)
-            return False
+            # MODEL-INT-001: check the artifact against its pinned SHA256 before it
+            # is loaded. Advisory by design -- hard-failing would leave a
+            # local-first desktop user with a dead app and no path forward -- but
+            # a mismatch is logged loudly, because every guardrail threshold and
+            # golden eval in this repo was tuned against the pinned artifact.
+            try:
+                from modules.model_integrity import verify_and_log
+
+                verify_and_log(model_path, getattr(self._settings, "llm_model_tier", "low"))
+            except Exception:  # pragma: no cover - integrity check must never block loading
+                logger.debug("MODEL-INT-001: integrity check skipped", exc_info=True)
+
+            try:
+                Llama = _load_llama_class()
+                if self._n_gpu_layers != 0 and not _gpu_offload_supported():
+                    logger.warning(
+                        "LlamaCppProvider: n_gpu_layers=%d requested but this llama-cpp-python "
+                        "build has no GPU offload; running on CPU",
+                        self._n_gpu_layers,
+                    )
+                logger.info("LlamaCppProvider: loading model from %s", model_path.name)
+                self._model = Llama(
+                    model_path=str(model_path),
+                    n_ctx=self._n_ctx,
+                    n_threads=self._n_threads if self._n_threads > 0 else None,
+                    n_gpu_layers=self._n_gpu_layers,
+                    verbose=self._settings.debug,
+                    # Let llama.cpp auto-detect chat template from GGUF metadata.
+                    # Works for Gemma 4, Phi-3, Llama-3, Mistral, Qwen2.5, etc.
+                )
+                logger.info("LlamaCppProvider: model loaded — %s", model_path.name)
+                return True
+
+            except ImportError:
+                logger.error(
+                    "llama-cpp-python not installed; "
+                    "run: pip install llama-cpp-python"
+                )
+                return False
+            except Exception as exc:
+                logger.error("LlamaCppProvider: failed to load model: %s", type(exc).__name__)
+                return False
+        finally:
+            self._init_lock.release()
 
     @staticmethod
     def _messages_to_prompt(messages: List[ChatMessage]) -> str:
@@ -179,8 +225,9 @@ class LlamaCppProvider:
 
     def capabilities(self) -> CapabilityFlags:
         model_name = self._settings.default_chat_model
-        if self._model_path:
-            model_name = Path(self._model_path).stem
+        path = self._model_path or self._find_model_path()
+        if path:
+            model_name = Path(path).stem
 
         # Gemma 4 GGUF: multimodal + function_calling available at the model
         # level; we surface the flags so the app layer can gate feature use.
@@ -212,8 +259,13 @@ class LlamaCppProvider:
             return {"healthy": False, "provider": "llama_cpp", "detail": str(exc)}
 
     def generate(self, messages: List[ChatMessage], config) -> object:
+        """Synchronous inference.  Serialised: one generation in the model at a time."""
+        with self._model_lock:
+            return self._generate_unlocked(messages, config)
+
+    def _generate_unlocked(self, messages: List[ChatMessage], config) -> object:
         """
-        Synchronous inference.  Returns InferenceResult.
+        Inference body; the caller holds ``self._model_lock``.  Returns InferenceResult.
 
         Uses llama.cpp's create_chat_completion() which auto-applies the
         correct chat template (Gemma 4, Phi-3, etc.) from GGUF metadata.
@@ -273,18 +325,42 @@ class LlamaCppProvider:
             model_name=str(model_name),
         )
 
+    def _generate_before_deadline(self, messages: List[ChatMessage], config, deadline) -> object:
+        """Executor-thread entry: take the model lock within the call's own budget.
+
+        A call that cannot get the lock before its deadline (e.g. an earlier,
+        timed-out generation is still running) never enters the model.
+        ``deadline`` is a time.monotonic() value, or None for no timeout.
+        """
+        if deadline is None:
+            self._model_lock.acquire()
+        else:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not self._model_lock.acquire(timeout=remaining):
+                raise _ModelLockTimeout()
+        try:
+            if deadline is not None and time.monotonic() >= deadline:
+                raise _ModelLockTimeout()
+            return self._generate_unlocked(messages, config)
+        finally:
+            self._model_lock.release()
+
     async def generate_async(self, messages: List[ChatMessage], config) -> object:
         """Async wrapper with timeout — mirrors ModelRunner.generate_async()."""
         from core.model_runner import InferenceResult  # avoid circular
 
         loop = asyncio.get_event_loop()
+        timeout = config.timeout_seconds
+        deadline = None if timeout is None else time.monotonic() + timeout
         try:
             result = await asyncio.wait_for(
-                loop.run_in_executor(None, lambda: self.generate(messages, config)),
-                timeout=config.timeout_seconds,
+                loop.run_in_executor(
+                    None, lambda: self._generate_before_deadline(messages, config, deadline)
+                ),
+                timeout=timeout,
             )
             return result
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, _ModelLockTimeout):
             logger.warning(
                 "LlamaCppProvider: generation timed out after %ds",
                 config.timeout_seconds,
@@ -310,8 +386,13 @@ class LlamaCppProvider:
         self._ensure_initialized()
 
     def unload(self) -> None:
-        if self._model is not None:
-            del self._model
-            self._model = None
-            self._initialized = False
-            logger.info("LlamaCppProvider: model unloaded")
+        # Wait for a running generation (model lock) and for an in-flight first
+        # load (init lock): the model must not be freed under either, nor land
+        # after unload returned. Lock order: model lock -> init lock.
+        with self._model_lock, self._init_lock:
+            self._closed = True
+            if self._model is not None:
+                del self._model
+                self._model = None
+                self._initialized = False
+                logger.info("LlamaCppProvider: model unloaded")

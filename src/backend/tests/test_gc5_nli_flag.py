@@ -7,6 +7,8 @@ Plan: docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from modules.rag import RAGModule, RetrievedChunk
@@ -459,3 +461,241 @@ def test_hc_gc5_004c_load_restores_library_logger_levels(tmp_path, monkeypatch):
     finally:
         for n, lg in loggers.items():
             lg.setLevel(before[n])
+
+
+def test_hc_gc5_004d_load_restores_a_notset_logger_to_notset(tmp_path, monkeypatch):
+    """A logger that starts at NOTSET must end at NOTSET, not at its effective level (mutant M7)."""
+    import sentence_transformers
+
+    import modules.model_integrity as mi
+    from core.config import settings
+    from modules.embeddings import EmbeddingModelUnavailableError, load_local_cross_encoder
+
+    model_dir = tmp_path / "corrupt"
+    model_dir.mkdir()
+    (model_dir / "config.json").write_text("{}", encoding="utf-8")
+    (model_dir / "model.safetensors").write_bytes(b"x")
+    monkeypatch.setattr(settings, "nli_model_path", str(model_dir))
+    monkeypatch.setattr(emb, "_nli_encoder", None)
+    monkeypatch.setattr(mi, "verify_model_file", lambda *a, **k: SimpleNamespace(status=mi.IntegrityStatus.VERIFIED))
+
+    def _stub(path, **kwargs):
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(sentence_transformers, "CrossEncoder", _stub)
+    st = logging.getLogger("sentence_transformers")
+    before = st.level
+    st.setLevel(logging.NOTSET)
+    try:
+        assert st.getEffectiveLevel() != logging.NOTSET, "guard: test would be vacuous"
+        with pytest.raises(EmbeddingModelUnavailableError):
+            load_local_cross_encoder()
+        assert st.level == logging.NOTSET
+    finally:
+        st.setLevel(before)
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-012..014 (GC5-PREDICT-FAILCLOSED): a failing NLI predict leaves the claim
+# unverified (fail closed, like an absent model) instead of escaping as a 500/503.
+# ---------------------------------------------------------------------------
+
+
+class _RaisingPredictEncoder:
+    def __init__(self, exc: Exception):
+        self._exc = exc
+        self.config = type("Cfg", (), {"id2label": {0: "contradiction", 1: "entailment", 2: "neutral"}})()
+
+    def predict(self, pairs, apply_softmax=False):
+        raise self._exc
+
+
+def _assert_unverified_fail_closed(result) -> None:
+    assert result.is_verified is False
+    nli = result.entailment_results[0]
+    assert nli.label is EntailmentLabel.NEUTRAL
+    assert nli.confidence == 0.0
+    assert nli.explanation.endswith("claim left unverified")
+
+
+def test_hc_gc5_012_predict_failure_leaves_claim_unverified_and_logs_class_only(monkeypatch, caplog):
+    encoder = _RaisingPredictEncoder(RuntimeError("boom " + _CLAIM))
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+
+    with caplog.at_level(logging.DEBUG):
+        result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+
+    _assert_unverified_fail_closed(result)
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    text = warnings[0].getMessage()
+    assert "RuntimeError" in text
+    assert "boom" not in text and "95 mg/dL" not in text  # a library error can quote patient text
+    assert warnings[0].exc_info is None
+
+
+class _ScoresEncoder(_RaisingPredictEncoder):
+    def __init__(self, scores, id2label):
+        self._scores = scores
+        self.config = type("Cfg", (), {"id2label": id2label})()
+
+    def predict(self, pairs, apply_softmax=False):
+        return [self._scores]
+
+
+@pytest.mark.parametrize(
+    "scores, id2label",
+    [
+        ([0.1, 0.1, 0.1, 0.7], {0: "contradiction", 1: "entailment", 2: "neutral"}),  # KeyError
+        ([0.1, 0.8, 0.1], {0: "contradiction", 1: "maybe", 2: "neutral"}),  # ValueError
+    ],
+    ids=["unmapped-index", "unknown-label"],
+)
+def test_hc_gc5_013_unusable_model_output_leaves_claim_unverified(monkeypatch, scores, id2label):
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: _ScoresEncoder(scores, id2label))
+    result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    _assert_unverified_fail_closed(result)
+
+
+def test_hc_gc5_014_chat_abstains_when_predict_fails(monkeypatch):
+    import api.assistant as assistant
+    from core.config import settings
+    from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE
+    from tests.legacy_eval import harness
+
+    answer = (
+        "REPORT FACTS:\nYour glucose was 95 mg/dL [cite:1].\n\n"
+        "GENERAL INFO:\nNormal fasting glucose is typically 70-100 mg/dL [cite:2]."
+    )
+    encoder = _RaisingPredictEncoder(RuntimeError("boom"))
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
+    monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+    saved_flag, saved_rag = settings.use_llm_entailment, assistant._rag_module
+    settings.use_llm_entailment = True
+    assistant._rag_module = None
+    try:
+        with harness.legacy_chat_client(harness.build_chunks("glucose"), answer) as (client, _append):
+            resp = client.post("/assistant/chat", json={"question": "Is my glucose in the usual range?"})
+    finally:
+        settings.use_llm_entailment = saved_flag
+        assistant._rag_module = saved_rag
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [(s["segment_type"], s["content"]) for s in body["segments"]] == [("uncertainty", ABSTAIN_TEMPLATE)]
+
+
+# ---------------------------------------------------------------------------
+# HC-GC5-006..011 (GC5-NLI-NEUTRAL, GC5-NEUTRAL-SCOPE (a)): with the flag on the rules
+# decide and the NLI may only veto (a contradiction or its own fail-closed result).
+# Neutral / entailment from the NLI never decides support.
+# ---------------------------------------------------------------------------
+
+_LABELS = ("contradiction", "entailment", "neutral")
+
+
+def _probs(label: str, conf: float) -> list[float]:
+    rest = (1.0 - conf) / 2
+    return [conf if name == label else rest for name in _LABELS]
+
+
+def _verify_on(monkeypatch, claim: str, label: str, conf: float):
+    fake = _FakeCrossEncoder(_probs(label, conf))
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: fake)
+    result = VerifierAgent(VerificationConfig(use_llm_entailment=True)).verify_claim(claim, "c1", [_SOURCE])
+    assert fake.pairs == [(_SOURCE.source_text, claim)]  # the NLI really ran
+    return result
+
+
+def test_hc_gc5_006_nli_neutral_does_not_unverify_a_rules_verified_claim(monkeypatch):
+    off = VerifierAgent(VerificationConfig(use_llm_entailment=False)).verify_claim(_CLAIM, "c1", [_SOURCE])
+    assert off.is_verified is True  # precondition: the rules verify it
+    assert _verify_on(monkeypatch, _CLAIM, "neutral", 0.858).is_verified is True
+
+
+def test_hc_gc5_007_nli_entailment_below_threshold_does_not_unverify(monkeypatch):
+    assert _verify_on(monkeypatch, _CLAIM, "entailment", 0.668).is_verified is True
+
+
+def test_hc_gc5_008_nli_entailment_never_rescues_a_rules_failed_claim(monkeypatch):
+    wrong = "Your glucose level is 182 mg/dL"
+    off = VerifierAgent(VerificationConfig(use_llm_entailment=False)).verify_claim(wrong, "c1", [_SOURCE])
+    assert off.is_verified is False  # precondition: the rules fail it
+    assert _verify_on(monkeypatch, wrong, "entailment", 0.95).is_verified is False
+
+
+def test_hc_gc5_009_nli_contradiction_still_vetoes(monkeypatch):
+    result = _verify_on(monkeypatch, _CLAIM, "contradiction", 0.55)
+    assert result.is_verified is False
+    assert result.contradicting_sources == ["1"]
+
+
+def test_hc_gc5_010_fail_closed_results_veto_but_a_real_low_confidence_neutral_does_not(monkeypatch):
+    from modules.embeddings import EmbeddingModelUnavailableError
+    from modules.verifier_agent import _nli_fail_closed
+
+    agent = VerifierAgent(VerificationConfig(use_llm_entailment=True))
+
+    def _unavailable():
+        raise EmbeddingModelUnavailableError("absent")
+
+    # (i) model absent, (ii) predict fails: the NLI's own fail-closed returns veto.
+    for loader in (_unavailable, lambda: _RaisingPredictEncoder(RuntimeError("boom"))):
+        monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", loader)
+        assert agent.verify_claim(_CLAIM, "c1", [_SOURCE]).is_verified is False
+        assert _nli_fail_closed(agent._check_entailment(_CLAIM, _SOURCE)) is True
+
+    # (iii) a real neutral at confidence 0.0001 is not fail-closed: the rules decide.
+    fake = _FakeCrossEncoder([0.0, 0.0, 0.0001])  # neutral is the argmax at confidence 0.0001
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: fake)
+    assert _nli_fail_closed(agent._check_entailment_llm(_CLAIM, _SOURCE)) is False
+    assert agent.verify_claim(_CLAIM, "c1", [_SOURCE]).is_verified is True
+
+
+# #249's measured (label, confidence) per claim (gc5-real-model-evidence.md, NLI call list).
+_REPLAY = {
+    "Your glucose was 182 mg/dL [cite:1].": ("contradiction", 0.998),
+    "Your glucose result was 95 mg/dL, within the reference range of 70-100 mg/dL [cite:1].": ("entailment", 0.668),
+    "Glucose is the primary source of energy for the body's cells [cite:2].": ("neutral", 0.997),
+    "Glucose: 95 mg/dL (reference range 70-100 mg/dL) [cite:1].": ("neutral", 0.996),
+    "Your glucose was 95 mg/dL [cite:1].": ("neutral", 0.858),
+    "Normal fasting glucose is typically 70-100 mg/dL [cite:2].": ("neutral", 0.963),
+}
+
+
+class _ReplayEncoder:
+    def __init__(self):
+        self.unknown: list[str] = []
+        self.calls: list[str] = []
+        self.config = type("Cfg", (), {"id2label": dict(enumerate(_LABELS))})()
+
+    def predict(self, pairs, apply_softmax=False):
+        out = []
+        for _premise, claim in pairs:
+            self.calls.append(claim)
+            if claim not in _REPLAY:
+                self.unknown.append(claim)
+                raise AssertionError(f"replay has no measured NLI result for claim: {claim!r}")
+            out.append(_probs(*_REPLAY[claim]))
+        return out
+
+
+def test_hc_gc5_011_legacy_gate_passes_with_flag_on_under_measured_nli_outputs(monkeypatch):
+    import api.assistant as assistant
+    from core.config import settings
+    from tests.legacy_eval import harness
+
+    encoder = _ReplayEncoder()
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
+    monkeypatch.setattr(settings, "use_llm_entailment", True)
+    monkeypatch.setattr(assistant, "_rag_module", None)
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
+    monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
+    report = harness.score_cases(harness.load_cases())
+    assert encoder.unknown == []
+    # The flag really reached the RAG module: exactly #249's 7 NLI calls (flag off makes 0).
+    assert len(encoder.calls) == 7
+    assert set(encoder.calls) == set(_REPLAY)
+    assert report.passed, report.render()
+    assert report.answer_rate == 1.0
+    assert report.served_invalid == report.uncited_served == report.leaked == 0

@@ -1,6 +1,6 @@
 # RSI1-DONATE: Opt-In Local Data Donation Pipeline (RSI-1 / RSI-2) — Implementation Plan
 
-**Last Updated:** 2026-10-17
+**Last Updated:** 2026-10-22 (Delta 2026-10-22: DON-NER-MEASURE, gate DON-NER-MODEL, PR-2 resume delta, DON-COPY-V3 build and order); 2026-10-17
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. No owner approval is recorded here. **Build is blocked on the open owner gates listed at the end.** No answer is inferred. Gates keep their state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md).
 **Base measured:** `origin/main` @ `3536cc6` (2026-10-17). Profile migration head `013_adaptive_windows_local`.
@@ -190,6 +190,122 @@ PR-3 expected collected delta: +1 on top of Task 5 (HC-DON-018b).
 The plan has no trainer design: the extraction-probe bullet says "If fine-tuning is out of scope, this script is not built here". DON-FT-SCOPE (b) puts the LoRA run and the probe in scope and "needs the model machine". Proposal (L0 may merge the two back):
 - **PR-3a** (runtime claude): Task 5 as revised above.
 - **PR-3b** (model machine): the local LoRA run on a PR-3a manifest and `src/backend/scripts/donation_extraction_probe.py`. It needs its own plan delta before it starts, because three design points are open: the trainer and its dependencies (a new training dependency is its own dependency row and licence check); where the probe loads the tuned model (CLAUDE.md §3 routes LLM calls through `ModelRunner`; compare GC5-OL-3); and what revoke does to an adapter trained on revoked records (DON-REVOKE (a) deletes records and synthetic children; its option (b), which also deleted adapters, was not chosen). Queue bullet **RSI1-DONATE-FT-PLAN** tracks that plan delta; it is not planned here.
+
+## Delta 2026-10-20, second (planner): #211 review notes for PR-2, and RRSI-OQ-25
+
+Planned on `origin/main` @ `699eb18`. PR-2 is draft #239 (head `5f2c7d3`); this delta edits none of its files and changes no PR-2 task. **PR-2 is parked** (owner DON-RECALL-R2, 2026-10-20: "Keep #239 as a draft with the measured table and the residual-risk list recorded; donation stays off. Revisit after the 2026-10-24 freeze with a stronger local detector … as its own planned row and owner gate. The 95% target stays."), so "PR-2 (in flight)" below means "in #239, parked".
+
+**Requirement carried for whichever row turns collection on** (moved here from RUNSTEP-CONTRACT after the #248 Codex review, MAJOR 4): a RunLog-isolation test with a positive control. Grant `fine_tune` consent on the current copy version, run one agent chat whose stub tool output carries a canary in a field `draft` never renders, rate that turn (a `ResponseFeedback` row), run `collect`; require the rated turn's redacted question and answer to be donated (count ≥ 1) and the canary to be absent from every donated row. A scratch mutant that copies `run_log` payloads into the donated record must fail it. An empty collection must fail it too. Each #211 adversarial-review note (the queue bullet "RSI1-DONATE-PR2 notes") was checked against `main` and #239's diff:
+
+| Note | State on `699eb18` / #239 | Where it goes |
+|---|---|---|
+| An `ended_reason` column (a closed consent row may be a patient revoke or a supersede by a new copy version) | No column; the model docstring now says so (`src/backend/models/data_donation.py:19-25`, "revoked_at also closes a row superseded by …"). #239 adds no migration. | No row. Revisit only if an audit or UI must tell the two apart; that needs a profile migration (contracts §c) |
+| Revoke deletes cross-purpose synthetic children, unpinned | **Fixed in PR-1:** HC-DON-006 seeds a synthetic child filed under another purpose; only the `parent_id` delete removes it (count 9, `src/backend/tests/test_donation_routes_http.py:258-294`) | Done |
+| Canary rows after revoke | Kept by design today and pinned (HC-DON-006b, `:319-332`); DON-REVOKE (`owner-decisions-2026-09-27.md:279`) covers "records and synthetic children" and is silent on canaries | PR-3 (leak eval and canaries), as the #211 final review said; no new gate unless PR-3 proposes sweeping them |
+| Move the logic to `modules/data_donation.py` | #239 adds `src/backend/modules/data_donation.py` (collect, consent check) | PR-2 (in flight) |
+| HC-DON-007 isolation via 403 + `denial.cross_profile` | Not applicable: the donation routes are session-scoped with no `{profile_id}` in the path, so there is nothing to deny; isolation is the vault plus the `profile_id` filter, which HC-DON-007b proves in one vault (`:370`) | No row (PR-1 body records the deviation) |
+| Stale-version consent shows as granted (final-review finding 1) | `ConsentState.current` exists on `main` (`src/backend/api/donation.py:46-47`, `:69-77`); #239's `collect` refuses a non-current row (DON-STALE) | PR-2 (in flight) |
+
+**RRSI-OQ-25** (`owner-decisions-2026-09-27.md:346`): "Accept as already decided, under strict redaction plus the Safe Harbor detector, and make sure the DON-COPY wording says agent answers are included." The approved copy (`2026-10-20-v2`, DON-COPY-R2 `:320`; `src/frontend/src/components/settings/DataDonationCard.tsx:20-45`) says "For chat answers I have rated or will rate" for all three purposes and never says that answers written by the step-by-step assistant (agent) are included. The row itself says "Any v3 consent copy needs its own DON-COPY yes." So a copy bump is needed, and it is gated:
+
+- **DON-COPY-V3** (open; asked with the exact v3 strings once drafted; donation is parked by DON-RECALL-R2, so not before the post-freeze donation row): "RRSI-OQ-25 asks the consent copy to say agent answers are included. Approve this v3 change? (a) add one sentence to the intro: 'This includes answers from the step-by-step assistant.', version `2026-10-2x-v3`; existing grants become not current and must re-agree (DON-STALE) (Recommended: one sentence, every purpose covered) (b) add 'including step-by-step assistant answers' inside each purpose description (c) no copy change; record that 'chat answers' already covers agent answers."
+- **Files** (after #239 merges; both files are PR-1/PR-2 files): `src/frontend/src/components/settings/DataDonationCard.tsx` (copy and version), the module that defines `CURRENT_CONSENT_TEXT_VERSION` at build time (on #239's head `19e7a32` it moves to `src/backend/modules/data_donation.py:27`, `collect` compares it at `:60` and `api/donation.py:27-32` imports it; on `main` today it is `src/backend/api/donation.py:34`; #248 Codex re-review MAJOR 3): bump it there and nowhere else, `src/backend/tests/test_data_donation.py` (two version tests), `src/frontend/src/__tests__/DataDonationCard.test.tsx`, `src/backend/tests/test_donation_routes_http.py` (version literal lines only). It rides on PR-3, or a small PR-2b if PR-3 is not near; either way after #239 merges and after DON-COPY-V3 is answered. Under (c), no files.
+- A copy bump marks every existing grant not current (`api/donation.py:77` on `main`), so a patient who agreed to v2 must re-agree before `collect` reads anything. The PR body must say so. Tests (`src/backend/tests/test_data_donation.py`, ids after #239's, e.g. HC-DON-023/024): a profile with an active **v2** `fine_tune` consent and a rated turn collects **0** rows after the bump; the same profile after re-granting on **v3** collects ≥ 1 (positive control); a mutant that compares against the old constant fails the first test.
+
+## Delta 2026-10-22 (planner): on-device detector (DON-NER-MEASURE), new gate DON-NER-MODEL, PR-2 resume delta, DON-COPY-V3 build
+
+Planned 2026-10-22 on `origin/main` @ `d2843e8` from owner rows RSI1-DONATE-PR2 and DON-COPY-V3 (`owner-decisions-2026-09-27.md:379`, `:380`; L0 comment 6349489069 on PR #288 records both verbatim). This section overrides the lines it names; everything above stands. No owner answer is inferred.
+
+- **RSI1-DONATE-PR2** (`:379`): **"Plan an on-device detector"**: "Planner writes a row to pick and measure a local NER model (offline, bundled like the embedding model); its model/dependency choice comes back to you as a gate; donation stays off until >=95%. Most work, new dependency, no recall guarantee."
+- **DON-COPY-V3** (`:380`): **"(a) One intro sentence (Recommended)"**: "Add 'This includes answers from the step-by-step assistant.' to the intro as v3; existing grants must be renewed. One string; source says 'one sentence, every purpose covered'."
+- **Unchanged:** DON-RECALL (a) (`:284`, 100% canaries, ≥95% per Safe Harbor category, a flagged record is dropped, not re-redacted); DON-RECALL-R2 (`:355`, "The 95% target stays"); non-negotiable 1 (`modules/redaction.py` is **called only**, never edited); non-negotiable 7 (no target is lowered). Donation stays off: #239 stays a `[blocked:claude]` draft until the "PR-2 resume" bar below is met.
+
+### Facts (`d2843e8`, #239 head `19e7a32`)
+
+1. At park (#239 L0 comment 6307117650): name 10/14 (71%), geographic 6/8 (75%), age_over_89 8/10 (80%); "over-drop 6/10 Title Case answers". The widened name rule includes a bare Title Case pair alternative (`\b{_NAME}\s+{_NAME}\b`, `src/backend/modules/phi_second_pass.py` on `19e7a32`), which is what drops "Key Findings", "Mayo Clinic", "Healthcare Provider"; `1/2` and `3/4` read as dates (#239 review, comments on the PR).
+2. `corpus_v1.json` on `19e7a32` has 12 categories, 99 items (name 14, geographic 8, date 14, phone 5, email 5, ssn 10, mrn 8, account_number 10, url 5, ip_address 5, age_over_89 10, device_vehicle_id 5) plus 20 `non_phi` lab sentences. It was written by the implementer after the detector; the #239 reviews flagged it three times as written to fit (recurring-failures mode 1).
+3. **No new pip dependency is needed for a Hugging Face token-classification model:** `src/backend/requirements.txt:73` already has `sentence-transformers>=2.2.0`, which pulls `transformers` and `torch`; the box's 3.11 venv has `transformers 5.20.1`, `torch 2.14.1+cpu`, `tokenizers 0.23.3` (`ls ~/venvs/asclexis-311/lib/python3.11/site-packages`, 2026-10-22).
+4. **Bundle precedent:** the NLI cross-encoder is fetched once by `scripts/download_models.py nli` (`cmd_nli`, `src/backend/scripts/download_models.py:407`): pinned repo + revision + weights sha256, exclusive `.partial` directory, sha check, never deletes a directory it did not create; loaded with `local_files_only=True` and an integrity check (`src/backend/modules/embeddings.py:52-105`). The detector bundle follows this pattern exactly.
+5. **Good-answer text already in the repo, written by independent agents** (false-drop set): `src/backend/tests/fixtures/prohibited_patterns/held_out_dev.json` (175 `must_allow`), `held_out_final.json` (185), `held_out_final2.json` (171), `in_sample.json` (15); and the served-answer `model_output` of `src/backend/tests/legacy_eval/golden/answer-*.json`.
+
+### Candidates (licence read from each model card's metadata via the Hugging Face API on 2026-10-22; the row re-reads the card text and records the revision)
+
+| Candidate | Licence (card) | Weights | Labels relevant to the misses | New pip dependency | Notes |
+|---|---|---|---|---|---|
+| `obi/deid_roberta_i2b2` @ `78f2152eb93d` | MIT | `model.safetensors` 1.42 GB | `PATIENT`, `STAFF`, `LOC`, `AGE`, `DATE`, `ID`, `PHONE`, `EMAIL`, `HOSP`, `PATORG`, `OTHERPHI` (BILOU) | none (`transformers`) | trained on i2b2 2014 clinical notes (surrogate PHI, n2c2 data-use agreement): the row records what the card says about training data |
+| `StanfordAIMI/stanford-deidentifier-base` @ `661b9c1c717d` | MIT | `pytorch_model.bin` only, 438 MB | `PATIENT`, `HCW`, `HOSPITAL`, `DATE`, `ID`, `PHONE`, `VENDOR`; **no** `AGE` or location label | none | pickle-only weights: load only with `weights_only` / converted to safetensors at fetch, or exclude; cannot help geographic or age |
+| `dslim/bert-base-NER` @ `d1a3e8f13f8c` | MIT | `model.safetensors` 433 MB | `PER`, `LOC` (CoNLL-03, news text) | none | general NER; no age or date |
+| `urchade/gliner_multi_pii-v1` @ `1fcf13e85f4e` | Apache-2.0 | `pytorch_model.bin` 1.16 GB | zero-shot PII labels by name (person, address, age, …) | **`gliner`** (Apache-2.0, PyPI 0.2.29, `>=3.10`) | new dependency + pickle weights |
+| Presidio analyzer + spaCy `en_core_web_lg` | MIT (both) | spaCy model wheel | `PERSON`, `LOCATION`, `DATE_TIME`; no age entity by default | **`presidio-analyzer`** (MIT, `>=3.10,<3.15`), **`spacy`** (MIT) | two new dependencies; rules + NER hybrid |
+| ~~`iiiorg/piiranha-v1-detect-personal-information`~~ | CC-BY-NC-ND-4.0 | — | — | — | **excluded**: non-commercial, no derivatives |
+| ~~`nvidia/gliner-PII`~~ | "other" | — | — | — | **excluded** unless its licence text is read and recorded |
+
+### DON-NER-MEASURE (new queue row): measure, no product code
+
+Runs on the GPU box in a scratch worktree from #239's head (`19e7a32`; the second pass, `measure_phi_recall.py` and the corpus live there, not on `main`). Network is used **only** by the measurer to fetch candidate weights into a scratch directory outside the repo; nothing under `src/` changes and no product path fetches anything.
+
+1. **Freeze the corpora before the first candidate runs** (recurring-failures mode 1): record `sha256sum` of every corpus file in the evidence file before any number is taken; no corpus file changes after that.
+   - **R1** = `corpus_v1.json` as on `19e7a32`.
+   - **R2** = new `corpus_v2.json` ("realistic shapes"), written by a **separate agent session that has not read `phi_second_pass.py`, any candidate's label set or R1's results** (the `held_out_*.json` author pattern): at least 20 items each for name, geographic and age_over_89, at least 5 for every other category; shapes that today's rules miss by design (#239 L0 residual-risk list: lowercase and ALL-CAPS names, bare first names with no cue, a name inside a patient's question, a bare 5-digit ZIP, a bare city or county, "she is 95", "ninety-three years old", "age 101"); every identifier invented; one `canary: true` item per category.
+   - **R2 split, fixed before any result:** R2's items are split into **R2-select** and **R2-gate** (every other item per category in file order, so each half keeps every shape; both sha256 recorded). The configuration is chosen on R1 ∪ R2-select only; R2-gate is reported but not used to choose, and is the half that later gates #239 (so the bar is not met on the same items that picked the winner).
+   - **G** (false-drop set) = all `must_allow` texts of the four `prohibited_patterns` files (546) plus the served answers in `legacy_eval/golden/answer-*.json` plus the 10 Title Case answers from #239's review (copied verbatim from the PR comment into the scratch set). Any G item a candidate flags is read by the measurer: if it really holds an identifier, it is listed as a G defect and left out of the rate (never silently).
+   - **R3** (optional, only if the owner picks the sealed option in DON-NER-MODEL): the owner's sealed corpus, never seen by an agent (below).
+2. **Configurations per candidate:** C0 = #239's second pass as is (must reproduce the park numbers on R1, or the measurement is wrong and stops); C1 = C0 ∪ candidate; C2 = C0 without the bare Title Case pair alternative ∪ candidate (tests whether the model can replace the rule that over-drops). Order as `collect()` runs it: strict redaction (called, `RedactionEngine(policy_level="strict").redact`), then the detectors on the strict output; a record is caught if strict removed the planted string or any detector flags it.
+   - Model hit → Safe Harbor category: `PATIENT`/`STAFF`/`PER`/`person` → name; `LOC`/`location`/`address` → geographic; `AGE` with a number ≥ 90 or a spelled number ≥ ninety → age_over_89 (any `AGE` span counts as a hit in a second column, so the cost of dropping every age is visible); `DATE`/`ID`/`PHONE`/`EMAIL` → their categories; a confidence threshold of 0.5 for every candidate (fixed before the run, never tuned per corpus).
+3. **Measure and paste** into `docs/reviews/<run date>/don-ner-measure.md` (new evidence file): per candidate × configuration × corpus, the per-category table (`n`, strict, detector, union, union %), canaries caught, DON-RECALL MET / NOT MET; false-drop count and rate on G; CPU latency p50/p95 per record over G (and GPU if used); peak RSS; on-disk size; cold load time with `HF_HUB_OFFLINE=1` and `local_files_only=True` and the network blocked (`unshare -n` or a socket-blocking shim, as `test_embedding_no_network.py` does); whether `trust_remote_code` or pickle loading is needed; Python 3.11 + `transformers 5.20.1` import and load clean; licence of weights and training data as the card states it. Commands and outputs are pasted, not paraphrased. Scratch scripts are pasted in the evidence file, not committed.
+4. **Never tune to fit:** no threshold, label map, corpus item or C0 rule is changed after the first number is taken; a candidate that misses stays a miss in the table.
+5. **Output:** the evidence file plus a short "Answer for DON-NER-MODEL" block: the best configuration (highest minimum per-category union recall on R1 ∪ R2-select, then lowest false-drop rate), its numbers on R2-gate, whether it meets DON-RECALL, and its cost (size, latency, new dependency).
+
+**Files:** `docs/reviews/<run date>/don-ner-measure.md` (new), `docs/INDEX.md`, `docs/_link_graph.json`. No product file; `corpus_v2.json` is committed later on #239 (PR-2 resume), not here. **Est:** 3 h. **Runtime:** claude on the GPU box (L0 or a build-item agent with network for the fetch only). **Never beside** another model-host measurement (KV-PREFIX-MEASURE); it does not run pytest.
+**Acceptance:** the evidence file holds the corpus sha256 lines taken before the first result; C0 on R1 reproduces name 10/14, geographic 6/8, age_over_89 8/10 (or the row stops and reports why); one table per candidate × configuration; the false-drop rate on G; `git diff --name-only origin/main...HEAD` lists only the three files; `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph && python3 scripts/docs_lint.py` clean.
+
+### New owner gate DON-NER-MODEL (asked after DON-NER-MEASURE, with its table)
+
+Execution gate for the PR-2 resume. Draft wording, plain language (the bracketed numbers are filled from the evidence file; no option is recommended until the numbers exist, then the planner's recommendation goes on the option the evidence supports):
+
+> "Donation is still off. We measured local (on-device) name-and-place detectors on the old test set, a new set written by a separate agent, and 546 ordinary answers that must not be dropped. The best one, [model], catches [x%] names, [y%] places and [z%] ages over 89 (target 95% each) and wrongly drops [n] of 546 good answers. It adds a [size] download that is checked once and never fetched at runtime[, plus a new package: name]. Which way?"
+
+| Option (≤ 5 words) | Description |
+|---|---|
+| **Adopt [model], agent sets** | Bundle the model like the embedding model; PR-2 resumes and must reach 95% on the agent-written sets. Donation turns on only after that and DON-COPY-V3. |
+| **Adopt [model] + sealed set** | As above, plus you write a small sealed test set yourself (as S5 is for the judge); it must also reach 95%, and agents see only the counts. |
+| **Adopt a different candidate** | You pick another row of the table (for example a smaller model with lower recall). |
+| **Keep donation off** | No model is added; #239 stays a draft; DON-COPY-V3 waits with it. |
+
+**Tradeoffs:** agent sets only is faster, but every set so far was written by agents who knew the goal, so 95% may still be optimistic. The sealed set makes 95% mean something, at the cost of your time (roughly 60-100 invented examples). A bigger model catches more but adds download size and seconds per record; a new package adds supply-chain risk. Keeping it off costs nothing and risks nothing, and the feature stays stalled.
+**Analogy:** trying shredders on test pages: the store's test pages, plus a few pages you prepared yourself and kept in a drawer, so the shredder could not have been tuned to them.
+
+**Sealed-set mechanics (only under the sealed option):** the owner writes `~/asclexis-sealed/phi_r3.json` outside every worktree in R1's JSON shape, never pastes a line into a chat, and runs `python scripts/measure_phi_recall.py ~/asclexis-sealed/phi_r3.json` from #239's worktree; the script prints counts only (`format_table`, no text). The owner reports `sha256sum`, the table and the exit code. The PR-2 body records those three things and nothing else.
+
+### PR-2 resume delta (after DON-NER-MODEL picks a model; edits #239, not `main`)
+
+Adds to the RSI1-DONATE row's PR-2 file list: `src/backend/modules/phi_second_pass.py` (a model pass beside the rules: detect-only, category only, never the value; a hit drops the record, as today), `src/backend/scripts/download_models.py` (a `phi-ner` subcommand that copies the `cmd_nli` pattern: pinned repo, revision, weights sha256), `src/backend/core/config.py` (one field, `phi_ner_model_path`), `config/.env.example` (one line), `src/backend/tests/fixtures/phi_recall/corpus_v2.json` (the frozen R2, byte-identical to the measured file), `src/backend/tests/test_phi_second_pass.py`; under the C2 configuration, also the removal of the bare Title Case pair alternative in `phi_second_pass.py`. A new pip package (GLiNER or Presidio options) adds `src/backend/requirements.txt` (exact `==` pin) and a licence line in the PR body. `modules/redaction.py` is still called only.
+
+- **Fail closed:** if the model bundle is missing or fails its sha check, `collect()` donates nothing and returns a fixed reason; it never falls back to rules only.
+- **Tests (ids after #239's):** HC-DON-025 missing bundle → `collect` stores 0 rows (positive control: the same profile with a fake loaded model stores ≥ 1); HC-DON-026 a fake model hit (`PATIENT` span) drops the record and `detect` returns the category only (no text in the `Hit`); HC-DON-027 loading uses `local_files_only=True` and makes no socket call (socket-blocking fixture); HC-DON-013 (corpus gate) now runs on R1 ∪ R2 and keeps the 95% / 100% bar unchanged; it must also be met on R2-gate alone.
+- **Bar to leave draft:** HC-DON-013 MET on R1 ∪ R2 with the real bundle (pasted), the false-drop rate on G pasted, R3 counts pasted under the sealed option, the RunLog-isolation test above (Delta 2026-10-20, second) green, and DON-COPY-V3 merged. Otherwise #239 stays a draft and the table goes to the owner (non-negotiable 7).
+
+### DON-COPY-V3 build (new queue row), and why it is ordered with the detector
+
+**Order (planner ruling):** DON-COPY-V3 is built **after DON-NER-MODEL is answered with an "Adopt" option** and must **merge before #239 leaves draft**; it is not built now. Reasons: (1) collection must never start under v2 consent, which does not disclose agent answers (RRSI-OQ-25, `owner-decisions-2026-09-27.md:346`), so v3 is a hard precondition of PR-2; (2) a copy bump forces every patient who agreed to re-agree (`api/donation.py:77`), and while nothing is collected a re-consent buys the patient nothing; if the owner answers "Keep donation off", no one is asked to re-agree for nothing; (3) building it as its own small PR on `main` (not inside #239) keeps one item per PR and leaves #239 to pick up the new constant when it merges `origin/main`. Under "Keep donation off", the row is parked with #239.
+
+**Exact v3 copy** (`src/frontend/src/components/settings/DataDonationCard.tsx`): `CONSENT_TEXT_VERSION = '<build date YYYY-MM-DD>-v3'` (the date the PR is built, for example `2026-10-23-v3`; matches `^[A-Za-z0-9_.\-]+$`, `api/donation.py:59`). `CONSENT_INTRO` gains one paragraph, verbatim from the owner's option text, placed **last in the intro, directly above the three purpose switches** whose descriptions begin "For chat answers…" (placement is the planner's call; the owner fixed the words, not the position):
+
+```
+'Nothing here is medical advice. Donated copies only help improve this app.',
+'This includes answers from the step-by-step assistant.',
+```
+
+Nothing else in the intro or in `PURPOSE_COPY` changes.
+
+**Files:** `src/frontend/src/components/settings/DataDonationCard.tsx` (`CONSENT_TEXT_VERSION` and the one new `CONSENT_INTRO` line only); `src/backend/api/donation.py` (`CURRENT_CONSENT_TEXT_VERSION` `:34` only; if #239 has merged first, the constant lives at `src/backend/modules/data_donation.py:27` and that line is edited instead, nowhere else); `src/frontend/src/__tests__/DataDonationCard.test.tsx` (HC-DON-FE-010 pin updated to the v3 text and version; new HC-DON-FE-011); `src/backend/tests/test_donation_routes_http.py` (new HC-DON-023, 024 only; `VERSION = CURRENT_CONSENT_TEXT_VERSION` at `:35` already follows the constant); slots.
+**Tests (test-first):**
+- HC-DON-FE-010 (rev): the v3 copy and version are pinned exactly; RED on `main` (the pin reads v2).
+- HC-DON-FE-011: `CONSENT_INTRO` contains `This includes answers from the step-by-step assistant.` exactly once and the card renders it.
+- HC-DON-023 (`route_client`): a profile with an active `fine_tune` row on `2026-10-20-v2` → `GET /donation/consents` reports `granted: true, current: false` after the bump; the PUT with the v2 version is refused (`:163`), the PUT with v3 makes it `current: true` (positive control).
+- HC-DON-024: the frontend and backend constants are equal (read `DataDonationCard.tsx` text with a regex, compare to `CURRENT_CONSENT_TEXT_VERSION`); a scratch mutant that bumps only one side fails it (pasted).
+- When #239 merges `origin/main` afterwards, its own `collect` test of a v2 grant must collect 0 rows (Delta 2026-10-20, second, already specifies it).
+**PR body:** says in one line that every existing grant becomes not current and patients must agree again before anything is collected; screenshot of the rendered card (Windows, or recorded as skipped). **Owner gates:** DON-COPY-V3 answered (a) (`:380`): the words are approved; no further copy gate unless a word changes. **Est:** 1 h. **Runtime:** claude.
 
 ## Tasks (test-first)
 

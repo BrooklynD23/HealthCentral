@@ -27,16 +27,16 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **2091 backend tests collected.** Since W-8 the embedding model is
+- Baseline: **2545 backend tests collected.** Since W-8 the embedding model is
   a fetched, gitignored bundle. Without it, exactly 5 tests fail:
   `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
   in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
   `test_api_rag_index_002c` and `test_search_vectors_async_calculates_similarity`.
   Those failures are environmental — they are not yours; fix them by fetching
-  the model (`python scripts/download_models.py embedding`), and you must not
+  the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  2091, the line may lag merges: PRs never edit it; the orchestrator updates
+  2545, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
@@ -51,7 +51,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   cannot see a broken `Depends(...)`. Use `tests/support/routes.py::route_client`
   for anything asserting auth, path scoping, or status codes.
 - **Read [docs/agentic/recurring-failures.md](docs/agentic/recurring-failures.md)
-  before claiming done.** Twelve failure modes this repo has actually produced,
+  before claiming done.** Fourteen failure modes this repo has actually produced,
   each with the evidence that exposed it and a specific recheck. Catch a new
   instance of one — or a mode that is not listed — and add it in the same commit.
 - Done is defined once, in [AGENT.md](AGENT.md#definition-of-done). It requires seeing the output, not believing it.
@@ -65,6 +65,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **Audit logging** on every route that touches documents, observations, or profile data.
 - **No medical advice.** Outputs are educational, grounded, and cited. On the legacy RAG path `[cite:N]` is the validated citation marker (`modules/rag.py`, `RAGModule.validate_response`); `[YOUR_RESULTS:N]` / `[REFERENCE:N]` are context labels, not citation markers (owner decision D11, 2026-09-27). `interpret_safety` prohibited patterns (diagnosis, dosing) must keep passing.
 - **Dual migrations.** Master DB and per-profile DB have separate Alembic chains (`migrations/master/`, `migrations/profile/`). New profile tables = new profile migration, linear `down_revision`.
+- **Model routing (owner, 2026-10-24): never use Sonnet 5.5. Haiku 5.5 at effort `xhigh` replaces it for every Sonnet role (implementation, batch and docs fixes); Opus and Haiku roles are unchanged.** Owner-decisions row: MODEL-ROUTING-HAIKU (`docs/capstone-report/owner-decisions-2026-09-27.md`).
 
 ## OpenWiki usage
 

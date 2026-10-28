@@ -265,6 +265,7 @@ async def test_get_external_api_masks_key():
     response = await get_external_api_settings(
         session=_session(profile_id),
         profile_db=_FakeProfileDb(existing_settings=mock_settings),
+        master_db=MagicMock(commit=AsyncMock()),
     )
 
     assert response.api_key_configured is True
@@ -630,3 +631,35 @@ async def test_hc_audcms_005_external_api_save_without_key_keeps_key_and_audits_
     assert "sk-canary-123" not in resp2.text
     assert stored_key not in resp2.text
     assert "sk-canary-123" not in repr(calls[1])
+    assert stored_key not in repr(calls[1])
+
+
+# --- AGENT-ENABLED-TOGGLE: PATCH /settings/model/agent through HTTP (HC-AET-001) ---
+
+@pytest.mark.asyncio
+async def test_hc_aet_001_agent_toggle_persists_and_audits(aud_vault, monkeypatch):
+    stub, calls = _aud_setup(monkeypatch, aud_vault, [])
+
+    async def _active_tier(profile_id, db):
+        return "template"
+
+    stub.get_active_tier = _active_tier
+    master = MagicMock()
+    master.commit = AsyncMock()
+
+    with _aud_client(master) as client:
+        async def _pdb():
+            return aud_vault
+        client.app.dependency_overrides[get_profile_db_session] = _pdb
+        before = client.get("/settings/model")
+        resp = client.patch("/settings/model/agent", json={"agent_enabled": False})
+        after = client.get("/settings/model")
+
+    assert before.status_code == 200, before.text
+    assert before.json()["agent_enabled"] is True
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"agent_enabled": False}
+    assert after.status_code == 200, after.text
+    assert after.json()["agent_enabled"] is False
+    agent_rows = [c for c in calls if c["event_type"] == "settings.agent.update"]
+    assert len(agent_rows) == 1

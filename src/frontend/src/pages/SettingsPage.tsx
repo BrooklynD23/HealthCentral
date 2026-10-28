@@ -26,12 +26,13 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, StaggerGroup, StaggerItem, modalVariants, backdropVariants } from '@/components/ui';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { MemoryManager } from '@/components/MemoryManager';
 import { BackupCard } from '@/components/settings/BackupCard';
 import { RecoveryCodeCard } from '@/components/settings/RecoveryCodeCard';
 import { DangerZone } from '@/components/settings/DangerZone';
 import { DataDonationCard } from '@/components/settings/DataDonationCard';
+import { AgentSettingsCard } from '@/components/settings/AgentSettingsCard';
 import { TierCapabilities } from '@/components/settings/TierCapabilities';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import { cn } from '@/utils/cn';
@@ -232,6 +233,7 @@ export function SettingsPage() {
                 Used for streak and badge calculations.
               </p>
               <select
+                aria-label="Time zone"
                 value={timezoneData?.timezone ?? 'UTC'}
                 onChange={(e) => saveTimezone.mutate(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-surface-muted text-sm text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
@@ -607,7 +609,7 @@ export function SettingsPage() {
                           Download
                         </Button>
                       ) : (
-                        <Badge variant="default" className="opacity-50">Incompatible</Badge>
+                        <Badge variant="default">Incompatible</Badge>
                       )}
                       {!isSelected && (tier.downloaded || tier.can_run) && (
                         <Button
@@ -641,7 +643,7 @@ export function SettingsPage() {
                   const isIndeterminate = pct === 0;
                   const label = progress.status === 'pending' ? 'Preparing…' : `${pct}%`;
                   return (
-                    <motion.div
+                    <m.div
                       key={progressTier}
                       initial={{ opacity: 0, height: 0, marginTop: 0 }}
                       animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
@@ -659,7 +661,7 @@ export function SettingsPage() {
                         {isIndeterminate ? (
                           <div className="h-2 w-1/3 bg-accent rounded-full animate-shimmer" />
                         ) : (
-                          <motion.div
+                          <m.div
                             className="bg-accent rounded-full h-2"
                             initial={{ width: 0 }}
                             animate={{ width: `${pct}%` }}
@@ -672,7 +674,7 @@ export function SettingsPage() {
                           {(progress.downloaded_bytes / 1_073_741_824).toFixed(2)} GB / {(progress.total_bytes / 1_073_741_824).toFixed(2)} GB
                         </p>
                       )}
-                    </motion.div>
+                    </m.div>
                   );
                 })}
               </AnimatePresence>
@@ -767,15 +769,16 @@ export function SettingsPage() {
 
               <AnimatePresence>
                 {externalEnabled && (
-                  <motion.div
+                  <m.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-3 pt-2 overflow-hidden"
                   >
                     <div>
-                      <label className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Provider</label>
+                      <label htmlFor="external-provider-select" className="text-[10px] font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Provider</label>
                       <select
+                        id="external-provider-select"
                         value={externalProvider}
                         onChange={(e) => setExternalProvider(e.target.value)}
                         className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
@@ -805,7 +808,7 @@ export function SettingsPage() {
                         className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
                       />
                     </div>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
             </CardContent>
@@ -891,13 +894,13 @@ export function SettingsPage() {
       <AnimatePresence>
         {showExportDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
+            <m.div
               initial="initial" animate="animate" exit="exit"
               variants={backdropVariants}
               className="absolute inset-0 bg-black/40 backdrop-blur-xs"
               onClick={() => setShowExportDialog(false)}
             />
-            <motion.div
+            <m.div
               initial="initial" animate="animate" exit="exit"
               variants={modalVariants}
               className="relative bg-surface rounded-2xl shadow-2xl p-6 max-w-md w-full z-10 space-y-4"
@@ -936,7 +939,7 @@ export function SettingsPage() {
                   {exportDataset.isPending ? 'Exporting…' : 'Confirm Export'}
                 </Button>
               </div>
-            </motion.div>
+            </m.div>
           </div>
         )}
       </AnimatePresence>
@@ -956,6 +959,9 @@ export function SettingsPage() {
       {/* Opt-in data donation consent (RSI1-DONATE) */}
       <DataDonationCard />
 
+      {/* Step-by-step assistant switch (AGENT-ENABLED-TOGGLE) */}
+      <AgentSettingsCard />
+
       {/* Irreversible profile deletion (PROF-DEL-001) */}
       <DangerZone />
 
@@ -963,7 +969,7 @@ export function SettingsPage() {
       <AnimatePresence>
         {focusedDiag && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
+            <m.div
               initial="initial"
               animate="animate"
               exit="exit"
@@ -972,7 +978,7 @@ export function SettingsPage() {
               onClick={() => setDiagToolId(null)}
               aria-hidden
             />
-            <motion.div
+            <m.div
               initial="initial"
               animate="animate"
               exit="exit"
@@ -1051,7 +1057,7 @@ export function SettingsPage() {
               <Button type="button" variant="ghost" className="mt-6 w-full" onClick={() => setDiagToolId(null)}>
                 Close
               </Button>
-            </motion.div>
+            </m.div>
           </div>
         )}
       </AnimatePresence>
@@ -1060,7 +1066,7 @@ export function SettingsPage() {
       <AnimatePresence>
         {showConsentDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
+            <m.div
               initial="initial"
               animate="animate"
               exit="exit"
@@ -1069,7 +1075,7 @@ export function SettingsPage() {
               onClick={() => setShowConsentDialog(false)}
               aria-hidden
             />
-            <motion.div
+            <m.div
               initial="initial"
               animate="animate"
               exit="exit"
@@ -1137,7 +1143,7 @@ export function SettingsPage() {
                   </div>
                 </div>
               </Card>
-            </motion.div>
+            </m.div>
           </div>
         )}
       </AnimatePresence>

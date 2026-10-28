@@ -805,7 +805,7 @@ def test_hc_task_025_migration_011_upgrade_downgrade_upgrade(tmp_path, monkeypat
     migrations.run_profile_migration(vault_path, encryption_key)
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "015_data_donation"
+        == "016_strict_safety_mode"
     )
 
     config = migrations._get_alembic_config("profile")
@@ -821,5 +821,5 @@ def test_hc_task_025_migration_011_upgrade_downgrade_upgrade(tmp_path, monkeypat
     command.upgrade(config, "head")
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "015_data_donation"
+        == "016_strict_safety_mode"
     )

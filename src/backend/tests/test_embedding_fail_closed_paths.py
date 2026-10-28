@@ -623,6 +623,27 @@ def test_hc_emb_010c_load_quiets_every_library_logger_that_prints_the_path(tmp_p
     assert all(level >= logging.WARNING for level in seen.values()) and set(seen) == set(names), seen
 
 
+def test_hc_emb_010d_load_restores_a_notset_logger_to_notset(tmp_path, monkeypatch):
+    """A logger that starts at NOTSET must end at NOTSET, not at its effective level (mutant M7)."""
+    import types
+
+    fake = types.ModuleType("sentence_transformers")
+    fake.SentenceTransformer = lambda path, **kw: "model"
+    monkeypatch.setitem(sys.modules, "sentence_transformers", fake)
+    from modules.embeddings import EmbeddingsModule
+
+    _install_stub_bundle(tmp_path, monkeypatch)
+    st = logging.getLogger("sentence_transformers")
+    before = st.level
+    st.setLevel(logging.NOTSET)
+    try:
+        assert st.getEffectiveLevel() != logging.NOTSET, "guard: test would be vacuous"
+        assert EmbeddingsModule()._load_local_model() == "model"
+        assert st.level == logging.NOTSET
+    finally:
+        st.setLevel(before)
+
+
 def test_hc_emb_009a_unavailable_messages_do_not_contain_the_model_path(tmp_path, absent_model, monkeypatch):
     from modules.embeddings import EMBEDDING_FILES, EmbeddingModelUnavailableError, EmbeddingsModule
 

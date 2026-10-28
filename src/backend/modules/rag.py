@@ -29,6 +29,13 @@ EMBEDDING_UNAVAILABLE_MESSAGE = (
     "Document search is unavailable because the local embedding model is not installed."
 )
 
+# RAG-TIMEOUT-ANSWER: the text _generate_with_runner returns when the runner times out.
+# query() labels it as a failed answer (GENERATION_TIMEOUT_ERROR) instead of verifying
+# a sentence the model never wrote.
+GENERATION_TIMEOUT_TEXT = """UNCERTAINTIES:
+I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+GENERATION_TIMEOUT_ERROR = "Generation timed out"
+
 from .claim_extractor import ClaimExtractor
 from .embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
 from .faithfulness import (
@@ -861,8 +868,8 @@ I was unable to fully process your question within the time limit. Please try as
             return result.text
 
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e
 
     def validate_response(
         self,
@@ -885,6 +892,8 @@ I was unable to fully process your question within the time limit. Please try as
         - (Phase 4) Claims are verified against sources
         """
         errors = []
+        if not response.strip():
+            errors.append("Empty model response")
         prohibited_advice = False
 
         # Parse response into segments
@@ -935,7 +944,9 @@ I was unable to fully process your question within the time limit. Please try as
                     f"{verification_metadata.failed_claims} claim(s) could not be verified"
                 )
 
-            if verification_metadata.faithfulness_score < 0.6:
+            # SAFETY-MODE-STRICT: compare against the scorer's own threshold. The
+            # default is 0.6, so the default module is unchanged; the strict module passes 0.75.
+            if verification_metadata.faithfulness_score < self.faithfulness_scorer.config.min_overall_score:
                 errors.append(
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )
@@ -1116,7 +1127,12 @@ I was unable to fully process your question within the time limit. Please try as
             verified_claims=verification_results.verified_claims,
             failed_claims=verification_results.failed_claims,
             claims_with_issues=issues_list[:5],  # Limit to first 5 issues
-            faithfulness_score=faithfulness.overall_score,
+            # GC5-FS-SCOPE (a): never report more than the share of claims verified.
+            # The scorer is lexical and cannot see an NLI contradiction.
+            faithfulness_score=min(
+                faithfulness.overall_score,
+                verification_results.verified_claims / len(verifiable),
+            ),
             authority_score=round(avg_authority, 3),
             verification_summary=verification_results.summary,
         )
@@ -1343,7 +1359,14 @@ I was unable to fully process your question within the time limit. Please try as
             prompt, runner, n_chunks=len(chunks)
         )
 
-        # Step 4: Validate and verify response
+        # Step 4: Validate and verify response. A generation timeout is labelled
+        # instead: the canned sentence is not sent through the claim checks.
+        if response == GENERATION_TIMEOUT_TEXT:
+            return ValidatedResponse(
+                segments=self._parse_response_segments(response),
+                is_valid=False,
+                validation_errors=[GENERATION_TIMEOUT_ERROR],
+            )
         validated = self.validate_response(response, chunks)
 
         return validated
@@ -1450,8 +1473,7 @@ I was unable to fully process your question within the time limit. Please try as
         try:
             result = await runner.generate_async(prompt, config)
             if result.finish_reason == "timeout":
-                return """UNCERTAINTIES:
-I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+                return GENERATION_TIMEOUT_TEXT
             if n_chunks:
                 rendered = self._render_structured_answer(result.text, n_chunks)
                 if rendered is not None:
@@ -1463,5 +1485,5 @@ I was unable to fully process your question within the time limit. Please try as
                     return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e

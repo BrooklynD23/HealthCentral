@@ -4,7 +4,8 @@ Observe leg of the dev-process self-improvement loop
 (docs/plans/2026-10-10-rsi-loop-applicability-report.md §5 #1).
 
 Records metadata only: never file contents, command text, or tool output,
-which can hold PHI or secrets. Writes to .claude/logs/ (git-ignored) so the
+which can hold PHI or secrets. Failure rows carry `error_class`, a fixed
+category (mirrors classifyError in the asclexis-rsi mod), never the error text. Writes to .claude/logs/ (git-ignored) so the
 hook never dirties the tracked tree. Always exits 0: telemetry must not block.
 """
 
@@ -22,6 +23,41 @@ LOG_PATH = REPO_ROOT / ".claude" / "logs" / "session-log.jsonl"
 _EXIT_RE = re.compile(r"^Exit code (\d+)")
 _PASSED_RE = re.compile(r"(\d+) passed")
 _FAILED_RE = re.compile(r"(\d+) failed")
+
+_ERROR_CLASSES = (
+    "exit-144-self-kill", "timeout", "edit-no-match", "permission-denied", "module-not-found",
+    "command-not-found", "no-such-file", "tests-failed", "git-fatal", "syntax-error",
+    "exit-", "other",
+)
+
+
+def _classify(text: str) -> str:
+    """Fixed category for a failure; mirrors classifyError in the asclexis-rsi mod. Never returns input text."""
+    a = re.ASCII
+    if re.search(r"Exit code 144\b", text, a):
+        return "exit-144-self-kill"
+    if re.search(r"timed out|timeout", text, re.IGNORECASE):
+        return "timeout"
+    if re.search(r"did not match|not found in file|String to replace not found", text, re.IGNORECASE):
+        return "edit-no-match"
+    if re.search(r"permission denied|EACCES", text, re.IGNORECASE):
+        return "permission-denied"
+    if re.search(r"ModuleNotFoundError|No module named", text):
+        return "module-not-found"
+    if re.search(r"command not found|Exit code 127\b", text, a):
+        return "command-not-found"
+    if re.search(r"No such file or directory|ENOENT", text):
+        return "no-such-file"
+    if re.search(r"\b\d+ failed\b", text, a):
+        return "tests-failed"
+    if re.search(r"^fatal: ", text, re.MULTILINE):
+        return "git-fatal"
+    if re.search(r"SyntaxError|syntax error", text, re.IGNORECASE):
+        return "syntax-error"
+    match = re.search(r"^Exit code (\d{1,3})\b", text, re.MULTILINE | a)
+    if match and 1 <= int(match.group(1)) <= 255:
+        return f"exit-{int(match.group(1))}"
+    return "other"
 
 
 def _rel_path(raw: str | None, repo_root: Path) -> str | None:
@@ -54,6 +90,7 @@ def build_record(payload: dict, repo_root: Path) -> dict:
         ok=event != "PostToolUseFailure",
         duration_ms=payload.get("duration_ms"),
     )
+    record["error_class"] = None if record["ok"] else _classify(payload.get("error") or "")
     if record["tool_name"] == "Bash":
         if record["ok"]:
             response = payload.get("tool_response") or {}

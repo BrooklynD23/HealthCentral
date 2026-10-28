@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Brain,
   Loader2,
@@ -21,6 +21,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useTrend } from '@/services/observations';
 import { useExternalApiSettings } from '@/services';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
+import { formatInterpretationText } from '@/components/lab-interpreter/formatInterpretationText';
 import {
   useInterpretation,
   useGenerateGroundedInterpretation,
@@ -297,7 +298,15 @@ export function LabInterpreter() {
                 <CardTitle className="text-base">Grounded explanation</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-ink-secondary whitespace-pre-wrap">{groundedSummary}</p>
+                <div className="space-y-2">
+                  {formatInterpretationText(groundedSummary).paragraphs.map((runs, i) => (
+                    <p key={i} className="text-sm text-ink-secondary whitespace-pre-wrap">
+                      {runs.map((run, j) =>
+                        run.bold ? <strong key={j}>{run.text}</strong> : <span key={j}>{run.text}</span>
+                      )}
+                    </p>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           )}
@@ -312,7 +321,7 @@ export function LabInterpreter() {
             <CardContent className="p-0">
               <div className="divide-y divide-black/4">
                 {analyteList.map((obs, index) => (
-                  <motion.button
+                  <m.button
                     key={obs.analyte_canonical}
                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -341,7 +350,7 @@ export function LabInterpreter() {
                       )}
                       <ChevronRight className="w-4 h-4 text-ink-tertiary" />
                     </div>
-                  </motion.button>
+                  </m.button>
                 ))}
               </div>
             </CardContent>

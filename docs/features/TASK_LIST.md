@@ -6,6 +6,8 @@
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
 
+> The live build-program backlog is [`docs/plans/2026-10-15-build-program/queue.md`](../plans/2026-10-15-build-program/queue.md), the single execution queue. This file keeps the remaining-work tracker and Session Notes ([AGENT.md definition of done](../../AGENT.md#definition-of-done)).
+
 ---
 
 ## Purpose
@@ -217,7 +219,7 @@ On the first of each month, review all canonical docs for freshness:
 
 Branch `feat/e-3-ci-gate-hardening` from main `5386548`.
 
-- Added: `tests/test_migration_heads.py` (5 tests, one head and linear chain per Alembic chain); `ci.yml` runs `npm run lint` and `npm run build` in `frontend-tests`; `backend-tests` publishes `coverage.xml` and fails if it is missing (report only, no threshold, Q-COV). Local coverage TOTAL 74%.
+- Added: `tests/test_migration_heads.py` (5 tests, one head and linear chain per Alembic chain); `ci.yml` runs `npm run lint` and `npm run build` in `frontend-tests`; `backend-tests` publishes `coverage.xml` and fails if it is missing (report only, no threshold, Q-COV). Local coverage TOTAL 74%. Superseded 2026-10-20: CI fails below 74% TOTAL (Q-COV-GATE, #207).
 - Skipped: Task 7 (ruff gate) waits for E-3a to merge; Task 8 Step 4 (CI seed) not run.
 
 ### 2026-10-10 - RSI-loop research docs + session-log hook (PR #68, not merged)

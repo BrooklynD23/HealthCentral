@@ -258,7 +258,7 @@ class ProviderInfoResponse(BaseModel):
     llm_provider: str
     llm_model: str
     ollama_base_url: str
-    available: bool
+    available: Optional[bool]
     capabilities: dict
 
 
@@ -389,15 +389,25 @@ def _diagnostics_list_response() -> DiagnosticsListResponse:
 async def get_model_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get current model settings and hardware information."""
     selector = get_model_selector()
 
     # Run hardware detection
-    hardware = selector.detect_hardware_tier()
+    hardware = await asyncio.to_thread(selector.detect_hardware_tier)
 
     # Get user settings from database
     user_settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.model.view",
+        action="settings.model.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="model",
+    )
 
     # Determine current tier
     if user_settings and user_settings.preferred_tier:
@@ -585,7 +595,7 @@ async def list_tiers(
 ):
     """List all available tiers with their status."""
     selector = get_model_selector()
-    hardware = selector.detect_hardware_tier()
+    hardware = await asyncio.to_thread(selector.detect_hardware_tier)
 
     tiers = []
     for tier in TIER_ORDER:
@@ -747,9 +757,19 @@ async def start_model_download(
 async def get_external_api_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get external API settings with masked key."""
     user_settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.external_api.view",
+        action="settings.external_api.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="external_api",
+    )
 
     if not user_settings:
         return ExternalApiSettingsResponse(
@@ -824,8 +844,12 @@ async def save_external_api_settings(
     summary="Get active LLM provider",
     description="Return the active LLM provider and its capability flags.",
 )
-async def get_llm_provider(session: RequireAuth):
-    """Return active provider info and capability flags."""
+async def get_llm_provider(session: RequireAuth, probe: bool = True):
+    """Return active provider info and capability flags.
+
+    CHAT-MODEL-BADGE: probe=false skips is_available() (a synchronous model load
+    on llama_cpp) and returns available=null; the chat page only needs names.
+    """
     _ = session
     from core.config import settings as app_settings
     from core.llm.factory import get_provider
@@ -837,7 +861,7 @@ async def get_llm_provider(session: RequireAuth):
         llm_provider=app_settings.llm_provider,
         llm_model=app_settings.llm_model or "(auto)",
         ollama_base_url=app_settings.ollama_base_url,
-        available=provider.is_available(),
+        available=provider.is_available() if probe else None,
         capabilities={
             "context_len": caps.context_len,
             "multimodal": caps.multimodal,
@@ -883,7 +907,7 @@ async def set_llm_provider(
     object.__setattr__(app_settings, "llm_model", request.llm_model)
 
     # Drop the cached provider so get_provider() builds a fresh one.
-    reset_provider()
+    await asyncio.to_thread(reset_provider)
 
     from core.llm.factory import get_provider
     provider = get_provider()
@@ -1011,10 +1035,20 @@ async def _download_model_task(
 async def get_timezone(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get profile timezone setting."""
     profile_id = session.profile_id
     settings = await _get_user_settings(profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.timezone.view",
+        action="settings.timezone.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="timezone",
+    )
     return TimezoneResponse(timezone=settings.timezone if settings else "UTC")
 
 
@@ -1051,10 +1085,20 @@ async def set_timezone(
 async def get_voice_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get voice logging preferences."""
     profile_id = session.profile_id
     settings = await _get_user_settings(profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.voice.view",
+        action="settings.voice.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="voice",
+    )
     return VoiceSettingsResponse(
         voice_logging_enabled=settings.voice_logging_enabled if settings else False,
         voice_modal_seen=settings.voice_modal_seen if settings else False,
@@ -1153,7 +1197,7 @@ async def update_gamification_settings(
 async def get_environment_diagnostics(session: RequireAuth):
     """Report status of local tools (OCR, models, SQLCipher, GPU)."""
     _ = session
-    return _diagnostics_list_response()
+    return await asyncio.to_thread(_diagnostics_list_response)
 
 
 @router.post(
@@ -1164,7 +1208,7 @@ async def get_environment_diagnostics(session: RequireAuth):
 )
 async def recheck_environment_diagnostics(session: RequireAuth):
     _ = session
-    return _diagnostics_list_response()
+    return await asyncio.to_thread(_diagnostics_list_response)
 
 
 @router.patch(

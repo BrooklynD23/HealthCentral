@@ -1,6 +1,6 @@
 # Pipelines: Documents, Assistant, Safety
 
-**Last Updated:** 2026-10-18
+**Last Updated:** 2026-10-22
 **Owner:** Project Lead
 **Refresh Trigger:** An extractor, agent tool, guardrail, or export surface is added or removed
 
@@ -43,7 +43,7 @@ flowchart TD
     STORE -.->|"unreviewed labelled, rejected dropped"| HL["highlights"]
     STORE -.->|"rejected dropped"| TASKS["care-task candidates"]
     STORE -.->|"rejected dropped"| RECON["medication reconciliation"]
-    STORE -.->|"unverified included, unlabelled (D4 approved, W-3 pending)"| TRENDS["trends"]
+    STORE -.->|"unverified included, labelled unverified (D4, W-3)"| TRENDS["trends"]
     STORE -.->|"unverified included (outside D4)"| EXPU["exports: doctor summary · CSV/JSON"]
 
     style VERIFY fill:#e65100,stroke:#ff9800,color:#fff
@@ -63,11 +63,12 @@ rows:
 - **Shown with a label:** the timeline (pending) and highlights (unreviewed).
   Rows the user rejected are dropped from highlights, care-task candidates and
   medication reconciliation.
-- **Included without a label:** trends and the legacy (non-agent) RAG path.
-  Owner decision [D4](../capstone-report/owner-decisions-2026-09-27.md)
-  (2026-09-27) approved the change: trends may show unverified points only
-  when visibly marked "unverified", and legacy RAG cites verified values only.
-  **Approved, not yet implemented** (work item W-3).
+- **Trends and legacy RAG (owner decision
+  [D4](../capstone-report/owner-decisions-2026-09-27.md), work item W-3):**
+  trends show unverified points only marked "unverified"
+  (`src/frontend/src/components/TrendVerificationMarkers.tsx`), and the legacy
+  (non-agent) RAG path retrieves verified observation values only
+  (`Observation.user_verified` filter in `modules/rag.py`).
 - **Included, outside D4:** CSV / JSON exports and the doctor summary.
 
 Reprocessing is rejected for `lab_csv` / `fhir_bundle` documents: there is no
@@ -86,13 +87,19 @@ flowchart TD
 
     subgraph GRAPH["modules/agent/graph.py"]
         direction TB
+        PRE["pre-model advice check<br/>on the question"]
         PLAN["plan<br/>deterministic intent routing"]
-        ACT["act<br/>tool dispatch"]
+        ACT["act<br/>exactly one tool call"]
+        REFLECT["reflect<br/>enough grounding?"]
         DRAFT["draft<br/>compose cited answer"]
-        REFLECT["reflect<br/>continue or stop"]
-        PLAN --> ACT --> DRAFT --> REFLECT
-        REFLECT -->|"budget left"| PLAN
+        PRE --> PLAN --> ACT --> REFLECT
+        REFLECT -->|"loop"| PLAN
+        REFLECT -->|"enough"| DRAFT
+        PLAN -->|"draft decision"| DRAFT
     end
+    PRE -->|"advice bait"| ESCQ["escalate template"]
+    PLAN -->|"nothing to try"| ABSTP["abstain template"]
+    REFLECT -->|"next act would exceed MAX_STEPS = 5"| ABSTP
 
     ACT --> TOOLS
     subgraph TOOLS["tools/ — all read-only"]
@@ -107,10 +114,11 @@ flowchart TD
     end
 
     RAGONLY --> MR["ModelRunner"]
-    MR --> PROV{"provider"}
+    MR --> PROV{"provider<br/>core/llm/factory.py"}
     PROV -->|default| LC["llama.cpp"]
     PROV -->|configured| OL["Ollama, localhost"]
-    PROV -->|"unavailable"| FB["no-LLM fallback<br/><b>must stay functional</b>"]
+    OL -.->|"daemon unreachable"| LC
+    MR -->|"ModelUnavailableError"| FB["no-LLM knowledge fallback<br/>api/assistant.py<br/><b>must stay functional</b>"]
 
     DRAFT --> GUARD
     subgraph GUARD["guardrails/"]
@@ -182,7 +190,7 @@ flowchart LR
 
     subgraph files["Anything leaving the app"]
         RED["<b>modules/redaction</b>"]
-        EXP["redacted exports:<br/>RL dataset · FHIR · visit prep · pinboards"]
+        EXP["redacted exports:<br/>RL dataset · FHIR · visit prep · pinboards · doctor summary"]
     end
 
     AUDIT["core/audit<br/>allowlist scrub"]
@@ -202,11 +210,10 @@ flowchart LR
 The purple nodes are the mandatory chokepoints. On the export path, redaction
 runs on the RL dataset export (forced `policy_level="strict"` with no
 configuration knob, because an export must not be made *less* redacted by
-configuration) and on FHIR, visit-prep and pinboard exports. It does **not** run
-on CSV / JSON exports, the doctor summary, or backups. Backups are deliberately
-unredacted: a redacted backup cannot be restored. For the other three, owner
-decision [D3](../capstone-report/owner-decisions-2026-09-27.md) (2026-09-27)
-applies: the doctor summary is to be strictly redacted
-(**approved, not yet implemented**, work item W-2), and CSV / JSON stay full-fidelity as the
+configuration), on FHIR, visit-prep and pinboard exports, and on the doctor
+summary (`ExportModule.redact_summary_data`, strict, owner decision
+[D3](../capstone-report/owner-decisions-2026-09-27.md), work item W-2). It does
+**not** run on CSV / JSON exports or backups. Backups are deliberately
+unredacted: a redacted backup cannot be restored. CSV / JSON stay full-fidelity as the
 patient's own data, named as deliberate exceptions in `CLAUDE.md` and
 `docs/compliance/data-privacy.md`.

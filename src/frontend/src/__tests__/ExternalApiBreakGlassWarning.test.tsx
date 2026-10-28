@@ -48,18 +48,20 @@ vi.mock('framer-motion', async () => {
     function MotionStub(props: React.PropsWithChildren<Record<string, unknown>>) {
       return <Tag {...filter(props)}>{props.children}</Tag>;
     };
+  const motionStubs = {
+    div: make('div'),
+    button: make('button'),
+    tr: make('tr'),
+    p: make('p'),
+    span: make('span'),
+    li: make('li'),
+    ul: make('ul'),
+    section: make('section'),
+  };
   return {
     ...actual,
-    motion: {
-      div: make('div'),
-      button: make('button'),
-      tr: make('tr'),
-      p: make('p'),
-      span: make('span'),
-      li: make('li'),
-      ul: make('ul'),
-      section: make('section'),
-    },
+    motion: motionStubs,
+    m: motionStubs,
     AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   };
 });

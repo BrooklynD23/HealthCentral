@@ -18,11 +18,27 @@ export function ReferenceRangeComparison({
   if (refLow === null || refHigh === null) return null;
 
   const range = refHigh - refLow;
-  const padding = range * 0.3;
-  const displayMin =
-    refLow >= 0 && value >= 0 ? Math.max(0, refLow - padding) : refLow - padding;
-  const displayMax = refHigh + padding;
+  const padding = range > 0 ? range * 0.3 : Math.max(Math.abs(refHigh) * 0.3, 1);
+  const hasValue = Number.isFinite(value);
+  const paddedMin = (hasValue ? Math.min(refLow, value) : refLow) - padding;
+  const displayMin = refLow >= 0 && value >= 0 ? Math.max(0, paddedMin) : paddedMin;
+  const displayMax = (hasValue ? Math.max(refHigh, value) : refHigh) + padding;
   const displayRange = displayMax - displayMin;
+  if (!(Number.isFinite(displayRange) && displayRange > 0)) {
+    return (
+      <div className={cn('space-y-2', className)}>
+        <div className="flex items-center justify-between text-xs text-ink-secondary">
+          <span>Reference Range</span>
+          <span>
+            {refLow} - {refHigh} {unit}
+          </span>
+        </div>
+        <div className="text-xs font-medium">
+          {value} {unit}
+        </div>
+      </div>
+    );
+  }
 
   const refLowPct = ((refLow - displayMin) / displayRange) * 100;
   const refHighPct = ((refHigh - displayMin) / displayRange) * 100;

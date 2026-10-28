@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Loader2,
   AlertTriangle,
@@ -72,7 +72,7 @@ export function PanelInterpretationDashboard({
   const variant = statusVariant[interpretation.overall_status] ?? 'default';
 
   return (
-    <motion.div
+    <m.div
       initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
     >
@@ -107,7 +107,11 @@ export function PanelInterpretationDashboard({
             {interpretation.citations.length > 0 && (
               <div className="flex items-center gap-1.5 mt-3">
                 {interpretation.citations.map((citation, i) => (
-                  <CitationTooltip key={citation.id} citation={citation} index={i} />
+                  <CitationTooltip
+                    key={`${citation.type}:${citation.id}:${i}`}
+                    citation={citation}
+                    index={i}
+                  />
                 ))}
               </div>
             )}
@@ -125,7 +129,7 @@ export function PanelInterpretationDashboard({
                 </div>
                 <div className="grid gap-2">
                   {interpretation.relationship_insights.map((insight, i) => (
-                    <motion.div
+                    <m.div
                       key={i}
                       initial={prefersReducedMotion ? {} : { opacity: 0, x: -4 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -149,7 +153,7 @@ export function PanelInterpretationDashboard({
                           {insight.interpretation}
                         </p>
                       </div>
-                    </motion.div>
+                    </m.div>
                   ))}
                 </div>
               </div>
@@ -174,6 +178,6 @@ export function PanelInterpretationDashboard({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }

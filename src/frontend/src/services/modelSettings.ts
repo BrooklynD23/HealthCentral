@@ -60,6 +60,7 @@ export interface ModelSettings {
   ocr_preference_enabled: boolean;
   ocr_effective: boolean;
   ocr_blockers: string[];
+  agent_enabled: boolean;
 }
 
 export interface OcrSettingsResponse {
@@ -262,6 +263,44 @@ export function useSaveExternalApiSettings() {
   });
 }
 
+// Active LLM provider (display only)
+
+/** Mirrors the backend `ProviderInfoResponse` (api/model_settings.py). */
+export interface ProviderInfo {
+  llm_provider: string;
+  llm_model: string;
+  ollama_base_url: string;
+  /** null when requested with probe=false. */
+  available: boolean | null;
+  /** As built by `get_llm_provider`: the provider that actually answers. */
+  capabilities: ProviderCapabilities;
+}
+
+export interface ProviderCapabilities {
+  context_len: number;
+  multimodal: boolean;
+  function_calling: boolean;
+  streaming: boolean;
+  provider_name: string;
+  model_name: string;
+}
+
+async function getProviderInfo(): Promise<ProviderInfo> {
+  // probe=false: names only; the server skips the availability probe (a model load on llama_cpp).
+  return apiGet<ProviderInfo>('/settings/model/provider', { probe: 'false' });
+}
+
+/**
+ * Query hook for the configured LLM provider and model.
+ */
+export function useProviderInfo() {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'provider'],
+    queryFn: getProviderInfo,
+    staleTime: 30_000,
+  });
+}
+
 // Timezone settings
 
 async function fetchTimezone(): Promise<{ timezone: string }> {
@@ -348,6 +387,22 @@ export function useSaveGamificationSettings() {
     mutationFn: saveGamificationSettings,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'gamification'] });
+    },
+  });
+}
+
+// Agent toggle (AGENT-ENABLED-TOGGLE, RRSI-OQ-9)
+
+async function saveAgentSettings(agent_enabled: boolean): Promise<{ agent_enabled: boolean }> {
+  return apiPatch('/settings/model/agent', { agent_enabled });
+}
+
+export function useSaveAgentSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: saveAgentSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
   });
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   TrendingUp,
   TrendingDown,
@@ -561,7 +561,7 @@ export function TrendsDashboard() {
             <CardContent className="p-0">
               <div className="divide-y divide-black/4">
                 {analyteList.map((obs, index) => (
-                  <motion.button
+                  <m.button
                     key={obs.analyte_canonical}
                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -594,7 +594,7 @@ export function TrendsDashboard() {
                     >
                       {getTrendIcon(obs.value ?? undefined, undefined)}
                     </div>
-                  </motion.button>
+                  </m.button>
                 ))}
               </div>
             </CardContent>

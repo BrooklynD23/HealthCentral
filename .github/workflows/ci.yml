@@ -18,8 +18,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      # SLOT-RULE-2: PRs do not commit docs/INDEX.md or docs/_link_graph.json; regenerate both here
-      # (DOC-011 sees new docs). Freshness on main is the orchestrator's post-merge batch, not a PR gate.
+      # SLOT-RULE-2a: PRs regenerate and commit docs/INDEX.md and docs/_link_graph.json; CI regenerates them again here
+      # so DOC-011 sees new docs (the committed index is checked by test_docs_index_check_passes_on_real_repo).
       - name: Regenerate docs index and link graph
         run: python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph
 
@@ -45,6 +45,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install SQLCipher
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
@@ -123,6 +125,10 @@ jobs:
       - name: Production build
         working-directory: src/frontend
         run: npm run build
+
+      - name: Bundle budget (check-bundle.mjs)
+        working-directory: src/frontend
+        run: node scripts/check-bundle.mjs
 
   security-scan:
     name: Security Scan
@@ -206,6 +212,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install SQLCipher
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
@@ -228,6 +236,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install SQLCipher
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
@@ -242,7 +252,7 @@ jobs:
 
   e2e-tests:
     name: E2E Smoke Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright has no chromium build for ubuntu26.04 (ubuntu-latest from 2026-10-23)
     needs: [frontend-tests, backend-tests]
     steps:
       - uses: actions/checkout@v4
@@ -258,6 +268,17 @@ jobs:
         working-directory: src/frontend
         run: npm ci
 
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          echo "version=$(node -p "require('./src/frontend/package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
       - name: Install Playwright browsers
         working-directory: src/frontend
         run: npx playwright install --with-deps chromium
@@ -266,6 +287,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install backend dependencies
         run: |
@@ -290,3 +313,26 @@ jobs:
           name: tw4-shots
           path: src/frontend/test-results/tw4-shots/**
           if-no-files-found: warn
+
+  rsi-replay:
+    name: RSI Replay
+    runs-on: ubuntu-latest
+    env:
+      DISABLE_TELEMETRY: '1'
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Claude Code CLI (exact pin)
+        run: npm install -g @anthropic-ai/claude-code@2.1.305
+
+      - name: Validate the asclexis-rsi mod
+        run: claude plugin validate .claude/mods/asclexis-rsi
+
+      - name: Run the asclexis-rsi replay test
+        run: claude plugin test .claude/mods/asclexis-rsi

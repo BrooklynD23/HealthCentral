@@ -297,6 +297,15 @@ not leaving. Two of the eight tracks had flagged the memory route, which made
 the recommendation look corroborated — convergence is evidence the *area*
 matters, not that the *proposed fix* is right.
 
+A fifth instance, 2026-10-20: the RRSI research said the Trends page uses
+"latest-vs-prior with a 5% band" and cited `modules/analytics.py:96-112`. That
+module has no caller; the Trends page shows `GET /observations/trends/{analyte}`,
+which compares the **first and last** result (`api/observations.py:660-671`).
+The owner answered RRSI-OQ-21 on that premise ("Adopt the Trends page's
+latest-vs-prior comparison"), so the answer names two different rules, and the
+CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
+code exists, not that the feature runs it.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
@@ -375,7 +384,6 @@ after the vault commit, and the settings and history reads use
 row, `grep -n
 "audit_and_commit\|audit_intent\|log_.*_event(" <file>` must hit inside that
 handler.
-The class is now a test (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new unaudited `"C"` or `"A2"` row fails CI.
 Applied to every `"C"` and `"A2"` row on `046d12c` (planning AUDIT-NOTIF-ALL,
 2026-10-18), that recheck finds 17 more `"C"` handlers with no audit call in
 the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
@@ -383,6 +391,9 @@ the body and none reached through a helper: 3 in `api/assistant.py`, 6 in
 AUDIT-NOTIF-ALL plan; queue row AUDIT-C-CLASS). A per-file grep misses
 them, because the same file audits in a sibling handler; walk each handler body
 instead.
+The class is now a test
+(`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new
+unaudited `"C"` or `"A2"` row fails CI.
 
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
@@ -431,3 +442,19 @@ The queue row for E-3a, written by the orchestrator, told implementers to run `r
 E-3-T7 (#160) added the Backend Lint gate to CI. #156 and #165 were built before it existed and merged in the same group without being run against it. Each passed the checks it had been given, but the gate was new, so neither had ever seen it. Main's lint went red on `d427868` with 5 `I001` (unsorted import) errors, and #171 fixed it afterwards. Every PR in the group was green on its own head; the failure existed only in the combination, and nothing in the merge step asked whether the new gate held on the merged tree.
 
 **Recheck:** after merging a PR that adds a gate (a CI job, a lint rule, a guard test), run that gate on `origin/main` before merging the rest of the group, and rebase or fix the remaining PRs on it. Do not read "each PR was green" as "main will be green": `git log --oneline -- .github/workflows/ci.yml` shows which gates are new, and a PR whose base predates one has not been checked against it.
+
+---
+
+## 13. An agent returns while its own background RED/mutation run is still editing the worktree
+
+Two rows returned while a background RED or mutation run was still in their worktree. UI-TOKENS (PR #356): three product files were left staged at origin/main's versions, and L0 restored them from HEAD. UI-PRIM-CONTROLS (PR #365): `src/frontend/src/components/ui/Button.tsx` was left mutated, and L0 restored it from the run's byte snapshot. A result read from a worktree that a background job is still writing to says nothing about the files as they stand.
+
+**Recheck:** run RED and mutation evidence in a separate scratch worktree, or run the snapshot/restore script in the foreground to completion and compare every snapshot file before returning. Never return while a background job writes to the worktree.
+
+---
+
+## 14. A probe that charges its own work to the thing it measures
+
+UI-SHELL (PR #370) failed CI's E2E job on twelve routes with stillness sampling gaps of 44-155 ms against the 40 ms G10 bound, and the 2026-10-25 handoff read it as load flake. On one production build, L0 timed the same navigations with a bare 20 ms `setInterval`: 20-30 ms on main and on the branch, apart from `/settings` on the branch (47-48 ms). `stillnessProbe` stamped each sample with `performance.now()` after reading every `[data-t0]` node's style and rect (`src/frontend/e2e/support/gates.ts`, `snapshot()`), so each gap included the probe's own forced layout. Moving the stamp to the start of `snapshot()` kept every HC-UIG-006 self-test result, and most route gaps fell under 40 ms. The same pass turned up a real defect that both readings had hidden behind the flake label: the Safety Mode note's rect changes on every navigation (376.8 → 307 px wide, about 40 ms in).
+
+**Recheck:** before ruling a timing failure "flake" or "load", time the same action with a bare instrument (a plain timer, a `PerformanceObserver` for `longtask`) on main and on the branch, using the same build. When a probe's result is a duration, find where it reads the clock relative to its own work. Read the probe's other failure lines too: a timing failure can hide a real one in the same run.

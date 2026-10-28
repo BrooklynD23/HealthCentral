@@ -34,7 +34,7 @@ says: …", "You have N open follow-up items"), never advice.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date, datetime, time
 
 from pydantic import BaseModel
 
@@ -91,9 +91,25 @@ def _display_name(raw: str) -> str:
 
 
 def _local_date(value, tz_name: str) -> str:
-    """``Jan 15, 2026``: the profile-local calendar date, no time (I-6)."""
+    """``Jan 15, 2026``: the profile-local calendar date, no time (I-6).
+
+    A date-only value is a calendar day, not an instant, so it is printed as
+    is with no zone conversion. Date-only means: a ``date`` that is not a
+    ``datetime``, an ISO string of length 10, or a naive ``datetime`` at exactly
+    00:00:00.000000. Timed values, and aware values even at midnight, go
+    through ``to_local``.
+    """
     try:
-        moment = datetime.fromisoformat(value) if isinstance(value, str) else value
+        if isinstance(value, str):
+            if len(value) == 10:
+                return date.fromisoformat(value).strftime("%b %d, %Y")
+            moment = datetime.fromisoformat(value)
+        else:
+            moment = value
+        if isinstance(moment, date) and not isinstance(moment, datetime):
+            return moment.strftime("%b %d, %Y")
+        if isinstance(moment, datetime) and moment.tzinfo is None and moment.time() == time(0):
+            return moment.strftime("%b %d, %Y")
         return to_local(moment, tz_name).strftime("%b %d, %Y")
     except (TypeError, ValueError):
         return str(value)
@@ -189,7 +205,8 @@ def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
     "You have N ... follow-up items" summary sentence citing every row (same
     "per-row + trailing summary" shape as ``_trend_sentences``). Fields are
     already sanitized by the tool (see tools/query_care_tasks.py) — this
-    composes them as-is, record-keeping framing only.
+    composes them as-is, record-keeping framing only. Each task sentence carries the
+    AET-WORDING label ("Open follow-up you saved (wording taken from your documents, not checked): ").
     """
     sentences: list[str] = []
     citations: list[Citation] = []
@@ -208,7 +225,7 @@ def _care_task_sentences(run_log: RunLog) -> tuple[list[str], list[Citation]]:
             due = f" (due {row['due_date']})" if row.get("due_date") else ""
             quote = row.get("source_quote")
             quote_part = f' The note says: "{quote}"' if quote else ""
-            sentences.append(f"Open follow-up: {row['title']}{due}.{quote_part}")
+            sentences.append(f"Open follow-up you saved (wording taken from your documents, not checked): {row['title']}{due}.{quote_part}")
             citations.append(
                 Citation(source_type="document", source_id=row["task_id"], locator=row["task_id"], source_kind="task")
             )

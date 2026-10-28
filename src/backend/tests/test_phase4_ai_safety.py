@@ -437,5 +437,87 @@ class TestAdversarialSafetyScenarios:
         assert result.verification_score < 0.5
 
 
+# ---------------------------------------------------------------------------
+# GC5-FAITH-SCORE: reported faithfulness_score never exceeds the verified share
+# ---------------------------------------------------------------------------
+
+_FSC_RESPONSE = """
+REPORT FACTS:
+Your glucose level is 95 mg/dL, which falls within the normal reference range of 70-100 mg/dL [cite:1].
+"""
+
+
+def _fsc_chunks():
+    from modules.rag import RetrievedChunk
+
+    return [
+        RetrievedChunk(
+            chunk_id="1",
+            source_type="user_document",
+            doc_id="doc-1",
+            doc_title="Quest Lab Report",
+            page=1,
+            text="Glucose: 95 mg/dL. Reference range: 70-100 mg/dL. Within normal limits.",
+            relevance_score=0.95,
+        ),
+    ]
+
+
+class _FscContradictionEncoder:
+    """Stands in for the NLI CrossEncoder; always says CONTRADICTION."""
+
+    def __init__(self):
+        self.config = type("Cfg", (), {"id2label": {0: "Contradiction", 1: "ENTAILMENT", 2: "Neutral"}})()
+
+    def predict(self, pairs, apply_softmax=False):
+        return [[0.9, 0.05, 0.05] for _ in pairs]
+
+
+def _fsc_rag(flag: bool):
+    from modules.rag import RAGModule
+    from modules.verifier_agent import VerificationConfig
+
+    return RAGModule(
+        enable_verification=True,
+        verification_config=VerificationConfig(use_llm_entailment=flag),
+    )
+
+
+def test_hc_fsc_001_contradicted_claim_scores_zero(monkeypatch):
+    """A claim the verifier fails must not be reported as 0.687 faithful."""
+    monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: _FscContradictionEncoder())
+    v = _fsc_rag(True).validate_response(_FSC_RESPONSE, _fsc_chunks()).verification
+    assert v.failed_claims == 1
+    assert v.verified_claims == 0
+    assert v.faithfulness_score == 0.0
+
+
+def test_hc_fsc_002_all_verified_keeps_scorer_value():
+    """Pin: with every claim verified the cap is inert and the scorer value passes through."""
+    rag = _fsc_rag(False)
+    chunks = _fsc_chunks()
+    v = rag.validate_response(_FSC_RESPONSE, chunks).verification
+    assert v.verified_claims == 1 and v.failed_claims == 0
+
+    claims, _ = rag.claim_extractor.filter_unverifiable_claims(
+        rag.claim_extractor.extract_claims(_FSC_RESPONSE).claims
+    )
+    expected = FaithfulnessScorer().score_response(
+        [c.text for c in claims], [c.text for c in chunks]
+    ).overall_score
+    assert v.faithfulness_score == expected
+
+
+def test_hc_fsc_003_low_scorer_value_still_invalidates():
+    """Pin: the <0.6 validity check still fires from the scorer side."""
+    text = (
+        "REPORT FACTS:\nYour glucose level is 182 mg/dL, which falls within the normal "
+        "reference range of 70-100 mg/dL [cite:1].\n"
+    )
+    result = _fsc_rag(False).validate_response(text, _fsc_chunks())
+    assert result.verification.faithfulness_score < 0.6
+    assert result.is_valid is False
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

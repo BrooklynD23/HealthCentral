@@ -10,6 +10,7 @@ Covers:
 """
 
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -456,3 +457,192 @@ class TestTrendsEndpointUndated:
         data_points, summary, ref_low, ref_high, unit = self._run_trend_logic(obs_list)
         assert ref_low == 70.0
         assert ref_high == 100.0
+
+
+# ---------------------------------------------------------------------------
+# EXTRACT-DOB-DATE  A date of birth is never a collection date
+# ---------------------------------------------------------------------------
+
+class TestBirthDateExcluded:
+    """HC-DATE-007..009: dates that follow a birth label are skipped (both stages)."""
+
+    @pytest.mark.parametrize("label", [
+        "DOB:",
+        "D.O.B.",
+        "Date of Birth:",
+        "Birth Date:",
+        "Born on",
+    ])
+    def test_hc_date_007_birth_label_date_is_not_a_collection_date(self, label):
+        """HC-DATE-007: the DOB is dropped; the real collection date remains."""
+        text = (
+            "Patient: Jane Test\n"
+            f"{label} 1970-01-01\n"
+            "Collection Date: 2026-03-02\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+        )
+        assert _module()._extract_dates(text) == ["2026-03-02"]
+
+    @pytest.mark.asyncio
+    async def test_hc_date_008_dob_only_document_is_undated(self, tmp_path):
+        """HC-DATE-008: a document whose only date is a DOB gets no collection date."""
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = (
+            "DOB: 1970-01-01\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+        )
+        mock_page.extract_tables.return_value = []
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf.__enter__ = MagicMock(return_value=mock_pdf)
+        mock_pdf.__exit__ = MagicMock(return_value=False)
+
+        with patch("pdfplumber.open", return_value=mock_pdf):
+            result = await _module().extract_from_pdf(tmp_path / "dob.pdf", "doc-dob-1")
+
+        assert result.collection_dates == []
+        assert [o.analyte_raw for o in result.observations] == ["Glucose"]
+        assert all(o.collected_at is None for o in result.observations)
+
+    def test_hc_date_009_long_whitespace_after_label_is_fast_and_linear(self):
+        """HC-DATE-009: pin against a prefix-wide look-behind (quadratic on whitespace).
+
+        The non-space "x" before the date makes a prefix-wide `\\s*[:\\-]?\\s*$`
+        backtrack over the whole run (about 13 s at 50,000); an all-space tail
+        would match that shape at once and could not fail (#289 review round 1).
+        """
+        m = _module()
+        text = "DOB" + " " * 50000 + "x 1970-01-01"
+        start = time.perf_counter()
+        m._extract_dates(text)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+        # Many dates each preceded by a long whitespace run: still linear.
+        many = "".join(f"DOB{' ' * 2000}x 2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
+        start = time.perf_counter()
+        m._extract_dates(many)
+        elapsed = time.perf_counter() - start
+        assert elapsed < 1.0, f"took {elapsed:.2f}s"
+
+    def test_hc_date_009b_label_window_keeps_word_boundary_honest(self):
+        """The 32-char window must not fake a `\\b` when it starts mid-word."""
+        tail = "date" + " " * 18 + "of birth: "
+        assert len(tail) == 32
+        # 'xdate ... of birth:' is not a birth label: the 'x' glues onto 'date'.
+        assert _module()._extract_dates("x" + tail + "2026-03-02") == ["2026-03-02"]
+        # Same tail with a real word boundary in front is a birth label.
+        assert _module()._extract_dates(" " + tail + "2026-03-02") == []
+
+
+# ---------------------------------------------------------------------------
+# EXTRACT-DOB-FORMS  Three more DOB layouts are not collection dates
+# ---------------------------------------------------------------------------
+
+class TestDobLayoutsNotCollectionDates:
+    """HC-EDF-001..005: a DOB with a format hint, a combined label or a header column is skipped."""
+
+    def test_hc_edf_001_parenthesised_format_hint_dob_is_not_collection_date(self):
+        """HC-EDF-001: `DOB (MM/DD/YYYY):` keeps the DOB out; the Collected date remains."""
+        text = (
+            "Patient: Jane Test\n"
+            "DOB (MM/DD/YYYY): 01/02/1960\n"
+            "Collected: 03/04/2026\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+        )
+        assert _module()._extract_dates(text) == ["2026-03-04"]
+
+    def test_hc_edf_002_combined_dob_sex_label_is_not_collection_date(self):
+        """HC-EDF-002: `DOB/Sex:` is a birth label; the date after it is not a collection date."""
+        text = (
+            "Patient: Jane Test\n"
+            "DOB/Sex: 01/02/1960 F\n"
+            "Collected: 03/04/2026\n"
+            "Glucose: 95 mg/dL (70-100)\n"
+        )
+        assert _module()._extract_dates(text) == ["2026-03-04"]
+
+    @pytest.mark.parametrize("header,row", [
+        ("Name  DOB  Collected", "Jane  01/02/1960  03/04/2026"),
+        ("DOB  Collected", "01/02/1960  03/04/2026"),
+        ("Name  DOB:  Collected", "Jane  01/02/1960  03/04/2026"),
+    ], ids=["dob-middle-column", "dob-first-column", "dob-colon-header"])
+    def test_hc_edf_003_two_line_header_dob_column_is_not_collection_date(self, header, row):
+        """HC-EDF-003: the DOB under a header token is skipped by column; the Collected date stays.
+
+        The dob-first case also covers Stage 1: the Collected label's tail starts
+        on the data row, so the DOB column must not become its priority date.
+        """
+        assert _module()._extract_dates(f"{header}\n{row}\n") == ["2026-03-04"]
+
+    def test_hc_edf_004_dob_inputs_stay_linear_with_new_tail_regex(self):
+        """HC-EDF-004 (pin): HC-DATE-009's inputs, a format-hint probe and a long token header.
+
+        Each must run under 1.0 s. The token header needs its newline: a single
+        line has no next line to read as a data row, so it never reaches the
+        column pass. Its tokens are not whitespace, so the whitespace inputs above
+        cannot see a per-token cost.
+        """
+        m = _module()
+        many = "".join(f"DOB{' ' * 2000}x 2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
+        inputs = {
+            "50000-space": "DOB" + " " * 50000 + "x 1970-01-01",
+            "50000-space-hint": "DOB (" + " " * 50000 + "x 1970-01-01",
+            "200-line": many,
+            "50000-token-header": "DOB " + "1 " * 50000 + "\n",
+        }
+        for name, text in inputs.items():
+            start = time.perf_counter()
+            m._extract_dates(text)
+            elapsed = time.perf_counter() - start
+            assert elapsed < 1.0, f"{name} took {elapsed:.2f}s"
+
+    @pytest.mark.parametrize("text,expected", [
+        # DOB column is the middle cell: the Collected column date is kept.
+        ("Patient  DOB  Collected\nJane  01/02/1960  03/04/2026\n", ["2026-03-04"]),
+        # Collected column first: the DOB is the second cell of the data row.
+        ("Collected  DOB\n03/04/2026  01/02/1960\n", ["2026-03-04"]),
+        # A labelled date on its own line wins over a DOB header above it.
+        ("Patient DOB\nCollected 03/04/2026\n", ["2026-03-04"]),
+        # A header line that carries a date is not a header: both dates are kept.
+        ("Jane DOB 01/02/1960 F\nCollected 03/04/2026 Received 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
+        # Same header-line guard with no collection label. Without it, the date under
+        # the DOB column is dropped, so the exact list catches the missing guard.
+        ("Jane DOB 01/02/1960 F\nReported 03/04/2026 Received 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
+    ], ids=[
+        "collected-middle-column",
+        "collected-first-column",
+        "labelled-line-under-dob-header",
+        "header-line-with-date",
+        "header-line-with-unlabelled-date",
+    ])
+    def test_hc_edf_005_collected_header_column_date_is_kept(self, text, expected):
+        """HC-EDF-005 (pin): a date under a Collected column or on a labelled line is kept.
+
+        Exact lists, not `in`: a DOB that leaks into the output must fail here.
+        """
+        assert _module()._extract_dates(text) == expected
+
+    def test_hc_edf_005_token_count_mismatch_keeps_the_collected_date(self):
+        """HC-EDF-005: on a token-count mismatch the column guard is off, and the Collected date stays.
+
+        The header has 3 tokens and the data row 2, so nothing is skipped by column.
+        The DOB may still leak into the output (see the known-gap test below); the
+        Collected date must never be dropped.
+        """
+        result = _module()._extract_dates("Patient  DOB  Collected\n01/02/1960  03/04/2026\n")
+        assert "2026-03-04" in result
+
+    @pytest.mark.xfail(strict=True, reason="EXTRACT-DOB-FORMS known gap: token-count mismatch")
+    def test_hc_edf_005_token_count_mismatch_dob_leak_known_gap(self):
+        """HC-EDF-005 (known gap): on a token-count mismatch the DOB leaks as a collection date.
+
+        The correct output is ['2026-03-04']; today the DOB 1960-01-02 comes first.
+        Strict xfail: once a fix makes this pass, the run reports XPASS as a failure,
+        so the marker is removed on purpose, not by accident.
+        """
+        assert _module()._extract_dates(
+            "Patient  DOB  Collected\n01/02/1960  03/04/2026\n"
+        ) == ["2026-03-04"]
