@@ -127,8 +127,19 @@ def test_second_pass_reference_range_is_not_a_date():
     assert detect("Hemoglobin 13.5 g/dL (reference 12.0-15.5 g/dL) is within range.") == []
 
 
-def test_hc_don_013_corpus_meets_recall_target():
-    from scripts.measure_phi_recall import measure, meets_target
+def _r2() -> dict:
+    return json.loads((Path(__file__).parent / "fixtures/phi_recall/corpus_v2.json").read_text())
 
-    result = measure(_corpus())
+
+def test_hc_don_013_corpus_meets_recall_target():
+    from scripts.measure_phi_recall import measure, merge_corpora, meets_target
+
+    result = measure(merge_corpora(_corpus(), _r2()))
+    assert meets_target(result), result
+
+
+def test_hc_don_013b_r2_gate_meets_recall_target():
+    from scripts.measure_phi_recall import gate_half, measure, meets_target
+
+    result = measure(gate_half(_r2()))
     assert meets_target(result), result

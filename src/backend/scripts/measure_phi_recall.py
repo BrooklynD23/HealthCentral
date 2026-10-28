@@ -1,10 +1,13 @@
-"""Per-category PHI recall for strict redaction, the second pass, and their union (RSI1-DONATE Task 3).
+"""Per-category PHI recall for strict redaction, the second pass, and their union (RSI1-DONATE).
 
-Usage: python scripts/measure_phi_recall.py [corpus.json]
+Usage: python scripts/measure_phi_recall.py [extra_corpus.json]
 A planted identifier counts as caught by strict when it is gone from the
 strict output; by the second pass when detect() flags the category on the raw
 text; by the union when strict removed it or the second pass flags the strict
 output (the order collect() runs them).
+
+Default report (counts only, no text): R1, R2, R1 + R2, and R2-gate (R2's items
+at odd index per category, in file order; the half that gates donation).
 """
 
 from __future__ import annotations
@@ -18,7 +21,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from modules.phi_second_pass import detect  # noqa: E402
 from modules.redaction import RedactionEngine  # noqa: E402
 
-DEFAULT_CORPUS = Path(__file__).resolve().parent.parent / "tests/fixtures/phi_recall/corpus_v1.json"
+FIXTURES = Path(__file__).resolve().parent.parent / "tests/fixtures/phi_recall"
+DEFAULT_CORPUS = FIXTURES / "corpus_v1.json"
+R2_CORPUS = FIXTURES / "corpus_v2.json"
 TARGET_CANARY = 1.0
 TARGET_CATEGORY = 0.95
 
@@ -30,7 +35,7 @@ def _leaks(planted: str, redacted: str) -> bool:
     return any(t in redacted for t in planted.replace("-", " ").split() if len(t) >= 3)
 
 
-def measure(corpus: dict) -> dict[str, dict]:
+def measure(corpus: dict, detect_fn=detect) -> dict[str, dict]:
     """Return {category: {n, strict, second, union, canary_n, canary_union}} (counts)."""
     engine = RedactionEngine(policy_level="strict")
     out: dict[str, dict] = {}
@@ -40,8 +45,8 @@ def measure(corpus: dict) -> dict[str, dict]:
         for item in items:
             redacted = engine.redact(item["text"]).text
             strict = not _leaks(item["planted"], redacted)
-            second = any(h.category == category for h in detect(item["text"]))
-            union = strict or bool(detect(redacted))
+            second = any(h.category == category for h in detect_fn(item["text"]))
+            union = strict or bool(detect_fn(redacted))
             row["strict"] += strict
             row["second"] += second
             row["union"] += union
@@ -50,6 +55,18 @@ def measure(corpus: dict) -> dict[str, dict]:
                 row["canary_union"] += union
         out[category] = row
     return out
+
+
+def merge_corpora(a: dict, b: dict) -> dict:
+    """Per-category concatenation of two corpora (items keep their order: a, then b)."""
+    cats = {c: list(a["categories"].get(c, [])) + list(b["categories"].get(c, []))
+            for c in list(a["categories"]) + [c for c in b["categories"] if c not in a["categories"]]}
+    return {"categories": cats}
+
+
+def gate_half(corpus: dict) -> dict:
+    """R2-gate: the items at odd index per category, in file order."""
+    return {"categories": {c: items[1::2] for c, items in corpus["categories"].items()}}
 
 
 def false_positives(corpus: dict) -> int:
@@ -65,6 +82,12 @@ def format_table(result: dict[str, dict]) -> str:
     return "\n".join(lines)
 
 
+def canary_line(result: dict[str, dict]) -> str:
+    n = sum(r["canary_n"] for r in result.values())
+    u = sum(r["canary_union"] for r in result.values())
+    return f"canaries caught {u}/{n}"
+
+
 def meets_target(result: dict[str, dict]) -> bool:
     return all(
         r["canary_union"] >= TARGET_CANARY * r["canary_n"] and r["union"] >= TARGET_CATEGORY * r["n"]
@@ -72,14 +95,31 @@ def meets_target(result: dict[str, dict]) -> bool:
     )
 
 
-def main(argv: list[str]) -> int:
-    corpus = json.loads(Path(argv[1] if len(argv) > 1 else DEFAULT_CORPUS).read_text())
+def _load(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _report(label: str, corpus: dict) -> bool:
     result = measure(corpus)
+    print(f"\n## {label}")
     print(format_table(result))
-    print(f"non-PHI sentences flagged by second pass: {false_positives(corpus)}/{len(corpus.get('non_phi', []))}")
+    print(canary_line(result))
     ok = meets_target(result)
-    print("DON-RECALL target (100% canaries, >=95% per category):", "MET" if ok else "NOT MET")
-    return 0 if ok else 1
+    print(f"DON-RECALL target (100% canaries, >=95% per category): {'MET' if ok else 'NOT MET'}")
+    return ok
+
+
+def main(argv: list[str]) -> int:
+    r1 = _load(Path(argv[1]) if len(argv) > 1 else DEFAULT_CORPUS)
+    r2 = _load(R2_CORPUS)
+    met = [
+        _report("R1 (corpus_v1.json)", r1),
+        _report("R2 (corpus_v2.json)", r2),
+        _report("R1 + R2", merge_corpora(r1, r2)),
+    ]
+    gate_ok = _report("R2-gate (R2 items at odd index per category)", gate_half(r2))
+    print(f"\nnon-PHI sentences flagged by second pass (R1): {false_positives(r1)}/{len(r1.get('non_phi', []))}")
+    return 0 if all(met) and gate_ok else 1
 
 
 if __name__ == "__main__":
