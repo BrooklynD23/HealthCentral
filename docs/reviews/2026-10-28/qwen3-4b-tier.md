@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-28
 **Owner:** repository owner
-**Status:** Measured evidence only. No product code, test, config, flag or default changed. No pytest run. No queue, count slot or ask-first file edited. No recommendation is made here: CPU-MODEL-FINAL decides which model becomes the long-term CPU default from this table.
+**Status:** Partly met. Measured on CPU here: the judge preview, the chat subset and peak RSS. Not met: (1) `llama-bench` pp and tg at 4 and 8 threads for both models. That needs the owner to allow building the vendored llama.cpp, or to supply a prebuilt `llama-bench` binary. (2) A pp512 re-run on a quiet box. The first set was measured on a loaded box, and its pp512 cells are marked not usable for comparison. The original 2026-10-22 40-text judge set is unavailable, so the judge rows here cannot be compared with that run. No product code, test, config, flag or default changed. No pytest run. No queue, count slot or ask-first file edited. No recommendation is made here: CPU-MODEL-FINAL decides which model becomes the long-term CPU default from this table.
 **Refresh Trigger:** a change to the GGUF files or their pinned commits, to `held_out_dev.json`, to the judge prompt or its parser, to the chat prompts, or to `JUDGE-THINK` (`InferenceConfig.think`).
 
 Plan: [QWEN3-4B-TIER](../../plans/2026-10-22-mvp-rows-plan.md#qwen3-4b-tier--measure-qwen3-4b-on-cpu-as-the-candidate-long-term-default-no-product-code). Queue row: [queue.md](../../plans/2026-10-15-build-program/queue.md) (`QWEN3-4B-TIER`). Judge context: [judge research](../../research/2026-10-22-judge-laya/00-README.md). Baseline for the KV and MM-4 prompts: [kv-prefix-measure.md](../2026-10-22/kv-prefix-measure.md) and [kv-numctx-verify](../2026-10-27/).
@@ -21,14 +21,15 @@ One table, both models, same machine, same day. Throughput numbers come from lla
 
 | Measure (CPU only, same box, same day) | Qwen3-4B Q4_K_M | Phi-4-mini Q4_K_M |
 |---|---|---|
-| pp512, tok/s, 4 threads (mean of 3; reps) | 94.4 (90.6, 92.4, 100.1) | 68.3 (99.2, 65.7, 40.0) |
-| pp512, tok/s, 8 threads (mean of 3; reps) | 92.3 (97.5, 98.0, 81.5) | 99.5 (106.0, 98.7, 93.9) |
+| pp512, tok/s, 4 threads (mean of 3; reps) | 94.4 (90.6, 92.4, 100.1), loaded box, not usable for comparison | 68.3 (99.2, 65.7, 40.0), loaded box, not usable for comparison |
+| pp512, tok/s, 8 threads (mean of 3; reps) | 92.3 (97.5, 98.0, 81.5), loaded box, not usable for comparison | 99.5 (106.0, 98.7, 93.9), loaded box, not usable for comparison |
 | tg128, tok/s, 4 threads (mean of 3; reps) | 13.00 (13.03, 13.09, 12.87) | 13.17 (12.80, 13.32, 13.37) |
 | tg128, tok/s, 8 threads (mean of 3; reps) | 13.53 (13.53, 13.46, 13.61) | 14.40 (14.42, 14.36, 14.43) |
 | Judge, 40 texts, production 2 s clock: ALLOW / BLOCK / UNAVAILABLE | 18 / 21 / 1 | 19 / 19 / 2 |
 | Judge, must_block (20): ALLOW / BLOCK / UNAVAILABLE | 0 / 19 / 1 | 3 / 15 / 2 |
 | Judge, must_allow (20): ALLOW / BLOCK / UNAVAILABLE | 18 / 2 / 0 | 16 / 4 / 0 |
 | Judge, UNAVAILABLE by reason (clock over 2 s / unparseable) | 1 / 0 | 2 / 0 |
+| Judge caveat, 2 s clock: the UNAVAILABLE rows were raw BLOCK replies that ran over the clock (none unparseable) | 1 of 1 raw BLOCK over the clock | 2 of 2 raw BLOCK over the clock |
 | Judge, raw labels with no clock (ALLOW / BLOCK / other) | 18 / 22 / 0 | 19 / 21 / 0 |
 | Judge, seconds per call, median (min to max) | 0.94 (0.70 to 2.49) | 0.65 (0.39 to 2.45) |
 | Chat a, a2, c, c2, d: finish_reason | stop, stop, stop, stop, stop | stop, stop, stop, stop, stop |
@@ -36,7 +37,7 @@ One table, both models, same machine, same day. Throughput numbers come from lla
 | Chat: completion tokens (a, a2, c, c2, d) | 148, 120, 166, 471, 466 | 114, 115, 111, 100, 590 |
 | Chat: answer characters (a, a2, c, c2, d) | 629, 491, 664, 1579, 1638 | 435, 438, 423, 386, 2294 |
 | Chat: cites / invalid cites / `[cite:N]` text markers | 36 / 0 / 0 | 18 / 0 / 0 |
-| Chat: wall seconds (a, a2, c, c2, d) | 52.6, 37.1, 74.4, 95.7, 123.5 | 47.6, 37.8, 48.6, 49.2, 122.6 |
+| Chat: wall seconds (a, a2, c, c2, d); load-sensitive, see Machine | 52.6, 37.1, 74.4, 95.7, 123.5 | 47.6, 37.8, 48.6, 49.2, 122.6 |
 | `<think>` tags in output (judge / chat) | 0 / 0 | not a thinking model: 0 / 0 |
 | Peak RSS, whole process, highest of five runs | 5,949,328 KB (5.67 GiB) | 5,245,524 KB (5.00 GiB) |
 
@@ -62,7 +63,8 @@ text= 'OK' | finish_reason= stop | model_name= llama3.1:8b | tokens_generated= 2
 - GPU present but not used: NVIDIA RTX 3080 10 GiB, driver 610.88. `llama_supports_gpu_offload()` returned `false` in this llama-cpp-python build.
 - Ollama 0.40.5 (`ollama serve`, pid 881, left running and untouched). Used for step 0 only.
 - Python 3.11.17 (`~/venvs/asclexis-311`), llama-cpp-python 0.3.35, numpy 2.4.6, jinja2 3.1.6.
-- Load average during the runs was high: 13.4 (1 min), 18.4 (5 min), 15.9 (15 min) at the end of the runs. A `vite build` and a `docs_lint.py` from another worktree (`hc-popover-open-cost`) were running during the check. They were not started or stopped by this run. The one low repetition per model (Phi-4-mini 4-thread at 40.0 tok/s; Qwen3-4B 8-thread at 81.5 tok/s) is probably contention and is reported as measured.
+- Load average during the first set of runs was high: 13.4 (1 min), 18.4 (5 min), 15.9 (15 min) at the end of those runs. A `vite build` and a `docs_lint.py` from another worktree (`hc-popover-open-cost`) were running during the check. They were not started or stopped by this run. Low prompt-processing repetitions appeared in that first set: Phi-4-mini 4-thread (65.7 and 40.0 tok/s against 99.2, so two of three reps are low) and Qwen3-4B 8-thread (81.5 tok/s against 97.5 and 98.0, so one low rep). Contention is the likely cause. The chat wall-seconds row is load-sensitive for the same reason.
+- Ollama: step 0 loaded `llama3.1:8b` on the GPU. The Ollama default keep_alive is 5 minutes, so the model may have stayed in GPU memory after step 0. I did not unload it or stop Ollama. `ollama ps` run during re-run preparation showed no loaded model.
 - Repo: `origin/main` `9d0dc2ad` at worktree creation. Branch `docs/qwen3-4b-tier`.
 
 ## Model provenance
@@ -112,22 +114,24 @@ Raw JSON outputs (per-item judge rows, per-case chat text, RSS files) are in `~/
 
 ## Deviations from the plan
 
-1. **`llama-bench` was not built or run.** The `llama-bench` binary needs the vendored llama.cpp from the llama-cpp-python 0.3.35 sdist (fetched to `~/hc-models-scratch/llama-cpp-python-src/`). Building it was refused by the auto-mode permission check as external code execution, and I did not retry it or route around the refusal. Substitute: llama-cpp-python 0.3.35 timing (`bench` above). This is the same llama.cpp library the app loads. The two models are comparable with each other; the numbers are not comparable with published `llama-bench` figures. Permission to build the sdist's vendored llama.cpp would let this be rerun as `llama-bench` if wanted.
+1. **`llama-bench` was not built or run.** The `llama-bench` binary needs the vendored llama.cpp from the llama-cpp-python 0.3.35 sdist (fetched to `~/hc-models-scratch/llama-cpp-python-src/`). Building it was refused by the auto-mode permission check as external code execution, and I did not retry it or route around the refusal. Substitute: llama-cpp-python 0.3.35 timing (`bench` above). This is the same llama.cpp library the app loads. The two models are comparable with each other; the numbers are not comparable with published `llama-bench` figures. Permission to build the sdist's vendored llama.cpp, or a prebuilt `llama-bench` binary, would let pp and tg at 4 and 8 threads be rerun as `llama-bench` for both models. That is the remaining part of the row.
 2. **The 40-text judge set is not the 2026-10-22 set.** The `gpu-1022/judge_preview.py` script and its 40 texts are not on this box (`/tmp/claude-1000/gpu-1022` is absent), and `git grep` over all remote branches found only plan references to them. Substitute: `held_out_dev.json` (sha256 `63d59bb902095a691be176e9770e0c23db64a08e6e66288683c5b1319adabae5`, from this worktree at `origin/main`). The sample is every 9th item by list index: must_block indices 0, 9, ..., 171 (20 items) and must_allow indices 0, 9, ..., 171 (20 items). The 2026-10-22 llama.cpp result for Phi-4-mini (37 ALLOW, 3 BLOCK) is on another text set, so the two Phi-4-mini results are not comparable.
-3. **The judge prompt is the JUDGE-LAYA mirror, not `origin/main`.** B-3 (#264) is not merged. `FROZEN_PROMPT` was read from `judge-laya/scripts2/ollama_judge.py`, the research mirror of #264 head `48a50b5`.
+3. **The judge prompt is the JUDGE-LAYA mirror, not `origin/main`.** B-3 (#264) is not merged. `FROZEN_PROMPT` was read from `/tmp/claude-1000/judge-laya/scripts2/ollama_judge.py` (sha256 `bfd64273bd934dfb140d5f85836368403cec538a3ffade0ada7499d0dcab12f3`), the research mirror of #264 head `48a50b5`. Checked: `FROZEN_PROMPT` is byte-identical to the one in `git show 48a50b5:src/backend/modules/agent/guardrails/advice_judge.py` (877 characters; both parsed with `ast`, neither executed).
 4. **Thinking off uses the template, not the request field.** On llama.cpp the call is `create_completion` with the template rendered by hand (`enable_thinking=False`), because `create_chat_completion` cannot pass that variable. The Phi-4-mini render was not separately compared with `create_chat_completion`.
 5. **The MM-4 chat subset is not written down in the repo.** Five cases were used: a, a2, c, c2 and d from the 2026-10-27 scratch `prompts.json`. These are the lab-explanation and legacy-chat cases of the KV evidence. Case b (visit-note extraction) is not a chat question and was left out. The MM-4 question list itself was not located.
 6. **The grammar controls the chat outputs.** Applying the request's JSON schema as a grammar forces a JSON object, so thinking could not appear in the chat outputs even without the switch. The chat rows therefore say little about thinking-off. The judge rows (no grammar) are the thinking-off test.
 7. **Citation validity is counted on the schema path.** The app's `RAGModule.validate_response` checks `[cite:N]` text markers, which the schema-constrained answers do not use. Counts are integer `cites` against the labels in each prompt, plus a count of text markers (0 for both models).
 8. **Threads.** The judge and chat runs used 8 threads. The plan does not name a thread count for them. Throughput ran at 4 and 8.
-9. **Step 0 ran on the GPU.** It checks the facade through Ollama and is not part of the CPU measurement.
+9. **Step 0 ran on the GPU.** It checks the facade through Ollama and is not part of the CPU measurement. Ollama may have kept `llama3.1:8b` in GPU memory afterwards (default keep_alive 5 minutes); I did not unload it.
 10. **Judge "UNAVAILABLE" is split by cause.** The B-3 rule counts both clock timeouts and unparseable replies as `UNAVAILABLE`. Here only clock timeouts occurred (no unparseable replies), and the raw labels are shown without the clock.
-11. **No repeats to smooth outliers.** The low pp512 repetitions were not re-run (reported as measured).
+11. **No re-run of the bench calls.** The pp512 and tg128 bench calls were not re-run on a quiet box, because the box stayed loaded during the UI build wave. The pp512 cells are marked as not usable for comparison. The monitor that waited for a quiet box was stopped after two readings, 9.46 at 09:08:31 and 5.23 at 09:09:29, both above the 1.5 threshold, so no quiet window was observed. The tg128 cells were run in the same loaded window. Their repetitions agree within about 0.6 tok/s, but they were not checked on a quiet box either.
+12. **Box load.** The first set of CPU runs ran on a loaded box (load average 13 to 18, see Machine). The pp512 and tg128 figures, and the chat wall seconds, are load-sensitive. The first-set numbers are kept as measured. The pp512 cells are marked, and the chat wall-seconds row is labelled.
+13. **`n_ctx` 8192 for every run.** The llama-cpp-python default is 4096 and the app's chat default is `chat_context_size` 4096. 8192 was used so that case d (4016 Qwen3-4B prompt tokens plus up to 1024 output) fits. It matches the value `OLLAMA-NUM-CTX` already uses. It is a deviation from the chat default, and it changes the KV-cache part of the RSS.
 
 ## Findings for CPU-MODEL-FINAL
 
-- The two models have the same decode speed to within about 1 tok/s at 8 threads (13.5 and 14.4 tok/s). Prompt processing is noisy in this run (see the repetitions), so no prefill ranking is claimed.
-- On this 40-text dev sample, Qwen3-4B with thinking off separated the two judge classes more cleanly (0 of 20 must-block items ALLOW, 2 of 20 must-allow blocked). Phi-4-mini let 3 of 20 must-block items through as ALLOW and blocked 4 of 20 must-allow items. The sample is small (wide intervals above), it is not S5, and it is not the 2026-10-22 set. It cannot decide the default.
+- At 8 threads the two models' decode speeds are 13.5 and 14.4 tok/s, measured in a loaded window (deviation 11). Prompt processing was measured in the same loaded window and is not usable for comparison, so no prefill ranking is claimed.
+- On this 40-text dev sample, with thinking off: Qwen3-4B had 0 of 20 must-block items ALLOW and 2 of 20 must-allow blocked. Phi-4-mini had 3 of 20 must-block items ALLOW and 4 of 20 must-allow blocked. The sample is small (wide intervals above), it is not S5, and it is not the 2026-10-22 set. It cannot decide the default.
 - Both models answered all five chat cases as valid JSON with `stop`, with no invalid cites. Phi-4-mini's case d answer is about 40% longer than Qwen3-4B's (2294 characters against 1638), with 5 uncertainty items against 1.
 - Peak RSS is about 0.67 GiB higher for Qwen3-4B (5.67 GiB against 5.00 GiB) at `n_ctx` 8192.
 
