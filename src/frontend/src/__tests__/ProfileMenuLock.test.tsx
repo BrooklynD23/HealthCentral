@@ -77,7 +77,7 @@ describe('HC-SRE-011 Lock now in the profile menu', () => {
     renderMenu();
     await openMenu(user);
 
-    const settings = screen.getByRole('link', { name: 'Settings', exact: true });
+    const settings = screen.getByRole('link', { name: 'Settings' });
     const lock = screen.getByRole('button', { name: 'Lock now' });
     expect(settings.compareDocumentPosition(lock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
