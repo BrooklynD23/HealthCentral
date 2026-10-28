@@ -704,7 +704,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
