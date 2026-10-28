@@ -788,6 +788,11 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
   test.use({ viewport: PHONE });
 
   test('HC-UISH-007: with a toast visible, opening More leaves no toast over the sheet', async ({ page }) => {
+    // The toast module is imported from a /src path, which only the dev server serves (no such path on a preview or deployed build).
+    test.skip(
+      !!process.env.HC_E2E_BASE_URL,
+      'HC_E2E_BASE_URL is set: the /src/components/ui/toast.tsx import path exists only on the dev server'
+    );
     await openRoute(page, '/inbox');
     await expect(page.getByRole('navigation', { name: 'Tab bar' })).toBeVisible({ timeout: 15_000 });
     await page.evaluate(async () => {
