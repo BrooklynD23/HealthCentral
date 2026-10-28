@@ -290,6 +290,7 @@ test.describe('HC-UISH-002 skip link and h1 rules', () => {
 // HC-UISH-009: the Safety Rail keeps opacity 1 and a fixed rect through the same click.
 // ---------------------------------------------------------------------------
 test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
+  test.describe.configure({ retries: 0 });
   test.use({ viewport: DESKTOP });
 
   for (const route of AUTH_ROUTES) {
@@ -333,6 +334,7 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
 // UI-SHELL review round 2 MINOR 1: row 2 of the phone top bar must stay still during a route change, as the
 // desktop toggle does (L0 ruling 10:24:24Z). Below lg the note is display: none, so the visible label is probed.
 test.describe('HC-UISH-009 phone toggle label stays still', () => {
+  test.describe.configure({ retries: 0 });
   test.use({ viewport: PHONE });
 
   test('HC-UISH-009: at 390 the Safety Rail and the toggle label stay still through a tab-bar navigation', async ({
@@ -849,6 +851,7 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
 // HC-UIPC-007 (a focus ring is visible 16 ms after Tab on a Button).
 // ---------------------------------------------------------------------------
 test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365)', () => {
+  test.describe.configure({ retries: 0 });
   test('HC-UIOV-007: the still toggle popover holds still from the opening click', async ({ page }) => {
     test.fixme(true, 'POPOVER-OPEN-COST: open cost is under ui/Popover.tsx (Radix Presence/DismissableLayer, react commit); L0 ruling 2026-10-26');
     await page.setViewportSize(PHONE);
