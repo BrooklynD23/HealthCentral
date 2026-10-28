@@ -760,7 +760,12 @@ export function checkSampling(
     );
   }
   if (largestGapMs > maxGapMs) {
-    failures.push(`sampling gap of ${largestGapMs} ms (must be <= ${maxGapMs} ms; G10 samples every 16-40 ms)`);
+    // The page-change bound names its owner decision so it does not read as contradicting "16-40 ms".
+    const bound =
+      maxGapMs === STILLNESS_NAV_MAX_GAP_MS
+        ? `must be <= ${maxGapMs} ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms`
+        : `must be <= ${maxGapMs} ms; G10 samples every 16-40 ms`;
+    failures.push(`sampling gap of ${largestGapMs} ms (${bound})`);
   }
   return { failures, maxGapMs: largestGapMs, postTriggerSamples };
 }

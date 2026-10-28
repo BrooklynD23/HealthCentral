@@ -690,7 +690,7 @@ test('HC-UIG-008 sampling check bounds a page change at 70 ms, keeps 40 ms elsew
   const nav71 = checkSampling(withGap(71), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
   console.log(`HC-UIG-008 navigation 71 ms: ${JSON.stringify(nav71)}`);
   expect(nav71.failures.join('\n'), 'a 71 ms page-change gap must fail and name the 70 ms bound').toMatch(
-    /sampling gap of 71 ms \(must be <= 70 ms; G10 samples every 16-40 ms\)/
+    /sampling gap of 71 ms \(must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms\)/
   );
 
   const interaction41 = checkSampling(withGap(41), 0, 800, null);
