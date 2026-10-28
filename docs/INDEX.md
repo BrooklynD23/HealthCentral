@@ -3342,6 +3342,14 @@ Plan: KV-NUMCTX-VERIFY. Queue row: queue.md, Planned 2026-10-27. Baseline: kv-pr
 
 Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
+## `docs/reviews/2026-10-28/qwen3-4b-tier.md`
+
+**QWEN3-4B-TIER: Qwen3-4B vs Phi-4-mini on CPU (measurement only)**
+
+Plan: QWEN3-4B-TIER. Queue row: queue.md (`QWEN3-4B-TIER`). Judge context: judge research. Baseline for the KV and MM-4 prompts: kv-prefix-measure.md and kv-numctx-verify.
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-27`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
