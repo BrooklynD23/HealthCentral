@@ -61,10 +61,14 @@ class ExtractionResult:
     overall_confidence: float = 0.0
     ocr_unavailable: bool = False
     extracted_text: Optional[str] = None
+    # 1-based pages whose text layer has fewer than 20 non-space characters
+    # (image-only or blank). Set by extract_from_pdf (IMPORT-SCANNED-PAGE).
+    pages_without_text: list[int] = field(default_factory=list)
 
 
 # Shared unit alternation. Longer alternatives precede their prefixes.
 _UNIT_ALT = (
+    r"mL/min/1\.73m2|x10E3/uL|x10\^3/uL|10\*3/uL|x10E6/uL|"
     r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
     r"[uµμ]g/L|g/L|mg/dL|mg/L|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
 )
@@ -143,35 +147,61 @@ class ExtractModule:
         observations = []
         collection_dates = []
         pages_text: list[str] = []
+        pages_without_text: list[int] = []
 
         with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""
                 pages_text.append(text)
+                if len("".join(text.split())) < 20:
+                    pages_without_text.append(page_num)
 
                 # Extract tables (more structured)
                 tables = page.extract_tables() or []
 
                 # Process tables for lab values
-                page_table_count = 0
+                table_obs_all: list[ExtractedObservation] = []
+                table_yields: list[int] = []
                 for table in tables:
                     table_obs = self._extract_from_table(
                         table, page_num, document_id
                     )
-                    page_table_count += len(table_obs)
+                    table_yields.append(len(table_obs))
+                    table_obs_all.extend(table_obs)
                     observations.extend(table_obs)
+                page_table_count = len(table_obs_all)
 
-                # If this page's tables gave no observations, try text extraction.
-                # Table pages are noisy (demographics, IDs), so keep only
-                # rows with a recognised unit here.
                 if page_table_count == 0:
+                    # No table gave observations: parse the whole page text.
+                    # Table pages are noisy (demographics, IDs), so keep only
+                    # rows with a recognised unit here.
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
                     if tables:
                         text_obs = [o for o in text_obs if o.unit]
                     observations.extend(text_obs)
+                else:
+                    # Tables yielded: parse the text outside those tables only
+                    # (a table that yielded nothing keeps its text), keep rows
+                    # with a unit, and drop rows a table already gave.
+                    found = page.find_tables()
+                    region = page
+                    if len(found) == len(tables):
+                        for idx, n_obs in enumerate(table_yields):
+                            if n_obs:
+                                region = region.outside_bbox(found[idx].bbox, strict=False)
+                    text_obs = self._extract_from_text(
+                        region.extract_text() or "", page_num, document_id
+                    )
+                    seen = {
+                        (o.analyte_raw.strip().lower(), o.value) for o in table_obs_all
+                    }
+                    observations.extend(
+                        o for o in text_obs
+                        if o.unit and (o.analyte_raw.strip().lower(), o.value) not in seen
+                    )
 
                 # Extract dates
                 dates = self._extract_dates(text)
@@ -204,6 +234,7 @@ class ExtractModule:
             parser_version=self.parser_version,
             overall_confidence=overall_confidence,
             extracted_text="\f".join(pages_text),
+            pages_without_text=pages_without_text,
         )
 
     def _extract_from_table(
@@ -280,19 +311,34 @@ class ExtractModule:
         if not analyte:
             return None
 
-        # Get value
+        # Get value: the whole cell must parse. A comparator (<, >, <=, >=) is a
+        # bound, never an exact number; anything that does not fully match stays text.
         value_text = get_cell(value_col) if value_col >= 0 else ""
         value = None
+        cell_flag = None
         if value_text:
-            match = self.VALUE_PATTERN.search(value_text)
-            if match:
-                try:
-                    value = float(match.group(1))
-                except ValueError:
-                    logger.warning(
-                        "Failed to parse observation value",
-                        extra={"analyte": analyte, "raw_value": value_text, "page": page_num},
-                    )
+            _num = r"(?P<num>[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+            _flg = r"(?P<flag>\(?(?:HH|LL|H|L|A|HIGH|LOW|ABNORMAL|CRITICAL)\)?|\*)"
+            _cmp = r"(?P<cmp>[<>]=?|≤|≥)"
+            # Collapse whitespace runs first: adjacent \s* around optional groups
+            # backtrack cubically on a long space run. value_text stays raw.
+            cell = " ".join(value_text.split())
+            cell_match = re.fullmatch(
+                r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*" + _flg + r"?\s*",
+                cell,
+                re.IGNORECASE,
+            ) or re.fullmatch(
+                r"\s*" + _flg + r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*",
+                cell,
+                re.IGNORECASE,
+            )
+            if cell_match:
+                # A comparator makes it a bound, not an exact value: value stays None.
+                if not cell_match.group("cmp"):
+                    value = float(cell_match.group("num").replace(",", ""))
+                raw_flag = cell_match.group("flag")
+                if raw_flag:
+                    cell_flag = "A" if raw_flag == "*" else raw_flag.strip("()").upper()
 
         # Get unit
         unit = get_cell(unit_col) if unit_col >= 0 else None
@@ -319,6 +365,8 @@ class ExtractModule:
             flag_match = self.FLAG_PATTERN.search(flag_text)
             if flag_match:
                 flag = flag_match.group(1).upper()
+        if flag is None:
+            flag = cell_flag  # the flag column wins; the in-cell flag is the fallback
 
         # Calculate confidence
         confidence = 0.5
@@ -343,38 +391,52 @@ class ExtractModule:
             extraction_method="pdf_table",
         )
 
+    # Optional comparator before a value (Quest/LabCorp "<0.5", ">90"). It makes the value a bound.
+    _CMP_ALT = r"[<>]=?|≤|≥"
+    # A number. The lookaheads keep each digit run in one group, so a long run cannot be
+    # split between two groups (quadratic backtracking). Same language as \d+\.?\d*.
+    _NUM = r"\d+(?!\d)(?:\.\d*(?!\d))?"
+
     # Pattern for "Analyte: Value Unit" format
     LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
-        r"(\d+\.?\d*)\s*"  # Numeric value
-        r"(" + _UNIT_ALT + r")?"  # Unit
-        r"(?:\s*\((?:Normal:|Ref:?)?\s*([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
-        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"^(?P<name>[A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")"  # Numeric value
+        r"(?:\s*(?P<unit>" + _UNIT_ALT + r"))?"  # Unit (optional; the whitespace belongs to it)
+        r"(?:\s*\((?:Normal:|Ref:?)?\s*(?P<ref_low>[<>]?" + _NUM + r")\s*(?:[-–]\s*)?(?P<ref_high>" + _NUM + r")?\))?"  # Reference range
+        r"(?:\s*(?P<flag>H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
     )
 
     # Alternative pattern for "Analyte Value Unit (Range)" without colon
     ALT_LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]+?)\s+"  # Analyte name
-        r"(\d+\.?\d*)\s*"  # Value
-        r"(" + _UNIT_ALT + r")\s*"  # Required unit
-        r"(?:\(([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
-        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"^(?P<name>[A-Za-z]\s|[A-Za-z](?:\s*[A-Za-z0-9,\-])+?)\s+"  # Analyte name (whitespace runs cannot backtrack; HC-ETF-006)
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")\s*"  # Value
+        r"(?P<unit>" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s*\((?P<ref_low>[<>]?" + _NUM + r")\s*(?:[-–]\s*)?(?P<ref_high>" + _NUM + r")?\))?"  # Reference range
+        r"(?:\s*(?P<flag>H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
     )
 
-    # Column layout: "Analyte Value [Flag] Unit [Range] [Flag]" (whitespace-separated,
-    # unit required, range bare: a-b, <a or >a). Tried after the two patterns above.
+    # Column layout: "Analyte Value [Flag] Unit [Flag] [Range] [Flag]" (whitespace-separated,
+    # unit required, range bare: a-b, <a, <=a, <OR=a, >a, >=a or >OR=a). Tried after the two
+    # patterns above. A one-bound range sets one bound; a comparator before the value does not
+    # make the value a number.
     _FLAG_ALT = r"HH|LL|HIGH|LOW|ABNORMAL|CRITICAL|H|L"
     COLUMN_LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]*?)\s+"  # Analyte name
-        r"(\d+\.?\d*)\s+"  # Value
-        r"(?:(" + _FLAG_ALT + r")\s+)?"  # Flag before unit
-        r"(" + _UNIT_ALT + r")"  # Required unit
-        r"(?:\s+(?:(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)|<\s*(\d+\.?\d*)|>\s*(\d+\.?\d*)))?"  # Range
-        r"(?:\s+(" + _FLAG_ALT + r"))?"  # Flag after range
+        r"^(?P<name>[A-Za-z](?:\s*[A-Za-z0-9,\-])*?)\s+"  # Analyte name (no trailing whitespace: linear time)
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")\s+"  # Value
+        r"(?:(?P<flag_before>" + _FLAG_ALT + r")\s+)?"  # Flag before unit
+        r"(?P<unit>" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s+(?:(?P<flag_mid>" + _FLAG_ALT + r")\s+)?"  # Flag between unit and range (only with a range)
+        r"(?:(?P<lo>" + _NUM + r")\s*[-–]\s*(?P<hi>" + _NUM + r")"  # Range a-b
+        r"|(?P<one_lt><(?:OR=|=)?\s*(?P<lt>" + _NUM + r"))"  # Upper bound: <a, <=a, <OR=a
+        r"|(?P<one_gt>>(?:OR=|=)?\s*(?P<gt>" + _NUM + r"))))?"  # Lower bound: >a, >=a, >OR=a
+        r"(?:\s+(?P<flag_after>" + _FLAG_ALT + r"))?"  # Flag after range
         r"\s*$",
         re.IGNORECASE
     )
@@ -420,30 +482,28 @@ class ExtractModule:
         if not match:
             # Try alternative format: "Glucose 95 mg/dL (70-100)"
             match = self.ALT_LINE_PATTERN.match(line)
-
         if not match:
-            col = self.COLUMN_LINE_PATTERN.match(line)
-            if not col:
-                return None
-            name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
-            col_range_text = (
-                f"{lo}-{hi}" if lo and hi else f"<{lt}" if lt else f">{gt}" if gt else None
-            )
-            # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
-            if lt:
-                lo, hi = None, lt
-            elif gt:
-                lo, hi = gt, None
-            groups = (name, val, col_unit, lo, hi, flag_a or flag_b)
-        else:
-            groups = match.groups()
-            col_range_text = None
-        analyte = groups[0].strip() if groups[0] else None
-        value_str = groups[1] if len(groups) > 1 else None
-        unit = groups[2] if len(groups) > 2 else None
-        ref_low_str = groups[3] if len(groups) > 3 else None
-        ref_high_str = groups[4] if len(groups) > 4 else None
-        flag = groups[5].upper() if len(groups) > 5 and groups[5] else None
+            # Column layout: "Glucose 95 mg/dL 70-99"
+            match = self.COLUMN_LINE_PATTERN.match(line)
+        if not match:
+            return None
+
+        fields = match.groupdict()
+        analyte = fields["name"].strip() if fields["name"] else None
+        value_str = fields["value"]
+        cmp = fields.get("cmp")
+        unit = fields.get("unit")
+        # Flag before the unit wins, then the flag between unit and range, then the flag after the range.
+        flag_text = (
+            fields.get("flag") or fields.get("flag_before")
+            or fields.get("flag_mid") or fields.get("flag_after")
+        )
+        flag = flag_text.upper() if flag_text else None
+        # A one-bound range ("<100", ">=60") keeps its raw text; a-b ranges are rebuilt from the bounds.
+        one_bound = fields.get("one_lt") or fields.get("one_gt")
+        col_range_text = re.sub(r"\s+", "", one_bound) if one_bound else None
+        ref_low_str = fields.get("ref_low") or fields.get("lo") or fields.get("gt")
+        ref_high_str = fields.get("ref_high") or fields.get("hi") or fields.get("lt")
 
         if not analyte or not value_str:
             return None
@@ -459,11 +519,23 @@ class ExtractModule:
         ):
             return None
 
-        # Parse numeric values
-        try:
-            value = float(value_str)
-        except (ValueError, TypeError):
+        # A comparator is a result only with a unit and a reference bound on the same line
+        # ("Glucose: <70 mg/dL (70-100)"). Without them it is a reference label
+        # ("Diabetes: >6.4", "Desirable range <200 mg/dL", "Normal: <5.7 %"), not a result.
+        if cmp and (not unit or (ref_low_str is None and ref_high_str is None)):
             return None
+
+        # A comparator (<, >, <=, >=) is a bound, never an exact number: value stays None
+        # and the text is kept as value_text (as in _parse_table_row).
+        value = None
+        value_text = None
+        if cmp:
+            value_text = f"{cmp}{value_str}"
+        else:
+            try:
+                value = float(value_str)
+            except (ValueError, TypeError):
+                return None
 
         ref_low = None
         ref_high = None
@@ -498,6 +570,7 @@ class ExtractModule:
         return ExtractedObservation(
             analyte_raw=analyte,
             value=value,
+            value_text=value_text,
             unit=unit,
             ref_low=ref_low,
             ref_high=ref_high,
@@ -708,8 +781,9 @@ class ExtractModule:
     # whitespace runs); callers pass pos/endpos so `\b` still sees the real
     # character before the window.
     _BIRTH_LABEL_TAIL_RE = re.compile(
-        r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?)"
-        r"\s{0,3}[:\-]?\s{0,3}$",
+        r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?"
+        r"|\bdob\s*/\s*(?:sex|gender|age))"
+        r"\s{0,3}(?:\([^()\n]{0,14}\)\s{0,3})?[:\-]?\s{0,3}$",
         re.IGNORECASE,
     )
     _BIRTH_LABEL_WINDOW = 32
@@ -792,13 +866,76 @@ class ExtractModule:
         generic: list[str] = []
         seen: set[str] = set()
 
+        # --- Column layout: a DOB printed under a birth-label header token ---
+        # A line whose whitespace-separated tokens include a single-token birth
+        # label (case-insensitive, a trailing ':' ignored) is a header, unless it
+        # carries a date token itself. The next line is its data row only when it
+        # has the same token count, and the token at the label's index is a DOB
+        # when it is a date. Skipped by character offset, never by value, so the
+        # same date printed elsewhere still counts. In such a data row a birth
+        # label counts only on its own line: the header's label does not reach
+        # into the row's other cells. One split and one pass: linear.
+        birth_labels = {"dob", "d.o.b.", "d.o.b", "birthdate"}
+        lines = text.split("\n")
+        line_starts: list[int] = []
+        offset = 0
+        for line in lines:
+            line_starts.append(offset)
+            offset += len(line) + 1
+        birth_column: set[int] = set()
+        column_row: set[int] = set()
+        # Only a token of this shape can parse as a date: each single-token format in
+        # _normalize_date_str is digits, a separator, a 1-3 character month or day, a
+        # separator, digits and an optional T time. Other tokens skip its 12 strptime
+        # attempts, so a long line of plain tokens stays cheap.
+        date_shape = re.compile(r"\d{1,4}[/\-]\w{1,3}[/\-]\d{1,4}(?:[Tt][\d:]+)?")
+
+        def _is_date_token(token: str) -> bool:
+            return (
+                date_shape.fullmatch(token) is not None
+                and self._normalize_date_str(token) is not None
+            )
+
+        for i in range(len(lines) - 1):
+            header = list(re.finditer(r"\S+", lines[i]))
+            if not any(t.group().lower().removesuffix(":") in birth_labels for t in header):
+                continue
+            if any(_is_date_token(t.group()) for t in header):
+                continue
+            row = list(re.finditer(r"\S+", lines[i + 1]))
+            if len(header) != len(row):
+                continue
+            confirmed = False
+            for col, token in enumerate(header):
+                if token.group().lower().removesuffix(":") not in birth_labels:
+                    continue
+                cell = row[col]
+                if _is_date_token(cell.group()):
+                    confirmed = True
+                    cell_start = line_starts[i + 1] + cell.start()
+                    birth_column.update(range(cell_start, cell_start + len(cell.group())))
+            if confirmed:
+                row_start = line_starts[i + 1]
+                column_row.update(range(row_start, row_start + len(lines[i + 1])))
+
+        def _after_birth_label(pos: int) -> bool:
+            """True if a birth label precedes *pos*; in a column row, only on the same line."""
+            if pos not in column_row:
+                return self._follows_birth_label(text, pos)
+            lo = max(0, pos - self._BIRTH_LABEL_WINDOW)
+            floor = max(text.rfind("\n", lo, pos) + 1, lo)
+            return self._BIRTH_LABEL_TAIL_RE.search(text, floor, pos) is not None
+
         # --- Stage 1: collection-label dates (highest priority) ---
         for m in self._COLLECTION_LABEL_RE.finditer(text):
             # The capture group may contain extra words; try progressively
             # shorter substrings so we get just the date part.
             raw_tail = m.group(1).strip()
             tail_start = m.start(1) + (len(m.group(1)) - len(m.group(1).lstrip()))
-            if self._follows_birth_label(text, tail_start):
+            # A DOB-column cell blocks this label only when the label reaches it
+            # across a line break; a label on the same line as its date wins.
+            crosses_line = "\n" in text[m.start():tail_start]
+            if (crosses_line and tail_start in birth_column) or _after_birth_label(tail_start):
                 continue
             for candidate in _date_candidates_from_tail(raw_tail):
                 iso = self._normalize_date_str(candidate)
@@ -827,7 +964,7 @@ class ExtractModule:
 
         for pattern in generic_patterns:
             for m in re.finditer(pattern, text, re.IGNORECASE):
-                if self._follows_birth_label(text, m.start(1)):
+                if m.start(1) in birth_column or _after_birth_label(m.start(1)):
                     continue
                 candidate = m.group(1).strip()
                 iso = self._normalize_date_str(candidate)

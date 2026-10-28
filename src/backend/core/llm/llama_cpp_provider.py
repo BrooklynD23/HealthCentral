@@ -79,6 +79,7 @@ class LlamaCppProvider:
         self._n_gpu_layers = n_gpu_layers
         self._model = None
         self._initialized = False
+        self._closed = False  # set by unload(); a closed provider never reloads
         self._settings = settings
         # LLAMA-SERIAL. The native model is not thread-safe, and a timed-out
         # generation keeps running in its executor thread.
@@ -107,6 +108,8 @@ class LlamaCppProvider:
 
         patterns = [
             f"{self._settings.default_chat_model}*.gguf",
+            # CPU-DEFAULT-PHI4: CPU-only runs try Phi-4-mini before Gemma 4.
+            *(["*Phi-4-mini*.gguf"] if self._n_gpu_layers == 0 else []),
             "gemma4*.gguf",
             "gemma-4*.gguf",
             "phi-3*.gguf",
@@ -137,6 +140,8 @@ class LlamaCppProvider:
         try:
             if self._initialized:
                 return self._model is not None
+            if self._closed:
+                return False
 
             self._initialized = True
             model_path = self._find_model_path()
@@ -220,8 +225,9 @@ class LlamaCppProvider:
 
     def capabilities(self) -> CapabilityFlags:
         model_name = self._settings.default_chat_model
-        if self._model_path:
-            model_name = Path(self._model_path).stem
+        path = self._model_path or self._find_model_path()
+        if path:
+            model_name = Path(path).stem
 
         # Gemma 4 GGUF: multimodal + function_calling available at the model
         # level; we surface the flags so the app layer can gate feature use.
@@ -384,6 +390,7 @@ class LlamaCppProvider:
         # load (init lock): the model must not be freed under either, nor land
         # after unload returned. Lock order: model lock -> init lock.
         with self._model_lock, self._init_lock:
+            self._closed = True
             if self._model is not None:
                 del self._model
                 self._model = None

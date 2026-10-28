@@ -6,6 +6,8 @@
 **Refresh Trigger:** Task completed or new task identified
 **Scope:** Active remaining work only (implementation baseline already shipped)
 
+> The live build-program backlog is [`docs/plans/2026-10-15-build-program/queue.md`](../plans/2026-10-15-build-program/queue.md), the single execution queue. This file keeps the remaining-work tracker and Session Notes ([AGENT.md definition of done](../../AGENT.md#definition-of-done)).
+
 ---
 
 ## Purpose

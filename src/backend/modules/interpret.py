@@ -274,6 +274,7 @@ class InterpretModule:
             interpretation.previous_interpretation_id = existing_interp.id
             # Delete old interpretation
             await profile_db.delete(existing_interp)
+            await profile_db.flush()
 
         profile_db.add(interpretation)
         await profile_db.commit()
@@ -781,7 +782,7 @@ class InterpretModule:
             return text, advice_text
 
         except Exception as e:
-            logger.error(f"LLM interpretation failed: {e}, falling back to template")
+            logger.error("LLM interpretation failed: %s, falling back to template", type(e).__name__)
             return await self._generate_interpretation(context, db)
 
     def _build_llm_prompt(self, context: InterpretationContext) -> str:
@@ -1029,6 +1030,7 @@ class InterpretModule:
             interpretation.regeneration_count = existing_interp.regeneration_count + 1
             interpretation.previous_interpretation_id = existing_interp.id
             await profile_db.delete(existing_interp)
+            await profile_db.flush()
 
         profile_db.add(interpretation)
         await profile_db.commit()

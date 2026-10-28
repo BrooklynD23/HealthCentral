@@ -45,6 +45,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install SQLCipher
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
@@ -123,6 +125,10 @@ jobs:
       - name: Production build
         working-directory: src/frontend
         run: npm run build
+
+      - name: Bundle budget (check-bundle.mjs)
+        working-directory: src/frontend
+        run: node scripts/check-bundle.mjs
 
   security-scan:
     name: Security Scan
@@ -206,6 +212,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install SQLCipher
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
@@ -228,6 +236,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install SQLCipher
         run: sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
@@ -258,6 +268,17 @@ jobs:
         working-directory: src/frontend
         run: npm ci
 
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          echo "version=$(node -p "require('./src/frontend/package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
       - name: Install Playwright browsers
         working-directory: src/frontend
         run: npx playwright install --with-deps chromium
@@ -266,6 +287,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
 
       - name: Install backend dependencies
         run: |

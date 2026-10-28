@@ -22,7 +22,7 @@ from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.audit import audit_and_commit, audit_intent, create_audit_log
@@ -231,6 +231,37 @@ def get_rag_module() -> RAGModule:
             ),
         )
     return _rag_module
+
+
+# SAFETY-MODE-STRICT: the owner's "Stricter checks" option (0.75, as the option stated).
+# Not a measured value; the owner may change it, and only this constant changes.
+STRICT_MIN_SCORE = 0.75
+_strict_rag_module: Optional[RAGModule] = None
+
+
+def get_strict_rag_module() -> RAGModule:
+    """The legacy RAG module for a profile whose strict safety mode is on.
+
+    Built like get_rag_module, but both the faithfulness and the verifier
+    thresholds are STRICT_MIN_SCORE. Callers choose it only after
+    is_strict_safety_mode(profile_db) returns True.
+    """
+    global _strict_rag_module
+    if _strict_rag_module is None:
+        from core.config import settings as app_settings
+
+        _strict_rag_module = RAGModule(
+            enable_verification=True,
+            verification_config=VerificationConfig(
+                min_faithfulness_score=STRICT_MIN_SCORE,
+                fail_on_contradiction=True,
+                use_llm_entailment=app_settings.use_llm_entailment,
+            ),
+            faithfulness_config=FaithfulnessConfig(
+                min_overall_score=STRICT_MIN_SCORE,
+            ),
+        )
+    return _strict_rag_module
 
 
 def _legacy_serve_or_abstain(result: ValidatedResponse) -> ValidatedResponse:
@@ -619,6 +650,102 @@ async def update_memory_settings(
         assistant_memory_enabled=bool(row.assistant_memory_enabled),
         global_default=bool(app_settings.assistant_memory_enabled),
     )
+
+
+# ---------------------------------------------------------------------------
+# Safety mode setting endpoint  (SAFETY-MODE-SETTING)
+# ---------------------------------------------------------------------------
+
+class SafetyModeResponse(BaseModel):
+    strict_safety_mode: bool
+
+
+class SafetyModeUpdate(BaseModel):
+    strict_safety_mode: bool
+
+
+async def is_strict_safety_mode(profile_db: AsyncSession) -> bool:
+    """True when this profile's strict safety mode is on, False otherwise.
+
+    Fails closed: True if ANY settings row in this DB has the flag set. Returns
+    False when there is no settings row. Duplicate rows can exist (profile_id
+    is indexed, not unique), so this never picks one row. The profile DB
+    belongs to one profile (vaults/<profile_id>), so no profile_id filter is
+    applied. SAFETY-MODE-STRICT and SAFETY-MODE-VERIFIED import this; keep the
+    signature stable.
+    """
+    result = await profile_db.execute(
+        select(exists().where(UserModelSettings.strict_safety_mode.is_(True)))
+    )
+    return bool(result.scalar())
+
+
+@router.get("/safety-mode", response_model=SafetyModeResponse)
+async def get_safety_mode(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Return the per-profile strict safety mode flag. Audited read."""
+    row = await _get_user_model_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="safety_mode_viewed",
+        action="safety_mode_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="safety_mode",
+    )
+    return SafetyModeResponse(
+        strict_safety_mode=bool(row.strict_safety_mode) if row else False,
+    )
+
+
+@router.patch("/safety-mode", response_model=SafetyModeResponse)
+async def update_safety_mode(
+    data: SafetyModeUpdate,
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Set the per-profile strict safety mode flag. Commit, then audit."""
+    row = await _get_user_model_settings(session.profile_id, profile_db)
+    if row is None:
+        row = UserModelSettings(
+            id=str(uuid.uuid4()),
+            profile_id=session.profile_id,
+            created_at=utcnow(),
+            updated_at=utcnow(),
+        )
+        profile_db.add(row)
+
+    row.strict_safety_mode = data.strict_safety_mode
+    row.updated_at = utcnow()
+    await profile_db.commit()
+    await profile_db.refresh(row)
+    await create_audit_log(
+        db=master_db,
+        event_type="safety_mode_updated",
+        action="safety_mode_updated",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="safety_mode",
+        details={
+            "changed_fields": ["strict_safety_mode"],
+            "status": "enabled" if data.strict_safety_mode else "disabled",
+        },
+    )
+    try:
+        await master_db.commit()
+    except Exception:
+        logger.error(
+            "AUDIT-ORDER: audit commit failed after change (event=%s, entity=%s)",
+            "safety_mode_updated",
+            "safety_mode",
+        )
+        raise
+    return SafetyModeResponse(strict_safety_mode=bool(row.strict_safety_mode))
 
 
 # ---------------------------------------------------------------------------
@@ -1052,7 +1179,10 @@ async def chat(
                 await db.commit()
 
         if not use_agent or agent_failed:
-            result = await rag.query(
+            # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75
+            # module. OFF keeps the 0.6 module, so OFF is unchanged.
+            legacy_rag = get_strict_rag_module() if await is_strict_safety_mode(profile_db) else rag
+            result = await legacy_rag.query(
                 question=request.question,
                 profile_id=session.profile_id,
                 selected_analytes=request.selected_analytes,
@@ -1385,9 +1515,24 @@ async def get_glossary_term(
 
 
 @router.get("/verification-status")
-async def get_verification_status(session: RequireAuth):
-    """Get current verification system status."""
+async def get_verification_status(
+    session: RequireAuth,
+    profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Get current verification system status. Audited read (SAFETY-MODE-STRICT):
+    reports the faithfulness threshold in force for this profile."""
     rag = get_rag_module()
+    min_score = STRICT_MIN_SCORE if await is_strict_safety_mode(profile_db) else 0.6
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="verification_status_viewed",
+        action="verification_status_viewed",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="verification_status",
+    )
     return {
         "verification_enabled": rag.enable_verification,
         "components": {
@@ -1397,7 +1542,7 @@ async def get_verification_status(session: RequireAuth):
             "faithfulness_scorer": "active",
         },
         "configuration": {
-            "min_faithfulness_score": 0.6,
+            "min_faithfulness_score": min_score,
             "fail_on_contradiction": True,
             "min_supporting_sources": 1,
         },

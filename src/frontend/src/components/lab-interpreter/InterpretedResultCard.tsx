@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Brain,
   ChevronDown,
@@ -63,7 +63,7 @@ export function InterpretedResultCard({
   const variant = severityVariant[interpretation.severity_level] ?? 'default';
 
   return (
-    <motion.div
+    <m.div
       initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
@@ -204,6 +204,6 @@ export function InterpretedResultCard({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }

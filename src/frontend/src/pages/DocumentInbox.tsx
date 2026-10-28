@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Upload,
   FileText,
@@ -36,6 +36,15 @@ import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConf
 // CategoryBadge + EntityDetailView available in @/components/documents/
 // Wire into document detail view when it's built (no detail page exists yet)
 
+// IMPORT-SCANNED-PAGE: the values on these pages were not read; say which ones.
+function pagesWithoutTextNotice(pages: number[]): string {
+  if (pages.length === 1) {
+    return `Page ${pages[0]} has no readable text, so its values were not read. Check the original report.`;
+  }
+  const head = pages.slice(0, -1).join(', ');
+  return `Pages ${head} and ${pages[pages.length - 1]} have no readable text, so their values were not read. Check the original report.`;
+}
+
 export function DocumentInbox() {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
@@ -43,6 +52,7 @@ export function DocumentInbox() {
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
   const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
+  const [importError, setImportError] = useState<{ message: string; fileName: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get active profile from auth store
@@ -85,11 +95,19 @@ export function DocumentInbox() {
     try {
       const result = await importDocument.mutateAsync({ file, profileId });
       setLastImport(result);
+      setImportError(null);
       if (result.duplicate_warning) {
         setDuplicateWarnings((current) => [...current, result]);
       }
     } catch (err) {
       console.error('Failed to import document:', err);
+      const message =
+        err instanceof ApiError
+          ? err.status === 413
+            ? 'This file is too large to import.'
+            : err.message
+          : 'Something went wrong while importing this file. Please try again.';
+      setImportError({ message, fileName: file.name });
     }
   };
 
@@ -165,6 +183,29 @@ export function DocumentInbox() {
           aria-label="Upload medical documents"
         />
       </div>
+
+      {importError && (
+        <Card className="border-status-critical/30 bg-status-critical/5" role="alert">
+          <CardContent className="py-4 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-ink">Import failed: {importError.fileName}</p>
+                <p className="text-sm text-ink-secondary mt-1">{importError.message}</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Dismiss import error for ${importError.fileName}`}
+              onClick={() => setImportError(null)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card
         className={cn(
@@ -265,6 +306,11 @@ export function DocumentInbox() {
                   verification
                 </p>
               )}
+              {(lastImport.pages_without_text?.length ?? 0) > 0 && (
+                <p role="status" className="text-sm font-medium text-ink">
+                  {pagesWithoutTextNotice(lastImport.pages_without_text ?? [])}
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={() => setPreviewDocId(lastImport.document.id)}>
@@ -336,14 +382,14 @@ export function DocumentInbox() {
               <p>No documents yet. Import your first lab report above.</p>
             </div>
           ) : (
-            <motion.div
+            <m.div
               variants={containerVariants}
               initial="hidden"
               animate="show"
               className="divide-y divide-black/4"
             >
               {documents.map((doc) => (
-                <motion.div
+                <m.div
                   key={doc.id}
                   variants={itemVariants}
                   className="flex items-center gap-4 p-4 hover:bg-surface-muted/50 transition-colors group"
@@ -450,9 +496,9 @@ export function DocumentInbox() {
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
                   </div>
-                </motion.div>
+                </m.div>
               ))}
-            </motion.div>
+            </m.div>
           )}
         </CardContent>
       </Card>

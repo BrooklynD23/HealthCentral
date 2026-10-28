@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   ArrowLeft,
   Pill,
@@ -290,7 +290,7 @@ export function MedicationDetail() {
               ) : (
                 <div className="divide-y divide-black/4">
                   {doses.map((dose, i) => (
-                    <motion.div
+                    <m.div
                       key={dose.id}
                       initial={prefersReducedMotion ? {} : { opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -330,7 +330,7 @@ export function MedicationDetail() {
                           {dose.was_skipped ? 'Skipped' : 'Taken'}
                         </Badge>
                       </div>
-                    </motion.div>
+                    </m.div>
                   ))}
                 </div>
               )}

@@ -11,7 +11,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core import time as core_time
 from core.audit import audit_and_commit, log_export_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
@@ -49,6 +50,38 @@ _packet_store: dict[str, dict] = {}
 
 # In-memory FHIR R4 export storage (HC-M22; same MVP pattern as _packet_store)
 _fhir_store: dict[str, dict] = {}
+
+# Stored exports expire after this long (EXPORT-STORE-PURGE). The TTL clock is
+# read via the core.time module so tests that freeze `api.export.utcnow` (the
+# generation-day footer tests) do not also age the stored entries.
+_EXPORT_TTL = timedelta(minutes=30)
+
+
+def _expired(entry: dict) -> bool:
+    # L0 ruling (iii): an entry with no `created_at` counts as FRESH, so
+    # legacy fixtures that write bare entries keep being served.
+    created = entry.get("created_at")
+    return created is not None and core_time.utcnow() - created > _EXPORT_TTL
+
+
+def _prune_expired() -> None:
+    for store in (_summary_store, _packet_store, _fhir_store):
+        for key in [k for k, v in store.items() if _expired(v)]:
+            del store[key]
+
+
+def purge_profile_exports(profile_id: str) -> int:
+    """Drop every in-memory export for `profile_id`; return how many went.
+
+    Memory only, never touches a database. Must also cover the persisted
+    ExportArtifact (I-20 / C-GC1) once that lands.
+    """
+    removed = 0
+    for store in (_summary_store, _packet_store, _fhir_store):
+        for key in [k for k, v in store.items() if v.get("profile_id") == profile_id]:
+            del store[key]
+            removed += 1
+    return removed
 
 # Verified entity types that feed the FHIR export (Condition, Encounter,
 # DiagnosticReport). Only verified_by_user is True rows are ever fetched.
@@ -454,6 +487,8 @@ async def generate_doctor_summary(
     summary_data = export_module.redact_summary_data(summary_data)
     # Profile-local generation day, added after redaction (a bare ISO date).
     summary_data["generated_on"] = local_today.isoformat()
+    _prune_expired()
+    summary_data["created_at"] = core_time.utcnow()
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -508,6 +543,8 @@ async def download_summary(
 
     # Retrieve from store
     summary_data = _summary_store.get(summary_id)
+    if summary_data and _expired(summary_data):
+        summary_data = None
 
     if not summary_data:
         raise HTTPException(
@@ -818,6 +855,8 @@ async def generate_visit_prep(
         selected_documents=selected_documents,
         today=local_today,
     )
+    _prune_expired()
+    packet["created_at"] = core_time.utcnow()
     _packet_store[packet["packet_id"]] = packet
 
     await audit_and_commit(
@@ -860,6 +899,8 @@ async def download_visit_prep(
     validate_uuid(packet_id, "packet_id")
 
     packet = _packet_store.get(packet_id)
+    if packet and _expired(packet):
+        packet = None
     if not packet:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1251,9 +1292,11 @@ async def generate_fhir_export(
     )
 
     export_id = str(uuid.uuid4())
+    _prune_expired()
     _fhir_store[export_id] = {
         "profile_id": profile_id,
         "bundle": result["bundle"],
+        "created_at": core_time.utcnow(),
     }
 
     await audit_and_commit(
@@ -1292,6 +1335,8 @@ async def download_fhir_export(
     validate_uuid(export_id, "export_id")
 
     stored = _fhir_store.get(export_id)
+    if stored and _expired(stored):
+        stored = None
     if not stored:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -15,6 +15,8 @@ monkeypatched on the class; modules/faithfulness.py is not edited (C-SAFE-1).
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
@@ -86,6 +88,8 @@ def test_hc_leg_001_low_faithfulness_legacy_answer_returns_abstention_over_http(
 
 
 def test_hc_leg_004_faithfulness_at_threshold_0_6_is_served_unchanged(monkeypatch):
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
+    monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
     _force_faithfulness(monkeypatch, 0.6)
     with legacy_chat_client(build_chunks("glucose"), CITED_ANSWER) as (client, append_turns):
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})

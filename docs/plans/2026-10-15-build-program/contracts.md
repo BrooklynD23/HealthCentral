@@ -40,6 +40,7 @@ A consumer codes against the signature in this table, never against a lane doc's
 | I-20 | C-GC1 | `models.export_artifact.ExportArtifact(id, kind, profile_id, payload_json, created_at)`; `EXPORT_ARTIFACT_KINDS`; `api.export._save_artifact` / `_load_artifact` (keyword-only) | WEAR export paths (#94) | `be/tests/test_export_artifact_persistence.py` |
 | I-21 | lane F | Variant-I evidence: W-2 HC-EXPR-003 and W-3 HC-VER-002 call `route_client` inside their own test body; the merged PR body pastes red-first output per new test id and ≥ 1 break-it run. Otherwise `data-privacy.md` stays U | E-1, W-3 PR bodies → F-6 | F-6 reviewer check |
 | I-22 | lane F | F-trigger commands F1–F5 (lane F §3 item 3); all return 0 hits on `3b2236c` | each provider runs its trigger after merge and tells lane F | the grep itself |
+| I-23 | SAFETY-MODE-SETTING | `api.assistant.is_strict_safety_mode(profile_db: AsyncSession) -> bool` (fails closed: true if any settings row has `strict_safety_mode`; false with no row) | SAFETY-MODE-STRICT, SAFETY-MODE-VERIFIED | `be/tests/test_safety_mode_setting.py` (HC-SMS-001…006) |
 
 ---
 

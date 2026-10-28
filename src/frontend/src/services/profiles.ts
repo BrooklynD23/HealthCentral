@@ -64,7 +64,7 @@ async function issueRecoveryCode(
   return apiPost<RecoveryCodeResponse, { password: string }>(
     `/profiles/${profileId}/recovery-code`,
     { password },
-    { signal: AbortSignal.timeout(180_000) }
+    { signal: AbortSignal.timeout(180_000), reauth: true }
   );
 }
 
@@ -94,7 +94,9 @@ async function deleteProfile(
   profileId: string,
   data: ProfileDeleteRequest
 ): Promise<void> {
-  return apiDelete<ProfileDeleteRequest>(`/profiles/${profileId}`, data);
+  return apiDelete<ProfileDeleteRequest>(`/profiles/${profileId}`, data, {
+    reauth: true,
+  });
 }
 
 // React Query hooks
@@ -151,6 +153,9 @@ export function useLogin() {
       });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
+    // Variables hold the password. Drop the mutation
+    // from the cache as soon as nothing observes it (RCC-2).
+    gcTime: 0,
   });
 }
 

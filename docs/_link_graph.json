@@ -1,6 +1,7 @@
 {
   "linked_from": {
     ".claude/skills/README.md": [
+      "README.md",
       "AGENT.md"
     ],
     ".claude/workflows/build-item.js": [
@@ -22,22 +23,28 @@
       "docs/agentic/harness.md",
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
+      "docs/architecture/overview.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/capstone-report/architecture-engineering-contract.md",
+      "docs/dev/setup.md",
+      "docs/features/TASK_LIST.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
       "docs/plans/2026-09-08-backlog-closure-plan.md",
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
-      "docs/plans/2026-10-21b-session-handoff.md",
-      "docs/plans/2026-10-21c-session-handoff.md",
       "docs/plans/2026-10-22-session-handoff.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "README.md",
       "CLAUDE.md"
@@ -48,24 +55,29 @@
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
       "docs/architecture/ci-and-quality-gates.md",
+      "docs/architecture/overview.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/capstone-report/architecture-engineering-contract.md",
       "docs/compliance/ai-safety.md",
+      "docs/dev/setup.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
       "docs/plans/2026-09-08-backlog-closure-plan.md",
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
-      "docs/plans/2026-10-21b-session-handoff.md",
-      "docs/plans/2026-10-21c-session-handoff.md",
       "docs/plans/2026-10-22-session-handoff.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
@@ -74,11 +86,17 @@
       "AGENT.md"
     ],
     "CONTRIBUTING.md": [
+      "docs/dev/setup.md",
       "docs/roles/devops-and-ci.md",
       "README.md"
     ],
+    "README.md": [
+      "docs/architecture/overview.md",
+      "docs/dev/setup.md"
+    ],
     "SECURITY.md": [
-      "docs/roles/security-and-compliance.md"
+      "docs/roles/security-and-compliance.md",
+      "README.md"
     ],
     "audit/2026-09-25/Devin-Audit-report.md": [
       "docs/capstone-report/README.md",
@@ -226,10 +244,14 @@
       "docs/capstone-report/implementation-program.md"
     ],
     "config/.env.example": [
-      "README.md"
+      "docs/dev/setup.md"
+    ],
+    "config/model_manifest.json": [
+      "docs/research/2026-10-22-judge-laya/00-README.md"
     ],
     "docs/00_architecture_plans_index.md": [
       "docs/architecture/README.md",
+      "docs/architecture/overview.md",
       "docs/archive/plans/2026-07-02-consolidated-findings-report.md",
       "docs/features/00_features_index.md",
       "docs/roles/00_roles_index.md",
@@ -237,8 +259,7 @@
       "AGENT.md"
     ],
     "docs/01_backend_architecture_plan.md": [
-      "docs/roles/backend-api.md",
-      "README.md"
+      "docs/roles/backend-api.md"
     ],
     "docs/02_frontend_accessibility_plan.md": [
       "docs/roles/frontend.md"
@@ -264,14 +285,16 @@
     "docs/agentic/evals.md": [
       "docs/agentic/harness.md",
       "docs/agentic/mcp-tools.md",
-      "docs/agentic/roadmap.md"
+      "docs/agentic/roadmap.md",
+      "README.md"
     ],
     "docs/agentic/harness.md": [
       "docs/agentic/mcp-tools.md",
       "docs/agentic/roadmap.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
-      "docs/research/2026-09-08/PLAN.md"
+      "docs/research/2026-09-08/PLAN.md",
+      "README.md"
     ],
     "docs/agentic/mcp-tools.md": [
       "docs/agentic/harness.md",
@@ -280,6 +303,7 @@
       "docs/research/2026-09-08/PLAN.md"
     ],
     "docs/agentic/orchestration.md": [
+      "docs/architecture/overview.md",
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/reviews/README.md",
@@ -290,6 +314,7 @@
       "docs/agentic/roadmap.md"
     ],
     "docs/agentic/recurring-failures.md": [
+      "docs/architecture/overview.md",
       "docs/capstone-report/implementation-program.md",
       "docs/features/TASK_LIST.md",
       "docs/plans/2026-09-08-backlog-closure-plan.md",
@@ -307,6 +332,7 @@
       "docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-09-08/STATUS.md",
       "README.md",
@@ -319,20 +345,34 @@
     "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json": [
       "docs/agentic/rsi-runs/README.md"
     ],
+    "docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json": [
+      "docs/agentic/rsi-runs/README.md"
+    ],
+    "docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json": [
+      "docs/agentic/rsi-runs/README.md"
+    ],
+    "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json": [
+      "docs/agentic/rsi-runs/README.md"
+    ],
     "docs/agentic/rsi-runs/README.md": [
-      "docs/plans/2026-10-21c-session-handoff.md",
-      "docs/plans/2026-10-22-session-handoff.md"
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
+      "docs/plans/2026-10-22-session-handoff.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
+      "README.md"
     ],
     "docs/agile/AGILE_PLAN.md": [
-      "docs/roles/product-and-prd.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/roles/product-and-prd.md"
     ],
     "docs/agile/RELEASE_CHECKLIST.md": [
+      "docs/architecture/overview.md",
       "docs/prd/PRD_agent_overhaul.md",
-      "docs/roles/devops-and-ci.md",
-      "README.md"
+      "docs/roles/devops-and-ci.md"
     ],
     "docs/api/README.md": [
+      "docs/architecture/overview.md",
       "README.md"
     ],
     "docs/api/authentication.md": [
@@ -342,6 +382,7 @@
     "docs/api/endpoints.md": [
       "docs/01_backend_architecture_plan.md",
       "docs/api/README.md",
+      "docs/architecture/overview.md",
       "docs/roles/backend-api.md",
       "README.md"
     ],
@@ -358,6 +399,7 @@
       "docs/architecture/backend.md",
       "docs/architecture/ci-and-quality-gates.md",
       "docs/architecture/frontend.md",
+      "docs/architecture/overview.md",
       "docs/architecture/performance-scalability-review.md",
       "docs/architecture/pipelines.md",
       "docs/capstone-report/architecture-overview.md",
@@ -371,25 +413,34 @@
     ],
     "docs/architecture/ci-and-quality-gates.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/architecture/README.md"
+      "docs/architecture/README.md",
+      "README.md"
     ],
     "docs/architecture/frontend.md": [
       "docs/00_architecture_plans_index.md",
       "docs/architecture/README.md",
       "src/frontend/README.md"
     ],
+    "docs/architecture/overview.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/architecture/README.md",
+      "README.md"
+    ],
     "docs/architecture/performance-scalability-review.md": [
       "docs/00_architecture_plans_index.md",
       "docs/architecture/README.md",
+      "docs/architecture/overview.md",
       "README.md"
     ],
     "docs/architecture/pipelines.md": [
       "docs/00_architecture_plans_index.md",
       "docs/architecture/README.md",
+      "docs/architecture/overview.md",
       "README.md"
     ],
     "docs/archive/README.md": [
       "docs/00_architecture_plans_index.md",
+      "docs/architecture/overview.md",
       "README.md"
     ],
     "docs/archive/agile/EXPLORATION_SUMMARY.md": [
@@ -473,15 +524,33 @@
     "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md": [
       "docs/00_architecture_plans_index.md"
     ],
+    "docs/archive/plans/2026-10-17-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/plans/2026-10-18-session-handoff.md"
+    ],
     "docs/archive/plans/2026-10-19-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20-session-handoff.md"
+      "docs/archive/plans/2026-10-20-session-handoff.md",
+      "docs/plans/2026-10-18-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-20-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md"
     ],
     "docs/archive/plans/2026-10-20b-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-21b-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
+      "docs/plans/2026-10-21-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-21c-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/plans/2026-10-22-session-handoff.md"
     ],
     "docs/archive/plans/UI-implementation-2-4.md": [
       "docs/00_architecture_plans_index.md"
@@ -540,7 +609,8 @@
       "docs/capstone-report/research/04-papers-evals.md",
       "docs/capstone-report/research/README.md",
       "docs/capstone-report/specs-compliance-matrix.md",
-      "docs/plans/2026-09-27-senior-report-showcase-plan.md"
+      "docs/plans/2026-09-27-senior-report-showcase-plan.md",
+      "README.md"
     ],
     "docs/capstone-report/architecture-engineering-contract.md": [
       "docs/capstone-report/README.md",
@@ -617,6 +687,7 @@
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/capstone-report/owner-decisions-2026-09-27.md": [
+      "docs/02_frontend_accessibility_plan.md",
       "docs/agentic/orchestration.md",
       "docs/architecture/README.md",
       "docs/architecture/pipelines.md",
@@ -626,6 +697,7 @@
       "docs/archive/plans/2026-10-04-RCC2-secret-retention.md",
       "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
       "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/implementation-program.md",
       "docs/capstone-report/rsi-in-development-and-application.md",
@@ -660,15 +732,22 @@
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
-      "docs/plans/2026-10-17-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-22-session-handoff.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
       "docs/research/2026-10-22-fit-decoder/00-README.md",
-      "docs/research/2026-10-22-mvp/04-local-llm-serving.md"
+      "docs/research/2026-10-22-judge-laya/00-README.md",
+      "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-safety-mode-real/00-README.md",
+      "README.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -726,6 +805,7 @@
     ],
     "docs/compliance/README.md": [
       "docs/agentic/roadmap.md",
+      "docs/architecture/overview.md",
       "README.md"
     ],
     "docs/compliance/advisories.md": [
@@ -736,23 +816,23 @@
       "docs/compliance/README.md"
     ],
     "docs/compliance/audit-checklist.md": [
+      "docs/architecture/overview.md",
       "docs/compliance/README.md",
-      "docs/roles/security-and-compliance.md",
-      "README.md"
+      "docs/roles/security-and-compliance.md"
     ],
     "docs/compliance/data-privacy.md": [
+      "docs/architecture/overview.md",
       "docs/compliance/README.md",
       "docs/compliance/ai-safety.md",
-      "docs/roles/security-and-compliance.md",
-      "README.md"
+      "docs/roles/security-and-compliance.md"
     ],
     "docs/compliance/disaster-recovery.md": [
+      "docs/architecture/overview.md",
       "docs/compliance/README.md",
       "docs/compliance/hipaa-controls.md",
       "docs/roles/security-and-compliance.md",
       "docs/user/faq.md",
-      "docs/user/troubleshooting.md",
-      "README.md"
+      "docs/user/troubleshooting.md"
     ],
     "docs/compliance/f006-profile-id-removal-review.md": [
       "docs/roles/security-and-compliance.md"
@@ -760,15 +840,19 @@
     "docs/compliance/hipaa-controls.md": [
       "docs/api/README.md",
       "docs/architecture/README.md",
+      "docs/architecture/overview.md",
       "docs/compliance/README.md",
       "docs/compliance/ai-safety.md",
       "docs/roles/security-and-compliance.md",
-      "docs/user/faq.md",
-      "README.md"
+      "docs/user/faq.md"
     ],
     "docs/compliance/security-review-sprint06.md": [
       "docs/compliance/README.md",
       "docs/roles/security-and-compliance.md"
+    ],
+    "docs/dev/setup.md": [
+      "docs/00_architecture_plans_index.md",
+      "README.md"
     ],
     "docs/features/00_features_index.md": [
       "docs/roles/product-and-prd.md"
@@ -966,6 +1050,7 @@
     "docs/plans/2026-10-01-packaging-decision.md": [
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/research/2026-10-12/00-README.md",
+      "docs/research/2026-10-22-installer/00-README.md",
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
       "docs/research/2026-10-22-mvp/07-owner-questions.md"
@@ -1075,17 +1160,22 @@
       "docs/plans/2026-10-13-wearables-tickets.md"
     ],
     "docs/plans/2026-10-15-build-program/RUNBOOK.md": [
+      "docs/architecture/overview.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/archive/plans/2026-10-20b-session-handoff.md",
-      "docs/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
-      "docs/plans/2026-10-21b-session-handoff.md",
-      "docs/plans/2026-10-21c-session-handoff.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-22-session-handoff.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-25-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "README.md"
     ],
@@ -1098,7 +1188,10 @@
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
-      "docs/reviews/2026-10-15/build-program-codex.md"
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/reviews/2026-10-15/build-program-codex.md",
+      "README.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
@@ -1109,6 +1202,7 @@
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
       "docs/research/2026-10-22-mvp/07-owner-questions.md"
     ],
@@ -1131,6 +1225,9 @@
       "docs/research/2026-10-22-fit-decoder/00-README.md"
     ],
     "docs/plans/2026-10-15-build-program/queue.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/archive/README.md",
+      "docs/features/TASK_LIST.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
@@ -1139,8 +1236,11 @@
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-25-session-handoff.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
+      "docs/reviews/2026-10-26/don-ner-measure.md",
       "README.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
@@ -1159,23 +1259,19 @@
     "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
-    ],
-    "docs/plans/2026-10-17-session-handoff.md": [
-      "docs/plans/2026-10-18-session-handoff.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/reviews/2026-10-26/don-ner-measure.md"
     ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
       "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
     ],
     "docs/plans/2026-10-18-session-handoff.md": [
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
-      "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-17-session-handoff.md"
-    ],
-    "docs/plans/2026-10-20-session-handoff.md": [
-      "docs/archive/plans/2026-10-20b-session-handoff.md"
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/plans/2026-10-20c-session-handoff.md": [
       "docs/archive/plans/2026-10-20b-session-handoff.md",
@@ -1184,21 +1280,45 @@
       "docs/plans/2026-10-21-session-handoff.md"
     ],
     "docs/plans/2026-10-21-session-handoff.md": [
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
-      "docs/plans/2026-10-21b-session-handoff.md"
-    ],
-    "docs/plans/2026-10-21b-session-handoff.md": [
-      "docs/plans/2026-10-21c-session-handoff.md"
-    ],
-    "docs/plans/2026-10-21c-session-handoff.md": [
-      "docs/plans/2026-10-22-session-handoff.md"
+      "docs/plans/2026-10-20c-session-handoff.md"
     ],
     "docs/plans/2026-10-22-mvp-rows-plan.md": [
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md"
     ],
     "docs/plans/2026-10-22-session-handoff.md": [
-      "docs/plans/2026-10-21c-session-handoff.md"
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
+      "docs/plans/2026-10-24-session-handoff.md"
+    ],
+    "docs/plans/2026-10-23-frontend-revamp-plan.md": [
+      "docs/02_frontend_accessibility_plan.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md",
+      "docs/research/2026-10-23-safety-mode-real/00-README.md"
+    ],
+    "docs/plans/2026-10-24-safety-mode-build-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-25-session-handoff.md"
+    ],
+    "docs/plans/2026-10-24-session-handoff.md": [
+      "docs/plans/2026-10-21-session-handoff.md",
+      "docs/plans/2026-10-22-session-handoff.md",
+      "docs/plans/2026-10-25-session-handoff.md"
+    ],
+    "docs/plans/2026-10-25-session-handoff.md": [
+      "docs/00_architecture_plans_index.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-26-session-handoff.md",
+      "README.md"
+    ],
+    "docs/plans/2026-10-26-session-handoff.md": [
+      "docs/plans/2026-10-22-mvp-rows-plan.md"
     ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
@@ -1229,11 +1349,14 @@
       "docs/00_architecture_plans_index.md"
     ],
     "docs/prd/PRD_agent_overhaul.md": [
-      "docs/roles/ai-llm-pipeline-and-safety.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
     "docs/prd/phases/PHASE_7_lora_stretch.md": [
       "docs/agile/sprints/SPRINT_7.md"
+    ],
+    "docs/research": [
+      "README.md"
     ],
     "docs/research/2026-09-08/00-brief.md": [
       "docs/agentic/roadmap.md",
@@ -1412,9 +1535,14 @@
     "docs/research/2026-10-22-fit-decoder/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
+    "docs/research/2026-10-22-judge-laya/00-README.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md"
+    ],
     "docs/research/2026-10-22-mvp/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/research/2026-10-22-installer/00-README.md",
       "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
       "docs/research/2026-10-22-mvp/02-frontend-components.md",
       "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md",
@@ -1424,6 +1552,7 @@
     ],
     "docs/research/2026-10-22-mvp/01-desktop-packaging.md": [
       "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/research/2026-10-22-installer/00-README.md",
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/research/2026-10-22-mvp/07-owner-questions.md"
     ],
@@ -1444,11 +1573,112 @@
       "docs/research/2026-10-22-mvp/00-README.md"
     ],
     "docs/research/2026-10-22-mvp/07-owner-questions.md": [
+      "docs/research/2026-10-22-installer/00-README.md",
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md",
       "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
       "docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md",
       "docs/research/2026-10-22-mvp/06-testing-tools.md"
+    ],
+    "docs/research/2026-10-22-rapidocr/00-README.md": [
+      "docs/research/2026-10-22-installer/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/00-README.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md",
+      "docs/research/2026-10-23-frontend-revamp/framing.md",
+      "docs/research/2026-10-23-frontend-revamp/owner-direction.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-A.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-B.md",
+      "docs/research/2026-10-23-frontend-revamp/research-components.md",
+      "docs/research/2026-10-23-frontend-revamp/research-motion.md",
+      "docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md",
+      "docs/research/2026-10-23-frontend-revamp/research-skills.md",
+      "docs/research/2026-10-23-frontend-revamp/ui-review.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/comparison.md": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/framing.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/owner-direction.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/proposal-A.md": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/proposal-B.md": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/proto-A.patch": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-A.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/proto-B.patch": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-B.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-components.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-motion.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-skills.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/A-mobile-more-sheet-light-390.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/A-results-light-390.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/A-source-sheet-light-1440.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-dark.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-light-peek-open.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/B-results-390-light.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/before-trends-1440.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/shots/before-trends-390.png": [
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/ui-review.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-safety-mode-real/00-README.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md"
     ],
     "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
       "docs/reviews/README.md"
@@ -2237,6 +2467,7 @@
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
+      "docs/architecture/overview.md",
       "README.md",
       "AGENT.md"
     ],
@@ -2248,8 +2479,7 @@
     "docs/roles/backend-api.md": [
       "docs/roles/00_roles_index.md",
       "docs/roles/data-and-migrations.md",
-      "docs/roles/frontend.md",
-      "README.md"
+      "docs/roles/frontend.md"
     ],
     "docs/roles/data-and-migrations.md": [
       "docs/roles/00_roles_index.md",
@@ -2275,22 +2505,26 @@
       "docs/roles/data-and-migrations.md",
       "docs/roles/devops-and-ci.md"
     ],
-    "docs/user/faq.md": [
-      "docs/user/README.md",
+    "docs/user/README.md": [
       "README.md"
     ],
+    "docs/user/faq.md": [
+      "docs/architecture/overview.md",
+      "docs/user/README.md"
+    ],
     "docs/user/getting-started.md": [
+      "docs/architecture/overview.md",
       "docs/user/README.md",
       "README.md"
     ],
     "docs/user/troubleshooting.md": [
-      "docs/user/README.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/user/README.md"
     ],
     "docs/user/workflows.md": [
+      "docs/architecture/overview.md",
       "docs/user/README.md",
-      "docs/user/getting-started.md",
-      "README.md"
+      "docs/user/getting-started.md"
     ],
     "feature_list.json": [
       "docs/agentic/evals.md",
@@ -2309,23 +2543,24 @@
       "docs/roles/devops-and-ci.md"
     ],
     "skills/README.md": [
+      "README.md",
       "AGENT.md"
     ],
     "skills/asclexis-agent/SKILL.md": [
-      "docs/roles/ai-llm-pipeline-and-safety.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
     "skills/asclexis-backend/SKILL.md": [
-      "docs/roles/backend-api.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/roles/backend-api.md"
     ],
     "skills/asclexis-evals/SKILL.md": [
-      "docs/roles/ai-llm-pipeline-and-safety.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
     "skills/asclexis-guardrails/SKILL.md": [
-      "docs/roles/ai-llm-pipeline-and-safety.md",
-      "README.md"
+      "docs/architecture/overview.md",
+      "docs/roles/ai-llm-pipeline-and-safety.md"
     ],
     "src/backend/api/assistant.py": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
@@ -2395,12 +2630,12 @@
       "docs/roles/frontend.md"
     ],
     "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md": [
-      "docs/roles/frontend.md",
-      "README.md"
+      "docs/dev/setup.md",
+      "docs/roles/frontend.md"
     ],
     "src/frontend/e2e/ui-full-verification.spec.ts": [
-      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md",
-      "README.md"
+      "docs/dev/setup.md",
+      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
     ],
     "src/frontend/src/__tests__/VerificationWorkbench.test.tsx": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
@@ -2448,49 +2683,47 @@
       "docs/agentic/recurring-failures.md"
     ],
     "README.md": [
-      "docs/compliance/README.md",
+      "docs/architecture/overview.md",
+      "docs/dev/setup.md",
+      "docs/user/getting-started.md",
+      "CONTRIBUTING.md",
       "docs/architecture/README.md",
       "docs/architecture/performance-scalability-review.md",
-      "docs/architecture/pipelines.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/agentic/orchestration.md",
-      "CLAUDE.md",
       "AGENT.md",
-      "docs/01_backend_architecture_plan.md",
-      "docs/roles/backend-api.md",
-      "docs/INDEX.md",
-      "config/.env.example",
-      "CONTRIBUTING.md",
-      "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md",
-      "src/frontend/e2e/ui-full-verification.spec.ts",
-      "docs/api/endpoints.md",
-      "docs/user/getting-started.md",
-      "docs/user/workflows.md",
-      "docs/user/troubleshooting.md",
-      "docs/user/faq.md",
-      "docs/api/README.md",
-      "docs/roles/00_roles_index.md",
-      "docs/00_architecture_plans_index.md",
+      "CLAUDE.md",
+      "docs/architecture/pipelines.md",
+      "docs/compliance/README.md",
+      "SECURITY.md",
+      "docs/architecture/ci-and-quality-gates.md",
       "docs/agentic/recurring-failures.md",
-      "docs/compliance/hipaa-controls.md",
-      "docs/compliance/data-privacy.md",
-      "docs/compliance/disaster-recovery.md",
-      "docs/compliance/audit-checklist.md",
-      "docs/prd/PRD_agent_overhaul.md",
-      "docs/agile/AGILE_PLAN.md",
-      "docs/agile/RELEASE_CHECKLIST.md",
+      "docs/api/README.md",
+      "docs/api/endpoints.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/agentic/orchestration.md",
+      "docs/agentic/harness.md",
+      "docs/agentic/evals.md",
+      "docs/agentic/rsi-runs/README.md",
+      "skills/README.md",
+      ".claude/skills/README.md",
+      "docs/research",
+      "docs/capstone-report/README.md",
+      "docs/user/README.md",
+      "docs/00_architecture_plans_index.md",
+      "docs/roles/00_roles_index.md",
+      "docs/INDEX.md",
       "docs/archive/README.md",
-      "skills/asclexis-agent/SKILL.md",
-      "skills/asclexis-guardrails/SKILL.md",
-      "skills/asclexis-backend/SKILL.md",
-      "skills/asclexis-evals/SKILL.md",
-      "docs/features/TASK_LIST.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
+      "docs/plans/2026-10-25-session-handoff.md",
+      "docs/features/TASK_LIST.md"
     ],
     "docs/00_architecture_plans_index.md": [
       "docs/features/TASK_LIST.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
       "docs/roles/00_roles_index.md",
       "docs/plans/implementation-log",
+      "docs/plans/2026-10-25-session-handoff.md",
       "docs/plans/2026-09-08-backlog-closure-plan.md",
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md",
@@ -2504,6 +2737,8 @@
       "docs/architecture/pipelines.md",
       "docs/architecture/frontend.md",
       "docs/architecture/ci-and-quality-gates.md",
+      "docs/architecture/overview.md",
+      "docs/dev/setup.md",
       "docs/architecture/performance-scalability-review.md",
       "openwiki/README.md",
       "docs/archive/README.md",
@@ -2528,10 +2763,18 @@
       "docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md",
       "docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md",
       "docs/archive/plans/2026-07-13-hc-m21-search.md",
-      "docs/archive/plans/2026-05-11-dynamic-port-selection.md"
+      "docs/archive/plans/2026-05-11-dynamic-port-selection.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md"
     ],
     "docs/01_backend_architecture_plan.md": [
       "docs/api/endpoints.md"
+    ],
+    "docs/02_frontend_accessibility_plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md"
     ],
     "docs/agentic/evals.md": [
       "feature_list.json",
@@ -2592,7 +2835,10 @@
       "docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md"
     ],
     "docs/agentic/rsi-runs/README.md": [
-      "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json"
+      "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json",
+      "docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json",
+      "docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json",
+      "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json"
     ],
     "docs/agile/GROUNDING.md": [
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
@@ -2611,6 +2857,7 @@
     ],
     "docs/architecture/README.md": [
       "docs/architecture/performance-scalability-review.md",
+      "docs/architecture/overview.md",
       "docs/architecture/backend.md",
       "docs/architecture/pipelines.md",
       "docs/architecture/frontend.md",
@@ -2631,6 +2878,38 @@
     "docs/architecture/frontend.md": [
       "docs/architecture/README.md"
     ],
+    "docs/architecture/overview.md": [
+      "README.md",
+      "docs/architecture/README.md",
+      "docs/compliance/README.md",
+      "docs/architecture/performance-scalability-review.md",
+      "docs/architecture/pipelines.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/agentic/orchestration.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/user/getting-started.md",
+      "docs/user/workflows.md",
+      "docs/user/troubleshooting.md",
+      "docs/user/faq.md",
+      "docs/api/README.md",
+      "docs/api/endpoints.md",
+      "docs/roles/00_roles_index.md",
+      "docs/00_architecture_plans_index.md",
+      "docs/agentic/recurring-failures.md",
+      "docs/compliance/hipaa-controls.md",
+      "docs/compliance/data-privacy.md",
+      "docs/compliance/disaster-recovery.md",
+      "docs/compliance/audit-checklist.md",
+      "docs/prd/PRD_agent_overhaul.md",
+      "docs/agile/AGILE_PLAN.md",
+      "docs/agile/RELEASE_CHECKLIST.md",
+      "docs/archive/README.md",
+      "skills/asclexis-agent/SKILL.md",
+      "skills/asclexis-guardrails/SKILL.md",
+      "skills/asclexis-backend/SKILL.md",
+      "skills/asclexis-evals/SKILL.md"
+    ],
     "docs/architecture/performance-scalability-review.md": [
       "docs/architecture/README.md"
     ],
@@ -2639,7 +2918,8 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/archive/README.md": [
-      "docs/features/TASK_LIST.md"
+      "docs/features/TASK_LIST.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/archive/agile-sprints/SPRINT_0.md": [
       "docs/features/TASK_LIST.md",
@@ -2733,19 +3013,48 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/capstone-report/implementation-program.md"
     ],
+    "docs/archive/plans/2026-10-17-session-handoff.md": [
+      "docs/plans/2026-10-18-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
     "docs/archive/plans/2026-10-19-session-handoff.md": [
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-18-session-handoff.md"
     ],
+    "docs/archive/plans/2026-10-20-session-handoff.md": [
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/archive/plans/2026-10-19-session-handoff.md"
+    ],
     "docs/archive/plans/2026-10-20b-session-handoff.md": [
       "docs/plans/2026-10-20c-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-20-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
+    ],
+    "docs/archive/plans/2026-10-21b-session-handoff.md": [
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-21-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-21c-session-handoff.md": [
+      "docs/plans/2026-10-22-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/agentic/rsi-runs/README.md"
     ],
     "docs/archive/plans/next-agent-documentation-consolidation.md": [
       "docs/features/TASK_LIST.md"
@@ -2883,6 +3192,11 @@
     "docs/capstone-report/owner-decisions-2026-09-27.md": [
       "docs/capstone-report/implementation-program.md",
       "docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md",
+      "docs/research/2026-10-23-frontend-revamp/owner-direction.md",
+      "docs/research/2026-10-23-frontend-revamp/framing.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
@@ -2953,10 +3267,21 @@
       "docs/compliance/disaster-recovery.md",
       "audit/2026-09-25/gated-items-decision-packet.md"
     ],
+    "docs/dev/setup.md": [
+      "README.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "config/.env.example",
+      "CONTRIBUTING.md",
+      "src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md",
+      "src/frontend/e2e/ui-full-verification.spec.ts"
+    ],
     "docs/features/00_features_index.md": [
       "docs/00_architecture_plans_index.md"
     ],
     "docs/features/TASK_LIST.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "AGENT.md",
       "docs/plans/2026-07-02-architect-review-proposal-tickets.md",
       "docs/plans/2026-09-08-backlog-closure-plan.md",
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
@@ -3331,7 +3656,8 @@
       "audit/2026-09-25/waves/scaffold/W-7.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md",
-      "audit/2026-09-25/waves/scaffold/G-C3a.md"
+      "audit/2026-09-25/waves/scaffold/G-C3a.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md": [
       "audit/2026-09-25/plans/06-sql-fk-audit.md",
@@ -3395,6 +3721,10 @@
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/research/2026-10-23-safety-mode-real/00-README.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
     ],
@@ -3419,13 +3749,6 @@
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
-    "docs/plans/2026-10-17-session-handoff.md": [
-      "docs/plans/2026-10-18-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/capstone-report/owner-decisions-2026-09-27.md"
-    ],
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
@@ -3435,15 +3758,8 @@
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
-    ],
-    "docs/plans/2026-10-20-session-handoff.md": [
-      "docs/archive/plans/2026-10-20b-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/archive/plans/2026-10-19-session-handoff.md"
     ],
     "docs/plans/2026-10-20c-session-handoff.md": [
       "docs/plans/2026-10-21-session-handoff.md",
@@ -3453,25 +3769,13 @@
       "docs/archive/plans/2026-10-20b-session-handoff.md"
     ],
     "docs/plans/2026-10-21-session-handoff.md": [
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/plans/2026-10-24-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/reviews/2026-10-21/b3-codex-plan-review.md"
-    ],
-    "docs/plans/2026-10-21b-session-handoff.md": [
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-21-session-handoff.md"
-    ],
-    "docs/plans/2026-10-21c-session-handoff.md": [
-      "docs/plans/2026-10-22-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-21b-session-handoff.md",
-      "docs/agentic/rsi-runs/README.md"
     ],
     "docs/plans/2026-10-22-mvp-rows-plan.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
@@ -3481,13 +3785,65 @@
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/plans/2026-10-01-packaging-decision.md",
-      "docs/research/2026-10-22-mvp/01-desktop-packaging.md"
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
+      "docs/plans/2026-10-26-session-handoff.md"
     ],
     "docs/plans/2026-10-22-session-handoff.md": [
+      "docs/plans/2026-10-24-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-21c-session-handoff.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/agentic/rsi-runs/README.md"
+    ],
+    "docs/plans/2026-10-23-frontend-revamp-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-A.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-B.md",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md",
+      "docs/research/2026-10-23-frontend-revamp/proto-A.patch",
+      "docs/research/2026-10-23-frontend-revamp/proto-B.patch",
+      "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/owner-direction.md",
+      "docs/agentic/recurring-failures.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md"
+    ],
+    "docs/plans/2026-10-24-safety-mode-build-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/research/2026-10-23-safety-mode-real/00-README.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md"
+    ],
+    "docs/plans/2026-10-24-session-handoff.md": [
+      "docs/plans/2026-10-25-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-22-session-handoff.md",
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/agentic/rsi-runs/README.md"
+    ],
+    "docs/plans/2026-10-25-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-24-session-handoff.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/agentic/rsi-runs/README.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/plans/2026-10-26-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-25-session-handoff.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/agentic/rsi-runs/README.md"
     ],
@@ -3688,6 +4044,18 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md"
     ],
+    "docs/research/2026-10-22-installer/00-README.md": [
+      "docs/plans/2026-10-01-packaging-decision.md",
+      "docs/research/2026-10-22-mvp/00-README.md",
+      "docs/research/2026-10-22-rapidocr/00-README.md",
+      "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/research/2026-10-22-mvp/07-owner-questions.md"
+    ],
+    "docs/research/2026-10-22-judge-laya/00-README.md": [
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "config/model_manifest.json"
+    ],
     "docs/research/2026-10-22-mvp/00-README.md": [
       "docs/research/2026-10-22-mvp/07-owner-questions.md",
       "CLAUDE.md",
@@ -3731,6 +4099,74 @@
       "docs/plans/2026-10-01-packaging-decision.md",
       "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/00-README.md": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/research/2026-10-23-frontend-revamp/owner-direction.md",
+      "docs/research/2026-10-23-frontend-revamp/framing.md",
+      "docs/research/2026-10-23-frontend-revamp/ui-review.md",
+      "docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md",
+      "docs/research/2026-10-23-frontend-revamp/research-components.md",
+      "docs/research/2026-10-23-frontend-revamp/research-motion.md",
+      "docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md",
+      "docs/research/2026-10-23-frontend-revamp/research-skills.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-A.md",
+      "docs/research/2026-10-23-frontend-revamp/proto-A.patch",
+      "docs/research/2026-10-23-frontend-revamp/proposal-B.md",
+      "docs/research/2026-10-23-frontend-revamp/proto-B.patch",
+      "docs/research/2026-10-23-frontend-revamp/comparison.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/comparison.md": [
+      "docs/research/2026-10-23-frontend-revamp/proposal-A.md",
+      "docs/research/2026-10-23-frontend-revamp/proposal-B.md",
+      "docs/research/2026-10-23-frontend-revamp/proto-A.patch",
+      "docs/research/2026-10-23-frontend-revamp/proto-B.patch",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-dark.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/A-source-sheet-light-1440.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/A-mobile-more-sheet-light-390.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/A-results-light-390.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/B-results-390-light.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/before-trends-1440.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-light-peek-open.png",
+      "docs/research/2026-10-23-frontend-revamp/shots/before-trends-390.png"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/framing.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/owner-direction.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/proposal-A.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/proto-A.patch"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/proposal-B.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/research/2026-10-23-frontend-revamp/proto-B.patch"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-components.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-motion.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/research-skills.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-frontend-revamp/ui-review.md": [
+      "docs/research/2026-10-23-frontend-revamp/00-README.md"
+    ],
+    "docs/research/2026-10-23-safety-mode-real/00-README.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md"
     ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"
@@ -3833,6 +4269,10 @@
     ],
     "docs/reviews/2026-10-22/kv-prefix-measure.md": [
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/reviews/2026-10-26/don-ner-measure.md": [
+      "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/reviews/README.md": [

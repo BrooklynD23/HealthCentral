@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import {
   Send,
   FileText,
@@ -26,7 +26,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/compo
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
-import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo } from '@/services';
+import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo, ApiError } from '@/services';
 import { useObservations } from '@/services/observations';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
@@ -275,7 +275,7 @@ export function ExplainAssistant() {
   }, [analyteList]);
   const { data: modelSettings, isLoading: modelSettingsLoading } = useModelSettings();
   const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
-  const { data: providerInfo } = useProviderInfo();
+  const { data: providerInfo, isPending: providerInfoPending } = useProviderInfo();
   const breakGlassActive =
     externalApi?.use_external_api === true && externalApi.redaction_break_glass === true;
   const breakGlassUnknown =
@@ -295,13 +295,15 @@ export function ExplainAssistant() {
     if (providerName && modelName) {
       return `${providerName} · ${modelName}`;
     }
+    // Avoid flashing the tier label (a different model) before provider info lands.
+    if (providerInfoPending) return 'Local model';
     const tier = modelSettings?.current_tier;
     if (tier && modelSettings?.tier_availability?.[tier]?.model) {
       return modelSettings.tier_availability[tier].model as string;
     }
     if (tier) return `Tier: ${tier}`;
     return 'Local model';
-  }, [modelSettings, externalApi, providerInfo]);
+  }, [modelSettings, externalApi, providerInfo, providerInfoPending]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
@@ -412,14 +414,16 @@ export function ExplainAssistant() {
   };
 
   const getErrorContent = (error: unknown): string => {
-    if (error instanceof Error) {
-      if (error.message.includes('501')) {
+    if (error instanceof ApiError) {
+      if (error.status === 501) {
         setModelUnavailable(true);
         return "No AI model is configured yet. Go to Settings to download a local model or connect an external API provider.";
       }
-      if (error.message.includes('401') || error.message.includes('403')) {
+      if (error.status === 401 || error.status === 403) {
         return 'Your session has expired. Please log in again to continue.';
       }
+    }
+    if (error instanceof Error) {
       if (error.message.includes('network') || error.message.includes('fetch')) {
         return 'Unable to connect to the server. Please check your connection and try again.';
       }
@@ -521,8 +525,10 @@ export function ExplainAssistant() {
 
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
-                <motion.div
+                <m.div
                   key={message.id}
+                  data-testid="chat-message"
+                  data-role={message.role}
                   initial={prefersReducedMotion ? {} : { opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
@@ -642,7 +648,7 @@ export function ExplainAssistant() {
                       className={cn(
                         'text-xs mt-2',
                         message.role === 'user'
-                          ? 'text-white/60'
+                          ? 'text-white/80'
                           : 'text-ink-tertiary'
                       )}
                     >
@@ -750,12 +756,12 @@ export function ExplainAssistant() {
                       );
                     })()}
                   </div>
-                </motion.div>
+                </m.div>
               ))}
             </AnimatePresence>
 
             {sendMessage.isPending && (
-              <motion.div
+              <m.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="flex justify-start"
@@ -770,7 +776,7 @@ export function ExplainAssistant() {
                     <span className="text-sm">Searching documents and generating response...</span>
                   </div>
                 </div>
-              </motion.div>
+              </m.div>
             )}
 
             <div ref={messagesEndRef} />
@@ -802,6 +808,7 @@ export function ExplainAssistant() {
             <div className="flex gap-3">
               <input
                 type="text"
+                aria-label="Your question"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
@@ -816,6 +823,7 @@ export function ExplainAssistant() {
               />
               <Button
                 onClick={() => handleSend()}
+                aria-label="Send question"
                 disabled={!input.trim() || sendMessage.isPending}
                 className="px-4"
               >
@@ -841,6 +849,7 @@ export function ExplainAssistant() {
               <div className="flex items-center gap-2">
                 <input
                   type="date"
+                  aria-label="From date"
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
@@ -848,6 +857,7 @@ export function ExplainAssistant() {
                 <span className="text-xs text-ink-tertiary">to</span>
                 <input
                   type="date"
+                  aria-label="To date"
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
                   className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
