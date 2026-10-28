@@ -1,5 +1,5 @@
 /**
- * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006).
+ * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008).
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
  * fail, or reports the expected defect. Tests marked test.fail() are the
@@ -22,6 +22,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   ROUTE_CONTAINER_SELECTOR,
   ROUTE_FALLBACK_SELECTOR,
+  STILLNESS_NAV_MAX_GAP_MS,
   axeGate,
   checkSampling,
   consoleAndNetworkGuard,
@@ -670,4 +671,42 @@ test('HC-UIG-006 sampling check rejects too few samples and a gap over 40 ms, an
   console.log(`HC-UIG-006 sampling gapped: ${JSON.stringify(gapped)}`);
   expect(gapped.maxGapMs, 'the 180 ms gap must be measured').toBe(180);
   expect(gapped.failures.join('\n'), 'the gap must be named').toMatch(/sampling gap of 180 ms/);
+});
+
+test('HC-UIG-008 sampling check bounds a page change at 70 ms, keeps 40 ms elsewhere, and keeps the 40 ms minimum', () => {
+  const cadence = (from: number, to: number, step: number): number[] => {
+    const times: number[] = [];
+    for (let t = from; t <= to; t += step) times.push(t);
+    return times;
+  };
+  // A 20 ms cadence with one gap of `gap` ms from the trigger at 0 ms.
+  const withGap = (gap: number): number[] => [...cadence(-100, 0, 20), gap, ...cadence(gap + 20, 800, 20)];
+
+  const nav70 = checkSampling(withGap(70), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
+  console.log(`HC-UIG-008 navigation 70 ms: ${JSON.stringify(nav70)}`);
+  expect(nav70.failures, 'a 70 ms page-change gap must pass the 70 ms bound').toEqual([]);
+  expect(nav70.maxGapMs, 'the 70 ms gap must be measured').toBe(70);
+
+  const nav71 = checkSampling(withGap(71), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
+  console.log(`HC-UIG-008 navigation 71 ms: ${JSON.stringify(nav71)}`);
+  expect(nav71.failures.join('\n'), 'a 71 ms page-change gap must fail and name the 70 ms bound').toMatch(
+    /sampling gap of 71 ms \(must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms\)/
+  );
+
+  const interaction41 = checkSampling(withGap(41), 0, 800, null);
+  console.log(`HC-UIG-008 interaction 41 ms: ${JSON.stringify(interaction41)}`);
+  expect(interaction41.failures.join('\n'), 'an interaction keeps the 40 ms bound: 41 ms must fail').toMatch(
+    /sampling gap of 41 ms \(must be <= 40 ms/
+  );
+
+  const interaction40 = checkSampling(withGap(40), 0, 800, null);
+  expect(interaction40.failures, 'a 40 ms gap must pass the default bound').toEqual([]);
+
+  // 70 ms samples over 800 ms give 12 post-trigger samples; the minimum (800 / 40 = 20) still applies.
+  const sparseNav = checkSampling(cadence(-70, 800, 70), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
+  console.log(`HC-UIG-008 navigation sparse: ${JSON.stringify(sparseNav)}`);
+  expect(sparseNav.failures.join('\n'), 'too few samples must still fail on the 40 ms minimum').toMatch(
+    /only 12 sample\(s\) after the trigger; the 800 ms window needs at least 20 at one per 40 ms/
+  );
+  expect(sparseNav.failures.join('\n'), 'a 70 ms gap is within the page-change bound').not.toMatch(/sampling gap/);
 });
