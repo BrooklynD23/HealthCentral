@@ -8,13 +8,13 @@
  * What these tests would not notice:
  * - whether the server really closed the vault or revoked the token (mocked here;
  *   HC-SRE-012 covers the real endpoint);
- * - a second click that arrives after the request has settled (the in-flight guard
- *   is only exercised while the request is pending, which is what (a) holds open);
+ * - a click that arrives after the request has settled (only the pending window is
+ *   tested: (a) holds the request open, (d) clicks before React re-renders);
  * - whether the navigation is a true history replace (only the location is read).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -100,6 +100,31 @@ describe('HC-SRE-011 Lock now in the profile menu', () => {
     expect(api.apiPost).toHaveBeenCalledTimes(1);
     expect(api.apiPost).toHaveBeenCalledWith(`/profiles/${PROFILE_ID}/lock`);
     expect(lockButton).toBeDisabled();
+
+    finishLock({ id: PROFILE_ID });
+    await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+  });
+
+  it('HC-SRE-011 (d): two clicks in the same tick call the lock endpoint once', async () => {
+    const user = userEvent.setup();
+    let finishLock: (value: unknown) => void = () => {};
+    vi.mocked(api.apiPost).mockReturnValue(
+      new Promise((resolve) => {
+        finishLock = resolve;
+      })
+    );
+    renderMenu();
+    await openMenu(user);
+
+    // Both clicks land before React re-renders, so isPending still reads false on the
+    // second one. Only the in-flight ref stops the second POST.
+    const lockButton = screen.getByRole('button', { name: 'Lock now' });
+    fireEvent.click(lockButton);
+    fireEvent.click(lockButton);
+    // Let both mutations reach the API layer before counting the POSTs.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(api.apiPost).toHaveBeenCalledTimes(1);
 
     finishLock({ id: PROFILE_ID });
     await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
