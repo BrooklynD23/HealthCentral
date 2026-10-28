@@ -5,7 +5,11 @@
  */
 import { describe, it, expect } from 'vitest';
 
-const PINNED_ZONE = process.env.VITEST_TZ ?? 'America/New_York';
+// Intl reports the ICU canonical ID (Asia/Kolkata -> Asia/Calcutta), so the
+// requested zone is canonicalized the same way before the comparison.
+const PINNED_ZONE = new Intl.DateTimeFormat('en-US', {
+  timeZone: process.env.VITEST_TZ ?? 'America/New_York',
+}).resolvedOptions().timeZone;
 
 describe('vitest time zone pin', () => {
   it('HC-VTZ-001: the vitest process runs in the pinned zone', () => {
