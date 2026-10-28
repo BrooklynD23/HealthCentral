@@ -11,6 +11,10 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import ts from 'typescript';
+import { createElement } from 'react';
+import { render } from '@testing-library/react';
+import { buttonVariants } from '@/components/ui/Button';
+import { Input, type InputProps } from '@/components/ui/Input';
 
 // This file lives in src/__tests__; the stylesheet and components are one level up.
 const SRC_ROOT = resolve(__dirname, '..');
@@ -268,5 +272,197 @@ describe('UI-TOKENS type', () => {
     const lineHeight = bodies.map((body) => /line-height\s*:\s*([^;]+);/.exec(body)?.[1]).find(Boolean);
     expect(lengthPx(fontSize), `body font-size is ${fontSize}`).toBe(17);
     expect(lengthPx(lineHeight), `body line-height is ${lineHeight}`).toBeCloseTo(26.4, 5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DARK-PRIMITIVE-CONTRAST (HC-DPC-001, HC-DPC-002): the colour classes a primitive
+// paints are read back as tokens and checked against the pair they sit on.
+// ---------------------------------------------------------------------------
+
+const THEMES = ['light', 'dark'] as const;
+type Theme = (typeof THEMES)[number];
+
+/** `--color-*` aliases from the @theme block: the names Tailwind turns into utilities. */
+const THEME_ALIASES = declarations(ruleBodies(css, /@theme/)[0] ?? '');
+
+/** Per theme: the aliases plus that theme's raw tokens, so `--color-accent` resolves to a hex. */
+const RESOLVE: Record<Theme, Map<string, string>> = {
+  light: new Map([...THEME_ALIASES, ...LIGHT]),
+  dark: new Map([...THEME_ALIASES, ...DARK]),
+};
+
+/** Size, alignment and style suffixes that share a colour prefix (text-sm, border-2, border-t). They are not colours. */
+const NOT_A_COLOUR_SUFFIX =
+  /^(?:xs|sm|base|lg|xl|[2-9]xl|left|center|right|justify|start|end|balance|pretty|wrap|nowrap|ellipsis|clip|solid|dashed|dotted|double|none|[xytrblse]|(?:[xytrblse]-)?\d+)$/;
+
+/**
+ * State prefixes whose classes are skipped, and why. focus-visible adds a ring and a border colour but leaves the
+ * text and fill alone. disabled is exempt from WCAG 1.4.3, and axe skips disabled controls. active only scales.
+ * ring-*, ring-offset-*, shadow-* and outline-* paint no text, fill or border, so they are never read at all.
+ * Any other prefix on a colour class is not skipped: it fails closed in readPaint.
+ */
+const SKIPPED_STATES: ReadonlySet<string> = new Set(['focus-visible', 'disabled', 'active']);
+
+/** The slot a colour utility fills, keyed by its role (text, bg, border) and its state prefix ('' is rest). */
+type Slot = 'text' | 'hoverText' | 'placeholderText' | 'bg' | 'hoverBg' | 'border';
+const SLOT_OF: Record<string, Slot> = {
+  'text|': 'text',
+  'text|hover': 'hoverText',
+  'text|placeholder': 'placeholderText',
+  'bg|': 'bg',
+  'bg|hover': 'hoverBg',
+  'border|': 'border',
+};
+
+type Paint = Partial<Record<Slot, string>>;
+
+function unmapped(cls: string): Error {
+  return new Error(`unmapped colour class ${cls}`);
+}
+
+/** The CSS colour a colour utility paints with: a hex literal or a var() reference. Fails closed. */
+function paintValue(name: string, cls: string): string {
+  const bracket = /^\[(.*)\]$/.exec(name);
+  if (bracket) {
+    const reference = /^var\((--[\w-]+)\)$/.exec(bracket[1] ?? '');
+    if (!reference) throw unmapped(cls);
+    return `var(${reference[1] ?? ''})`;
+  }
+  if (name.includes('/')) throw unmapped(cls); // an opacity suffix such as /80
+  if (name === 'white') return '#ffffff';
+  if (name === 'black') return '#000000';
+  if (!THEME_ALIASES.has(`--color-${name}`)) throw unmapped(cls);
+  return `var(--color-${name})`;
+}
+
+/** Reads the colour utilities of one class string into the slots they fill. */
+function readPaint(className: string): Paint {
+  const paint: Paint = {};
+  for (const cls of className.split(/\s+/).filter(Boolean)) {
+    const parts = cls.split(':');
+    const base = parts.pop() ?? '';
+    const match = /^(bg|text|border)-(.+)$/.exec(base);
+    if (!match) continue;
+    const role = match[1] ?? '';
+    const name = match[2] ?? '';
+    if (NOT_A_COLOUR_SUFFIX.test(name)) continue;
+    if (parts.length === 1 && SKIPPED_STATES.has(parts[0] ?? '')) continue;
+    const slot = SLOT_OF[`${role}|${parts.join(':')}`];
+    if (slot === undefined) throw unmapped(cls);
+    const value = paintValue(name, cls);
+    if (paint[slot] !== undefined) throw new Error(`two colour classes for ${slot} in "${className}"`);
+    paint[slot] = value;
+  }
+  return paint;
+}
+
+/** A colour value (hex or var() reference) as RGB in one theme, or undefined when it does not resolve. */
+function colourOf(value: string, theme: Theme): Rgb | undefined {
+  const reference = /^var\((--[\w-]+)\)$/.exec(value);
+  return parseHex(reference ? resolveToken(reference[1] ?? '', RESOLVE[theme]) : value);
+}
+
+interface ContrastCheck {
+  label: string;
+  ratio: number;
+  min: number;
+}
+
+/** The contrast pairs one class string paints, in one theme. Throws when a pair cannot be read. */
+function contrastChecks(className: string, theme: Theme): ContrastCheck[] {
+  const paint = readPaint(className);
+  const text = paint.text;
+  const bg = paint.bg;
+  if (text === undefined || bg === undefined) {
+    throw new Error(`no rest text and rest background in "${className}"`);
+  }
+  const pairs: [label: string, fg: string, bgValue: string, min: number][] = [
+    ['rest text on rest background', text, bg, TEXT_MIN],
+    ['hover text on hover background', paint.hoverText ?? text, paint.hoverBg ?? bg, TEXT_MIN],
+  ];
+  if (paint.placeholderText !== undefined) {
+    pairs.push(['placeholder text on rest background', paint.placeholderText, bg, TEXT_MIN]);
+  }
+  if (paint.border !== undefined) {
+    pairs.push(['rest border on rest background', paint.border, bg, NON_TEXT_MIN]);
+  }
+  return pairs.map(([label, fg, bgValue, min]) => {
+    const fgRgb = colourOf(fg, theme);
+    const bgRgb = colourOf(bgValue, theme);
+    if (!fgRgb || !bgRgb) throw new Error(`${label} in ${theme}: ${fg} or ${bgValue} is not a colour`);
+    return { label, min, ratio: contrastRatio(fgRgb, bgRgb) };
+  });
+}
+
+/** Logs every measured pair in both themes (the ratios are the evidence) and returns the ones below their minimum. */
+function contrastFailures(className: string, id: string): string[] {
+  const failures: string[] = [];
+  for (const theme of THEMES) {
+    for (const check of contrastChecks(className, theme)) {
+      const line = `${id} ${theme} ${check.label}: ${check.ratio.toFixed(2)} (min ${check.min})`;
+      console.log(line);
+      if (check.ratio < check.min) failures.push(line);
+    }
+  }
+  return failures;
+}
+
+/** The class string an Input renders with the given props, after its cn() call. */
+function renderedInputClass(props: InputProps): string {
+  const { container, unmount } = render(createElement(Input, props));
+  try {
+    const field = container.querySelector('input');
+    if (!field) throw new Error('Input rendered no <input>');
+    return field.className;
+  } finally {
+    unmount();
+  }
+}
+
+describe('DARK-PRIMITIVE-CONTRAST', () => {
+  it('HC-DPC-001: primary Button text reaches 4.5:1 on its fill, light and dark, at rest and on hover', () => {
+    // The default variant must be the primary one, so a caller that passes nothing gets the same pair.
+    const primary = buttonVariants({ variant: 'primary' });
+    expect(buttonVariants({})).toBe(primary);
+    expect(contrastFailures(primary, 'HC-DPC-001'), 'primary Button pairs below their ratio').toEqual([]);
+  });
+
+  it('HC-DPC-002: Input value and placeholder reach 4.5:1 on the field, and its border 3:1, light and dark', () => {
+    const states: [string, InputProps][] = [
+      ['rest', { label: 'Field' }],
+      ['error', { label: 'Field', error: 'Required' }],
+    ];
+    const failures: string[] = [];
+    for (const [state, props] of states) {
+      const className = renderedInputClass(props);
+      // A pair the mapper does not see would pass without a check, so each required pair must be present.
+      const labels = THEMES.flatMap((theme) => contrastChecks(className, theme).map((check) => check.label));
+      for (const required of [
+        'rest text on rest background',
+        'placeholder text on rest background',
+        'rest border on rest background',
+      ]) {
+        expect(labels, `${state} Input has no "${required}" pair`).toContain(required);
+      }
+      failures.push(...contrastFailures(className, `HC-DPC-002 ${state}`));
+    }
+    expect(failures, 'Input pairs below their ratio').toEqual([]);
+  });
+
+  it('HC-DPC-001 self-check: the mapper fails closed on what it cannot read', () => {
+    for (const cls of [
+      'bg-[#ffffff]',
+      'bg-accent/80',
+      'dark:bg-white',
+      'md:text-white',
+      'placeholder:bg-accent',
+      'text-gray-500',
+    ]) {
+      expect(() => contrastChecks(`text-white bg-accent ${cls}`, 'light'), cls).toThrow(
+        `unmapped colour class ${cls}`
+      );
+    }
+    expect(() => contrastChecks('bg-accent', 'light')).toThrow('no rest text and rest background');
   });
 });
