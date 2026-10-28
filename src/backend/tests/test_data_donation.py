@@ -509,11 +509,14 @@ async def test_runlog_payload_never_reaches_donated_rows(vault, monkeypatch):
     from modules.data_donation import collect
 
     await _consent(vault)
-    await _rated_agent_turn(vault, monkeypatch)
+    run_logs = await _rated_agent_turn(vault, monkeypatch)
 
     counts = await collect(vault, PID, PURPOSE)
 
-    # Positive control: the rated agent turn is donated (an empty collection fails here).
+    # Positive control: the canary really reached the run's act steps, so the check below means something.
+    acts = [s for log in run_logs for s in log.steps if s.node == "act"]
+    assert any(RUNLOG_CANARY in str(s.payload) for s in acts), "canary missing from the RunLog"
+    # The rated agent turn is donated (an empty collection fails here).
     assert counts.collected >= 1, counts
     rows = await _donated(vault)
     assert any("glucose" in (r.prompt_redacted or "").lower() for r in rows), [r.prompt_redacted for r in rows]
