@@ -348,6 +348,11 @@ def test_hc_aud_ord_033_property_value_passed_as_argument_is_not_dynamic(tmp_pat
                             "    @functools.cached_property\n    def path(self):\n        return 'x'\n"),
         "setter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
                    "    @path.setter\n    def path(self, v):\n        pass\n"),
+        "bare_cached_property": ("from functools import cached_property\nclass Cfg:\n"
+                                 "    @cached_property\n    def path(self):\n        return 'x'\n"),
+        "getter_deleter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
+                           "    @path.getter\n    def path(self):\n        return 'y'\n"
+                           "    @path.deleter\n    def path(self):\n        pass\n"),
     }
     for label, helper in values.items():
         sub = tmp_path / label
