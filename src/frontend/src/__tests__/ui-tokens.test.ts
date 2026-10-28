@@ -342,12 +342,14 @@ function readPaint(className: string): Paint {
   for (const cls of className.split(/\s+/).filter(Boolean)) {
     const parts = cls.split(':');
     const base = parts.pop() ?? '';
-    const match = /^(bg|text|border)-(.+)$/.exec(base);
+    // A leading `!` (Tailwind v3 important) is matched too, so it cannot hide a colour class from this loop.
+    const match = /^(!?)(bg|text|border)-(.+)$/.exec(base);
     if (!match) continue;
-    const role = match[1] ?? '';
-    const name = match[2] ?? '';
+    const role = match[2] ?? '';
+    const name = match[3] ?? '';
     if (NOT_A_COLOUR_SUFFIX.test(name)) continue;
     if (parts.length === 1 && SKIPPED_STATES.has(parts[0] ?? '')) continue;
+    if (match[1] === '!') throw unmapped(cls); // an important colour overrides the rest value read here
     const slot = SLOT_OF[`${role}|${parts.join(':')}`];
     if (slot === undefined) throw unmapped(cls);
     const value = paintValue(name, cls);
@@ -454,6 +456,7 @@ describe('DARK-PRIMITIVE-CONTRAST', () => {
     for (const cls of [
       'bg-[#ffffff]',
       'bg-accent/80',
+      '!bg-white',
       'dark:bg-white',
       'md:text-white',
       'placeholder:bg-accent',
