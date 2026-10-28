@@ -29,6 +29,13 @@ EMBEDDING_UNAVAILABLE_MESSAGE = (
     "Document search is unavailable because the local embedding model is not installed."
 )
 
+# RAG-TIMEOUT-ANSWER: the text _generate_with_runner returns when the runner times out.
+# query() labels it as a failed answer (GENERATION_TIMEOUT_ERROR) instead of verifying
+# a sentence the model never wrote.
+GENERATION_TIMEOUT_TEXT = """UNCERTAINTIES:
+I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+GENERATION_TIMEOUT_ERROR = "Generation timed out"
+
 from .claim_extractor import ClaimExtractor
 from .embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
 from .faithfulness import (
@@ -1352,7 +1359,14 @@ I was unable to fully process your question within the time limit. Please try as
             prompt, runner, n_chunks=len(chunks)
         )
 
-        # Step 4: Validate and verify response
+        # Step 4: Validate and verify response. A generation timeout is labelled
+        # instead: the canned sentence is not sent through the claim checks.
+        if response == GENERATION_TIMEOUT_TEXT:
+            return ValidatedResponse(
+                segments=self._parse_response_segments(response),
+                is_valid=False,
+                validation_errors=[GENERATION_TIMEOUT_ERROR],
+            )
         validated = self.validate_response(response, chunks)
 
         return validated
@@ -1459,8 +1473,7 @@ I was unable to fully process your question within the time limit. Please try as
         try:
             result = await runner.generate_async(prompt, config)
             if result.finish_reason == "timeout":
-                return """UNCERTAINTIES:
-I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+                return GENERATION_TIMEOUT_TEXT
             if n_chunks:
                 rendered = self._render_structured_answer(result.text, n_chunks)
                 if rendered is not None:

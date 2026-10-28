@@ -26,6 +26,8 @@ export const STILLNESS_WINDOW_MS = 800;
 export const STILLNESS_SAMPLE_MS = 20;
 /** G10: no gap between samples may exceed this (the plan's upper sampling bound). */
 export const STILLNESS_MAX_GAP_MS = 40;
+/** G10 page changes (kind 'navigation'): owner STILLNESS-NAV-70, 2026-10-28. Every other stillness check keeps 40 ms. */
+export const STILLNESS_NAV_MAX_GAP_MS = 70;
 /** G10 lazy route: network idle is this long with nothing in flight (Playwright's networkidle quiet period). */
 export const NETWORK_IDLE_MS = 500;
 /** G10 lazy route: give up waiting for network idle after this long. */
@@ -427,7 +429,7 @@ export interface StillnessReport {
   samples: number;
   /** Samples at or after the trigger; the probe needs at least windowMs / 40 of them. */
   postTriggerSamples: number;
-  /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40). */
+  /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40, or 70 for a navigation). */
   maxGapMs: number;
   /** Trigger to the end of the window, in ms (longer on a lazy route). */
   elapsedMs: number;
@@ -730,7 +732,8 @@ export interface SamplingCheck {
 
 /**
  * G10 sampling, checked on the sample times: at least windowMs / 40 samples at
- * or after the trigger, and no gap over 40 ms. Pure, so the harness tests it on
+ * or after the trigger, and no gap over maxGapMs (40 ms by default, 70 ms for a
+ * navigation). The minimum always uses 40 ms. Pure, so the harness tests it on
  * synthetic times. A probe whose sampler stalls or throws fails here instead of
  * passing on the few samples it did take.
  */
@@ -738,15 +741,16 @@ export function checkSampling(
   sampleTimes: number[],
   triggeredAt: number,
   windowMs: number,
-  lastError: unknown
+  lastError: unknown,
+  maxGapMs = STILLNESS_MAX_GAP_MS
 ): SamplingCheck {
   const failures: string[] = [];
-  let maxGapMs = 0;
+  let largestGapMs = 0;
   let postTriggerSamples = 0;
   sampleTimes.forEach((at, index) => {
     if (at < triggeredAt) return;
     postTriggerSamples++;
-    if (index > 0) maxGapMs = Math.max(maxGapMs, at - sampleTimes[index - 1]);
+    if (index > 0) largestGapMs = Math.max(largestGapMs, at - sampleTimes[index - 1]);
   });
   const minimum = Math.floor(windowMs / STILLNESS_MAX_GAP_MS);
   if (postTriggerSamples < minimum) {
@@ -755,10 +759,15 @@ export function checkSampling(
       `only ${postTriggerSamples} sample(s) after the trigger; the ${windowMs} ms window needs at least ${minimum} at one per ${STILLNESS_MAX_GAP_MS} ms${detail}`
     );
   }
-  if (maxGapMs > STILLNESS_MAX_GAP_MS) {
-    failures.push(`sampling gap of ${maxGapMs} ms (must be <= ${STILLNESS_MAX_GAP_MS} ms; G10 samples every 16-40 ms)`);
+  if (largestGapMs > maxGapMs) {
+    // Keys on the bound value: a caller that passes 70 gets the page-change text, so an interaction probe must never pass 70.
+    const bound =
+      maxGapMs === STILLNESS_NAV_MAX_GAP_MS
+        ? `must be <= ${maxGapMs} ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms`
+        : `must be <= ${maxGapMs} ms; G10 samples every 16-40 ms`;
+    failures.push(`sampling gap of ${largestGapMs} ms (${bound})`);
   }
-  return { failures, maxGapMs, postTriggerSamples };
+  return { failures, maxGapMs: largestGapMs, postTriggerSamples };
 }
 
 interface NetworkTracker {
@@ -851,7 +860,8 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
     snaps.map((snap) => snap.t),
     triggeredAt,
     windowMs,
-    dump.lastError
+    dump.lastError,
+    kind === 'navigation' ? STILLNESS_NAV_MAX_GAP_MS : STILLNESS_MAX_GAP_MS
   );
   const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
   if (failures.length > 0) {

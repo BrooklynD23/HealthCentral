@@ -1,6 +1,6 @@
 # Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient
 
-**Last Updated:** 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
+**Last Updated:** 2026-10-28 (owner answers STILLNESS-GAP-BOUND "Fix first, frame waits" and STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing": §7.11 rows GATES-NAV-BOUND (L0) and STILLNESS-NAV-LATE planned on `6b3dd27`; UI-SHELL depends on GATES-NAV-BOUND; §11 answered line); 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE, prompt 45's two answers as rows UI-DEPS and UI-FIXTURE-NAME, and prompt 48's three answers as rows UI-ROUTE-MOTION, UI-AUTH-SCREENS and SESSION-LOCK-NOW (same PR).
 **Base measured:** `origin/main` @ `257e072` (2026-10-23; merged since the first draft's `15fe095`: #321 MVP-REAUTH-401, #315 CPU-DEFAULT-PHI4, #318 OLLAMA-NUM-CTX, #314 FE-EXPLAIN-ERR, #319 GAUGE-ZERO-WIDTH, #320 INTERP-REGEN-500). The designers and the UI review read `7749744`; since then `src/frontend` changed only through #321 (`services/api.ts`, `profiles.ts`, `backup.ts`), #314 (`ExplainAssistant.tsx`) and #319 (`ReferenceRangeComparison.tsx`) with their tests, and both prototype patches still pass `git apply --check` on `257e072`. Every e2e line cited in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) was read on `257e072` and re-read after #323 (docs) and #312 SESSION-REENTRY Task 1 (`7667439`), which this branch has merged.
@@ -378,7 +378,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 | 2 | [UI-PRIM-CONTROLS](#ui-prim-controls--button-iconbutton-fields-switch-tabs-card) | UI-TOKENS, UI-MOTION | — | P1 | 3 |
 | 2 | [UI-PRIM-OVERLAYS](#ui-prim-overlays--dialog-alertdialog-sheet-popover) | UI-TOKENS, UI-MOTION | — | P1 | 3 |
 | 2 | [UI-PRIM-FEEDBACK](#ui-prim-feedback--toasts-skeletons-pending-status-chip-progress-tag) | UI-TOKENS, UI-MOTION | — | P1 | 3 |
-| 3 | [UI-SHELL](#ui-shell--responsive-shell-grouped-nav-tab-bar-safety-rail-honest-toggle) | UI-PRIM-*, UI-THEME, E2E-UIFULL-CI | UI-SAFETY-TOGGLE, UI-ROUTE-MOTION answered | **P0** | 5 |
+| 3 | [UI-SHELL](#ui-shell--responsive-shell-grouped-nav-tab-bar-safety-rail-honest-toggle) | UI-PRIM-*, UI-THEME, E2E-UIFULL-CI, [GATES-NAV-BOUND](#gates-nav-bound--navigation-stillness-probes-allow-70-ms-sampling-gaps) | UI-SAFETY-TOGGLE, UI-ROUTE-MOTION, STILLNESS-NAV-70 answered | **P0** | 5 |
 | 3 | [UI-BUDGET](#ui-budget--a-ci-bundle-budget-that-can-fail) | UI-MOTION, UI-ROUTES; never beside CI-CACHE | owner merges (CI file) | P1 | 1.5 |
 | 4 | [UI-PALETTE](#ui-palette--the-lazy-command-palette-with-the-df-5-fix) | UI-SHELL, UI-BUDGET | — | P1 | 3 |
 | 4 | [UI-RIBBON](#ui-ribbon--the-range-ribbon-and-range-tick-components) | UI-TOKENS, UI-MOTION | — | P1 | 4 |
@@ -568,7 +568,7 @@ Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/sup
 
 **Files:** `fe/components/layout/AppLayout.tsx` (grid shell; `AnimatePresence mode="wait"` removed; route enter M7 (opacity-only fade, owner UI-ROUTE-MOTION) on the route container, marked `data-route-container` and keyed by pathname; skip link; mounts `AppToaster`; bottom padding for tab bar and rail), `Sidebar.tsx` (groups, prefix match, M9 CSS indicator replacing the `layoutId` spring, brand as `<span>`), `TopBar.tsx` (the existing search form restyled, `SafetyModeToggle`, profile menu on phones), `MobileTabBar.tsx`, `MoreSheet.tsx`, `SafetyRail.tsx`, `SafetyModeToggle.tsx`, `ProfileMenu.tsx`, `BrandMark.tsx`, `navConfig.ts` (all new), `layout/index.ts`; `fe/__tests__/ui-shell.test.tsx` (new), `e2e/ui-shell.spec.ts` (new), `e2e/routing.spec.ts` (`:46` nav link name `'Trends'` → `'Results'`; it still lands on `/trends` until UI-PG-RESULTS), `e2e/ui-routes-verification.spec.ts` (nav labels only; file from E2E-UIFULL-CI), `e2e/ui-gates.spec.ts` (remove the `test.fail()` mark on HC-UIG-003 only), `e2e/tailwind4-styles.spec.ts` (TW4-INBOX `:180` selector `aside h1` → `aside [data-brand]`, the brand `<span>`; the colour value set by UI-TOKENS is unchanged). Kept as they are (Appendix A): the nav landmark name "Main navigation", nav links at `min-height: 44px`, and the top-bar profile trigger's accessible name "Profile and settings" with `cursor: pointer`.
 **Route motion (owner UI-ROUTE-MOTION, "Whole-page fade"):** M7 on every route: the route container fades opacity .35→1 in 200 ms, finished within 240 ms, with **no transform**, because every authenticated route paints T0 content on first paint (`/inbox` dates and statuses; `/verify` values; `/trends`, `/interpret` and later `/results` values; `/timeline` dates; `/pinboards` pinned values; `/explain` the disclaimer and answers; `/medications`, `/medications/:id` and `/notifications` doses and times; `/care-tasks` dates; `/export` summary values; `/search` values; `/settings` warnings and consent copy). The shell, the nav and the Safety Rail sit outside the route container and do not fade. Under reduced motion the route change is **instant** (M0). Nothing re-animates after the fade.
-**Depends on:** UI-PRIM-CONTROLS, UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK, UI-THEME merged; E2E-UIFULL-CI merged (its spec is edited). **Gate:** UI-SAFETY-TOGGLE and UI-ROUTE-MOTION ("Whole-page fade") answered; the toggle wording of [§3.6](#36-the-safety-rail-and-the-safety-toggle-until-safety-mode-real) ships now and SAFETY-LABEL-WORDING (open, non-blocking) may change it in a one-line follow-up.
+**Depends on:** UI-PRIM-CONTROLS, UI-PRIM-OVERLAYS, UI-PRIM-FEEDBACK, UI-THEME merged; E2E-UIFULL-CI merged (its spec is edited); [GATES-NAV-BOUND](#gates-nav-bound--navigation-stillness-probes-allow-70-ms-sampling-gaps) merged (owner STILLNESS-NAV-70, 2026-10-28: "Raise it to 70 ms for page changes and keep diagnosing"); then UI-SHELL adds `test.describe.configure({ retries: 0 })` as the first line of every describe in `e2e/ui-shell.spec.ts` that holds an HC-UISH-009 test (on #370 `2148b54e`: `:292` "HC-UISH-003 route fade and HC-UISH-009 rail stillness", which pins HC-UISH-003 too; `:335` "HC-UISH-009 phone toggle label stays still"; and `:851` "Inherited stillness and focus halves", or the `:870` test moved into its own describe); the global `retries` and `ci.yml` are unchanged; the diagnosis [STILLNESS-NAV-LATE](#stillness-nav-late--find-and-fix-why-page-changes-run-late-under-the-stillness-probe) does not block it. **Gate:** UI-SAFETY-TOGGLE and UI-ROUTE-MOTION ("Whole-page fade") answered; STILLNESS-GAP-BOUND and STILLNESS-NAV-70 answered; the toggle wording of [§3.6](#36-the-safety-rail-and-the-safety-toggle-until-safety-mode-real) ships now and SAFETY-LABEL-WORDING (open, non-blocking) may change it in a one-line follow-up.
 
 | Id | Check | RED today? |
 |---|---|---|
@@ -953,6 +953,157 @@ Planned 2026-10-26 on `0e8b2b2` from the L0 rulings on #370 (UI-SHELL, still in 
 
 **Acceptance:** the two ids with output; HC-UIOV-001…007 green; `npx tsc --noEmit` clean. **Est:** 2 h. **MVP:** P2.
 
+### 7.11 Planned 2026-10-28 (owner answers STILLNESS-GAP-BOUND and STILLNESS-NAV-70)
+
+Planned 2026-10-28 on `6b3dd27` from the owner's answers, both recorded in owner-decisions:
+- **STILLNESS-GAP-BOUND** (AskUserQuestion): **"Fix first, frame waits"**.
+- **STILLNESS-NAV-70** (owner chat the same day, after L0 explained the impact): **"Raise it to 70 ms for page changes and keep diagnosing"**. This supersedes the 40 ms part of the first answer for page changes only; the diagnosis part stands.
+
+Also L0 ruling 6461743542 on #370. Queue rows: [Planned 2026-10-28, planner](2026-10-15-build-program/queue.md#planned-2026-10-28-planner).
+
+**The effective rule** (owner STILLNESS-NAV-70):
+- a `stillnessProbe` of kind `'navigation'` allows sampling gaps up to 70 ms;
+- every other stillness check keeps 40 ms;
+- the minimum-sample rule (`windowMs / 40`) is unchanged.
+
+No row other than GATES-NAV-BOUND changes a bound, and no row marks a check fixme, skip or fail, or counts a miss as flaky.
+
+#### GATES-NAV-BOUND — navigation stillness probes allow 70 ms sampling gaps
+
+**Kind:** PRODUCT (e2e harness). L0 builds it as #390. **Files:** `e2e/support/gates.ts` (`STILLNESS_NAV_MAX_GAP_MS = 70`; `checkSampling` takes `maxGapMs`, default 40; `stillnessProbe` passes 70 for `kind: 'navigation'` only; the minimum stays `windowMs / 40`), `e2e/ui-gates.spec.ts` (new HC-UIG-008), and `e2e/README.md:70` (the gap sentence now says 40 ms, or 70 ms for a navigation). **Depends on:** none. **Gate:** STILLNESS-NAV-70 answered 2026-10-28. **Blocks:** UI-SHELL (#370).
+
+**Acceptance (set by L0's PR):**
+- a navigation self-test with a gap above 70 ms still fails;
+- an interaction self-test with a gap above 40 ms still fails (HC-UIG-007 (b) unchanged);
+- HC-UIG-006 still fails on every case it failed on before;
+- CI E2E green.
+
+**MVP:** **P0** (UI-SHELL waits on it).
+
+#### STILLNESS-NAV-LATE — find and fix why page changes run late under the stillness probe
+
+**Kind:** MEASURE (Task 1), then PRODUCT (frontend) or PRODUCT (e2e harness) (Task 2). An `L0 ruling:` after Task 1 picks the kind and names the files. **Files:** Task 1: `docs/reviews/<run date>/stillness-nav-evidence/` (new: `README.md` plus the copied scripts and logs below). Task 2: only the files the L0 ruling names. Likely candidates: `e2e/support/gates.ts` (harness; after GATES-NAV-BOUND); `e2e/support/mockApi.ts` (#370 also edits it); `fe/App.tsx` (lazy routes); `fe/components/layout/AppLayout.tsx` and `fe/components/ui` `PageTransition` (today's route transition; #370 rewrites AppLayout). **Depends on:** GATES-SAMPLE-TIME (done, #374), GATES-SAMPLE-TIME-MINORS (done, #384). Runs alongside GATES-NAV-BOUND, never beside another `e2e/support/gates.ts` PR. **Blocks:** nothing since STILLNESS-NAV-70; UI-SHELL depends on GATES-NAV-BOUND instead. **Gate:** STILLNESS-GAP-BOUND answered 2026-10-28 (the diagnosis); STILLNESS-NAV-70 answered 2026-10-28 ("keep diagnosing"). **Ask-first files:** none expected. If Task 1 points at `interpret_safety`, `redaction`, `faithfulness`, `verifier_agent`, auth or encryption, ask the owner first.
+
+**Bound for this row.** The owner raised the navigation bound to 70 ms, but this row's target stays 40 ms on navigation. The goal is that the cause of the late samples ("the errors", in the owner's words) is fixed, so that origin/main's dev server passes the instrumented navigation set at 40 ms in 15 of 15 runs. The row reads each run's maximum gap (`PROBECOST maxGap`, or the probe report's `maxGapMs`) and judges it against 40 ms; whether the probe passes at the effective 70 ms is not this row's measure. The row never lowers or raises a bound itself. If it reaches 15 of 15 at 40 ms, it may propose returning navigation to 40 ms; that is an owner question L0 asks.
+
+**Why.** On #370 every HC-UISH-009 failure on dev was a sampling gap of 41-59 ms, with no sample showing the Safety Rail move. L0 then measured main against the branch on 2026-10-27. Each batch ran on a quiet box under `hold_slots.sh`, with the 1-minute load between 1.13 and 1.49 and no other Playwright, vitest or pytest process. The instrumented probe is a copy of the branch's `gates.ts` that logs `PROBECOST` per run; the bare timer is a 20 ms `setInterval` that only pushes `performance.now()`. Both use the same start pages, navigation, mock API and 1440 × 900 viewport as HC-UISH-009. Each run is one fresh page.
+
+| Set-up (5 routes: `/timeline`, `/search`, `/medications/med-fixture-1`, `/notifications`, `/care-tasks`) | Runs with a gap over 40 ms | Those gaps (ms) | Log |
+|---|---|---|---|
+| instrumented probe, origin/main dev, no `[data-t0]` node | 9 of 15 | 41, 41, 42, 42, 45, 46, 46, 47, 58 | `probe-runs.log` (`main tag=0`) |
+| the same with 3 shell nodes tagged `data-t0` in the page | 8 of 15 | 42-57 | `probe-runs.log` (`main tag=3`) |
+| instrumented probe, #370 branch dev | 8 of 15 | 41-51 | `probe-runs.log` (`branch tag=0`) |
+| HC-UISH-009 (the branch's own spec), branch dev, control run | 6 of 15 | 44-53 | `probe-control.log` |
+| HC-UISH-009, branch `vite preview` build | 2 of 36 | 44, 47 | `t4-preview.log` |
+| bare 20 ms timer, main dev | 3 of 25 | 41, 46, 56 | `batch1.log`…`batch5.log` |
+| bare timer, branch dev | 0 of 25 | — | same |
+| bare timer, branch preview | 1 of 25 | 46 | same |
+
+What the logs already show (facts, not a diagnosis):
+- `snapshot()` costs 0.0-0.3 ms per tick on average (mean per run), at most 6.2 ms. On main with no `[data-t0]` node a tick reads nothing per node, yet the probe still missed in 9 of 15 runs.
+- Every probe gap ends 22-96 ms after the trigger (`gapEndsAtMs`), so it falls in the page change itself, not in the settled window.
+- The bare timer's `longtask` observer recorded no long task in any of its 75 runs, including its 56 ms gap.
+- The two set-ups were not interleaved. The bare-timer batches ran from 21:50 to 22:00 and the probe batches from 22:17 to 22:23, so time of run is not ruled out.
+- The set-ups differ in more than the sampler:
+  - The bare timer starts, waits 100 ms, then triggers. The probe starts its sampler, reads `triggeredAt` in a second `page.evaluate`, and triggers at once.
+  - With `lazyRoute: true` the probe attaches `page.on('request' | 'requestfinished' | 'requestfailed')` listeners (`trackRequests`) and polls for network idle in Node. The bare timer attaches none.
+  - The probe rounds each sample's stamp with `Math.round` (`gates.ts` `snapshot`). The bare timer rounds only the final gap, so the same pause can read up to 1 ms longer in the probe.
+
+**Evidence to keep.** The scripts and logs live only in L0's scratchpad, `/tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/`. `/tmp` can be wiped by a restart. Task 1 step 1 copies them into the repo. If they are gone, Task 1 recreates them from this section and says so. They hard-code that scratchpad path and two worktrees: `hc-ui-shell` (#370) and `hc-measure-main` (origin/main, already removed). Parameterise them or record the paths used. Expected sha256 values (first 12 hex digits):
+
+| Source (under the scratchpad) | sha256 |
+|---|---|
+| `baretimer/baretimer.spec.ts` | `95c225c36f8a` |
+| `baretimer/playwright.config.ts` | `6ed971971960` |
+| `baretimer/run_batch.sh` | `4d3506bcf645` |
+| `baretimer/wait_quiet.sh` | `3008f372b0fd` |
+| `baretimer/t4_preview.sh` | `91916bb4ecc1` |
+| `baretimer/batch0.log` (warm-up, load 4.76, not counted) … `batch5.log` | `8bc42a492c2c`, `bacc5213b3b8`, `04a872243e9b`, `9f3e239a9c6a`, `b89f4d07aa63`, `ee72cd494c3d` |
+| `baretimer/probe-control.log` | `94e867b7b087` |
+| `baretimer/t4-preview.log` | `91e3cf6fa569` |
+| `probecost/e2e/support/gates.ts` (the instrumented copy; commit it as `gates.instrumented.ts`) | `b49473df8217` |
+| `probecost/main-probe.spec.ts` | `59af43d9db7c` |
+| `probecost/playwright.config.ts` | `e253e44fa2bb` |
+| `probecost/run_probe.sh` | `0736ce5bd83d` |
+| `probecost/probe-runs.log` | `c139049e251b` |
+
+Do not copy `node_modules`, `pw-out*`, `test-results`, `out` or `dist-branch`.
+
+**Box rules (every Playwright run in this row).**
+- L0 holds `/tmp/claude-1000/quiet-box.lock`, and no model-host row runs meanwhile.
+- Wrap every Playwright command in `/tmp/claude-1000/hold_slots.sh`.
+- Just before each wrapped run, paste `uptime` and `pgrep -fa "playwright|vitest|pytest"`. The 1-minute load must be below 1.5, and nothing that is not yours may appear. Otherwise wait up to 30 minutes, then report the processes.
+- Never run pytest inside the wrapped command. `wait_quiet.sh` is the waiting pattern.
+- Every run counts: no re-run to get a pass.
+
+**Task 1: diagnosis (MEASURE; no product or harness change).** Use systematic-debugging.
+1. **Copy the evidence.** Copy the files above into `docs/reviews/<run date>/stillness-nav-evidence/l0-2026-10-27/` and paste `sha256sum` against the table.
+2. **Interleaved baseline on origin/main's dev server.** Use the mock API, as HC-UISH-009 does. In each batch, run the instrumented probe set and the bare-timer set back to back, alternating which goes first. Run 3 batches (15 + 15 runs). Record for each run:
+   - the max gap;
+   - when the gap ends, relative to the trigger;
+   - any long tasks;
+   - the load.
+   If the probe misses 5 or more of 15 and the bare timer 3 or fewer, the difference is reproduced. If the baseline probe misses fewer than 5 of 15 in every batch, stop: report the tallies and box state as 'not reproduced' and run no variants. If both miss alike, the cause is in the page change, not the probe. Then run candidates 6-9 against the bare timer as well.
+3. **One variable at a time.** Each variant differs from the baseline probe in one thing only. Where it applies, a second variant adds that one thing to the bare timer. Each variant gets 15 runs, interleaved with a baseline-probe control in the same batches. Variants live in the evidence copy, never in `src/`.
+
+   | # | Candidate | Variant |
+   |---|---|---|
+   | 1 | Sampler start to trigger | the probe with a 100 ms wait between `startSampler` and the trigger, as the bare timer has |
+   | 2 | Request tracking and the network-idle wait | the probe with `lazyRoute: false`; the bare timer with `trackRequests`' three listeners attached |
+   | 3 | Playwright and CDP overhead | confirm trace, video and screenshot are off in the run's config (the repo config has `trace: 'on-first-retry'`, `screenshot: 'only-on-failure'`); count the CDP events in the window; a probe with no Node-side listeners |
+   | 4 | Timer mechanism and stamp rounding | sampler ticks driven by `requestAnimationFrame` instead of `setInterval`; unrounded stamps (diagnostic only: G10's 16-40 ms spacing and the 40 ms bound stay) |
+   | 5 | Per-tick reads | the sampler with `snapshot()` replaced by a bare stamp push |
+   | 6 | Mock API response timing | log each mock response's time relative to the trigger and the gap; responses fulfilled after a fixed 50 ms and 150 ms |
+   | 7 | Dev-server module work (HMR, on-demand transforms) | the same probe on a `vite preview` build of origin/main; dev with the vite client's HMR socket idle or closed |
+   | 8 | Lazy route chunk load and parse | trace whether the gap overlaps the chunk's fetch, compile or evaluate; a variant with the route chunk imported before the trigger (diagnostic only: G10 probes the first visit, so this is never the fix) |
+   | 9 | The route transition's commit | main's `AnimatePresence mode="wait"` + `PageTransition` commit in a trace; the probe under `reducedMotion: 'reduce'` |
+
+4. **Name the task.** Take a Chromium performance trace (CDP `Tracing`, `devtools.timeline` categories) of 3 baseline runs that miss. Name the task or tasks that fill the gap: script URL and function, or browser work. A trace adds overhead, so use it to name the work, not to count misses.
+5. **Decision rule (fixed now, before any run).** A candidate is the cause when:
+   - (i) removing it alone brings the probe set to 15 of 15 at ≤ 40 ms, in batches where the baseline probe misses 5 or more of 15; and
+   - (ii) where a bottom-up variant exists, adding it alone to the bare timer brings the bare timer to 5 or more of 15.
+
+   Paste both RED (baseline) and GREEN (variant) outputs. If candidates only explain the misses together, report the combination. If none meets the rule, report "cause not found" with every tally.
+6. **Report and stop.** Write `docs/reviews/<run date>/stillness-nav-evidence/README.md`. It holds every variant's tally, the box state per batch, the trace finding, the cause or "not found", and the proposed Task 2 kind and files. Push it, post it as a PR comment headed `## Task 1 report: tell L0`, and stop. Task 2 starts only after an `L0 ruling:` that names the kind and the files.
+
+**Task 2: fix (test-first).**
+1. **RED first.** The RED check is the instrumented navigation set: 5 routes × 3 batches on origin/main's dev server, each run's maximum gap judged against 40 ms. It runs from the committed evidence copy, on a quiet box. Paste the RED tally before the fix. If the fix is in `e2e/support/gates.ts`, regenerate `gates.instrumented.ts` from the fixed `gates.ts` plus only the `PROBECOST` logging lines, and paste `diff src/frontend/e2e/support/gates.ts <evidence>/gates.instrumented.ts` for both the RED (pre-fix) and GREEN (post-fix) copies, showing logging lines only.
+   - If the fix is in app code and a regression test can pin it (for example a vitest case on the component the trace names), the L0 ruling names that test, and it is written first.
+   - A CI spec that enforces 40 ms on navigation is not added: it would undo the owner's 70 ms rule.
+2. **The fix, where Task 1 found the cause.**
+   - **App code:** the smallest change in the named file, on main. UI-ROUTE-MOTION's opacity-only fade and the T0 rules stay. If the file is one #370 rewrites (`fe/components/layout/*`), the fix still lands on main first and #370 carries it over when it merges `origin/main`; L0 rules on that merge.
+   - **Test harness:** the probe must keep its detection power:
+     - every stillness self-test stays unchanged and green: HC-UIG-006 (a)-(o) including (h2), and its pass cases, HC-UIG-007 (a)-(b), and GATES-NAV-BOUND's navigation self-tests (`git diff origin/main...HEAD` on their spec files is empty);
+     - a mutant that reverts the fix brings the instrumented set back to its RED tally. Paste it, then restore;
+     - no bound constant changes: 40 ms, and the 70 ms navigation bound from GATES-NAV-BOUND;
+     - a change to how a gap is measured (the `Math.round` on each stamp in `snapshot`, the gap arithmetic or comparison in `checkSampling`, or which samples count as post-trigger) is a bound change: stop and tell L0, who asks the owner;
+     - a change to `STILLNESS_SAMPLE_MS`, `STILLNESS_WINDOW_MS`, `NETWORK_IDLE_MS`, the lazy-route rule or `checkSampling` needs the L0 ruling to name it, and G10's "samples every 16-40 ms" must stay true;
+     - anything that makes the probe see less is not a fix: stop and tell L0. That includes fewer samples, a sampler that skips the page-change window, and a route visited before the trigger so that its first visit is never probed.
+3. **No fix in reach.** Stop and tell L0 if:
+   - the cause is outside the app and the harness (the box, WSL, Chromium); or
+   - the only fix would change a bound.
+
+**CI retries.** `playwright.config.ts` sets `retries: process.env.CI ? 2 : 0`, and the CI E2E step (`ci.yml`, `npx playwright test --project chromium`) has no `--fail-on-flaky-tests`. A test that fails and then passes on a retry is reported as "flaky", and the job still exits 0. So a green CI E2E job is not evidence that a stillness check passed. UI-SHELL pins `retries: 0` on HC-UISH-009 (below). This row changes neither `ci.yml` nor the global retries; other specs' retries are L0's to raise as a separate row.
+
+**Acceptance:**
+- The Task 1 report, and the `L0 ruling:` that followed it.
+- The instrumented navigation set RED, then GREEN, with output.
+- On a quiet box (box rules above), the branch's dev server, at the row's final head, shows a maximum gap of 40 ms or less in 15 of 15 runs of the instrumented navigation set. Do the same on a `vite preview` build of the same head.
+- CI E2E is green on the final head. Read the E2E job log's summary: a `flaky` entry naming any stillness test (HC-UIG-00x, HC-UISH-009, GATES-NAV-BOUND self-tests) counts as a failure. The 40 ms figures are local (box rules); CI enforces the effective bounds, not this row's 40 ms target.
+- HC-UIG-001…007 and GATES-NAV-BOUND's self-tests stay green.
+- `npx tsc --noEmit` clean.
+- `git diff origin/main...HEAD -- src/frontend/e2e/support/gates.ts` changes no bound constant.
+- `git diff origin/main...HEAD | grep -E "test\.(fixme|skip|fail)\("` prints nothing.
+- The evidence directory is committed.
+- If 15 of 15 is reached, the PR body includes a draft owner question on returning navigation to 40 ms. L0 asks it; the row does not change the bound.
+
+**Est:** 6 h (Task 1 about 4 h, Task 2 about 2 h). **MVP:** P1. It blocks no row since STILLNESS-NAV-70; the owner asked to "keep diagnosing".
+
+**#370 (UI-SHELL)** resumes after GATES-NAV-BOUND merges, not after this row, with a new `L0 ruling:`:
+- UI-SHELL merges `origin/main` and adds `test.describe.configure({ retries: 0 })` as the first line of every describe in `e2e/ui-shell.spec.ts` that holds an HC-UISH-009 test (on #370 `2148b54e`: `:292` "HC-UISH-003 route fade and HC-UISH-009 rail stillness", which pins HC-UISH-003 too; `:335` "HC-UISH-009 phone toggle label stays still"; and `:851` "Inherited stillness and focus halves", or the `:870` test moved into its own describe). The global `retries` and `ci.yml` are unchanged.
+- HC-UISH-009 must pass at the effective bounds (70 ms on navigation, 40 ms elsewhere) on dev and on a `vite preview` build, on a quiet box, with every run counted.
+- It must also pass in CI E2E on the final head, with no retry counted as a pass.
+
 ---
 
 ## 8. Session and safety deltas
@@ -1016,6 +1167,8 @@ Tasks 1 and 2 of SESSION-REENTRY are unchanged, with their gates (SESSION-REENTR
 The gates and questions listed under "Execution gates" and "Open questions" below are not answered; the three answered in prompt 48 are listed first. L0 numbers and asks the open ones; the owner's words are recorded verbatim in owner-decisions. Wording is a draft, written neutrally.
 
 **Answered (prompt 48, L0 evidence comment 6380025171 on PR #311):** UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now" (§1).
+
+**Answered 2026-10-28 (L0 AskUserQuestion; owner-decisions row STILLNESS-GAP-BOUND):** STILLNESS-GAP-BOUND "Fix first, frame waits", then, the same day in chat, STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing" (owner-decisions row STILLNESS-NAV-70). Effective rule: navigation probes allow sampling gaps up to 70 ms (row [GATES-NAV-BOUND](#gates-nav-bound--navigation-stillness-probes-allow-70-ms-sampling-gaps)), every other stillness check keeps 40 ms, and the minimum-sample rule is unchanged. UI-SHELL waits for GATES-NAV-BOUND. [STILLNESS-NAV-LATE](#stillness-nav-late--find-and-fix-why-page-changes-run-late-under-the-stillness-probe) keeps diagnosing at a 40 ms target and changes no bound.
 
 **Execution gates (a row waits for the answer):**
 

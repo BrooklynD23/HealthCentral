@@ -704,7 +704,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -3325,6 +3325,14 @@ Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/p
 Plan: RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE; queue row `DON-NER-MEASURE` in queue.md. Feeds the new owner gate **DON-NER-MODEL** (same plan, "New owner gate DON-NER-MODEL"). Run by a Claude…
 
 Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+
+## `docs/reviews/2026-10-27/kv-numctx-verify.md`
+
+**KV-NUMCTX-VERIFY: Ollama runs the app's requests at num_ctx 8192 on the model host**
+
+Plan: KV-NUMCTX-VERIFY. Queue row: queue.md, Planned 2026-10-27. Baseline: kv-prefix-measure.md.
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/reviews/README.md`
 
