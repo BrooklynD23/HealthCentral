@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Button, IconButton } from '@/components/ui';
-import { Dialog } from '@/components/ui/Dialog';
+import { Modal } from '@/components/ui/Dialog';
 import { cn } from '@/utils/cn';
 import type { DoseLog, MedicationSchedule } from '@/services/types';
 
@@ -81,7 +81,9 @@ export function DoseLoggingModal({
 
   return (
     // M0 (still): the dose text is T0, so the dialog opens and closes with no motion of its own. The scrim may fade.
-    <Dialog
+    <Modal
+      name="DoseLoggingModal"
+      variant="dialog"
       open
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -203,6 +205,6 @@ export function DoseLoggingModal({
               )}
             </Button>
       </div>
-    </Dialog>
+    </Modal>
   );
 }
