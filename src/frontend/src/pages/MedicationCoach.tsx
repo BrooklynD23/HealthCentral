@@ -11,8 +11,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  StaggerGroup,
-  StaggerItem,
   ListSkeleton,
   EmptyState,
 } from '@/components/ui';
@@ -32,7 +30,6 @@ import {
 import { useDocuments, useMedReconciliation } from '@/services';
 import type { MedReconcileSuggestion } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
-import { useNavigate } from 'react-router-dom';
 import type { MedicationCreate, Medication, BadgeInfo } from '@/services/types';
 
 /**
@@ -185,7 +182,6 @@ function MedReconcilePanel({
 }
 
 export function MedicationCoach() {
-  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [prefillName, setPrefillName] = useState<string | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
@@ -241,10 +237,6 @@ export function MedicationCoach() {
   const handleQuickLog = (medicationId: string) => {
     const med = medications?.find((m) => m.id === medicationId);
     if (med) setLoggingMed(med);
-  };
-
-  const handleViewDetail = (medicationId: string) => {
-    navigate(`/medications/${medicationId}`);
   };
 
   // Loading
@@ -336,18 +328,11 @@ export function MedicationCoach() {
           }
         />
       ) : (
-        <StaggerGroup className="space-y-3">
-          {medications.map((med, index) => (
-            <StaggerItem key={med.id}>
-              <MedicationCard
-                medication={med}
-                onQuickLog={handleQuickLog}
-                onViewDetail={handleViewDetail}
-                index={index}
-              />
-            </StaggerItem>
+        <div className="space-y-3">
+          {medications.map((med) => (
+            <MedicationCard key={med.id} medication={med} onQuickLog={handleQuickLog} />
           ))}
-        </StaggerGroup>
+        </div>
       )}
 
       {/* Reconciliation panel (HC-M19): read-only comparison against a
