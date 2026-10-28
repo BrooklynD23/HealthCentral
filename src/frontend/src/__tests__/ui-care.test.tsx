@@ -28,6 +28,14 @@ vi.mock('@/services/api', async (importOriginal) => ({
   apiPatch: vi.fn(),
 }));
 
+// jsdom has no pointer-capture API, and sonner calls it on pointerdown when a toast's action is pressed (the same
+// shim ui-feedback.test.tsx uses). It lets the Undo press run in jsdom; it does not change what the test asserts.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+  Element.prototype.releasePointerCapture = () => {};
+  Element.prototype.hasPointerCapture = () => false;
+}
+
 const SAVE_FAILED = "Couldn't save that change. Try again.";
 
 const OPEN_TASK: CarePlanTask = {
