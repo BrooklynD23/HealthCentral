@@ -459,6 +459,73 @@ def cmd_nli(target: Optional[Path] = None) -> None:
     print(f"NLI model installed: {target}")
 
 
+def _phi_ner_complete(directory: Path) -> bool:
+    from modules.phi_second_pass import PHI_NER_FETCH_FILES, PHI_NER_WEIGHTS_SHA256
+
+    if not all((directory / name).is_file() for name in PHI_NER_FETCH_FILES):
+        return False
+    return _sha256(directory / "model.safetensors") == PHI_NER_WEIGHTS_SHA256
+
+
+def cmd_phi_ner(target: Optional[Path] = None) -> None:
+    """Fetch the pinned on-device PHI model once. The only network step for it.
+
+    Same rules as cmd_nli: exclusive .partial dir, sha256 check, never deletes a
+    directory it did not create in this run. The donation collect path loads it
+    offline and donates nothing when it is absent (RSI1-DONATE, fail closed).
+    """
+    from huggingface_hub import snapshot_download
+
+    from modules.phi_second_pass import (
+        PHI_NER_FETCH_FILES,
+        PHI_NER_REPO_ID,
+        PHI_NER_REVISION,
+        resolve_phi_ner_model_dir,
+    )
+
+    target = Path(target) if target is not None else resolve_phi_ner_model_dir()
+    if target.exists():
+        if _phi_ner_complete(target):
+            print(f"PHI model already installed: {target}")
+            return
+        print(f"ERROR: {target} exists but is not a complete, verified PHI model.")
+        print("Remove it yourself and re-run; this script never deletes an existing directory.")
+        sys.exit(1)
+
+    partial = target.with_name(target.name + ".partial")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        partial.mkdir()  # exclusive: this run owns `partial` only if it created it
+    except FileExistsError:
+        print(f"ERROR: {partial} already exists (an interrupted or concurrent fetch?).")
+        print("Remove it yourself and re-run; this script never deletes a directory it did not create.")
+        sys.exit(1)
+    print(f"Fetching {PHI_NER_REPO_ID}@{PHI_NER_REVISION[:12]} ({len(PHI_NER_FETCH_FILES)} files) ...")
+    try:
+        snapshot_download(
+            repo_id=PHI_NER_REPO_ID,
+            revision=PHI_NER_REVISION,
+            local_dir=str(partial),
+            allow_patterns=list(PHI_NER_FETCH_FILES),
+        )
+        verified = _phi_ner_complete(partial)
+        if verified:
+            partial.rename(target)
+    except BaseException:
+        # Network error, hashing error, failed rename, interrupt, anything: remove
+        # only the `partial` this run created (exclusive mkdir above), then re-raise.
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+
+    if not verified:
+        shutil.rmtree(partial, ignore_errors=True)  # created by this run (exclusive mkdir above)
+        print("ERROR: fetched PHI model is incomplete or the weights checksum does not match.")
+        print("Nothing was installed.")
+        sys.exit(1)
+
+    print(f"PHI model installed: {target}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Download GGUF models for Asclexis",
@@ -488,6 +555,8 @@ def main() -> None:
 
     sub.add_parser("nli", help="Fetch the pinned NLI cross-encoder once (the backend loads it offline)")
 
+    sub.add_parser("phi-ner", help="Fetch the pinned on-device PHI model once (the donation path loads it offline)")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -504,6 +573,8 @@ def main() -> None:
         cmd_embedding()
     elif args.command == "nli":
         cmd_nli()
+    elif args.command == "phi-ner":
+        cmd_phi_ner()
 
 
 if __name__ == "__main__":

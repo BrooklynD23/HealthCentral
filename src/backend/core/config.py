@@ -129,6 +129,11 @@ class Settings(BaseSettings):
     # `python scripts/download_models.py nli`; used only when use_llm_entailment
     # is on. Relative paths resolve against src/backend.
     nli_model_path: str = "models/nli/nli-deberta-v3-xsmall"
+    # RSI1-DONATE on-device PHI model (obi/deid_roberta_i2b2). Fetched once by
+    # `python scripts/download_models.py phi-ner`; loaded offline only by the
+    # donation collect path, which fails closed when it is absent. Relative
+    # paths resolve against src/backend.
+    phi_ner_model_path: str = "models/phi_ner/deid_roberta_i2b2"
     
     # Document processing
     max_import_file_size_mb: int = 50

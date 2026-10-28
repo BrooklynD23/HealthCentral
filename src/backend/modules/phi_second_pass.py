@@ -10,11 +10,43 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 CATEGORIES = (
     "name", "geographic", "date", "phone", "email", "ssn", "mrn",
     "account_number", "url", "ip_address", "age_over_89", "device_vehicle_id",
 )
+
+# On-device model pass (DON-NER-MODEL "Adopt obi, agent sets", configuration C1).
+# The pin is code, not config/model_manifest.json. Only scripts/download_models.py
+# phi-ner fetches it; the runtime loads the directory offline and fails closed.
+PHI_NER_REPO_ID = "obi/deid_roberta_i2b2"
+PHI_NER_REVISION = "78f2152eb93ddd817290ce8dbe46f1a6685e09fc"
+PHI_NER_WEIGHTS_SHA256 = "557152273204b0a28593da47b423dd0206e87c3b94839bd28ff8d6d90f0cf261"
+PHI_NER_FETCH_FILES = (
+    "README.md", "config.json", "merges.txt", "model.safetensors",
+    "special_tokens_map.json", "tokenizer.json", "tokenizer_config.json", "vocab.json",
+)
+PHI_NER_THRESHOLD = 0.5
+PHI_NER_WINDOW = 512
+PHI_NER_STRIDE = 64
+# Model label -> hit category. AGE is handled by value (age_over_89 only for >= 90);
+# ID is an identifier number of any kind (SSN, MRN, account, device): category "id".
+PHI_NER_LABEL_CATEGORY = {
+    "PATIENT": "name", "STAFF": "name", "HCW": "name", "PER": "name",
+    "LOC": "geographic",
+    "DATE": "date", "PHONE": "phone", "EMAIL": "email",
+    "ID": "id",
+}
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+def resolve_phi_ner_model_dir() -> Path:
+    """Directory the model is loaded from (PHI_NER_MODEL_PATH); relative to src/backend."""
+    from core.config import settings
+
+    path = Path(settings.phi_ner_model_path)
+    return path if path.is_absolute() else _BACKEND_DIR / path
 
 _MONTH = (
     r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|"
