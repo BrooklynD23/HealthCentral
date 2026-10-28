@@ -1,5 +1,6 @@
 """RAG-TIMEOUT-ANSWER, option 1 "Keep the sentence, label it" (plan delta
-2026-10-27, RAG-TIMEOUT-GROUNDED; owner ruling 2026-10-28).
+2026-10-27, RAG-TIMEOUT-GROUNDED; owner answer 2026-10-27, L0 ruling on #317
+comment 6460409318).
 
 A generation timeout is labelled as a failed answer: validation_errors ==
 ["Generation timed out"], and the canned timeout sentence is not sent through
@@ -30,7 +31,7 @@ from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE
 from modules.rag import RAGModule, RetrievedChunk
 from tests.legacy_eval.harness import CHAT_PATH, FakeRunner, build_chunks, legacy_chat_client
 from tests.test_empty_answer import MEASURED_CLEAN_IS_VALID
-from tests.test_safe_interp_grounded import CLEAN_ANSWER, _call, dbs  # noqa: F401
+from tests.test_safe_interp_grounded import CLEAN_ANSWER, _call, _row_blob, dbs  # noqa: F401
 from tests.test_safety_mode_strict import _audit_rows, _dbs, _interp, _set_strict
 
 PROFILE_ID = "profile-a"  # route_client's default session profile_id
@@ -120,6 +121,12 @@ async def test_hc_rta_002_grounded_timeout_is_labelled_and_sentence_served(dbs):
     assert body["verification"]["total_claims"] == 0
     assert body["verification"]["issues"] == []
     assert body["full_response"] == MEASURED_TIMEOUT_FULL_RESPONSE
+    # One text-free audit row, the grounded one. A new row, or a missing one, fails here.
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.grounded"]
+    blob = _row_blob(rows[0])
+    assert "Explain my lab result" not in blob and "LDL Cholesterol" not in blob
+    assert "time limit" not in blob
 
 
 # ---------------------------------------------------------------------------
@@ -127,7 +134,10 @@ async def test_hc_rta_002_grounded_timeout_is_labelled_and_sentence_served(dbs):
 # ---------------------------------------------------------------------------
 
 def test_hc_rta_003_chat_timeout_still_abstains_and_persists():
-    with legacy_chat_client(build_chunks("glucose"), "", finish_reason="timeout") as (
+    # The mocked profile DB makes is_strict_safety_mode truthy, which would pick the strict
+    # module. Pin it OFF so this is the default chat path (as test_legacy_abstain.py:92).
+    with patch.object(A, "is_strict_safety_mode", AsyncMock(return_value=False)), \
+         legacy_chat_client(build_chunks("glucose"), "", finish_reason="timeout") as (
         client, append_turns,
     ):
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
