@@ -145,6 +145,9 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "injected planner callable; pure LLM planning, no session",
     "modules/backup_scheduler.py::_is_profile_unlocked::checker":
         "injected unlock predicate; read-only",
+    "modules/document_classifier.py::classify_document::max(get)":
+        "key=scores.get, a dict method on a local dict; no session. The only def named get "
+        "in the graph is modules/agent/tools/registry.py::get, which reaches 1 def and no commit.",
     "core/llm/llama_cpp_provider.py::LlamaCppProvider._ensure_initialized::Llama":
         "llama_cpp model constructor; no session",
     "modules/platform_notifications.py::WindowsToastProvider.send::self._toast_module['notification']":
@@ -171,6 +174,22 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
         "All three come in only through the subprocess .run and re Match .start name collisions, "
         "so the real probe path writes no profile data.",
+    "api/model_settings.py::get_model_settings::asyncio.to_thread(detect_hardware_tier)":
+        "hardware probe in a thread; ModelSelector.detect_hardware_tier reaches 139 defs. "
+        "Name-based commit() reach hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run (hardware_detection.py:78, :115) "
+        "and re Match .start (redaction.py:322, :329) name collisions; with the subprocess, "
+        "torch and re library edges cut the reach is 10 defs and no commit. No real session "
+        "commit: the probe runs wmic, nvidia-smi and torch.cuda and writes no profile data.",
+    "api/model_settings.py::list_tiers::asyncio.to_thread(detect_hardware_tier)":
+        "hardware probe in a thread; ModelSelector.detect_hardware_tier reaches 139 defs. "
+        "Name-based commit() reach hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run (hardware_detection.py:78, :115) "
+        "and re Match .start (redaction.py:322, :329) name collisions; with the subprocess, "
+        "torch and re library edges cut the reach is 10 defs and no commit. No real session "
+        "commit: the probe runs wmic, nvidia-smi and torch.cuda and writes no profile data.",
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
