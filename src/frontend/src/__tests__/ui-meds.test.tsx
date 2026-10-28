@@ -5,7 +5,7 @@
  * Written red first. Each test says in its comment what it would not notice.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useState } from 'react';
@@ -237,7 +237,8 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
     expect(screen.getByRole('dialog', { name: 'Log Dose' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(opener).toHaveFocus();
+    // Radix hands focus back on a deferred timer after unmount, so wait for the positive state.
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 
   // Would not notice: a dialog that animates opacity or transform on mount. Under `still` the content
