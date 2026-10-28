@@ -293,7 +293,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
   test.describe.configure({ retries: 0 });
   test.use({ viewport: DESKTOP });
 
-  for (const route of AUTH_ROUTES) {
+  // /notifications is a planned redirect with no route container of its own (HC-UIMED-004): left out of this loop.
+  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/notifications')) {
     test(`HC-UISH-003: opacity-only route fade on ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator('[data-route-container]')).toBeVisible({ timeout: 15_000 });
