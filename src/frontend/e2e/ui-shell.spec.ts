@@ -317,6 +317,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
     test(`HC-UISH-009: the Safety Rail stays still through the navigation to ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+      // The first font load is not a route change: wait for it, as the phone HC-UISH-009 test below does.
+      await page.evaluate(() => document.fonts.ready);
       const report = await stillnessProbe(page, {
         trigger: () => navigateTo(page, route),
         expected: [RAIL, TOGGLE_NOTE],
