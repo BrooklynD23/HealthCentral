@@ -341,20 +341,20 @@ export function MedicationDetail() {
           </Card>
         </div>
 
-        {/* Right: Adherence + Schedules */}
+        {/* Right: Schedules, then Adherence (the adherence stats load after the page; the T0 schedule times must not move) */}
         <div className="space-y-4">
-          <AdherenceDashboard
-            stats={stats}
-            isLoading={statsLoading}
-            isError={statsError}
-          />
-
           <ScheduleEditor
             schedules={medication.schedules}
             onAdd={handleAddSchedule}
             onDelete={handleDeleteSchedule}
             isAdding={createSchedule.isPending}
             isDeleting={deleteSchedule.isPending}
+          />
+
+          <AdherenceDashboard
+            stats={stats}
+            isLoading={statsLoading}
+            isError={statsError}
           />
 
           {/* Related Lab Results (UX-001 correlation) */}
