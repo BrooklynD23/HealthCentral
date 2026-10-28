@@ -3326,6 +3326,14 @@ Plan: RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE; queue row `DON-NER-MEASURE`
 
 Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
 
+## `docs/reviews/2026-10-27/kv-numctx-verify.md`
+
+**KV-NUMCTX-VERIFY: Ollama runs the app's requests at num_ctx 8192 on the model host**
+
+Plan: KV-NUMCTX-VERIFY. Queue row: queue.md, Planned 2026-10-27. Baseline: kv-prefix-measure.md.
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
