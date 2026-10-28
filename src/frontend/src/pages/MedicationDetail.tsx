@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { m } from 'framer-motion';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
   Pill,
@@ -19,9 +18,9 @@ import {
   CardHeader,
   CardTitle,
   Badge,
+  EmptyState,
 } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   AdherenceDashboard,
   ScheduleEditor,
@@ -55,7 +54,6 @@ const frequencyLabels: Record<string, string> = {
 export function MedicationDetail() {
   const { medicationId } = useParams<{ medicationId: string }>();
   const navigate = useNavigate();
-  const prefersReducedMotion = useReducedMotion();
   const [showLogModal, setShowLogModal] = useState(false);
 
   const {
@@ -146,8 +144,8 @@ export function MedicationDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
@@ -181,7 +179,7 @@ export function MedicationDetail() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => setShowLogModal(true)} className="gap-2">
             <CheckCircle className="w-4 h-4" />
             Log Dose
@@ -201,7 +199,7 @@ export function MedicationDetail() {
           </Button>
           <Button
             variant="secondary"
-            onClick={() => navigate(`/notifications?medicationId=${medication.id}`)}
+            onClick={() => navigate(`/medications?tab=reminders&medicationId=${medication.id}`)}
             className="gap-2"
           >
             <Bell className="w-4 h-4" />
@@ -262,9 +260,9 @@ export function MedicationDetail() {
       )}
 
       {/* Main Content */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: Dose History */}
-        <div className="col-span-2 space-y-4">
+        <div className="space-y-4 lg:col-span-2">
           {/* Instructions */}
           {medication.instructions && (
             <Card>
@@ -284,17 +282,22 @@ export function MedicationDetail() {
             </CardHeader>
             <CardContent>
               {!doses || doses.length === 0 ? (
-                <p className="text-sm text-ink-secondary text-center py-8">
-                  No doses logged yet. Log your first dose to start tracking.
-                </p>
+                <EmptyState
+                  icon={CheckCircle}
+                  title="No doses logged yet"
+                  description="Log your first dose to start tracking."
+                  action={
+                    <Button onClick={() => setShowLogModal(true)} className="gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Log Dose
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="divide-y divide-black/4">
-                  {doses.map((dose, i) => (
-                    <m.div
+                  {doses.map((dose) => (
+                    <div
                       key={dose.id}
-                      initial={prefersReducedMotion ? {} : { opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.03 }}
                       className="flex items-center justify-between py-3"
                     >
                       <div className="flex items-center gap-3">
@@ -304,7 +307,7 @@ export function MedicationDetail() {
                           <CheckCircle className="w-4 h-4 text-status-verified" />
                         )}
                         <div>
-                          <p className="text-sm text-ink">
+                          <p className="text-sm text-ink" data-t0="">
                             {new Date(dose.taken_at).toLocaleString()}
                           </p>
                           {dose.notes && (
@@ -330,7 +333,7 @@ export function MedicationDetail() {
                           {dose.was_skipped ? 'Skipped' : 'Taken'}
                         </Badge>
                       </div>
-                    </m.div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -364,15 +367,18 @@ export function MedicationDetail() {
             </CardHeader>
             <CardContent>
               {relatedObservations.length === 0 ? (
-                <p className="text-sm text-ink-tertiary text-center py-4" data-testid="related-labs-empty">
-                  No lab results collected during this medication period.
-                </p>
+                <div className="flex flex-col items-center gap-2 py-4 text-center" data-testid="related-labs-empty">
+                  <p className="text-sm text-ink-tertiary">No lab results collected during this medication period.</p>
+                  <Button variant="secondary" size="sm" onClick={() => navigate('/trends')}>
+                    View results
+                  </Button>
+                </div>
               ) : (
                 <div className="divide-y divide-black/4" data-testid="related-labs-list">
                   {relatedObservations.slice(0, 8).map((obs) => (
-                    <a
+                    <Link
                       key={obs.id}
-                      href={`/trends?analyte=${obs.analyte_canonical}`}
+                      to={`/trends?analyte=${obs.analyte_canonical}`}
                       className="flex items-center justify-between py-2.5 hover:bg-surface-muted/50 -mx-2 px-2 rounded-lg transition-colors"
                       aria-label={`View ${obs.analyte_canonical} trend`}
                     >
@@ -390,7 +396,7 @@ export function MedicationDetail() {
                         </span>
                         <span className="text-xs text-ink-secondary ml-1">{obs.unit}</span>
                       </div>
-                    </a>
+                    </Link>
                   ))}
                   {relatedObservations.length > 8 && (
                     <p className="text-xs text-ink-tertiary text-center pt-2">

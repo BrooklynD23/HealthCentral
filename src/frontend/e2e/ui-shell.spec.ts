@@ -966,7 +966,6 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
  */
 const PAGE_OVERFLOW: Record<string, { selector: string; fixBy: string }> = {
   '/inbox': { selector: 'div.flex.items-center.gap-1', fixBy: 'UI-PG-DOCUMENTS' },
-  '/medications/med-fixture-1': { selector: 'div.flex.items-center.gap-2', fixBy: 'UI-PG-MEDS' },
   '/explain': { selector: 'div.w-80.space-y-4', fixBy: 'UI-PG-ASK' },
   '/export': { selector: 'div.flex.items-center.gap-3', fixBy: 'UI-PG-EXPORT' },
 };
