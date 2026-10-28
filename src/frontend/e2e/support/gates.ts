@@ -26,7 +26,7 @@ export const STILLNESS_WINDOW_MS = 800;
 export const STILLNESS_SAMPLE_MS = 20;
 /** G10: no gap between samples may exceed this (the plan's upper sampling bound). */
 export const STILLNESS_MAX_GAP_MS = 40;
-/** G10 page changes (kind 'navigation'): owner STILLNESS-GAP-BOUND follow-up, 2026-10-28. Every other stillness check keeps 40 ms. */
+/** G10 page changes (kind 'navigation'): owner STILLNESS-NAV-70, 2026-10-28. Every other stillness check keeps 40 ms. */
 export const STILLNESS_NAV_MAX_GAP_MS = 70;
 /** G10 lazy route: network idle is this long with nothing in flight (Playwright's networkidle quiet period). */
 export const NETWORK_IDLE_MS = 500;
@@ -760,7 +760,7 @@ export function checkSampling(
     );
   }
   if (largestGapMs > maxGapMs) {
-    // The page-change bound names its owner decision so it does not read as contradicting "16-40 ms".
+    // Keys on the bound value: a caller that passes 70 gets the page-change text, so an interaction probe must never pass 70.
     const bound =
       maxGapMs === STILLNESS_NAV_MAX_GAP_MS
         ? `must be <= ${maxGapMs} ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms`
