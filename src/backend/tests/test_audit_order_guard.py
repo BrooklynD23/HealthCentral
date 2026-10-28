@@ -309,6 +309,39 @@ def test_hc_aud_ord_030_break_it_def_passed_as_argument(tmp_path):
     assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::loop.run_in_executor(work)"}
 
 
+def test_hc_aud_ord_032_break_it_bound_method_passed_as_argument(tmp_path):
+    _, _, _, dyn = _overlay(tmp_path, (
+        "import asyncio\n"
+        '@router.post("/zz")\nasync def zz():\n    s = S()\n    await asyncio.to_thread(s.work)\n'),
+        "class S:\n    def work(self):\n        pass\n")
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::asyncio.to_thread(work)"}
+
+
+def test_hc_aud_ord_033_property_value_passed_as_argument_is_not_dynamic(tmp_path):
+    """A property read is a value, not a callable, so it is not flagged. The
+    exclusion needs every def of the name to be a property: a name that is a
+    property on one class and a plain method on another is still flagged."""
+    handler = ('@router.post("/zz")\nasync def zz():\n'
+               "    cfg = Cfg()\n    return Path(cfg.path)\n")
+    values = {
+        "property": "class Cfg:\n    @property\n    def path(self):\n        return 'x'\n",
+        "cached_property": ("import functools\nclass Cfg:\n"
+                            "    @functools.cached_property\n    def path(self):\n        return 'x'\n"),
+        "setter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
+                   "    @path.setter\n    def path(self, v):\n        pass\n"),
+    }
+    for label, helper in values.items():
+        sub = tmp_path / label
+        sub.mkdir()
+        _, _, _, dyn = _overlay(sub, handler, helper)
+        assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == set(), label
+    mixed = tmp_path / "mixed"
+    mixed.mkdir()
+    _, _, _, dyn = _overlay(mixed, handler, values["property"] + (
+        "class Plain:\n    def path(self):\n        return 'y'\n"))
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::Path(path)"}
+
+
 def test_hc_aud_ord_030_break_it_vault_write_without_commit(tmp_path):
     hs, *_ = _overlay(tmp_path, (
         '@router.post("/zz")\nasync def zz(profile_db=None):\n    profile_db.add(1)\n'))
