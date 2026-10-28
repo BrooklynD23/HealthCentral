@@ -63,9 +63,13 @@ export function ScheduleEditor({
       <CardContent className="space-y-3">
         {/* Existing schedules */}
         {schedules.length === 0 && !showAdd && (
-          <p className="text-sm text-ink-secondary text-center py-4">
-            No schedules set. Add one to get reminders.
-          </p>
+          <div className="flex flex-col items-center gap-2 py-4 text-center">
+            <p className="text-sm text-ink-secondary">No schedules set. Add one to get reminders.</p>
+            <Button variant="secondary" size="sm" onClick={() => setShowAdd(true)} className="gap-1.5">
+              <Plus className="w-3.5 h-3.5" />
+              Add a schedule
+            </Button>
+          </div>
         )}
 
         {schedules.map((schedule) => (
@@ -80,7 +84,7 @@ export function ScheduleEditor({
               <Clock className="w-4 h-4 text-ink-secondary" />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-ink">
+                  <span className="text-sm font-medium text-ink" data-t0="">
                     {schedule.target_time}
                   </span>
                   <Badge variant={schedule.is_active ? 'accent' : 'default'}>
@@ -88,7 +92,7 @@ export function ScheduleEditor({
                   </Badge>
                 </div>
                 {schedule.adaptive_window_start && schedule.adaptive_window_end && (
-                  <p className="text-xs text-ink-tertiary mt-0.5">
+                  <p className="text-xs text-ink-tertiary mt-0.5" data-t0="">
                     Window: {schedule.adaptive_window_start} - {schedule.adaptive_window_end}
                   </p>
                 )}
@@ -125,7 +129,7 @@ export function ScheduleEditor({
                     if (preset) setNewTime(preset.defaultTime);
                   }}
                   className={cn(
-                    'flex h-[36px] w-full rounded-lg border border-black/8 bg-white',
+                    'flex h-[36px] w-full rounded-lg border border-black/8 bg-surface-elevated',
                     'px-2 py-1 text-sm text-ink',
                     'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent'
                   )}
@@ -144,7 +148,7 @@ export function ScheduleEditor({
                   value={newTime}
                   onChange={(e) => setNewTime(e.target.value)}
                   className={cn(
-                    'flex h-[36px] w-full rounded-lg border border-black/8 bg-white',
+                    'flex h-[36px] w-full rounded-lg border border-black/8 bg-surface-elevated',
                     'px-2 py-1 text-sm text-ink',
                     'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent'
                   )}

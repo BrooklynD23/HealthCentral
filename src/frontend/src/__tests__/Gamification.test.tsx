@@ -2,7 +2,9 @@
  * Gamification: badge toast queue, achievements dates (naive UTC), streak display.
  */
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { toast } from 'sonner';
+import { AppToaster } from '@/components/ui/toast';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { BadgeInfo, BadgeStatus, StreakResponse } from '@/services/types';
@@ -115,12 +117,25 @@ const status = (over: Partial<BadgeStatus>): BadgeStatus => ({
   earned: false, earned_at: null, medication_id: null, ...over,
 });
 
+afterEach(() => {
+  toast.dismiss();
+});
+
+// sonner renders a toast after the notify call, so the toast is found asynchronously. Its own Dismiss button
+// is the one inside its toast item, not whichever Dismiss is first in the document.
+const dismissToast = async (text: RegExp) =>
+  fireEvent.click(
+    within((await screen.findByText(text)).closest('[data-sonner-toast]') as HTMLElement).getByRole('button', {
+      name: 'Dismiss',
+    })
+  );
+
 describe('BadgeToast', () => {
-  it('renders name and dismiss calls onDismiss', () => {
+  it('renders name and dismiss calls onDismiss', async () => {
     const onDismiss = vi.fn();
-    render(<BadgeToast badge={badge('a', 'First Dose')} onDismiss={onDismiss} />);
-    expect(screen.getByText('First Dose')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('Dismiss'));
+    render(<><AppToaster /><BadgeToast badge={badge('a', 'First Dose')} onDismiss={onDismiss} /></>);
+    expect(await screen.findByText(/First Dose/)).toBeInTheDocument();
+    await dismissToast(/First Dose/);
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
   it('renders nothing for null badge', () => {
@@ -223,22 +238,23 @@ describe('AchievementsWidget', () => {
 });
 
 describe('MedicationCoach badge queue', () => {
-  it('shows every newly earned badge, one after another', () => {
+  it('shows every newly earned badge, one after another', async () => {
     badgesData.badges = [];
     logDoseMutate.mockImplementation((_v, opts) =>
       opts.onSuccess({ newly_earned_badges: [badge('a', 'Badge Alpha'), badge('b', 'Badge Beta')] })
     );
-    render(<BrowserRouter><MedicationCoach /></BrowserRouter>);
+    render(<BrowserRouter><AppToaster /><MedicationCoach /></BrowserRouter>);
     fireEvent.click(screen.getByText('quick-log'));
     fireEvent.click(screen.getByText('submit-dose'));
 
-    expect(screen.getByText('Badge Alpha')).toBeInTheDocument();
-    expect(screen.queryByText('Badge Beta')).toBeNull();
-    fireEvent.click(screen.getByLabelText('Dismiss'));
-    expect(screen.getByText('Badge Beta')).toBeInTheDocument();
-    expect(screen.queryByText('Badge Alpha')).toBeNull();
-    fireEvent.click(screen.getByLabelText('Dismiss'));
-    expect(screen.queryByText('Badge Beta')).toBeNull();
+    expect(await screen.findByText(/Badge Alpha/)).toBeInTheDocument();
+    expect(screen.queryByText(/Badge Beta/)).toBeNull();
+    await dismissToast(/Badge Alpha/);
+    expect(await screen.findByText(/Badge Beta/)).toBeInTheDocument();
+    // The sonner toast leaves the DOM after its exit transition, so wait for the absence.
+    await waitFor(() => expect(screen.queryByText(/Badge Alpha/)).toBeNull());
+    await dismissToast(/Badge Beta/);
+    await waitFor(() => expect(screen.queryByText(/Badge Beta/)).toBeNull());
   });
 });
 
