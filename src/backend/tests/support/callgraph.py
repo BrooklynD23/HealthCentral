@@ -96,6 +96,15 @@ class Graph:
     def reaches(self, fns: list[Fn], name: str) -> bool:
         return any(self.callee_name(c) == name for fn in fns for c in self.calls(fn))
 
+    def _all_properties(self, ref: str) -> bool:
+        """Every def named `ref` is a property, so a read of it is a value, not a call."""
+        return all(
+            any((isinstance(d, ast.Name) and d.id in {"property", "cached_property"})
+                or (isinstance(d, ast.Attribute)
+                    and d.attr in {"cached_property", "setter", "getter", "deleter"})
+                for d in fn[2].decorator_list)
+            for fn in self.by_name.get(ref, []))
+
     def dynamic_sites(self, fns: list[Fn]) -> set[str]:
         sites = set()
         for fn in fns:
@@ -116,15 +125,19 @@ class Graph:
                 # A def passed as an argument is called somewhere we cannot see.
                 # Skipped: FastAPI Depends(), the log_fn pattern (one named
                 # exclusion on audit_and_commit), locals/params that merely share
-                # a def's name, and attribute refs other than self.<def>.
+                # a def's name. An attribute ref on an object other than self/cls is
+                # flagged (a bound method such as `s.work`) unless every same-named
+                # def is a property.
                 if self.callee_name(c) in {"Depends", "audit_and_commit", "audit_intent"}:
                     continue
                 for v in list(c.args) + [k.value for k in c.keywords]:
                     if isinstance(v, ast.Name):
                         ref = v.id
-                    elif isinstance(v, ast.Attribute) and isinstance(v.value, ast.Name) \
-                            and v.value.id in {"self", "cls"}:
+                    elif isinstance(v, ast.Attribute):
                         ref = v.attr
+                        own = isinstance(v.value, ast.Name) and v.value.id in {"self", "cls"}
+                        if not own and self._all_properties(ref):
+                            continue
                     else:
                         continue
                     if ref in self.by_name and ref not in (params | assigned) \

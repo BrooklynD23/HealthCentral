@@ -394,6 +394,7 @@ instead.
 The class is now a test
 (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new
 unaudited `"C"` or `"A2"` row fails CI.
+The dynamic-call rule had the same gap: it flagged a def passed as a bare name or `self.<def>` but not a bound method of any other object (`asyncio.to_thread(selector.detect_hardware_tier)`), so that edge left the guard without a named key until AUDIT-GUARD-ATTR-DYNAMIC widened the rule.
 
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
