@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Pill,
   Plus,
@@ -13,13 +14,16 @@ import {
   CardTitle,
   ListSkeleton,
   EmptyState,
+  Skeleton,
 } from '@/components/ui';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   MedicationCard,
   MedicationForm,
   DoseLoggingModal,
   BadgeToast,
   AchievementsWidget,
+  RemindersPanel,
 } from '@/components/medication-coach';
 import {
   useMedications,
@@ -145,7 +149,7 @@ function MedReconcilePanel({
         </label>
         <select
           id="med-reconcile-doc-select"
-          className="w-full max-w-md px-3 py-2 rounded-xl border border-black/10 bg-white text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
+          className="w-full max-w-md px-3 py-2 rounded-xl border border-black/10 bg-surface-elevated text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
           value={selectedDocId}
           onChange={(event) => setSelectedDocId(event.target.value)}
         >
@@ -185,6 +189,17 @@ export function MedicationCoach() {
   const [showForm, setShowForm] = useState(false);
   const [prefillName, setPrefillName] = useState<string | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
+  // The tab lives in the URL (?tab=reminders), so the Reminders page and its links open the right tab.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'reminders' ? 'reminders' : 'medications';
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === 'medications') next.delete('tab');
+      else next.set('tab', value);
+      return next;
+    });
+  };
   const [loggingMed, setLoggingMed] = useState<Medication | null>(null);
   const [badgeQueue, setBadgeQueue] = useState<BadgeInfo[]>([]);
   const dismissBadge = useCallback(() => setBadgeQueue((q) => q.slice(1)), []);
@@ -245,10 +260,10 @@ export function MedicationCoach() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <div className="h-8 w-48 bg-black/5 animate-pulse rounded-lg" />
-            <div className="h-4 w-64 bg-black/5 animate-pulse rounded-lg" />
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
           </div>
-          <div className="h-10 w-32 bg-black/5 animate-pulse rounded-xl" />
+          <Skeleton className="h-10 w-32" />
         </div>
         <ListSkeleton count={4} />
       </div>
@@ -285,6 +300,13 @@ export function MedicationCoach() {
         </Button>
       </div>
 
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList>
+          <TabsTrigger value="medications">Medications</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="medications" className="space-y-6">
       {/* Add Medication Form (optionally pre-filled from a suggestion) */}
       {(showForm || prefillName !== null) && !editingMed && (
         <MedicationForm
@@ -345,6 +367,13 @@ export function MedicationCoach() {
 
       {/* Achievements */}
       <AchievementsWidget />
+
+        </TabsContent>
+
+        <TabsContent value="reminders">
+          <RemindersPanel />
+        </TabsContent>
+      </Tabs>
 
       {/* Badge Toast */}
       <BadgeToast badge={badgeQueue[0] ?? null} onDismiss={dismissBadge} />

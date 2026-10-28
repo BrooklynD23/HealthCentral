@@ -95,6 +95,7 @@ vi.mock('@/components/medication-coach', async () => {
     BadgeToast,
     AchievementsWidget,
     MedicationForm: () => null,
+    RemindersPanel: () => null,
     MedicationCard: ({ medication, onQuickLog }: { medication: { id: string }; onQuickLog: (id: string) => void }) => (
       <button onClick={() => onQuickLog(medication.id)}>quick-log</button>
     ),
