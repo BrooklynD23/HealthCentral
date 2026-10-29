@@ -152,6 +152,8 @@ test.describe('HC-TOAST-001 a lone toast has no transform', () => {
       test(`HC-TOAST-001: ${still ? 'still' : 'plain'} toast at ${viewport.width}x${viewport.height}`, async ({ page }) => {
         await openInbox(page, viewport);
         if (PREVIEW) {
+          // `still` only changes the toast's content class in the app; the injected fixture is identical for both
+          // cases, so on preview the still and plain cases are the same check by design.
           await page.emulateMedia({ reducedMotion: 'reduce' });
           await injectFixture(page, [{ front: true, removed: false }]);
         } else {
@@ -186,6 +188,7 @@ test.describe('HC-TOAST-002 the toast sits above the shell chrome', () => {
         const shell = await page.evaluate(() =>
           parseFloat(document.documentElement.style.getPropertyValue('--shell-bottom-h') || '0')
         );
+        expect(shell, '--shell-bottom-h on <html> (a missing or 0 value would make the check vacuous)').toBeGreaterThan(0);
         const expected = shell + (viewport.width <= 600 ? 16 : 24);
         expect(
           Math.abs(parseFloat(state.bottom) - expected),
@@ -241,7 +244,13 @@ test.describe('HC-TOAST-003 stacked and dismissed toasts under reduced motion', 
     }
     await raise(page, [{ message: 'First' }]);
     await waitForSettledToasts(page, 1);
-    const offenders = await reducedMotionSnapshot(page, () => raise(page, [{ message: 'Second' }]));
+    let backToasts = 0;
+    const offenders = await reducedMotionSnapshot(page, async () => {
+      await raise(page, [{ message: 'Second' }]);
+      await page.waitForTimeout(40);
+      backToasts = await page.locator(`${TOAST}[data-front="false"]`).count();
+    });
+    expect(backToasts, 'a back toast exists when the snapshot is taken (an empty list must not pass vacuously)').toBeGreaterThanOrEqual(1);
     expect(offenders, 'elements with a non-identity transform 50 ms after the second toast').toEqual([]);
   });
 
@@ -262,7 +271,14 @@ test.describe('HC-TOAST-003 stacked and dismissed toasts under reduced motion', 
     }
     await raise(page, [{ message: 'First' }, { message: 'Second' }]);
     await waitForSettledToasts(page, 2);
-    const offenders = await reducedMotionSnapshot(page, () => dismissAll(page));
+    let removedToasts = 0;
+    const offenders = await reducedMotionSnapshot(page, async () => {
+      await dismissAll(page);
+      await page.waitForTimeout(40);
+      // sonner keeps a removed li mounted for 200 ms (TIME_BEFORE_UNMOUNT), so the snapshot at ~90 ms still sees them.
+      removedToasts = await page.locator(`${TOAST}[data-removed="true"]`).count();
+    });
+    expect(removedToasts, 'a removed toast exists when the snapshot is taken (an empty list must not pass vacuously)').toBeGreaterThanOrEqual(1);
     expect(offenders, 'elements with a non-identity transform 50 ms after the dismissal').toEqual([]);
   });
 
