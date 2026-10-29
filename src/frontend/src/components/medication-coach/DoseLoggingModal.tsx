@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
 import { m, AnimatePresence } from 'framer-motion';
 import { Button, IconButton } from '@/components/ui';
@@ -34,14 +34,18 @@ export function DoseLoggingModal({
   const [opener] = useState<HTMLElement | null>(() =>
     document.activeElement instanceof HTMLElement ? document.activeElement : null
   );
-  // Radix hands focus to its Trigger on close, and this dialog has none (the parent mounts it), so the
-  // opener gets focus back here. The timer runs after Radix's own unmount work, which would otherwise win.
-  useEffect(
-    () => () => {
-      window.setTimeout(() => opener?.focus(), 0);
-    },
-    [opener]
-  );
+  // Radix hands focus to its Trigger on close, and this dialog has none (the parent mounts it), so the opener
+  // gets focus back when the dialog unmounts. That covers Close, Escape and a successful submit (the parent
+  // unmounts the dialog then, without onClose). React StrictMode also runs this cleanup once at mount, so the
+  // re-run setup cancels the timer that cleanup queued; the opener is not focused while the dialog is open.
+  const returnFocus = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    window.clearTimeout(returnFocus.current);
+    return () => {
+      // The timer runs after Radix's own unmount work, which would otherwise win.
+      returnFocus.current = window.setTimeout(() => opener?.focus(), 0);
+    };
+  }, [opener]);
   const [mode, setMode] = useState<'taken' | 'skipped'>('taken');
   const [skipReason, setSkipReason] = useState('');
   const [notes, setNotes] = useState('');
