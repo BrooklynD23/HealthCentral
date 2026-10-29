@@ -428,6 +428,15 @@ before trusting its unit tests as a completeness signal. A module that is
 fully testable in isolation is not evidence it is reachable from `main.py` or
 any other entry point — check the call site, not just the callee.
 
+**Frontend instance (2026-10-29, #407 review; queue bullet SOURCE-TRACE-UNWIRED).**
+- The Source Trace sheet (`src/frontend/src/components/results/SourceTrace.tsx`, UI-PROVENANCE) has unit tests.
+- `CitationTooltip` renders the "Open source" button and the sheet only when it gets a `source` prop.
+- Neither call site passes one: `InterpretedResultCard.tsx:122` and `PanelInterpretationDashboard.tsx:110`.
+- The `/interpret` e2e mock has only a `knowledge_base` citation.
+- So the sheet cannot be reached in the browser, and a plan (#407's first draft) chose it as a test host.
+
+**Recheck for components:** for an optional prop that gates a feature, grep every call site of the component for that prop. Confirm that some e2e path renders the gated branch before you treat the component as shipped, or use it as a test host.
+
 ---
 
 ## 11. Harness rule text broader than the plan it summarises
