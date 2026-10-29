@@ -150,8 +150,8 @@ flowchart LR
     subgraph ITEM["build-item.js (one per id)"]
         direction TB
         E["explore (haiku)"] --> T0["Task 0 + claim (opus)"]
-        T0 --> IMP["implement test-first (haiku, xhigh)"]
-        IMP --> TST["run tests (haiku)"]
+        T0 --> IMP["implement test-first (sonnet)"]
+        IMP --> TST["run tests (haiku, medium)"]
         TST --> REV["review, max 3 rounds (opus)"]
         REV --> VER["verify + PR (opus)"]
     end

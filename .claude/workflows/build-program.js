@@ -4,7 +4,7 @@ export const meta = {
   whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false, rsi?: true, run_id?: string}. auto_merge=true only with a current owner row that authorises agent merges. Nested build-items share THIS run\'s agent cap (min(16, CPUs - 2); about 4 seen on the 6-vCPU box, 2026-10-17): for more items at once, L0 runs build-wave and starts one top-level build-item Workflow per id instead.',
   phases: [
     { title: 'Select', detail: 'build-wave picks the eligible, file-disjoint set' },
-    { title: 'Build', detail: 'one build-item per id: haiku explore, opus Task 0, haiku-xhigh implement, haiku tests, opus review + verify' },
+    { title: 'Build', detail: 'one build-item per id: haiku explore, opus Task 0, sonnet implement, haiku tests, opus review + verify' },
     { title: 'Unblock', detail: 'opus sub-orchestrator turns a Task 0 plan gap (gates answered) into a plan delta, then the item re-runs once', model: 'opus' },
     { title: 'Plan', detail: 'haiku search per unplanned row, then one opus planner writes plan sections + queue rows in one docs PR' },
     { title: 'Merge', detail: 'only with auto_merge: opus merges green, approved, non-ask-first PRs and runs the post-merge batch', model: 'opus' },
