@@ -40,7 +40,7 @@ export function MedicationCard({
   const nextSchedule = medication.schedules.find((s) => s.is_active);
 
   return (
-    <Card className={cn('transition-shadow duration-200 hover:shadow-elevated', className)}>
+    <Card className={className}>
       <CardContent className="p-4">
         <div className="flex items-start gap-4">
           <Link
