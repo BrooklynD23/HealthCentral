@@ -6,7 +6,7 @@ export const meta = {
     { title: 'Mine', detail: 'haiku clusters tool failures by tool + error_class (metadata only)', model: 'haiku' },
     { title: 'Reflect', detail: 'opus GEPA-style reflection per top cluster, in parallel with a haiku runner for the Codex second proposer (read-only, two files + cluster metadata); JS merges both', model: 'opus' },
     { title: 'Propose', detail: 'sonnet, one fresh worktree per candidate, max 3', model: 'sonnet' },
-    { title: 'Gate', detail: 'JS allow/deny on the diff, then haiku runs claude plugin validate + test, then a read-only Codex critic on the two-file diff (non-blocking when unavailable)', model: 'haiku' },
+    { title: 'Gate', detail: 'JS allow/deny on the diff, then haiku (medium) runs claude plugin validate + test, then a read-only Codex critic on the two-file diff (non-blocking when unavailable)', model: 'haiku' },
     { title: 'Publish', detail: 'sonnet opens PRs for survivors, writes summary JSON, archives rejects', model: 'sonnet' },
   ],
 }
