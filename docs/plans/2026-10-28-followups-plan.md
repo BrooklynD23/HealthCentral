@@ -286,57 +286,153 @@ Lines are the first primary Button or Input on `434179a9`. **Gate:** none. **Ask
 
 ## TOAST-SHELL — the shared Toaster centres itself with a transform (fails G5) and sits over the phone tab bar and Safety Rail
 
-**Planned:** 2026-10-29 by the Opus planner on `origin/main` @ `41fa3824` (after #405). Queue: ["Planned 2026-10-29, toast"](2026-10-15-build-program/queue.md#planned-2026-10-29-toast). Named TOAST-SHELL because it absorbs bullet TOAST-PHONE-CHROME: both fixes are rules on the same element (`ol[data-sonner-toaster]`) in the same block of `globals.css`.
+**Planned:** 2026-10-29 by the Opus planner on `origin/main` @ `41fa3824` (after #405). Revised the same day after the #409 Opus review (REVISE) and the L0 calls recorded below. Queue: ["Planned 2026-10-29, toast"](2026-10-15-build-program/queue.md#planned-2026-10-29-toast).
+
+**Name.** The brief and the PR title call the row TOAST-G5. It was planned as **TOAST-SHELL** because it absorbs bullet TOAST-PHONE-CHROME. Both fixes are rules on the same element (`ol[data-sonner-toaster]`) in the same block of `globals.css`. TOAST-G5 is not a separate row and no other row uses either name.
 
 **Sources.**
-- **UI-PG-CARE (#400) stop, 2026-10-29.** CI run 40834430710 (E2E Smoke Tests), `e2e/ui-care.spec.ts:297` "Gate G5 /care-tasks: no element has a transform 50 ms after the Done click under reduced motion", failed on all three attempts with one offender: `ol transform=matrix(1, 0, 0, 1, -178, 0)`. The L1 stop names `components/ui/toast.tsx` and says the fix needs a `ui/*` or `globals.css` edit, which the row's brief forbids.
-- **Bullet TOAST-PHONE-CHROME** (#370 final review, inferred, not measured): on phones the toast likely covers the tab bar and part of the Safety Rail.
+- **UI-PG-CARE (#400) stop, 2026-10-29.** #400's head is `0f8f2271`. CI run 40834430710 (E2E Smoke Tests) ran "Gate G5 /care-tasks: no element has a transform 50 ms after the Done click under reduced motion" (`e2e/ui-care.spec.ts:297`). It failed on all three attempts with one offender, `ol transform=matrix(1, 0, 0, 1, -178, 0)`. The L1 stop names `components/ui/toast.tsx` and says the fix needs an edit to `ui/*` or `globals.css`, which the row's brief forbids.
+- **Bullet TOAST-PHONE-CHROME** (#370 final review, inferred, not measured): on phones a toast likely covers the tab bar and part of the Safety Rail.
 
 **Diagnosis (code reading on `41fa3824`; sonner 2.0.8 `dist/styles.css`, which sonner injects at runtime).**
-- The offender is sonner's toaster list, not a toast and not `CareTasksPage.tsx`. sonner's rule `[data-sonner-toaster][data-x-position='center'] { left: 50%; transform: translateX(-50%); }` (`styles.css:68-71`) centres the list. `-178` px is half of its `--width` (356 px). Our `AppToaster` is `position="bottom-center"` (`fe/components/ui/toast.tsx:61`). Under `(max-width: 600px)` sonner already sets `transform: none` on it (`styles.css:460-464`), so only viewports wider than 600 px fail.
-- The toasts themselves pass: sonner's `@media (prefers-reduced-motion)` rule (`styles.css:708-714`) removes their transitions, and a mounted front toast sits at `translateY(0)`, the identity. The list's own `transition: transform 400ms ease` is not covered by that rule, but with no transform change it never runs.
-- **Why other rows did not fail.** sonner renders the `ol` only while a toast is showing (`index.mjs:1150-1153`: `if (!filteredToasts.length) return null`). So G5 can see it only when the gate's interaction itself raises a toast. On `origin/main` no route's G5 interaction does: UI-SHELL's G5 (`e2e/ui-shell.spec.ts:1041-1046`) is a nav click, and ui-provenance's G5 (`e2e/ui-provenance.spec.ts:590-602`) opens a citation popover. UI-PG-MEDS (#398) does call `notify()` (BadgeToast), but its G5 interactions open and close the dose dialog, which raises no toast. UI-PG-CARE is the first row whose G5 interaction (Done) shows a toast. The cause is the toast's position rule, not the 50 ms timing: the transform is static and stays for the toast's whole life.
-- **Is G5 meant to include toasts? Yes, from the plan text.** Frontend-revamp plan §6, G5: "with `reducedMotion: 'reduce'`, no element has a non-identity computed transform 50 ms after each interaction" (`2026-10-23-frontend-revamp-plan.md:340`). The helper scans `body *` (`e2e/support/gates.ts:211-228`). Nothing in §6 limits G5 to the route container or T0 content. G10 is the check scoped to `[data-t0]` nodes and the route container. M11 (`:177`) says the reduced toast is "sonner reduced (opacity)", so a reduced-motion toast is meant to carry no transform. Excluding the toaster region from G5 cannot be argued from the plan text, so this row fixes the toast. The provenance spec's own-node scoping was an L0 ruling for the Radix popper (bullet GATES-POPPER-TRANSFORM), not plan text, and it is not extended here.
-- **Phone chrome (TOAST-PHONE-CHROME).** sonner places the list at `bottom: var(--mobile-offset-bottom)` (16 px) up to 600 px and `var(--offset-bottom)` (24 px) above it. `--z-toast` is 40 (`globals.css:179`). On phones and tablets (below `lg`, 1024 px) the tab bar is `fixed bottom-0 z-40` (`MobileTabBar.tsx:20`) and the Safety Rail is fixed just above it at `z-30` (`SafetyRail.tsx:19`). From `lg` up the rail is `sticky bottom-0` (`:20`), so a 24 px toast offset also overlaps the rail on desktop. `AppLayout.tsx:29-53` already measures that chrome and writes `--shell-bottom-h` (tab bar plus rail; rail only at `lg`). Lifting the list by `--shell-bottom-h` clears both at every width. This is inferred from the classes; Task 1 measures it.
+- **The offender is sonner's toaster list.** It is not a toast, and it is not `CareTasksPage.tsx`.
+  - sonner's rule `[data-sonner-toaster][data-x-position='center'] { left: 50%; transform: translateX(-50%); }` (`styles.css:68-71`) centres the list. `-178` px is half of its `--width` (`TOAST_WIDTH = 356`, `index.mjs:472`).
+  - Our `AppToaster` is `position="bottom-center"` (`fe/components/ui/toast.tsx:61`).
+  - Under `(max-width: 600px)` sonner already sets `transform: none` on the list (`styles.css:460-464`). So only viewports wider than 600 px fail.
+- **A single toast passes.**
+  - sonner's `@media (prefers-reduced-motion)` rule (`styles.css:708-714`) removes the toasts' transitions.
+  - A mounted front toast sits at `translateY(0)`, which is the identity.
+  - The list's own `transition: transform 400ms ease` is outside that rule. It never runs, because the list's transform never changes.
+- **Why other rows did not fail.**
+  - sonner renders the `ol` only while a toast is showing (`index.mjs:1150-1153`: `if (!filteredToasts.length) return null`). G5 can see it only when the gate's interaction itself raises a toast.
+  - No route's G5 interaction on `origin/main` raises one. UI-SHELL's G5 (`e2e/ui-shell.spec.ts:1041-1046`) is a nav click. ui-provenance's G5 (`e2e/ui-provenance.spec.ts:590-602`) opens a citation popover.
+  - UI-PG-MEDS (#398) calls `notify()` from BadgeToast. Its G5 interactions only open and close the dose dialog, which raises no toast.
+  - UI-PG-CARE is the first row whose G5 interaction (Done) shows a toast.
+  - The cause is position, not the 50 ms timing. The transform is static and lasts for the toast's whole life.
+- **Is G5 meant to include toasts? Yes, from the plan text.**
+  - Frontend-revamp plan §6, G5: "with `reducedMotion: 'reduce'`, no element has a non-identity computed transform 50 ms after each interaction" (`2026-10-23-frontend-revamp-plan.md:340`). The helper scans `body *` (`e2e/support/gates.ts:211-228`).
+  - Nothing in §6 limits G5 to the route container or to T0 content. G10 is the check scoped to `[data-t0]` nodes and the route container.
+  - M11 (`:177`) says the reduced-motion toast is "sonner reduced (opacity)", so it is meant to carry no transform.
+  - So the plan text gives no ground for excluding the toaster region from G5, and this row fixes the toast.
+  - The provenance spec scopes its G5 to its own nodes. That was an L0 ruling for the Radix popper (bullet GATES-POPPER-TRANSFORM), not plan text, and it is not extended here.
+- **A stacked or dismissed toast also fails (predicted).**
+  - With a second toast, the back toast becomes `[data-expanded=false][data-front=false]`. sonner gives it `--y: translateY(…) scale(…)`.
+  - A dismissed toast becomes `[data-removed=true]`. It keeps a `translateY` until it unmounts about 200 ms later.
+  - sonner's reduced-motion rule removes transitions only, so both transforms are present 50 ms after the interaction.
+  - HC-TOAST-003 is therefore predicted **RED on the base** for (a) and (b), and rule 3 is the expected outcome. Task 1 still measures it, and the rule is added only on that measurement.
+- **Phone chrome (TOAST-PHONE-CHROME).** This is inferred from the classes; Task 1 measures it.
+  - sonner places the list at `bottom: var(--mobile-offset-bottom)` (16 px) up to 600 px, and at `var(--offset-bottom)` (24 px) above that. `--z-toast` is 40 (`globals.css:179`).
+  - Below `lg` (1024 px), the tab bar is `fixed bottom-0 z-40` (`MobileTabBar.tsx:20`). The Safety Rail is fixed just above it at `z-30` (`SafetyRail.tsx:19`).
+  - From `lg` up, the rail is `sticky bottom-0` (`:20`), so the 24 px offset also overlaps the rail on desktop.
+  - `AppLayout.tsx:29-53` already measures that chrome into `--shell-bottom-h`: the tab bar plus the rail below `lg`, the rail alone at `lg`.
 
-**Fix: one CSS block in `globals.css`, unlayered.** It is placed next to the reduced-motion block, outside any `@layer`. sonner appends its `<style>` at the end of `<head>` at runtime, after the built `globals.css`, so a rule of equal specificity would lose. Each selector is prefixed with `:root`, which raises specificity to (0,3,0) over sonner's (0,2,0), whatever the order of the stylesheets.
-1. Above sonner's phone breakpoint, `@media not all and (max-width: 600px)` (the exact complement of sonner's query): `:root [data-sonner-toaster][data-x-position='center'] { left: 0; right: 0; margin-inline: auto; transform: none; }`. The list keeps `position: fixed` and `width: var(--width)`, so auto margins centre it with no transform. The layout is unchanged and only the mechanism differs.
-2. Bottom offset, all widths: `:root [data-sonner-toaster][data-y-position='bottom'] { bottom: calc(var(--shell-bottom-h, 0px) + var(--offset-bottom)); }`, and inside `@media (max-width: 600px)` the same with `var(--mobile-offset-bottom)`. sonner's `offset` and `mobileOffset` props keep working, because the rule adds the shell height to them instead of replacing them. `toast.tsx` is not edited.
-3. **Only if Task 1 measures an offender in the two-toast or dismiss cases (HC-TOAST-003):** inside `@media (prefers-reduced-motion: reduce)`, `:root [data-sonner-toast][data-expanded='false'][data-front='false'], :root [data-sonner-toast][data-removed='true'] { transform: none; }`. Both toasts are already invisible there: sonner sets a collapsed back toast's content to opacity 0 (`styles.css`, `[data-front=false][data-styled=true]>*`), and a removed toast to opacity 0. So the only visible loss is the peeking edge of the collapsed stack under reduced motion, which M11 permits ("opacity"). If Task 1 shows these cases green on the base, rule 3 is not added. An expanded stack (the pointer over the toaster) keeps sonner's translate offsets, because without them the toasts would overlap. That case is recorded as a known limit, not fixed. A row whose G5 interaction ends with the pointer over two or more toasts stops and goes to L0.
+**Fix: one CSS block in `globals.css`, outside any layer.**
+- The block sits next to the reduced-motion block, outside any `@layer`.
+- sonner appends its `<style>` to the end of `<head>` at runtime, after the built `globals.css`. A rule of equal specificity would therefore lose.
+- Each selector is prefixed with `:root`, which gives (0,3,0) against sonner's (0,2,0), whatever order the stylesheets load in.
+
+1. **Centring without a transform.** Above sonner's phone breakpoint, inside `@media not all and (max-width: 600px)` (the exact complement of sonner's query):
+   `:root [data-sonner-toaster][data-x-position='center'] { left: 0; right: 0; margin-inline: auto; transform: none; }`
+   The list keeps `position: fixed` and `width: var(--width)`, so the auto margins centre it. **For rule 1 only, the layout is unchanged** and only the mechanism differs.
+2. **Bottom offset above the shell chrome.**
+   - Base rule, no media query: `:root [data-sonner-toaster][data-y-position='bottom'] { bottom: calc(var(--shell-bottom-h, 0px) + var(--offset-bottom)); }`.
+   - Then, **after it in source order**, `@media (max-width: 600px) { :root [data-sonner-toaster][data-y-position='bottom'] { bottom: calc(var(--shell-bottom-h, 0px) + var(--mobile-offset-bottom)); } }`. Both rules have the same specificity, so the later mobile rule wins on phones. The other way round, the base rule would override the mobile one.
+   - sonner's `offset` and `mobileOffset` props keep working, because the rule adds the shell height to them instead of replacing them. `toast.tsx` is not edited.
+   - **Rule 2 does change the layout.** It lifts the toast by the shell chrome at every width. That is the tab bar plus the rail below `lg` (about 57 + 43 px on phones), and the rail height on desktop (`lg:sticky`, about 41 px). On desktop the toast now sits above the rail's "Educational only, not medical advice. Your records stay on this device." line instead of over it.
+3. **Reduced-motion stack rule (expected, gated on Task 1).** Add it only if Task 1 measures an offender in HC-TOAST-003 (a) or (b), as predicted. Inside `@media (prefers-reduced-motion: reduce)`:
+   `:root [data-sonner-toast][data-expanded='false'][data-front='false'], :root [data-sonner-toast][data-removed='true'] { transform: none; }`
+   - A collapsed back toast then sits in the front toast's box: sonner gives it `bottom: 0`, the same width and `height: var(--front-toast-height)`, with a lower `z-index`. The opaque front toast (`--normal-bg: var(--surface-1)`) covers it.
+   - A removed toast already has opacity 0.
+   - **Still toasts.** A non-still back toast's content is already opacity 0 (sonner's `[data-front=false][data-styled=true]>*`). A **still** back toast keeps its text at opacity 1 (`STILL_CONTENT = 'opacity-100! transition-none!'`, `toast.tsx:21-24`), so its text is hidden only because the front toast covers it.
+   - HC-TOAST-003 (c) checks that nothing of a still back toast shows. If (c) fails because the text is taller than the front toast's box, stop and go to L0. Do not add `visibility` or `opacity` rules to still toasts. They are T0 nodes and fall under M0.
+   - Under reduced motion, the only visible loss is the peeking edge of the collapsed stack, which M11 permits ("opacity").
+
+**Known limits (recorded, not fixed).** In each case a G5 interaction that hits the limit stops and goes to L0.
+- **Expanded stack.** When the pointer or focus is over the toaster with two or more toasts, sonner sets `[data-expanded=true]` and spreads the toasts with `translateY` offsets. Without the offsets they would overlap, so rule 3 does not touch them.
+- **Swipe.** While a toast is being swiped, `[data-sonner-toast][data-swiping=true]` sets `transform: var(--y) translateY(var(--swipe-amount-y)) translateX(var(--swipe-amount-x))` with `transition: none` (sonner `styles.css`). The transform follows the user's pointer, so it is direct manipulation and not an animation, and it is left alone.
 
 **Rejected.**
-- A `still` toast variant: the offender is the list, not the toast, so a per-toast prop cannot remove it. Still toasts (`notify({ still: true })`) live in the same `ol`.
-- Inline `style` on `<Toaster>`: it cannot be scoped to a media query, so `left: 0; right: 0` would override sonner's phone offsets and misalign phone toasts.
-- The CSS `translate` property in place of `transform`: G5 reads `transform`, so it would hide the same visual offset from the gate. That is a gate dodge.
-- `position="bottom-right"`: a placement design change nobody asked for.
-- Scoping G5 to exclude the toaster: not supported by the §6 text (above). No `gates.ts` change of any kind.
+- **A `still` toast variant.** The offender is the list, not the toast, so a per-toast prop cannot remove it.
+- **Inline `style` on `<Toaster>`.** It cannot be scoped to a media query, so `left: 0; right: 0` would override sonner's phone offsets.
+- **The CSS `translate` property in place of `transform`.** G5 reads `transform`, so this would hide the same offset from the gate. That is a gate dodge.
+- **`position="bottom-right"`.** A placement change that nobody asked for.
+- **Scoping G5 to exclude the toaster.** The §6 text does not support it (see above). No `gates.ts` change of any kind.
 
 **Files (narrowest set).**
-- `fe/styles/globals.css`: the one unlayered block above (rules 1 and 2; rule 3 only on Task 1 evidence), with a comment that cites G5, M11 and TOAST-PHONE-CHROME. Nothing else in the file changes.
-- `e2e/ui-toast.spec.ts` (new): HC-TOAST-001 … 003. It is a new file so the row shares no spec with UI-SHELL's `ui-shell.spec.ts`, which UI-PG-MEDS (#398), UI-PALETTE and UI-PG-EXPORT also edit.
+- `fe/styles/globals.css`: the one unlayered block above. It holds rules 1 and 2, and rule 3 if Task 1 measures as predicted, with a comment citing G5, M11 and TOAST-PHONE-CHROME. Nothing else in the file changes.
+- `e2e/ui-toast.spec.ts` (new): HC-TOAST-001 … 004. It is a new file, so the row shares no spec with `ui-shell.spec.ts`. UI-PG-MEDS (#398), UI-PALETTE, UI-PG-EXPORT and POPOVER-OPEN-COST also edit that spec.
 
 Not edited: `fe/components/ui/toast.tsx`, `AppLayout.tsx`, `e2e/support/gates.ts`, `e2e/ui-shell.spec.ts`, `fe/__tests__/ui-feedback.test.tsx`.
 
-**Toast trigger in the spec.** The spec imports `/src/components/ui/toast.tsx` and calls `notify()`, as HC-UISH-007 does on `origin/main` (`e2e/ui-shell.spec.ts:792-795`). The spec loads `/inbox` with `installMockApi` and waits for the Safety Rail. That path exists only on the dev server, which is what CI runs (`playwright.config.ts:31`). For `vite preview` (`HC_E2E_BASE_URL`), Task 1 finds a UI path that raises a toast under `mockApi`, starting with the Source Trace "It matches, mark as checked" button (`fe/components/results/SourceTrace.tsx:146-159`, reached from the `/interpret` citation popover) with a spec-local `page.route` fulfil for `POST **/observations/*/verify`. If no UI path raises a toast on preview, stop and ask for an `L0 ruling:`. No test is skipped, `fixme`d or marked flaky for preview.
+**Toast triggers (L0 call on the #409 review: no skip on preview).**
+- **Dev server** (`HC_E2E_BASE_URL` unset, which is what CI runs, `playwright.config.ts:31`):
+  - The real toast. Load `/inbox` with `installMockApi` and wait for the Safety Rail. Then, in `page.evaluate`, import `/src/components/ui/toast.tsx` and call `notify()`, as HC-UISH-007 does (`e2e/ui-shell.spec.ts:792-795`).
+  - Dismiss with only what `toast.tsx` exports: `notify`, `AppToaster` and `OVERLAY_OPEN_EVENT`. Either call `notify({ message, action: { label: 'Close', onClick: () => {} } })` and click that action button, or dispatch `document.dispatchEvent(new Event(OVERLAY_OPEN_EVENT))`.
+  - The spec **never imports `sonner`** in `page.evaluate`. A second copy of sonner's store would not be the one the app's Toaster renders.
+- **`vite preview`** (`HC_E2E_BASE_URL` set). The `/src/...` path does not exist there, and the Source Trace verify toast cannot be reached on main (bullet SOURCE-TRACE-UNWIRED, #407). So the spec uses a **fixture check**:
+  - Open the same authenticated route (`/inbox` under `installMockApi`). `AppLayout` mounts `AppToaster` there, so sonner's runtime `<style>` is in `<head>`. Assert that it is: a `<style>` containing `[data-sonner-toaster]`.
+  - Inject `<ol data-sonner-toaster data-x-position="center" data-y-position="bottom" style="--width: 356px; --offset-bottom: 24px; --mobile-offset-bottom: 16px; --mobile-offset-left: 16px; --mobile-offset-right: 16px">` into `<body>`. For HC-TOAST-003, it holds `li[data-sonner-toast]` children with the data attributes of each case.
+  - Read computed styles through the real cascade: sonner's stylesheet plus the built `globals.css`.
+  - Each test below states what its fixture asserts. The fixture is used only when `HC_E2E_BASE_URL` is set. Dev runs keep the real `notify()` trigger.
 
-**RED tests (HC-TOAST-001 … 003; `HC-TOAST` is unused on `origin/main`).** Each assertion that reads transforms is taken 50 ms after the trigger with reduced motion emulated, as G5 does. HC-TOAST-001 uses `reducedMotionSnapshot` itself.
-- **HC-TOAST-001** (RED), at 1280×800 and 1440×900, one toast and one `still` toast: `reducedMotionSnapshot(page, trigger)` page-wide returns `[]`, **and** the list is still centred: `|ol.left + ol.width / 2 - innerWidth / 2| <= 1`. The centring check stops a fix that drops the transform and leaves the list off-centre. RED on base: `ol transform=matrix(1, 0, 0, 1, -178, 0)`. If the base shows any page-wide offender outside `[data-sonner-toaster]` on `/inbox`, stop and report it; do not change routes silently.
-- **HC-TOAST-002** (RED), at 390×844, 820×1180 and 1440×900, with one toast visible and settled: the rect of each `[data-sonner-toast]` does not intersect the rect of `nav[aria-label="Tab bar"]` (where visible) or `[data-safety-rail]`, and lies inside the viewport horizontally. RED on base (expected at 390 and 820, where the 16 or 24 px offset sits inside the tab bar's 57 px). The 1440 base result is measured in Task 1 and pasted. If 1440 is green on the base, it stays as a guard and is labelled as one.
-- **HC-TOAST-003** (RED or guard, decided in Task 1), at 1280×800 under reduced motion: (a) a second toast while the first is showing, then (b) `toast.dismiss()` of the front one. 50 ms after each, every element in the `[data-sonner-toaster]` subtree has the identity transform. If the base shows an offender here, the test is RED and rule 3 is added. If not, the test stays as a guard, rule 3 is not added, and the PR says so.
+**RED tests (HC-TOAST-001 … 004; `HC-TOAST` is unused on `origin/main`).** Transforms are read 50 ms after the trigger with reduced motion emulated, as G5 does. Centring uses `document.documentElement.clientWidth`, which excludes a scrollbar, unlike `innerWidth`.
+- **HC-TOAST-001 (RED).** Two separate cases, each the **only** toast on the page: (i) one plain `notify()` toast, (ii) one `notify({ still: true })` toast. Each runs at 1280×800 and 1440×900.
+  - Dev: `reducedMotionSnapshot(page, trigger)` page-wide returns `[]`. The list is centred: `|ol.left + ol.width / 2 - documentElement.clientWidth / 2| <= 1`. The centring check stops a fix that drops the transform and leaves the list off-centre.
+  - Preview fixture: the injected `ol` has computed `transform: none` and passes the same centring check.
+  - RED on base: `ol transform=matrix(1, 0, 0, 1, -178, 0)`.
+  - If the base shows a page-wide offender outside `[data-sonner-toaster]` on `/inbox`, stop and report it. Do not switch routes silently.
+- **HC-TOAST-002 (RED).** Viewports 390×844, 820×1180 and 1440×900.
+  - Dev: one settled toast. The rect of each `[data-sonner-toast]` does not intersect the rect of `nav[aria-label="Tab bar"]` (where visible) or of `[data-safety-rail]`, and lies inside `[0, documentElement.clientWidth]` horizontally.
+  - Preview fixture: the injected `ol` has computed `bottom` equal to `--shell-bottom-h` (read from `documentElement`) plus 16 px at 390, or plus 24 px at 820 and 1440, within ±0.5 px.
+  - RED on base at 390 and 820 is expected: the 16 or 24 px offset sits inside the tab bar's 57 px. The 1440 base result is measured in Task 1 and pasted. It is expected RED as well, because the toast sits over the sticky rail.
+- **HC-TOAST-003 (predicted RED for (a) and (b)).** At 1280×800 under reduced motion.
+  - (a) A second toast while a first is showing: every element in the `[data-sonner-toaster]` subtree has the identity transform 50 ms later.
+  - (b) Dismiss the front toast, by its action button or by `OVERLAY_OPEN_EVENT`: the same check, 50 ms later.
+  - (c) A **still** toast followed by a plain toast, so the still one is the back toast. Nothing of the still back toast shows. `document.elementFromPoint` at the centre and the four inset corners (2 px in) of its `[data-t0]` text rect returns a node inside the front toast, and that text rect lies inside the front toast's rect.
+  - Preview fixture: an `li[data-sonner-toast][data-expanded=false][data-front=false]` and an `li[data-sonner-toast][data-removed=true]` inside the injected `ol` both compute `transform: none`. (c) is dev-only by nature, because it needs real stacking. On preview it is replaced by the fixture assertion that the back `li` computes `transform: none` with `bottom: 0`.
+  - If Task 1 shows (a) and (b) green on the base, contrary to the prediction, the test stays as a guard, rule 3 is not added, and the PR says so.
+- **HC-TOAST-004 (guard).** At 390×844, sonner's own phone rule is unchanged: the list computes `transform: none`, `left` 16 px and `right` 16 px (dev: real toast; preview: fixture). Rule 1's media query must not leak below 601 px. Green on the base, labelled as a guard.
 
 **Tasks.**
-- **Task 1, measure (scratch worktree, quiet box).** On the base, run HC-TOAST-001 … 003 and paste every offender and rect, at each viewport. Also run the UI-PG-CARE spec from #400's head (`ce266747`) against a scratch merge of this row's head, to confirm the same `ol` offender goes away (record only: #400's files stay #400's).
-- **Task 2, fix.** Add rules 1 and 2, and rule 3 only on Task 1 evidence. Then re-run.
+- **Task 1, measure.** Run in a scratch worktree on a quiet box.
+  - On the base, run HC-TOAST-001 … 004 on dev and preview, and paste every offender, rect and computed value at each viewport.
+  - Run #400's `e2e/ui-care.spec.ts` G5 test, from head `0f8f2271`, against a scratch merge of this row's head, to confirm the `ol` offender goes away. This is record only: #400's files stay #400's.
+- **Task 2, fix.** Add rules 1 and 2, and rule 3 per Task 1. Re-run.
 
 **Acceptance (outputs pasted).**
-1. HC-TOAST-001 and 002 RED on the base and GREEN on the head. HC-TOAST-003 is RED → GREEN, or a guard that is green on both, as Task 1 decided. Offender lists and rects pasted for both runs.
-2. **Quiet-box rule for every Playwright run** (same as the rules at the top of this file): L0 holds `/tmp/claude-1000/quiet-box.lock`, each Playwright command runs under `/tmp/claude-1000/hold_slots.sh`, and `uptime` (1-minute load below 1.5) and `pgrep -fa "playwright|vitest|pytest"` (empty) are pasted first. Never beside pytest, vitest, another Playwright run or a model-host row.
-3. On the dev server and on `vite preview` (`HC_E2E_BASE_URL`): `npx playwright test e2e/ui-toast.spec.ts e2e/ui-shell.spec.ts e2e/ui-provenance.spec.ts e2e/ui-gates.spec.ts e2e/tailwind4-styles.spec.ts` is all green. This covers HC-UISH-005 (rail opaque and hit-testable), HC-UISH-007 (no toast over the More sheet), HC-UIFB-006's Playwright half and every existing G5. Summaries pasted.
-4. `npx vitest run src/__tests__/ui-feedback.test.tsx src/__tests__/ui-shell.test.tsx` green (HC-UIFB-001 … 006 unchanged), then the full `npx vitest run` with count and delta.
-5. CI E2E green with **none** of the above in the `flaky` list (CI's `retries: 2` hides a retried failure).
-6. After this merges, UI-PG-CARE (#400) rebases and its Gate G5 on `/care-tasks` passes on dev, preview and CI. That is #400's acceptance, listed here as the reason this row exists. G5 is green on every route whose gate interaction shows a toast, because the list rule is route-independent (the one `AppToaster` in `AppLayout.tsx:104`).
-7. `npx tsc --noEmit`, `npm run build` and `npm run lint` clean. `git diff --stat` touches only `fe/styles/globals.css` and `e2e/ui-toast.spec.ts`.
+1. **The new tests.** HC-TOAST-001 and 002 go from RED on the base to GREEN on the head. HC-TOAST-003 is RED → GREEN, as predicted, or a guard that is green on both, as Task 1 decided. HC-TOAST-004 is green on both. Offender lists, rects and computed values are pasted for both runs, on dev and preview.
+2. **The quiet-box rule for every Playwright run**, as in the rules at the top of this file. L0 holds `/tmp/claude-1000/quiet-box.lock`. Each Playwright command runs under `/tmp/claude-1000/hold_slots.sh`. Paste `uptime` (1-minute load below 1.5) and `pgrep -fa "playwright|vitest|pytest"` (empty) first. Never run beside pytest, vitest, another Playwright run or a model-host row.
+3. **Baseline, then delta.**
+   - On the dev server, `npx playwright test e2e/ui-toast.spec.ts e2e/ui-shell.spec.ts e2e/ui-provenance.spec.ts e2e/ui-gates.spec.ts e2e/tailwind4-styles.spec.ts` is all green on the head. That covers every existing G5, HC-UISH-005 (rail opaque and hit-testable), HC-UISH-007 (no toast over the More sheet) and HC-UIFB-006's Playwright half.
+   - On `vite preview` (`HC_E2E_BASE_URL`), **first run the same specs (minus the new one) on `origin/main` as a baseline**. Record each pre-existing failure and skip by name. Known ones: HC-UISH-007 imports the dev-only `/src/components/ui/toast.tsx` and so fails on preview on main (#398 adds a preview guard to it, which is not on main yet). HC-UIFB-006 is skipped on preview (`e2e/ui-shell.spec.ts:912-915`).
+   - Then run them on the head. The row is judged on the **delta**: no new failure or skip, and ui-toast green. Paste both summaries.
+4. **Vitest.** `npx vitest run src/__tests__/ui-feedback.test.tsx src/__tests__/ui-shell.test.tsx` is green, with HC-UIFB-001 … 006 unchanged. Then run the full `npx vitest run` and report the count and delta.
+5. **CI.** CI E2E is green with **none** of the above in the `flaky` list. CI's `retries: 2` hides a retried failure.
+6. **#400 after this merges.** UI-PG-CARE (#400) rebases and its Gate G5 on `/care-tasks` passes on dev, preview and CI. That is #400's own acceptance, listed here as the reason this row exists. G5 is then green on every route whose gate interaction shows a toast, because the list rules apply on every route: `AppLayout.tsx:104` mounts the only `AppToaster`.
+7. **Build and diff.** `npx tsc --noEmit`, `npm run build` and `npm run lint` are clean. `git diff --stat` touches only `fe/styles/globals.css` and `e2e/ui-toast.spec.ts`.
 
-**Stop and go to L0:** the base shows a G5 offender outside the toaster on the test route; no preview UI path raises a toast; a G5 interaction ends with the pointer over two or more toasts (the expanded-stack limit); or any fix would need `toast.tsx`, `gates.ts` or a bound change.
+**Stop and go to L0** if any of these happens:
+- the base shows a G5 offender outside the toaster on the test route;
+- the preview fixture cannot find sonner's stylesheet on the route;
+- HC-TOAST-003 (c) shows a still back toast;
+- a G5 interaction hits the expanded-stack or swipe limit;
+- a fix would need `toast.tsx`, `gates.ts` or a bound change.
 
-**Depends on:** none (UI-PRIM-FEEDBACK #364 and UI-SHELL #370 are merged). **Never beside:** an open PR that edits `fe/styles/globals.css`, `fe/components/ui/toast.tsx` or `e2e/ui-toast.spec.ts`. On 2026-10-29 the planner checked with `gh pr diff N --name-only`: #393 and #399 hold no files; #398 edits `e2e/ui-shell.spec.ts` and medication files but not these three; #400 edits `CareTasksPage.tsx`, `ui-care.test.tsx` and `ui-care.spec.ts`; #401 holds none; #407 is docs only (`queue.md`, the frontend-revamp plan, `_link_graph.json`). The Playwright runs follow the quiet-box rule. **Unblocks:** UI-PG-CARE (`depends_on += TOAST-SHELL`). UI-PG-MEDS is not blocked: its G5 interactions raise no toast. **Gate:** none. **Ask-first files:** none. **Owner gate:** none (no new token, colour or placement; the toast keeps bottom-centre). **Implementer:** Sonnet 5.5; Haiku 5.5 at effort `medium` runs the test scripts only and never edits; Opus reviews (owner-decisions row MODEL-ROUTING-SONNET, 2026-10-29, PR #408, which supersedes MODEL-ROUTING-HAIKU). **Est:** 2 h. **Runtime:** claude (Playwright, quiet box). **MVP:** P1. It blocks UI-PG-CARE's acceptance, and on phones the toast covers the Safety Rail's "Educational only, not medical advice" line, which is on the demo path.
+**Order, depends on, never beside.**
+- **Depends on:** none. UI-PRIM-FEEDBACK (#364) and UI-SHELL (#370) are merged.
+- **Never beside** an open PR that edits `fe/styles/globals.css`, `fe/components/ui/toast.tsx` or `e2e/ui-toast.spec.ts`. On 2026-10-29 the planner checked every open PR with `gh pr diff N --name-only`:
+  - #393 and #399 hold no files.
+  - #398 edits `e2e/ui-shell.spec.ts` and medication files, but none of these three.
+  - #400 edits `CareTasksPage.tsx`, `ui-care.test.tsx` and `ui-care.spec.ts`.
+  - #401 holds no files.
+  - #407 is docs only.
+- **Order with POPOVER-OPEN-COST** (L0 call on the #409 review). When #393 resumes, it adds a top-level `@property --removed-body-scroll-bar-size` rule to `globals.css` (planned in #407). **TOAST-SHELL builds first**, because it unblocks UI-PG-CARE. POPOVER-OPEN-COST rebases after it. The hunks do not overlap: the `@property` rule sits at top level, and this block sits next to the reduced-motion block.
+- **Docs order:** #407 merges before this plan (#409). This branch then merges `origin/main` and resolves `queue.md`.
+- The Playwright runs follow the quiet-box rule.
+- **Unblocks:** UI-PG-CARE (`depends_on += TOAST-SHELL`). UI-PG-MEDS is not blocked: its G5 interactions raise no toast.
+
+**Gate, owner, model, sizing.**
+- **Gate:** none. **Ask-first files:** none. **Owner gate:** none. No new token or colour, and the toast stays bottom-centre. Rule 2's lift above the rail follows TOAST-PHONE-CHROME's candidate fix.
+- **Implementer:** Sonnet 5.5. Haiku 5.5 at effort `medium` runs the test scripts only and never edits. Opus reviews. This follows owner-decisions row MODEL-ROUTING-SONNET (2026-10-29, PR #408), which supersedes MODEL-ROUTING-HAIKU. This routing text depends on #408 merging: if #408 has not merged when this row starts, L0 confirms the routing first.
+- **Est:** 2.5 h. **Runtime:** claude (Playwright, quiet box).
+- **MVP:** P1. The row blocks UI-PG-CARE's acceptance, and on phones a toast covers the Safety Rail's "Educational only, not medical advice" line, which is on the demo path.
