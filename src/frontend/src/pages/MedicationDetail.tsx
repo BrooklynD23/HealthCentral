@@ -203,7 +203,7 @@ export function MedicationDetail() {
             className="gap-2"
           >
             <Bell className="w-4 h-4" />
-            Notification Settings
+            Reminders
           </Button>
           <Button
             variant="danger"
