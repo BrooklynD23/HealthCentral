@@ -5,8 +5,8 @@ export const meta = {
   phases: [
     { title: 'Explore', detail: 'haiku reads the queue row, lane doc, plan', model: 'haiku' },
     { title: 'Plan check', detail: 'opus runs Task 0 and claims the item on GitHub', model: 'opus' },
-    { title: 'Implement', detail: 'haiku (xhigh) implements test-first in the claimed worktree', model: 'haiku', effort: 'xhigh' },
-    { title: 'Test', detail: 'haiku runs the test suites and acceptance commands, never edits', model: 'haiku' },
+    { title: 'Implement', detail: 'sonnet implements test-first in the claimed worktree', model: 'sonnet' },
+    { title: 'Test', detail: 'haiku (medium) runs the test suites and acceptance commands, never edits', model: 'haiku' },
     { title: 'Review', detail: 'opus review, at most 3 rounds', model: 'opus' },
     { title: 'Verify', detail: 'opus measured acceptance, PR body, release slot', model: 'opus' },
   ],
@@ -207,7 +207,7 @@ ${STYLE}`,
 
 // ---------------------------------------------------------------------------
 const implementOnce = (findings, round, measured, prior) => agent(
-  `You are the L2 implementer (Haiku, xhigh) for build-program item ${ID}: ${where}. Work only in that worktree.
+  `You are the L2 implementer (Sonnet) for build-program item ${ID}: ${where}. Work only in that worktree.
 Brief from L1:
 ${plan.brief}
 
@@ -217,7 +217,7 @@ ${findings
 ${measured ? `CONTINUATION: you already worked on this and stopped to ask for measurements. Do not redo committed work; check git log origin/main..HEAD and continue from your last step.\nYour previous report:\n${prior.report}\nCommits so far: ${(prior.commits || []).join(', ') || 'none'}\nMeasurement output (Haiku runner, verbatim, oldest first):\n${measured}\n` : ''}Measurement steps: if the plan needs a full-suite run, a coverage run or another long measurement, do not run it. Return status=measure with measure_commands = pytest ARGUMENTS only, run from src/backend (e.g. "tests/ -q" or "tests/ --cov=modules --cov-report=term -q"; allowed: tests/ paths, -q -x -v --collect-only --tb= --durations= --cov=<pkg> --cov-report=term[-missing] -k/-m=<word>); anything else is rejected. A Haiku runner runs them and you are called again with the output.
 Rules: edit only the brief's files; stage explicit paths (never git add -A); commit as the plan lists; never edit an ask-first file unless the brief names its signed gate; never weaken a test, threshold or validation. You write the tests; you run ONLY the focused test files you touch (for RED/GREEN), always as ""$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 <venv python> -m pytest <file>". A Haiku runner runs the full suite and acceptance; do not run it yourself. Push to ${plan.branch} when done. Review rounds, the Codex (or substitute) adversarial review, the PR body and after-the-change re-runs of the plan's acceptance commands are later workflow stages, not yours: once the brief's code and test tasks are committed, return status=done even if the brief lists those steps (#215 stop, 2026-10-20). A plan task that needs a baseline or before/after run of a non-pytest command (e.g. save both eval-gate outputs and diff them) is yours: if you cannot run it, return status=stopped, never done. List each vitest test you wrote as NOT RUN unless you ran it. If something blocks you, status=stopped with the reason; do not work around it.
 ${STYLE}`,
-  { label: `implement ${ID}${round ? ` r${round}` : ''}${measured ? ' +measured' : ''}`, phase: 'Implement', model: 'haiku', effort: 'xhigh', schema: IMPL_SCHEMA },
+  { label: `implement ${ID}${round ? ` r${round}` : ''}${measured ? ' +measured' : ''}`, phase: 'Implement', model: 'sonnet', schema: IMPL_SCHEMA },
 )
 
 // Defect #2 (handoff 2026-10-18): the implementer may not run the full suite, so plan measurement
@@ -241,7 +241,7 @@ const measure = (cmds, n) => agent(
 ${cmds.map((c) => `- ${c}`).join('\n')}
 Return each command, its exit code and the last 30 lines of output verbatim.
 ${STYLE}`,
-  { label: `measure ${ID} ${n}`, phase: 'Test', model: 'haiku', effort: 'low', schema: TEST_SCHEMA },
+  { label: `measure ${ID} ${n}`, phase: 'Test', model: 'haiku', effort: 'medium', schema: TEST_SCHEMA },
 )
 const implement = async (findings, round) => {
   let r = await implementOnce(findings, round, null, null)
@@ -274,7 +274,7 @@ Frontend vitest stalls under WSL on /mnt/c: there, record it as skipped with tha
 Without the fetched embedding bundle exactly these 5 tests fail as environmental (CLAUDE.md §4): \`test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline\` and, in \`test_rag_pipeline.py\`, \`test_api_rag_index_002\`, \`test_api_rag_index_002b\`, \`test_api_rag_index_002c\`, \`test_search_vectors_async_calculates_similarity\`. Only if \`src/backend/models/embeddings/all-MiniLM-L6-v2\` is absent in the worktree (check with ls and paste it), list each in failures prefixed "ENV:" and do not count them against all_passed; with the bundle present they count. Any other failure counts. Run python scripts that import backend code (e.g. legacy_eval_gate.py) with ~/venvs/asclexis-311/bin/python, not system python3.
 Return each command, its exit code and the last 30 lines of output verbatim. failures = one line per failing test id or command.
 ${STYLE}`,
-  { label: `test ${ID} r${round}`, phase: 'Test', model: 'haiku', effort: 'low', schema: TEST_SCHEMA },
+  { label: `test ${ID} r${round}`, phase: 'Test', model: 'haiku', effort: 'medium', schema: TEST_SCHEMA },
 )
 
 phase('Implement')
@@ -356,7 +356,7 @@ return await agent(
 1. Merge origin/main into the worktree only if the PR has a real code conflict or code dependency (contracts.md §d step 4). Never edit the count slots or the docs/reviews/README.md table. Regenerate docs/INDEX.md and docs/_link_graph.json before the final push (python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph; SLOT-RULE-2a) and resolve any index conflict by regenerating; on any other conflict stop and report.
 2. The Haiku runner's final test output is below; judge it (a report is a lead, not a finding: re-run any single command whose output looks wrong, under the flock). Run the §6 steps that are not test runs (greps, scope checks, docs lint) yourself and keep every command with its output; run plan \`git diff origin/main -- <paths>\` scope checks three-dot plus \`git diff HEAD\`, as the test runner does.\nHaiku test output:\n${testEvidence()}\nImplementer report:\n${impl && impl.report}\n   Paste the measured collected line and its delta into the PR body; list each test the report marks NOT RUN under a "Not run" heading in the PR body, each with its reason; never write the count slots (SLOT-RULE-2). If anything fails, stop: keep draft, comment the output on the PR, retitle it "[blocked:claude] ${ID} <keep the current slug>" (${RUNBOOK} §8), and return FAILED.
 3. ${spec.architectural ? `Architectural item: run the Codex adversarial review (§10.2 codex-companion adversarial-review) from the worktree, or the substitute an owner row names when Codex is unavailable (CODEX-UNAVAIL: a separate Opus adversarial reviewer given the same §10.2 adversarial-review prompt, not one written on the spot; spawn it with the Agent tool and disclose it in the PR body). A BLOCKER means: keep draft, comment it, retitle it "[blocked:claude] ${ID} <keep the current slug>", return BLOCKED.` : 'Not architectural: no Codex review.'}
-4. Push. Write the PR body with every §6 table section (gates quoted: ${(plan.gates_quoted || []).join(' | ') || 'none'}; skipped tasks: ${(plan.skipped_tasks || []).join(', ') || 'none'}; start count: ${plan.start_count || 'see Task 0'}; implementer claude haiku (xhigh); reviewer claude opus, final verdict PASS). Use gh pr edit ${plan.pr_number} --body-file.
+4. Push. Write the PR body with every §6 table section (gates quoted: ${(plan.gates_quoted || []).join(' | ') || 'none'}; skipped tasks: ${(plan.skipped_tasks || []).join(', ') || 'none'}; start count: ${plan.start_count || 'see Task 0'}; implementer claude sonnet; reviewer claude opus, final verdict PASS). Use gh pr edit ${plan.pr_number} --body-file.
 5. Retitle to "<type>(<scope>): <summary> (${ID})" to release the slot. Run gh pr ready ${plan.pr_number} only if no merge-only gate is unanswered and the item is not a parked draft (contracts.md §b rule 2). Re-read the row's owner gates against owner-decisions yourself first; an empty gates list from Task 0 is not evidence that none apply.
 6. If gh pr edit fails with the "Projects (classic) is being deprecated" GraphQL error, use gh api -X PATCH repos/{owner}/{repo}/pulls/${plan.pr_number} -f title=... -F body=@<file> instead.
 7. Stop. Never merge, never push to main.

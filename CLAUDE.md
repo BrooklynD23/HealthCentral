@@ -65,7 +65,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **Audit logging** on every route that touches documents, observations, or profile data.
 - **No medical advice.** Outputs are educational, grounded, and cited. On the legacy RAG path `[cite:N]` is the validated citation marker (`modules/rag.py`, `RAGModule.validate_response`); `[YOUR_RESULTS:N]` / `[REFERENCE:N]` are context labels, not citation markers (owner decision D11, 2026-09-27). `interpret_safety` prohibited patterns (diagnosis, dosing) must keep passing.
 - **Dual migrations.** Master DB and per-profile DB have separate Alembic chains (`migrations/master/`, `migrations/profile/`). New profile tables = new profile migration, linear `down_revision`.
-- **Model routing (owner, 2026-10-24): never use Sonnet 5.5. Haiku 5.5 at effort `xhigh` replaces it for every Sonnet role (implementation, batch and docs fixes); Opus and Haiku roles are unchanged.** Owner-decisions row: MODEL-ROUTING-HAIKU (`docs/capstone-report/owner-decisions-2026-09-27.md`).
+- **Model routing (owner, 2026-10-29): Sonnet 5.5 implements (`model: "sonnet"`); Haiku 5.5 at effort `medium` runs test scripts only (`model: "haiku"`, `effort: "medium"`) and never edits; Opus reviews and orchestrates; Haiku otherwise does read-only exploration.** It supersedes the 2026-10-24 "never use Sonnet 5.5" rule. Owner-decisions row: MODEL-ROUTING-SONNET (`docs/capstone-report/owner-decisions-2026-09-27.md`).
 
 ## OpenWiki usage
 
