@@ -1246,6 +1246,7 @@
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/reviews/2026-10-26/don-ner-measure.md",
       "docs/reviews/2026-10-27/kv-numctx-verify.md",
+      "docs/reviews/2026-10-28/qwen3-4b-tier.md",
       "README.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
@@ -1294,7 +1295,8 @@
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/plans/2026-10-28-followups-plan.md",
-      "docs/reviews/2026-10-27/kv-numctx-verify.md"
+      "docs/reviews/2026-10-27/kv-numctx-verify.md",
+      "docs/reviews/2026-10-28/qwen3-4b-tier.md"
     ],
     "docs/plans/2026-10-22-session-handoff.md": [
       "docs/archive/plans/2026-10-21c-session-handoff.md",
@@ -1310,6 +1312,7 @@
       "docs/research/2026-10-23-safety-mode-real/00-README.md"
     ],
     "docs/plans/2026-10-24-safety-mode-build-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/plans/2026-10-25-session-handoff.md"
@@ -1548,7 +1551,8 @@
     ],
     "docs/research/2026-10-22-judge-laya/00-README.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
-      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md"
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/reviews/2026-10-28/qwen3-4b-tier.md"
     ],
     "docs/research/2026-10-22-mvp/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
@@ -2475,7 +2479,11 @@
     "docs/reviews/2026-10-22/kv-prefix-measure.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
-      "docs/reviews/2026-10-27/kv-numctx-verify.md"
+      "docs/reviews/2026-10-27/kv-numctx-verify.md",
+      "docs/reviews/2026-10-28/qwen3-4b-tier.md"
+    ],
+    "docs/reviews/2026-10-27": [
+      "docs/reviews/2026-10-28/qwen3-4b-tier.md"
     ],
     "docs/roles/00_roles_index.md": [
       "docs/00_architecture_plans_index.md",
@@ -3210,6 +3218,7 @@
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
@@ -3720,6 +3729,7 @@
     "docs/plans/2026-10-15-build-program/queue.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/research/2026-10-22-fit-decoder/00-README.md",
@@ -3736,7 +3746,6 @@
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/research/2026-10-23-frontend-revamp/00-README.md",
-      "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/research/2026-10-23-safety-mode-real/00-README.md",
       "docs/plans/2026-10-28-followups-plan.md",
       "docs/plans/2026-10-18-session-handoff.md",
@@ -4300,6 +4309,13 @@
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md"
+    ],
+    "docs/reviews/2026-10-28/qwen3-4b-tier.md": [
+      "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md",
+      "docs/reviews/2026-10-22/kv-prefix-measure.md",
+      "docs/reviews/2026-10-27"
     ],
     "docs/reviews/README.md": [
       "docs/agentic/orchestration.md",

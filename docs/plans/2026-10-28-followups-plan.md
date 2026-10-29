@@ -1,6 +1,6 @@
 # Follow-ups 2026-10-28 — plans for VITEST-TZ-PIN, G1-VERIFY-TRACE-RACE, UIG006-PASS3-FLAKE and AUDIT-GUARD-ATTR-DYNAMIC
 
-**Last Updated:** 2026-10-28 (#392 review round 2 on `b1ee5794` (#370 merged): UIG006-PASS3-FLAKE ready, pass-3 re-cited; the VITEST-TZ-PIN sweep runs on a native Linux clone or a CI matrix; HC-UIG-009 reads `__seq` at trigger and after; fail-fixture (m) under decision (a); the Node fetch promise is awaited); 2026-10-28 (#392 Opus review round 1, REVISE: VITEST-TZ-PIN zone sweep before the pin, `VITEST_TZ` override, `/mnt` run required; UIG006 mutant m4, a Node-side fetch, decision (a) to L0; quiet-box lock and `hold_slots.sh` on both Playwright rows; scratch worktree (recurring-failures #13); failure-rate rule; HC-UIPV-007 method; HC-UIPV-006 A/B facts; property-skip rule and HC-AUD-ORD-033 mixed case); 2026-10-28 (Opus planner on `9d0dc2a`: four follow-up bullets planned as rows; GATES-PASS3-ELAPSED folded into UIG006-PASS3-FLAKE; HC-UIPV-006 noted as pending L0 evidence, no row)
+**Last Updated:** 2026-10-28 (Opus planner on `434179a9`: DARK-PRIMITIVE-CONTRAST added (dark primary Button and Input fail G1; sources #365 (BUTTON-DARK-CONTRAST, deferred to UI-DARK-FLIP), #400 and #398; supersedes the #365 deferral); no owner gate; #404 review round 1: history, sources, the corrected cause, mapping rules, settle wait, and every page row now depends on it); 2026-10-28 (#392 review round 2 on `b1ee5794` (#370 merged): UIG006-PASS3-FLAKE ready, pass-3 re-cited; the VITEST-TZ-PIN sweep runs on a native Linux clone or a CI matrix; HC-UIG-009 reads `__seq` at trigger and after; fail-fixture (m) under decision (a); the Node fetch promise is awaited); 2026-10-28 (#392 Opus review round 1, REVISE: VITEST-TZ-PIN zone sweep before the pin, `VITEST_TZ` override, `/mnt` run required; UIG006 mutant m4, a Node-side fetch, decision (a) to L0; quiet-box lock and `hold_slots.sh` on both Playwright rows; scratch worktree (recurring-failures #13); failure-rate rule; HC-UIPV-007 method; HC-UIPV-006 A/B facts; property-skip rule and HC-AUD-ORD-033 mixed case); 2026-10-28 (Opus planner on `9d0dc2a`: four follow-up bullets planned as rows; GATES-PASS3-ELAPSED folded into UIG006-PASS3-FLAKE; HC-UIPV-006 noted as pending L0 evidence, no row)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). No row below needs an owner gate; each names the point where it stops and goes to L0 instead.
 **Base measured:** `origin/main` @ `9d0dc2a` (2026-10-28, after #391), refreshed for the e2e and frontend rows on `b1ee5794` (#370, UI-SHELL, merged): of the files cited here #370 changed only `e2e/ui-gates.spec.ts` (re-cited below) and two grid tokens in `VerificationWorkbench.tsx` (`:731-736` unchanged). Every `file:line` below was re-read by the planner on those commits. Product code was read only.
@@ -180,3 +180,104 @@ The stale frame is a one-frame product glitch: the page-3 image under a "Page 1"
 ## Not planned: HC-UIPV-006 popover stillness (one CI event, not reproduced)
 
 HC-UIPV-006 (`e2e/ui-provenance.spec.ts:513`, the citation popover's `stillnessProbe`, an interaction probe with a 40 ms gap bound) failed once in CI on #370 run 40649511595 with a 41 ms gap. L0's A/B is done: HC-UIPV-006 ×20 passed 20 of 20 on #370 `479938d8` and 20 of 20 on main `9d0dc2a` (quiet box), and CI re-run attempt 2 on #370 was clean. **No row:** one 41 ms CI event, not reproduced. A second failure re-opens it, under the same rules (no bound change, no retry, no flaky mark, no change to `gates.ts` constants), and never beside G1-VERIFY-TRACE-RACE (same spec file). G1-VERIFY-TRACE-RACE's acceptance 5 reports HC-UIPV-006 gap figures before and after its change.
+
+---
+
+## DARK-PRIMITIVE-CONTRAST — the primary Button and the Input field fail dark-theme contrast
+
+**Sources:** #365 (UI-PRIM-CONTROLS), #400 (UI-PG-CARE) and #398 (UI-PG-MEDS).
+- **2026-10-25, #365.** UI-PRIM-CONTROLS' Gate G found the defect on `/setup` in dark: "Button.tsx primary text-white fails dark contrast on /setup; not applied". L0 named the follow-up BUTTON-DARK-CONTRAST and deferred it. The L0 ruling, verbatim: "The in-row dark-contrast failure (Button primary `text-white` on /setup in DARK) is deferred: the app is light-only until UI-DARK-FLIP (owner UI-DARK-MODE), whose gate HC-UIDRK-* covers it. L0 logs follow-up BUTTON-DARK-CONTRAST on UI-DARK-FLIP." The queue bullet BUTTON-DARK-CONTRAST records it.
+- **2026-10-28, #400 and #398.** UI-PG-CARE stopped on the same failure, a serious `color-contrast` on the primary Button in Gate G1 dark. UI-PG-MEDS stopped on all four of its routes ("blocked: tell L0"). Its stop names a second primitive, `ui/Input.tsx`.
+
+**This row supersedes the #365 deferral.** The deferral sent the fix to UI-DARK-FLIP, which is wave 9. The wave-5 page rows' Gate G already requires G1 in light **and dark** (frontend-revamp plan §6 G1), so they hit the failure first and cannot pass. The row keeps the bullet's ID history: it was first planned as BUTTON-DARK-CONTRAST, was widened to the Input field after #398, and is renamed **DARK-PRIMITIVE-CONTRAST**. No other row uses either name. The order mistake is logged as bullet DEFER-ORDER-CHECK in the queue.
+
+**Base measured:** `origin/main` @ `434179a9`. The planner re-read every `file:line` below on that commit and read product code only.
+
+**Cause (code reading, ratios computed with the WCAG 2.x sRGB formula the HC-UITK-001 helper uses).**
+- `fe/components/ui/Button.tsx:26`, primary variant: `bg-accent text-white`. In dark, `--accent` is `#6fc6b3` (`fe/styles/globals.css:207`) and `--accent-hover` is `#86d1c0` (`:208`). Plan §2.2 already defines `--on-accent` for this pair: `#ffffff` light (`globals.css:165`), `#0b1d19` dark (`:211`), "on-accent on accent / accent-hover (primary button)". The danger variant next to it (`Button.tsx:33`) uses `text-[var(--on-status)]`, as §2.2 asks. The primary variant was never moved onto `--on-accent`.
+- `fe/components/ui/Input.tsx:36`: `bg-white` with `text-ink` and `placeholder:text-ink-tertiary` (`:37`). In dark the text tokens turn light but the field stays white. Plan §2.2 gives cards and elevated surfaces `--surface-1`, which is `#ffffff` light (`globals.css:153`) and `#1c1c19` dark (`:199`), through the existing utility `bg-surface-elevated` (`@theme`, `globals.css:34`).
+
+| Pair | Theme | Today | After the fix | Needs |
+|---|---|---|---|---|
+| primary text on `--accent` | dark | white on `#6fc6b3`: **2.02** | `--on-accent` `#0b1d19`: **8.64** | 4.5 |
+| primary text on `--accent-hover` | dark | white on `#86d1c0`: **1.77** | `#0b1d19`: **9.88** | 4.5 |
+| primary text on `--accent` / `--accent-hover` | light | white on `#1d6b5e` / `#185a4f`: 6.33 / 8.03 | unchanged (`--on-accent` is `#ffffff`): 6.33 / 8.03 | 4.5 |
+| Input value text (`--ink-1`) on the field | dark | `#eeece6` on `#ffffff`: **1.18** | on `--surface-1` `#1c1c19`: **14.46** | 4.5 |
+| Input placeholder (`--ink-3`) on the field | dark | `#a29e95` on `#ffffff`: **2.67** | on `#1c1c19`: **6.39** | 4.5 |
+| Input border (`--line-strong`) on the field | dark | `#77736b` on `#ffffff`: 4.72 | on `#1c1c19`: 3.62 | 3 (1.4.11) |
+| Input value / placeholder on the field | light | `#1c1b19` / `#68645d` on `#ffffff`: 17.21 / 5.88 | unchanged (`--surface-1` is `#ffffff`): 17.21 / 5.88 | 4.5 |
+
+Light mode does not fail and does not change. Every replacement token has the same light value as the literal it replaces, so the computed light colours are byte-identical.
+
+**Earlier gates did catch it, once, and it was deferred.** UI-PRIM-CONTROLS' Gate G found it on `/setup` in dark (#365). L0 deferred it to UI-DARK-FLIP (wave 9) without checking that the wave-5 page rows, whose Gate G requires dark G1, run first. That ordering is the cause of the two stops. Since #365, nothing on `main` has asserted page-wide axe in dark, so nothing else could catch it. `KNOWN_A11Y` (`accessibility.spec.ts:88-95`) is empty on every route, so no entry hides it.
+1. `e2e/accessibility.spec.ts` and `e2e/ui-tokens.spec.ts:62` run G1 light only. UI-TOKENS' acceptance says "G1 light; dark contrast is covered by HC-UITK-001 until each page row runs G1 dark".
+2. HC-UITK-001 (`fe/__tests__/ui-tokens.test.ts:120-121`) proves that the token pair `--on-accent` on `--accent` reaches 8.64 in dark. Nothing checks that `Button` uses that pair.
+3. `e2e/ui-shell.spec.ts:112-127` (`shellAxeBlocking`) runs dark axe on the shell regions only. It calls `.exclude('[data-route-container]')`.
+4. `e2e/ui-provenance.spec.ts:290-304` (`ownAxeBlocking`) asserts dark on the row's own nodes only: the chip, the popover and the page-image overlay. Its page-wide dark result, `recordPageWideAxe` (`:310-331`, called at `:563-564`), is record only.
+5. No `UI-PG-*` page row has merged. UI-PG-MEDS and UI-PG-CARE are the first rows since #365 whose gate asserts page-wide G1 dark. 44 `<Button>` elements in 27 non-test files use the primary variant (43 by default, 1 explicit), and there are 22 `<Input>` elements, so every later page row would hit the same failures.
+
+**Other `bg-accent text-white` and `bg-white` sites: not this row.** Page code with the same pairing, at origin/main lines: `fe/components/MemoryManager.tsx:139,152`, `fe/pages/ExplainAssistant.tsx:544,621,725`, `ExportPage.tsx:705`, `DocumentInbox.tsx:226`, `LabInterpreter.tsx:216`, `ProfileSetup.tsx:487`, `TrendsDashboard.tsx:330`. These sit in files that page rows own. Each page row's own G1 dark will flag them, and UI-DARK-FLIP's HC-UIDRK-001 source scan (no allowlist) flags every `text-white` and `bg-white` left over. The primitives `ui/Select.tsx:22` and `ui/Textarea.tsx:35` have the same `bg-white` field, but no page renders either one on origin/main (0 JSX uses). They are left to HC-UIDRK-001 and are not widened in here. `ui/Checkbox.tsx:18` and `ui/Switch.tsx:32` hold no text.
+
+**Owner gate: none.** The fix adds no colour value. It uses two tokens that already exist:
+- Frontend-revamp plan §2.2 defines "Text on accent `--on-accent` `#FFFFFF` / `#0B1D19`" (`2026-10-23-frontend-revamp-plan.md:90`) and computes "on-accent on accent / accent-hover (primary button) 6.33 / 8.03 light, 8.64 / 9.88 dark" (`:108`).
+- `--surface-1` is the §2.2 "Card / elevated" token (`:85`).
+
+Both were merged into `globals.css` under the UI-TOKENS queue row (#356, `335e5f9`). The owner's UI-DARK-MODE answer is **"Follow OS setting"**: "Ship dark mode on, following the operating system, once every page is migrated." This row is part of that migration. The owner made no separate choice of dark colours, and this row claims none. Light is unchanged, so TW4-VISUAL's computed-style asserts keep their values. The planner rejected a darker dark-mode accent fill with white text: it would add a token and change the dark brand colour, which is a new visual decision and would need an owner question first. This row does not draft or ask that question.
+
+**Files:**
+- `fe/components/ui/Button.tsx:26`: `text-white` → `text-[var(--on-accent)]` in the primary variant only. That is the same form as danger's `text-[var(--on-status)]`. Nothing else changes.
+- `fe/components/ui/Input.tsx:36`: `bg-white` → `bg-surface-elevated`. Nothing else changes.
+- `fe/__tests__/ui-tokens.test.ts` (extended, because it already has `TOKENS`, `resolveToken` and `contrastRatio`): the mapping helper and HC-DPC-001 and HC-DPC-002.
+- `e2e/ui-dark-primitives.spec.ts` (new): HC-DPC-003. It is a new file so the row shares no spec with a page row.
+
+`globals.css` is **not** edited: every token needed already exists.
+
+**RED tests (HC-DPC-001 … 003; `HC-DPC` is unused on origin/main).**
+
+**Class-to-colour mapping (HC-DPC-001 and 002).** One helper in `ui-tokens.test.ts` reuses `TOKENS`, `resolveToken` and `contrastRatio` (`:47-87`).
+- It splits the class string on whitespace. A class counts only if, after stripping its state prefix, it is a **colour** utility for `bg-`, `text-` or `border-`. The state prefix is none (rest), `hover:` or `placeholder:`.
+- **Mapping:**
+  - Named utilities go through the `--color-<name>` entry of the `@theme` block (`globals.css:27`) to the raw token, for example `bg-accent` → `--color-accent` → `--accent`.
+  - Bracketed `text-[var(--x)]`, `bg-[var(--x)]` and `border-[var(--x)]` map to `--x`.
+  - `white` maps to `#ffffff`, and `black` to `#000000`.
+- **Excluded as non-colour:** size and layout utilities (`text-sm`, `text-base`, `text-xs`, `text-left`, `border`, `border-2` and so on), recognised by a closed list of size and alignment suffixes.
+- **Ignored, with the reason written in a test comment:**
+  - `ring-*` and `ring-offset-*`: the focus ring is checked as a non-text pair by HC-UITK-001.
+  - Every `focus-visible:` class: focus only adds the ring and a border colour, and the text and fill are unchanged.
+  - Every `disabled:` class: WCAG 1.4.3 exempts inactive controls, and axe skips them.
+  - `active:` (scale only) and `shadow-*`.
+- **Fails closed:** any other colour-looking class (`bg-…`, `text-…` or `border-…` with an unknown name, a hex such as `[#…]`, an opacity suffix such as `/80`, or `dark:`) **throws** "unmapped colour class <cls>". A missing rest foreground or rest background also throws, so a variant that loses its fill cannot pass by having nothing to compare.
+- **Pairs:**
+  - rest text on rest bg;
+  - `hover:` text (or rest text) on `hover:` bg (or rest bg);
+  - `placeholder:` text on rest bg;
+  - rest border on rest bg, 3:1 (WCAG 1.4.11).
+
+Text pairs need ≥ 4.5 in both themes.
+
+- **HC-DPC-001** (vitest, `ui-tokens.test.ts`), `primary Button text reaches 4.5:1 on its fill, light and dark, at rest and on hover`. Input: `buttonVariants({ variant: 'primary' })`. The test also asserts that `buttonVariants({})` (the default) equals `buttonVariants({ variant: 'primary' })`. RED on main: dark 2.02 at rest and 1.77 on hover.
+- **HC-DPC-002** (vitest, `ui-tokens.test.ts`; the file is `.ts`, so it renders with `render(createElement(Input, { label: 'x' }))` from `react` and `@testing-library/react`, with vitest's `jsdom` environment from `vitest.config.ts:17`), `Input value and placeholder reach 4.5:1 on the field, and its border 3:1, light and dark`. Input: the rendered `<input>`'s `className`. Pairs: `text-ink` and `placeholder:text-ink-tertiary` on the field bg, and `border-[var(--line-strong)]` on the field bg. The `error` branch adds `border-status-critical` and must also map. RED on main: dark 1.18 (value) and 2.67 (placeholder).
+- **HC-DPC-003** (Playwright, `e2e/ui-dark-primitives.spec.ts`), `the unlock form's Input and default Button pass axe and computed contrast in dark`.
+  - Setup: `installMockApi(page)` and `page.goto('/setup')`. `/profiles` returns fixtures, so the unlock form renders, as HC-UIG-005 relies on (`e2e/ui-gates.spec.ts:259-261`).
+  - Targets: `page.getByLabel('Unlock password')`, filled with `x`, and `page.getByRole('button', { name: 'Unlock', exact: true })` (`ProfileSetup.tsx:355-375`). `exact` keeps the role query from also matching any other button whose name contains "Unlock".
+  - Settle: after each `setTheme(page, theme)`, wait until no animation or CSS transition is running, with `page.waitForFunction(() => document.getAnimations().length === 0)` and then one `requestAnimationFrame`. Only after that does it read `getComputedStyle` or run axe. Button transitions `background-color` and `color` over `--dur-hover` (150 ms, `Button.tsx:16`), and Input uses `transition-colors duration-200` (`Input.tsx:38`). Without the wait, a read taken mid-transition could see a blend of the light and dark colours and pass on main.
+  - Checks, in dark:
+    - (a) axe with `WCAG_TAGS`, `.include()` on the two targets, has 0 serious or critical violations.
+    - (b) In the page, the WCAG ratio of `getComputedStyle(el).color` to `backgroundColor` is ≥ 4.5 for each target. This catches the case where axe reports `incomplete` instead of a violation.
+  - Then light: the settle wait again, then (a) and (b) in light.
+  - RED on main in dark; light passes. If the unlock form does not render under the mock, stop and ask for an `L0 ruling:`. Do not switch routes silently.
+
+**Acceptance (outputs pasted):**
+1. HC-DPC-001, 002 and 003 RED on the base, then GREEN. Paste the measured ratios from both runs.
+2. `npx vitest run src/__tests__/ui-tokens.test.ts src/__tests__/ui-controls.test.tsx` green. HC-UITK-001 … 003 and HC-UIPC-* are unchanged and pass.
+3. **Every route's G1 dark still passes.** On a quiet box (lock, `hold_slots.sh`, `uptime` and `pgrep -fa "playwright|vitest|pytest"` pasted first), run `npx playwright test e2e/ui-dark-primitives.spec.ts e2e/ui-shell.spec.ts e2e/ui-provenance.spec.ts e2e/ui-tokens.spec.ts e2e/accessibility.spec.ts e2e/tailwind4-styles.spec.ts e2e/ui-gates.spec.ts` and paste the summary. It must be all green: the shell's dark G1 on every route, provenance Gate G1 light and dark on `/interpret`, `/inbox` and `/verify`, the light G1 routes, and TW4's computed-style asserts with unchanged values.
+4. ui-provenance's record-only page-wide dark G1 annotations (`G1 <path> dark …`) for the base and for the head, pasted. The head adds no line, and no remaining `color-contrast` line names a primary `<button>` or an `<input>` rendered by `ui/Input`.
+5. Full `npx vitest run` green on CI, and the CI E2E job green with none of the above listed as `flaky`. `npx tsc --noEmit` and `npm run lint` clean.
+6. `git diff --stat` touches only the four files listed above.
+
+**Depends on:** none. **Never beside:** an open PR that edits `fe/components/ui/Button.tsx`, `fe/components/ui/Input.tsx`, `fe/styles/globals.css` or `fe/__tests__/ui-tokens.test.ts`. On 2026-10-28 the planner checked #393 and #397–#403 with `gh pr diff N --name-only`, and none of them touches these files. The Playwright acceptance follows the quiet-box rule above, so it never runs beside another Playwright run. **Unblocks:** every page row that renders a primary Button or an Input. Each now lists this row in `depends_on`:
+- UI-PG-CARE (#400) and UI-PG-MEDS (#398), which rebase onto its merge and re-run their dark G1.
+- UI-PG-EXPORT (`ExportPage.tsx:267`), which was `ready` and is now blocked on this row.
+- UI-PG-RESULTS (`TrendsDashboard.tsx:611`, `LabInterpreter.tsx:176`), UI-PG-DOCUMENTS (`DocumentInbox.tsx:172`), UI-PG-REVIEW (`VerificationWorkbench.tsx:419`), UI-PG-ASK (`ExplainAssistant.tsx:743`), UI-PG-RECORDS (`SearchPage.tsx:110` Input and `:117` Button, `PinboardsPage.tsx:100`), UI-PG-SETTINGS (`SettingsPage.tsx:916`, `MemoryManager.tsx:119`) and UI-PG-AUTH (`ProfileSetup.tsx:355` Input and `:368` Button).
+
+Lines are the first primary Button or Input on `434179a9`. **Gate:** none. **Ask-first files:** none. **Est:** 1.5 h. **Runtime:** claude (Playwright). **MVP:** P1, because it blocks the acceptance of every page row, P1 page rows included.

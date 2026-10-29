@@ -145,6 +145,9 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "injected planner callable; pure LLM planning, no session",
     "modules/backup_scheduler.py::_is_profile_unlocked::checker":
         "injected unlock predicate; read-only",
+    "modules/document_classifier.py::classify_document::max(get)":
+        "key=scores.get, a dict method on a local dict; no session. The only def named get "
+        "in the graph is modules/agent/tools/registry.py::get, which reaches 1 def and no commit.",
     "core/llm/llama_cpp_provider.py::LlamaCppProvider._ensure_initialized::Llama":
         "llama_cpp model constructor; no session",
     "modules/platform_notifications.py::WindowsToastProvider.send::self._toast_module['notification']":
@@ -171,6 +174,22 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
         "All three come in only through the subprocess .run and re Match .start name collisions, "
         "so the real probe path writes no profile data.",
+    "api/model_settings.py::get_model_settings::asyncio.to_thread(detect_hardware_tier)":
+        "hardware probe in a thread; ModelSelector.detect_hardware_tier reaches 139 defs. "
+        "Name-based commit() reach hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run (hardware_detection.py:78, :115) "
+        "and re Match .start (redaction.py:322, :329) name collisions; with the subprocess, "
+        "torch and re library edges cut the reach is 10 defs and no commit. No real session "
+        "commit: the probe runs wmic, nvidia-smi and torch.cuda and writes no profile data.",
+    "api/model_settings.py::list_tiers::asyncio.to_thread(detect_hardware_tier)":
+        "hardware probe in a thread; ModelSelector.detect_hardware_tier reaches 139 defs. "
+        "Name-based commit() reach hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run (hardware_detection.py:78, :115) "
+        "and re Match .start (redaction.py:322, :329) name collisions; with the subprocess, "
+        "torch and re library edges cut the reach is 10 defs and no commit. No real session "
+        "commit: the probe runs wmic, nvidia-smi and torch.cuda and writes no profile data.",
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
@@ -307,6 +326,44 @@ def test_hc_aud_ord_030_break_it_def_passed_as_argument(tmp_path):
         "def work():\n    pass\n"
         '@router.post("/zz")\nasync def zz(loop=None):\n    await loop.run_in_executor(None, work)\n'))
     assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::loop.run_in_executor(work)"}
+
+
+def test_hc_aud_ord_032_break_it_bound_method_passed_as_argument(tmp_path):
+    _, _, _, dyn = _overlay(tmp_path, (
+        "import asyncio\n"
+        '@router.post("/zz")\nasync def zz():\n    s = S()\n    await asyncio.to_thread(s.work)\n'),
+        "class S:\n    def work(self):\n        pass\n")
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::asyncio.to_thread(work)"}
+
+
+def test_hc_aud_ord_033_property_value_passed_as_argument_is_not_dynamic(tmp_path):
+    """A property read is a value, not a callable, so it is not flagged. The
+    exclusion needs every def of the name to be a property: a name that is a
+    property on one class and a plain method on another is still flagged."""
+    handler = ('@router.post("/zz")\nasync def zz():\n'
+               "    cfg = Cfg()\n    return Path(cfg.path)\n")
+    values = {
+        "property": "class Cfg:\n    @property\n    def path(self):\n        return 'x'\n",
+        "cached_property": ("import functools\nclass Cfg:\n"
+                            "    @functools.cached_property\n    def path(self):\n        return 'x'\n"),
+        "setter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
+                   "    @path.setter\n    def path(self, v):\n        pass\n"),
+        "bare_cached_property": ("from functools import cached_property\nclass Cfg:\n"
+                                 "    @cached_property\n    def path(self):\n        return 'x'\n"),
+        "getter_deleter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
+                           "    @path.getter\n    def path(self):\n        return 'y'\n"
+                           "    @path.deleter\n    def path(self):\n        pass\n"),
+    }
+    for label, helper in values.items():
+        sub = tmp_path / label
+        sub.mkdir()
+        _, _, _, dyn = _overlay(sub, handler, helper)
+        assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == set(), label
+    mixed = tmp_path / "mixed"
+    mixed.mkdir()
+    _, _, _, dyn = _overlay(mixed, handler, values["property"] + (
+        "class Plain:\n    def path(self):\n        return 'y'\n"))
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::Path(path)"}
 
 
 def test_hc_aud_ord_030_break_it_vault_write_without_commit(tmp_path):
