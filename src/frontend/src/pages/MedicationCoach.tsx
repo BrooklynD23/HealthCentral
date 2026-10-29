@@ -200,6 +200,12 @@ export function MedicationCoach() {
       return next;
     });
   };
+  // The form renders in the Medications tab, and Radix unmounts an inactive tab's content, so opening the form
+  // from the Reminders tab must switch tabs too. Switching only when needed keeps history clean on the Medications tab.
+  const openAddForm = () => {
+    if (activeTab !== 'medications') handleTabChange('medications');
+    setShowForm(true);
+  };
   const [loggingMed, setLoggingMed] = useState<Medication | null>(null);
   const [badgeQueue, setBadgeQueue] = useState<BadgeInfo[]>([]);
   const dismissBadge = useCallback(() => setBadgeQueue((q) => q.slice(1)), []);
@@ -294,7 +300,7 @@ export function MedicationCoach() {
             Track medications, log doses, and monitor adherence
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="gap-2">
+        <Button onClick={openAddForm} className="gap-2">
           <Plus className="w-4 h-4" />
           Add Medication
         </Button>
