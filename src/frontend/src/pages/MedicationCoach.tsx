@@ -377,7 +377,7 @@ export function MedicationCoach() {
         </TabsContent>
 
         <TabsContent value="reminders">
-          <RemindersPanel />
+          <RemindersPanel onAddMedication={openAddForm} />
         </TabsContent>
       </Tabs>
 

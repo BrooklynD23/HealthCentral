@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import {
   Bell,
   Loader2,
@@ -66,8 +66,12 @@ function formatInteractionRate(rate: number): string {
  * (UI-PG-MEDS). This was the /notifications page; NotificationSettings.tsx now redirects here.
  * The tab's heading is the Medications page's; the copy and the controls are the old page's.
  */
-export function RemindersPanel() {
-  const navigate = useNavigate();
+interface RemindersPanelProps {
+  /** Opens the medication form on the Medications tab (the empty state's action). */
+  onAddMedication?: () => void;
+}
+
+export function RemindersPanel({ onAddMedication }: RemindersPanelProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const medicationQueryParam = searchParams.get('medicationId') ?? '';
 
@@ -210,9 +214,11 @@ export function RemindersPanel() {
         title="No medications to configure"
         description="Add a medication first, then return here to tune reminder behavior."
         action={
-          <Button onClick={() => navigate('/medications')} className="gap-2">
-            Go to Medication Coach
-          </Button>
+          onAddMedication ? (
+            <Button onClick={onAddMedication} className="gap-2">
+              Add a medication
+            </Button>
+          ) : undefined
         }
       />
     );
