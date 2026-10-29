@@ -4,11 +4,11 @@
  *
  * Written red first. Each test says in its comment what it would not notice.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import type { AdherenceStats } from '@/services/types';
 import { MedicationCard } from '@/components/medication-coach/MedicationCard';
 import { DoseLoggingModal } from '@/components/medication-coach/DoseLoggingModal';
@@ -61,13 +61,14 @@ const fixtures = vi.hoisted(() => {
     weekend_enabled: true,
     celebration_enabled: true,
   };
-  return { medication, notificationSettings };
+  // Set by a test to replace the one-medication list; reset to null after it.
+  return { medication, notificationSettings, medicationList: null as null | unknown[] };
 });
 
 vi.mock('@/components/ui/toast', () => ({ notify: vi.fn(), AppToaster: () => null }));
 
 vi.mock('@/services/medications', () => ({
-  useMedications: () => ({ data: [fixtures.medication], isLoading: false, isError: false }),
+  useMedications: () => ({ data: fixtures.medicationList ?? [fixtures.medication], isLoading: false, isError: false }),
   useCreateMedication: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateMedication: () => ({ mutate: vi.fn(), isPending: false }),
   useLogDose: () => ({ mutate: vi.fn(), isPending: false }),
@@ -177,6 +178,17 @@ describe('HC-UIMED-001: MedicationCard and MedicationOverlay are router links', 
     await user.click(screen.getByRole('link', { name: 'View Metformin details' }));
     expect(screen.getByText('DETAIL PAGE')).toBeInTheDocument();
   });
+
+  // Blind spot: the class name only. A hover lift written another way (an inline style, or the same shadow
+  // under another utility) would pass this check.
+  it('the card has no hover lift: it is not one interactive card, the Log button sits beside the link', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <MedicationCard medication={med} onQuickLog={vi.fn()} />
+      </MemoryRouter>
+    );
+    expect(container.querySelector('.hover\\:shadow-elevated')).toBeNull();
+  });
 });
 
 describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus trap and focus return', () => {
@@ -239,6 +251,72 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
     expect(screen.queryByRole('dialog')).toBeNull();
     // Radix hands focus back on a deferred timer after unmount, so wait for the positive state.
     await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  // Guard, passes before and after the fix: a successful submit unmounts the dialog without calling onClose,
+  // so focus return cannot depend on the close path alone.
+  it('returns focus to the opener when a submit closes the dialog', async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            open-dose
+          </button>
+          {open && (
+            <DoseLoggingModal
+              medicationName="Metformin"
+              onSubmit={() => setOpen(false)}
+              onClose={vi.fn()}
+            />
+          )}
+        </>
+      );
+    }
+    render(<Harness />);
+    const opener = screen.getByRole('button', { name: 'open-dose' });
+    await user.click(opener);
+    await user.click(screen.getByRole('button', { name: 'Log as Taken' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  // Blind spot: a late focus call that runs after the 20 ms wait would pass. StrictMode runs the mount
+  // effects twice in dev, which is what queues such a call.
+  it('does not move focus to the opener while the dialog stays open, under StrictMode', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            open-dose
+          </button>
+          {open && (
+            <DoseLoggingModal
+              medicationName="Metformin"
+              onSubmit={vi.fn()}
+              onClose={() => setOpen(false)}
+            />
+          )}
+        </>
+      );
+    }
+    render(
+      <StrictMode>
+        <Harness />
+      </StrictMode>
+    );
+    const opener = screen.getByRole('button', { name: 'open-dose' });
+    opener.focus();
+    const focusOpener = vi.spyOn(opener, 'focus');
+    fireEvent.click(opener);
+    expect(screen.getByRole('dialog', { name: 'Log Dose' })).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(focusOpener).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Log Dose' })).toBeInTheDocument();
   });
 
   // Would not notice: a dialog that animates opacity or transform on mount. Under `still` the content
@@ -382,6 +460,40 @@ describe('HC-UIMED-004: reminders live on the Medications page', () => {
   });
 });
 
+describe('UI-PG-MEDS: Add Medication from the Reminders tab', () => {
+  const renderCoach = (path: string) =>
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <MedicationCoach />
+      </MemoryRouter>
+    );
+
+  afterEach(() => {
+    fixtures.medicationList = null;
+  });
+
+  // Blind spot: the form is found by its label, so a form that opened in a tab the user cannot see is caught
+  // only by the aria-selected check on the Medications tab.
+  it('on ?tab=reminders, Add Medication switches to the Medications tab and shows the form', async () => {
+    const user = userEvent.setup();
+    renderCoach('/medications?tab=reminders');
+    expect(screen.getByRole('tab', { name: 'Reminders' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('button', { name: 'Add Medication' }));
+    expect(screen.getByRole('tab', { name: 'Medications' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Medication Name *')).toBeInTheDocument();
+  });
+
+  // The empty Reminders tab points at the form, not at the page the user is already on.
+  it('the empty Reminders tab offers Add a medication, which opens the form', async () => {
+    const user = userEvent.setup();
+    fixtures.medicationList = [];
+    renderCoach('/medications?tab=reminders');
+    await user.click(screen.getByRole('button', { name: 'Add a medication' }));
+    expect(screen.getByRole('tab', { name: 'Medications' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Medication Name *')).toBeInTheDocument();
+  });
+});
+
 describe('UI-PG-MEDS page rules (plan section 7.7)', () => {
   const stats = {
     medication_id: 'med-1',
@@ -454,5 +566,18 @@ describe('UI-PG-MEDS page rules (plan section 7.7)', () => {
       .filter(([, source]) => /window\.(confirm|prompt)\s*\(/.test(source))
       .map(([path]) => path);
     expect(hits).toEqual([]);
+  });
+
+  // Blind spot: the label only. A button labelled Reminders that opened another page would pass; no e2e test
+  // clicks this button.
+  it('the medication detail button that opens the Reminders tab is labelled Reminders', () => {
+    const files = import.meta.glob('../pages/MedicationDetail.tsx', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    }) as Record<string, string>;
+    const source = Object.values(files)[0] ?? '';
+    expect(source).toContain('tab=reminders');
+    expect(source).not.toContain('Notification Settings');
   });
 });
