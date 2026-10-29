@@ -928,9 +928,13 @@ Planned 2026-10-29 on `41fa382` (Opus planner) from the UI-PG-MEDS stop on #398 
 
 **What the library does with the variable** (react-remove-scroll-bar 2.3.8, through react-remove-scroll 2.7.2 and `@radix-ui/react-dialog` 1.3.1; read in `node_modules/react-remove-scroll-bar/dist/es2015/component.js` and `constants.js`):
 - It only **writes** the variable, in the last `body[data-scroll-locked]` block of its injected style. It never reads it.
-- The scrollbar-gap compensation uses literal pixel values, not the variable:
-  - on `body`: `margin-right: <gap>px !important` (`gapMode` 'margin', the default), plus `overflow: hidden !important` and `position: relative`;
-  - `.right-scroll-bar-position { right: <gap>px }` and `.width-before-scroll-bar { margin-right: <gap>px }`.
+- The rest of its injected style uses literal pixel values, not the variable. With `gapMode` 'margin' (the default) and `!important` on, `body[data-scroll-locked]` gets:
+  - `overflow: hidden !important` and `overscroll-behavior: contain`;
+  - `position: relative !important`, unless `noRelative` is set;
+  - `padding-left: <left>px`, `padding-top: <top>px` and `padding-right: <right>px`, which are body's own margins moved into padding;
+  - `margin-left: 0`, `margin-top: 0` and `margin-right: <gap>px !important`.
+- The classes get literal values too: `.with-scroll-bars-hidden { overflow: hidden; padding-right: <gap>px }`, `.right-scroll-bar-position { right: <gap>px }` and `.width-before-scroll-bar { margin-right: <gap>px }`.
+- The gap is `max(0, innerWidth - documentElement.clientWidth + marginRight - marginLeft)`, read from `body`'s computed margins (`utils.js` `getGapWidth`). Tailwind's preflight sets body margins to 0, so `<left>`, `<top>` and `<right>` are 0 here and the gap is the scrollbar width.
 - The constant's own comment calls the variable an opt-in hook for consumers ("might be undefined! use will fallback!").
 - On `41fa382`, grep finds no use of `--removed-body-scroll-bar-size`, `width-before-scroll-bar`, `right-scroll-bar-position`, `with-scroll-bars-hidden` or `data-scroll-locked` in `src/frontend/src` or `src/frontend/e2e`. In `node_modules`, the only other file that names the variable is Vite's prebundled copy of the same library (`.vite/deps`).
 
@@ -970,8 +974,11 @@ Planned 2026-10-29 on `41fa382` (Opus planner) from the UI-PG-MEDS stop on #398 
 - `fe/styles/globals.css`: one top-level `@property --removed-body-scroll-bar-size { syntax: '<length>'; inherits: false; initial-value: 0px; }` after `@import 'tailwindcss'`, with a two-line comment naming react-remove-scroll-bar and "read it from body".
 - `fe/components/ui/Popover.tsx`: as above.
 - `fe/components/ui/Dialog.tsx`, **only if Task 2's trace charges it**: the `still` render path of `Modal`, for example no `AnimatePresence` or `m.div` wrapper when `still`. `DialogPrimitive.Root` stays modal. `role`, `aria-modal`, `onOpenAutoFocus`, `onPointerDownOutside`, `onInteractOutside`, Close and the title guard are unchanged.
-- `e2e/ui-shell.spec.ts`: the HC-UIOV-007 browser case. Remove its `test.fixme` only.
-- `e2e/ui-provenance.spec.ts`: new HC-UIOV-009, HC-UIOV-010 and HC-UIOV-011, appended after HC-UIPV-006 in one `test.describe` with `retries: 0`. They reuse that file's `mockApi`, `seedSession` and `waitForSettled`, and change no existing case.
+- `e2e/ui-shell.spec.ts`:
+  - the HC-UIOV-007 browser case: remove its `test.fixme` only;
+  - new HC-UIOV-010 and HC-UIOV-011, appended in one new `test.describe` after the HC-UISH-007 and HC-UISH-008 block. They use that file's `openRoute`, `PHONE` and Tab bar locators, and change no existing case.
+
+The Source Trace sheet cannot host these checks. `CitationTooltip` renders "Open source" only when it gets a `source` prop, and neither call site passes one (`InterpretedResultCard.tsx:122`, `PanelInterpretationDashboard.tsx:110`). The `/interpret` e2e mock also has only a `knowledge_base` citation. So on main the sheet cannot be reached in the browser (queue bullet SOURCE-TRACE-UNWIRED). On main, the only `Modal` reachable in the browser is the More sheet. It is not `still`, so it is used for the lock guard and not for the stillness timing.
 - `fe/__tests__/ui-overlays.test.tsx`: selectors only, if needed.
 
 Unchanged: `e2e/support/gates.ts`, every bound, the 20 ms interval and the 800 ms window.
@@ -979,38 +986,45 @@ Unchanged: `e2e/support/gates.ts`, every bound, the 20 ms interval and the 800 m
 **Tasks.**
 1. **Task 1 (the `@property` rule).** RED: HC-UIOV-010. GREEN: add the rule, then rerun HC-UIOV-010 on dev and on preview.
 2. **Task 2 (trace the rest; systematic-debugging).** On a quiet box:
-   - Profile the HC-UIOV-009 open and the HC-UIOV-007 open on dev and on preview.
+   - Profile the HC-UIOV-007 Popover open on main-plus-branch, and the HC-UIMED-002 Log click on #398's head plus this diff in scratch, each on dev and on preview.
    - Before calling any miss load or flake, time the same click with a bare 20 ms timer, as recheck 14 of `docs/agentic/recurring-failures.md` requires. The #370 traces put about 13 ms of Playwright hit-testing (`elementsFromPoint`) before the click.
    - Cut only what the trace charges to `ui/Popover.tsx` or `ui/Dialog.tsx`'s `still` path.
    - If the remaining gap is the harness's own work (the trigger's actionability checks), that is not this row's fix. Stop and tell L0, which routes it to STILLNESS-NAV-LATE. `gates.ts` stays unchanged here.
-3. **Stop rule.** If, after Task 2, HC-UIOV-009 or the HC-UIMED-002 check (see Acceptance) still misses 40 ms on a quiet box, and no cut remains in this row's files, stop and tell L0 with the trace. Do not mark anything `fixme`, `skip` or `fail`.
+3. **Stop rule.** If, after Task 2, HC-UIOV-007 or the HC-UIMED-002 check (see Acceptance) still misses 40 ms on a quiet box, and no cut remains in this row's files, stop and tell L0 with the trace. Do not mark anything `fixme`, `skip` or `fail`.
+4. **Task 1 may merge alone.** If the stop rule fires, Task 1 (the `@property` rule, a measured gain) may merge alone as its own PR, with these conditions:
+   - HC-UIOV-010 and HC-UIOV-011 are green;
+   - the vitest proofs and the HC-UISH-008 proof in Acceptance are green;
+   - no bound or `gates.ts` change.
+
+   HC-UIOV-007's `fixme` removal and any Popover or `Modal` change wait for L0.
 
 | Id | Check | RED today? |
 |---|---|---|
-| HC-UIOV-009 (new) | `stillnessProbe` (`kind: 'interaction'`, 40 ms) from the "Open source" click on `/interpret`. The click opens the `still` Source Trace sheet (`fe/components/results/SourceTrace.tsx:163`), a `Modal` with Radix modal mode and the body scroll lock: the only `still` Modal on main. `expected: ['[role="dialog"][aria-modal="true"] [data-t0]']`. The citation popover is opened and settled first (`waitForSettled`), and the button is scrolled into view before the probe, as HC-UIPV-006 does | expected yes: the same `Modal` path as HC-UIMED-002. Task 0 records 10 runs on main's dev server on a quiet box. If it is green 10 of 10, say so; the timing RED is then the HC-UIMED-002 check (see Acceptance) |
-| HC-UIOV-010 (new) | With the sheet open, the stylesheets hold a `CSSPropertyRule` named `--removed-body-scroll-bar-size` with `inherits` false. After `document.body.style.setProperty('--removed-body-scroll-bar-size', '17px')`, the dialog content's computed value is `0px` and `body`'s is `17px`. Runs on dev and on preview | yes (the content inherits `17px`, and no rule exists) |
-| HC-UIOV-011 (new; guard) | At 390 × 844 on `/interpret` (the page scrolls), with the sheet open: `body` has `data-scroll-locked`, its computed `overflow` is `hidden`, and its `margin-right` equals the gap measured before the open (`innerWidth - documentElement.clientWidth`; 0 when no classic scrollbar, value recorded); `mouse.wheel` over the scrim leaves `scrollY` unchanged. After Escape, the attribute is gone and the wheel scrolls the page. Mutant: `modal={false}` on `DialogPrimitive.Root` fails the case; paste the output, then restore | no (a guard; the mutant shows it can fail) |
-| HC-UIOV-007 (browser half) | as above, unchanged | yes |
+| HC-UIOV-010 (new) | No overlay. On `/inbox` at 1440 × 900, after the route settles: (a) the stylesheets hold a `CSSPropertyRule` named `--removed-body-scroll-bar-size` with `inherits` false; (b) after `document.body.style.setProperty('--removed-body-scroll-bar-size', '17px')`, the computed value is `17px` on `body` and `0px` on `[data-route-container]` (a descendant). Runs on dev and on preview | yes (no rule; the descendant inherits `17px`) |
+| HC-UIOV-011 (new; guard) | The More sheet at 390 × 844 (HC-UISH-008's path: `/inbox`, Tab bar, More; `MoreSheet.tsx:15`, a `Sheet` and so a `Modal` in Radix modal mode). The page is made scrollable first, and `scrollY` is recorded. With the sheet open: `body` has `data-scroll-locked`; `body`'s computed `overflow` is `hidden`; `body`'s `margin-right` equals the gap measured before the open (`innerWidth - documentElement.clientWidth`); and `mouse.wheel` over the scrim leaves `scrollY` unchanged. After Escape, the attribute is gone and the wheel scrolls the page. **In headless runs the gap is 0**, because Playwright launches Chromium with `--hide-scrollbars` (`playwright-core/lib/server/chromium/chromium.js:284`). So the margin assertion checks 0 = 0, and the case records the value without proving compensation. **The real guard is the mutant:** with `modal={false}` on `DialogPrimitive.Root`, the case fails (no attribute, and the wheel scrolls). Paste that output, then restore | no (a guard; the mutant shows it can fail) |
+| HC-UIOV-007 (browser half) | As in the section above, unchanged. This is the Popover open's timing RED | yes |
+| HC-UIMED-002 stillness case (scratch, not committed) | The dialog open's timing RED and GREEN, run on #398's head (see Acceptance). It replaces a committed `Modal` timing probe, because on main no `still` `Modal` can be reached in the browser | yes (#398: CI 45, 53 and 59 ms; locally 41-55 ms) |
 
 **Acceptance (replaces the Acceptance line above):**
-- **HC-UIOV-009 and HC-UIOV-007:** 10 of 10 runs at 40 ms on a quiet box on main-plus-branch's dev server, and 10 of 10 on a `vite preview` build of the same head. CI E2E passes them on the final head with no flaky entry. These cases run with `retries: 0`, so a retry cannot hide a miss.
+- **HC-UIOV-007:** 10 of 10 runs at 40 ms on a quiet box on main-plus-branch's dev server, and 10 of 10 on a `vite preview` build of the same head. CI E2E passes it on the final head with no flaky entry. Its describe runs with `retries: 0`, so a retry cannot hide a miss. HC-UIOV-010 and HC-UIOV-011 are green in CI.
 - **The HC-UIMED-002 check** (an HC-UIMED-002-like dialog open):
   - In a scratch worktree (nothing committed), apply this row's diff to #398's head.
   - Run HC-UIMED-002's stillness case 10 times on dev and 10 times on preview, on a quiet box. Paste the per-run maximum gap.
   - Every run is at or below 40 ms.
   - This is evidence for UI-PG-MEDS, which still owns HC-UIMED-002's CI pass after it rebases.
-- **Unchanged:** the focus trap, `aria-modal`, Escape and focus return, proved green on the branch by:
-  - HC-UIOV-001 (Escape closes each overlay; focus returns to the trigger);
-  - HC-UIOV-002 (focus stays inside a Dialog or Sheet over 25 Tab presses, with a focusable element outside);
-  - HC-UIOV-003 (`aria-modal`, and the title guard);
-  - HC-UIOV-008 (AlertDialog opens on Cancel);
-  - HC-UIPV-001 (e2e: Escape closes the citation popover and returns focus);
-  - HC-UISH-007 (e2e: the More sheet);
-  - HC-UIOV-011 (above).
+- **`Modal` semantics unchanged** (the focus trap, `aria-modal`, Escape and focus return), proved green on the branch by:
+  - vitest HC-UIOV-001 (Escape closes each overlay; focus returns to the trigger);
+  - vitest HC-UIOV-002 (focus stays inside a Dialog or Sheet over 25 Tab presses, with a focusable element outside);
+  - vitest HC-UIOV-003 (`aria-modal`, and the title guard);
+  - vitest HC-UIOV-008 (AlertDialog opens on Cancel);
+  - e2e HC-UISH-008 (the More sheet, a real `Modal`: Escape closes it, it is hidden, and focus returns to the More tab);
+  - e2e HC-UIOV-011 (above: the lock is still on).
+
+  HC-UIPV-001 is a Popover check (Escape and focus return on the citation popover). It stays green as part of the overlay suite, but it is not a `Modal` proof.
 - **No bound or constant changed:** `git diff origin/main...HEAD -- src/frontend/e2e/support/gates.ts` is empty, and no `STILLNESS_*` constant, interval or window changes anywhere.
 - **Every existing overlay test green:**
   - `fe/__tests__/ui-overlays.test.tsx` (HC-UIOV-001…008);
-  - `e2e/ui-provenance.spec.ts` in full;
+  - `e2e/ui-provenance.spec.ts` in full (HC-UIPV-001 and HC-UIPV-006 among them);
   - `e2e/ui-shell.spec.ts` in full (including HC-UISH-009's popover M0 case);
   - full `npx vitest run`, `npx tsc --noEmit`, `npm run build`;
   - CI E2E on the final head.
@@ -1022,24 +1036,26 @@ Unchanged: `e2e/support/gates.ts`, every bound, the 20 ms interval and the 800 m
 - Never run pytest inside the wrapped command.
 - Every run counts: no re-run to get a pass.
 - HC-UIOV-010 and HC-UIOV-011 are not timing checks and may run on any box.
+- The HC-UIMED-002 scratch runs follow the same rules.
 
 **Depends on:** UI-SHELL merged (done, #370).
 
 **Never beside:**
-- G1-VERIFY-TRACE-RACE (`e2e/ui-provenance.spec.ts`);
 - any open PR that edits `fe/styles/globals.css`, `fe/components/ui/Popover.tsx` or `fe/components/ui/Dialog.tsx`;
-- any open PR that edits `e2e/ui-shell.spec.ts` at the HC-UIOV-007 case.
+- any open PR that edits `e2e/ui-shell.spec.ts` (this row edits HC-UIOV-007 and appends a describe after HC-UISH-008).
 
-Checked 2026-10-29 with `gh pr diff N --name-only` on every open PR (#239, #264, #316, #393, #398, #399, #400, #401): only #398 touches one of the row's files, `e2e/ui-shell.spec.ts`. Its hunks are the HC-UISH-003 route filter (`:296`), the HC-UISH-007 preview skip (`:791`) and the `PAGE_OVERFLOW` entry (`:972`), none at HC-UIOV-007 (`:855`). #398 is a `[blocked:claude]` draft that now waits for this row and rebases onto it, so the two never build at once. SAFETY-MODE-TOGGLE's existing clause still applies.
+Checked 2026-10-29 with `gh pr diff N --name-only` on every open PR (#239, #264, #316, #393, #398, #399, #400, #401). Only #398 touches one of the row's files, `e2e/ui-shell.spec.ts`. Its hunks start at `:293` (the HC-UISH-003 route filter), `:787` (the HC-UISH-007 preview skip, inside the More-sheet describe this row appends after) and `:966` (the `PAGE_OVERFLOW` entry). #398 is a `[blocked:claude]` draft that now waits for this row and rebases onto it, so the two never build at once. UI-PALETTE (#399, planned `:165` and `:635-636`) and SAFETY-MODE-TOGGLE (#401) are blocked drafts that also hold `ui-shell.spec.ts`. SAFETY-MODE-TOGGLE's existing clause applies, and this row is not built beside either while it is `[claim:` or non-draft.
 
 **Blocks:** UI-PG-MEDS (#398), added to its depends_on in this delta. UI-PG-MEDS's G3 `/medications` dark at exactly 200 ms on dev (bound `< 200`) may share the cause. G3 runs at 4x CPU throttle, where the lock's restyle is about 16 ms per forced restyle, paid more than once per open on dev. UI-PG-MEDS re-measures G3 after it rebases; this row does not claim it.
 
 **Owner question:** none expected. If the stop rule fires, L0 decides the next step. A neutral draft, for L0 only, not asked:
 
-> **STILLNESS-OVERLAY-OPEN** (draft, not asked). After the scroll-lock and still-path fixes, opening a modal dialog or sheet still takes about N ms before the next frame, against the 40 ms interaction bound (traces attached). Which do you want?
-> - (a) Keep 40 ms for overlay opens and keep the dose sheet's stillness check failing until a deeper fix (patching or replacing Radix parts) is planned.
-> - (b) Allow overlay opens the page-change bound (70 ms, as in STILLNESS-NAV-70) and keep diagnosing.
+> **STILLNESS-OVERLAY-OPEN** (draft, not asked). After the scroll-lock and `still`-path fixes, opening a modal dialog or sheet still delays the next frame by about N ms (traces attached), against the 40 ms bound for interactions. Which do you want?
+> - (a) Keep 40 ms for overlay opens. The dose sheet's stillness check stays failing until a deeper fix (patching or replacing Radix parts) is planned and built. Until then, UI-PG-MEDS, and the rows that wait for it (UI-PALETTE, SAFETY-MODE-TOGGLE, UI-PG-SETTINGS and UI-PG-AUTH), keep waiting.
+> - (b) Allow overlay opens 70 ms, the bound page changes already use. Those rows can proceed. Cost: a jump in T0 content of under 70 ms during an overlay open would no longer be caught.
 > - (c) Something else.
+>
+> No recommendation.
 
 **Est:** 5 h (was 3). **MVP:** P1.
 
