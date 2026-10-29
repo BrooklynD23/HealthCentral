@@ -121,7 +121,7 @@ function LocationProbe() {
 }
 
 describe('HC-UIMED-001: MedicationCard and MedicationOverlay are router links', () => {
-  // Would not notice: a Card with onClick and no link role (the state today).
+  // Blind spot: the name is a regex, so a link with the right href and another name that contains Metformin passes.
   it('the card is a link to its detail page', () => {
     render(
       <MemoryRouter>
@@ -131,7 +131,7 @@ describe('HC-UIMED-001: MedicationCard and MedicationOverlay are router links', 
     expect(screen.getByRole('link', { name: /Metformin/ })).toHaveAttribute('href', '/medications/med-1');
   });
 
-  // Would not notice: a link that is not in the tab order (Tab must reach it before the Log button).
+  // Blind spot: jsdom applies no CSS, so a link hidden with display: none, or covered by the Log button, still takes focus here.
   it('Enter on the focused card opens the detail page', async () => {
     const user = userEvent.setup();
     render(
@@ -148,8 +148,7 @@ describe('HC-UIMED-001: MedicationCard and MedicationOverlay are router links', 
     expect(screen.getByText('DETAIL PAGE')).toBeInTheDocument();
   });
 
-  // Would not notice: a plain anchor that reloads the page. jsdom does not navigate, so the router
-  // location stays put and the detail route does not render.
+  // Blind spot: the chip is tested by click only. Enter on the focused chip is not pressed here.
   it('a MedicationOverlay chip navigates inside the router', async () => {
     const user = userEvent.setup();
     render(
@@ -195,13 +194,13 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
   const renderModal = (onClose = vi.fn()) =>
     render(<DoseLoggingModal medicationName="Metformin" onSubmit={vi.fn()} onClose={onClose} />);
 
-  // Would not notice: a dialog whose accessible name is something other than the title.
+  // Blind spot: aria-modal is not checked, so a dialog with the right name and no modal flag passes.
   it('is a dialog named Log Dose', () => {
     renderModal();
     expect(screen.getByRole('dialog', { name: 'Log Dose' })).toBeInTheDocument();
   });
 
-  // Would not notice: a dialog that ignores Escape and leaves the close to the button only.
+  // Blind spot: onClose is a mock, so this sees the call, not that the parent unmounts the dialog. The focus tests cover the unmount.
   it('Escape closes it', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -210,8 +209,7 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // Would not notice: a focus trap that holds focus only on the first Tab. Twelve Tabs cover the
-  // whole control set (toggle, chips, notes, submit, close) more than once.
+  // Blind spot: only forward Tab is pressed. A trap that fails on Shift+Tab passes.
   it('keeps focus inside the dialog while tabbing', async () => {
     const user = userEvent.setup();
     renderModal();
@@ -222,7 +220,7 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
     }
   });
 
-  // Would not notice: focus left on document.body after close. The opener must be focused again.
+  // Blind spot: Escape from a plain-button opener only. The Close button is not pressed here, and submit is covered by the guard test above.
   it('returns focus to the opener when it closes', async () => {
     const user = userEvent.setup();
     function Harness() {
@@ -319,9 +317,7 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
     expect(screen.getByRole('dialog', { name: 'Log Dose' })).toBeInTheDocument();
   });
 
-  // Would not notice: a dialog that animates opacity or transform on mount. Under `still` the content
-  // carries no motion props, so it writes no inline opacity or transform. Not a check of the rendered
-  // paint: the stillness probe (ui-meds.spec.ts) checks that.
+  // Blind spot: jsdom runs no animation, and this reads inline style right after render. A transform set from a class, or a transition that starts a frame later, is not seen. The stillness probe checks the paint.
   it('the dialog has no inline opacity or transform at first paint (M0)', () => {
     renderModal();
     const dialog = screen.getByRole('dialog', { name: 'Log Dose' });
@@ -329,15 +325,14 @@ describe('HC-UIMED-002: the dose dialog is a modal dialog with Escape, focus tra
     expect(dialog.style.transform).toBe('');
   });
 
-  // Would not notice: the computed radius. The class is checked here; the TW4-MEDS e2e test reads the
-  // computed radius, so a class that the CSS does not apply would fail there.
+  // Blind spot: the class string, not the computed radius. The TW4-MEDS e2e test reads the radius, so this test cannot catch a class the CSS does not apply.
   it('the close control is an IconButton named Close with a 10px radius class', () => {
     renderModal();
     const close = screen.getByRole('button', { name: 'Close' });
     expect(close.className).toContain('rounded-[10px]');
   });
 
-  // Would not notice: a dose text with no T0 marker, so the stillness probe would skip it.
+  // Blind spot: the marker is checked on the closest ancestor, not that the text stays still. The stillness probe checks motion.
   it('the dose text carries data-t0', () => {
     renderModal();
     expect(screen.getByText(/Logging for/).closest('[data-t0]')).not.toBeNull();
@@ -351,8 +346,7 @@ describe('HC-UIMED-003: no animate-ping under medication-coach/, and BadgeToast 
     eager: true,
   }) as Record<string, string>;
 
-  // Would not notice: a ping inside a component that is not imported by the toast. The scan covers
-  // every file in the folder, not only the ones a test renders.
+  // Blind spot: the scan reads only the top folder of medication-coach/, not subfolders, and only for the literal string animate-ping. A ping written as an arbitrary value, or outside that folder, is not seen.
   it('no animate-ping anywhere under medication-coach/', () => {
     const hits = Object.entries(coachSources)
       .filter(([, source]) => source.includes('animate-ping'))
@@ -360,7 +354,7 @@ describe('HC-UIMED-003: no animate-ping under medication-coach/, and BadgeToast 
     expect(hits).toEqual([]);
   });
 
-  // Would not notice: a toast that still renders its own motion div and never reaches the Toaster.
+  // Blind spot: notify() is mocked, so this checks the call and its message, not what the Toaster draws.
   it('BadgeToast announces the badge through notify()', () => {
     vi.mocked(notify).mockClear();
     render(
@@ -410,7 +404,7 @@ describe('HC-UIMED-003: no animate-ping under medication-coach/, and BadgeToast 
 });
 
 describe('HC-UIMED-004: reminders live on the Medications page', () => {
-  // Would not notice: a redirect that keeps the path but drops the medication the user came from.
+  // Blind spot: the redirect target is compared as text. The landing route is a stub, so a broken Reminders tab passes.
   it('/notifications redirects to /medications?tab=reminders and keeps the medication', () => {
     render(
       <MemoryRouter initialEntries={['/notifications?medicationId=med-1']}>
@@ -426,8 +420,7 @@ describe('HC-UIMED-004: reminders live on the Medications page', () => {
     );
   });
 
-  // Would not notice: a Reminders tab that renders but is not the selected one, or that loses the
-  // settings the old page showed.
+  // Blind spot: two fields are checked, not the rest of the settings form. A field that loses its value on save is not seen.
   it('the Reminders tab is selected and shows the per-medication settings', () => {
     render(
       <MemoryRouter initialEntries={['/medications?tab=reminders&medicationId=med-1']}>
@@ -439,7 +432,7 @@ describe('HC-UIMED-004: reminders live on the Medications page', () => {
     expect(screen.getByLabelText('Quiet hours start')).toHaveValue('22:00');
   });
 
-  // Would not notice: a tab strip that ignores ?tab= and always opens Medications.
+  // Blind spot: only the case with no ?tab= parameter. An unknown tab value is not tested.
   it('the Medications tab is the default', () => {
     render(
       <MemoryRouter initialEntries={['/medications']}>
@@ -449,7 +442,7 @@ describe('HC-UIMED-004: reminders live on the Medications page', () => {
     expect(screen.getByRole('tab', { name: 'Medications' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  // Would not notice: reminder times rendered without a T0 marker, so the stillness probe skips them.
+  // Blind spot: the quiet-hours input is checked. The reminder time cells in the history table are not rendered by this test.
   it('the reminder times carry data-t0', () => {
     render(
       <MemoryRouter initialEntries={['/medications?tab=reminders&medicationId=med-1']}>
@@ -506,8 +499,7 @@ describe('UI-PG-MEDS page rules (plan section 7.7)', () => {
     total_doses_expected: 12,
   } as unknown as AdherenceStats;
 
-  // Would not notice: a ring that still runs a 700 ms draw, or a hard-coded hex stroke that does not
-  // follow the theme.
+  // Blind spot: only duration-700 and hex colours are searched. A draw written as transition-all, or a framer m.circle with a duration, is not seen.
   it('the adherence ring is final and its colours come from tokens', () => {
     const { container } = render(
       <MemoryRouter>
@@ -518,7 +510,7 @@ describe('UI-PG-MEDS page rules (plan section 7.7)', () => {
     expect(container.innerHTML).not.toMatch(/#[0-9A-Fa-f]{6}/);
   });
 
-  // Would not notice: an adherence figure that counts up, because it has no T0 marker to probe.
+  // Blind spot: three figures are checked. Any other count-up figure on the dashboard is not.
   it('the adherence figures carry data-t0', () => {
     render(
       <MemoryRouter>
@@ -530,8 +522,7 @@ describe('UI-PG-MEDS page rules (plan section 7.7)', () => {
     expect(screen.getByText('10').closest('[data-t0]')).not.toBeNull();
   });
 
-  // Would not notice: a raw white, a palette utility or a hex value in any file of the pages or the
-  // medication components. `bg-black/..` overlays are not scanned; they are the design's hairlines.
+  // Blind spot: rgb() and rgba() literals, three-digit hex, and arbitrary values such as bg-[#fff] are not matched. bg-black/.. overlays are excluded by design.
   it('no raw white, palette or hex colour utility in the medication pages and components', () => {
     const files = import.meta.glob(
       [
@@ -551,7 +542,7 @@ describe('UI-PG-MEDS page rules (plan section 7.7)', () => {
     expect(hits).toEqual([]);
   });
 
-  // Would not notice: a browser confirm or prompt that blocks the page and cannot be styled.
+  // Blind spot: the regex needs window. before the call, so a bare confirm(...) or prompt(...) is not matched. Only the listed files are read.
   it('no window.confirm or window.prompt in the medication pages and components', () => {
     const files = import.meta.glob(
       [
