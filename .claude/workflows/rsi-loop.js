@@ -5,9 +5,9 @@ export const meta = {
   phases: [
     { title: 'Mine', detail: 'haiku clusters tool failures by tool + error_class (metadata only)', model: 'haiku' },
     { title: 'Reflect', detail: 'opus GEPA-style reflection per top cluster, in parallel with a haiku runner for the Codex second proposer (read-only, two files + cluster metadata); JS merges both', model: 'opus' },
-    { title: 'Propose', detail: 'haiku xhigh, one fresh worktree per candidate, max 3', model: 'haiku', effort: 'xhigh' },
+    { title: 'Propose', detail: 'sonnet, one fresh worktree per candidate, max 3', model: 'sonnet' },
     { title: 'Gate', detail: 'JS allow/deny on the diff, then haiku runs claude plugin validate + test, then a read-only Codex critic on the two-file diff (non-blocking when unavailable)', model: 'haiku' },
-    { title: 'Publish', detail: 'haiku xhigh opens PRs for survivors, writes summary JSON, archives rejects', model: 'haiku', effort: 'xhigh' },
+    { title: 'Publish', detail: 'sonnet opens PRs for survivors, writes summary JSON, archives rejects', model: 'sonnet' },
   ],
 }
 
@@ -302,7 +302,7 @@ Rules:
 - Commit (\`feat(harness): rsi candidate ${id}: <what>\`, ending with a Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com> line). Do not push. \`.claude/*\` is git-ignored: use \`git add -f <explicit paths>\`, never \`git add -A\`.
 - Return diff_names / diff_stat as the verbatim stdout of \`git diff --name-only origin/main...HEAD\` and \`git diff --stat origin/main...HEAD\`, and worktree as \`pwd\`.
 ${STYLE}`,
-      { label: `propose ${id}`, phase: 'Propose', model: 'haiku', effort: 'xhigh', isolation: 'worktree', schema: PROPOSE_SCHEMA },
+      { label: `propose ${id}`, phase: 'Propose', model: 'sonnet', isolation: 'worktree', schema: PROPOSE_SCHEMA },
     )
   },
   async (prop, refl, i) => {
@@ -321,7 +321,7 @@ codex exec -s read-only -C /tmp/claude-1000/rsi-codex-${RUN_ID}/critic-${id} --s
 Return codex_exit and codex_verdict_text = verbatim contents of critic.txt (empty if absent). Never use this worktree or the main checkout as codex -C.
 Report real exit codes. Do not retry or fix a failure.
 ${STYLE}`,
-      { label: `gate ${id}`, phase: 'Gate', model: 'haiku', effort: 'low', schema: VALIDATE_SCHEMA },
+      { label: `gate ${id}`, phase: 'Gate', model: 'haiku', effort: 'medium', schema: VALIDATE_SCHEMA },
     )
     if (!v) return { ...base, accepted: false, reason: 'gate: validator agent failed', diff_stat: prop.diff_stat }
     const post = gateDiff(namesOf(v.diff_names))
@@ -367,7 +367,7 @@ const published = await agent(
 3. ${DRY_RUN || !accepted.length ? 'Create NO pull requests (' + (DRY_RUN ? 'dry_run=true' : 'no survivors') + '). prs=[].' : `For each survivor below: in its worktree \`git push -u origin <branch>\` (never force) and open a READY PR with \`gh pr create\` titled \`rsi: <summary> (RSI-4)\`. Body: the reflection (went wrong + smallest change), the gate output (diff names, validate tail, replay-test tail), the diff stat, a line "Codex critique: <codex_critique, verbatim>" (and which source proposed it: reflection.source), then "CI on this PR is the second half of the gate (replay set + CI): the owner merges only on green. Owner merges (RSI promotion; never agent-merged)." and the line "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Do NOT merge, do not enable auto-merge. Survivors:\n${JSON.stringify(accepted)}`}
 Return PR urls, the summary path, archive path and number archived.
 ${STYLE}`,
-  { label: 'publish + archive', phase: 'Publish', model: 'haiku', effort: 'xhigh', schema: PUBLISH_SCHEMA },
+  { label: 'publish + archive', phase: 'Publish', model: 'sonnet', schema: PUBLISH_SCHEMA },
 )
 
 return {
