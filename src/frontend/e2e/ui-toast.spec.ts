@@ -244,12 +244,9 @@ test.describe('HC-TOAST-003 stacked and dismissed toasts under reduced motion', 
     }
     await raise(page, [{ message: 'First' }]);
     await waitForSettledToasts(page, 1);
-    let backToasts = 0;
-    const offenders = await reducedMotionSnapshot(page, async () => {
-      await raise(page, [{ message: 'Second' }]);
-      await page.waitForTimeout(40);
-      backToasts = await page.locator(`${TOAST}[data-front="false"]`).count();
-    });
+    const offenders = await reducedMotionSnapshot(page, () => raise(page, [{ message: 'Second' }]));
+    // Read right after the 50 ms snapshot; a replaced toast stays mounted well past it.
+    const backToasts = await page.locator(`${TOAST}[data-front="false"]`).count();
     expect(backToasts, 'a back toast exists when the snapshot is taken (an empty list must not pass vacuously)').toBeGreaterThanOrEqual(1);
     expect(offenders, 'elements with a non-identity transform 50 ms after the second toast').toEqual([]);
   });
@@ -271,13 +268,9 @@ test.describe('HC-TOAST-003 stacked and dismissed toasts under reduced motion', 
     }
     await raise(page, [{ message: 'First' }, { message: 'Second' }]);
     await waitForSettledToasts(page, 2);
-    let removedToasts = 0;
-    const offenders = await reducedMotionSnapshot(page, async () => {
-      await dismissAll(page);
-      await page.waitForTimeout(40);
-      // sonner keeps a removed li mounted for 200 ms (TIME_BEFORE_UNMOUNT), so the snapshot at ~90 ms still sees them.
-      removedToasts = await page.locator(`${TOAST}[data-removed="true"]`).count();
-    });
+    const offenders = await reducedMotionSnapshot(page, () => dismissAll(page));
+    // sonner keeps a removed li mounted for 200 ms (TIME_BEFORE_UNMOUNT), so it is still counted just after the 50 ms snapshot.
+    const removedToasts = await page.locator(`${TOAST}[data-removed="true"]`).count();
     expect(removedToasts, 'a removed toast exists when the snapshot is taken (an empty list must not pass vacuously)').toBeGreaterThanOrEqual(1);
     expect(offenders, 'elements with a non-identity transform 50 ms after the dismissal').toEqual([]);
   });
