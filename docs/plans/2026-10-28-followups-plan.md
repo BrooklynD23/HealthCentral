@@ -367,11 +367,15 @@ Not edited: `fe/components/ui/toast.tsx`, `AppLayout.tsx`, `e2e/support/gates.ts
 **Toast triggers (L0 call on the #409 review: no skip on preview).**
 - **Dev server** (`HC_E2E_BASE_URL` unset, which is what CI runs, `playwright.config.ts:31`):
   - The real toast. Load `/inbox` with `installMockApi` and wait for the Safety Rail. Then, in `page.evaluate`, import `/src/components/ui/toast.tsx` and call `notify()`, as HC-UISH-007 does (`e2e/ui-shell.spec.ts:792-795`).
-  - Dismiss with only what `toast.tsx` exports: `notify`, `AppToaster` and `OVERLAY_OPEN_EVENT`. Either call `notify({ message, action: { label: 'Close', onClick: () => {} } })` and click that action button, or dispatch `document.dispatchEvent(new Event(OVERLAY_OPEN_EVENT))`.
+  - Dismiss with only what `toast.tsx` exports: `notify`, `AppToaster` and `OVERLAY_OPEN_EVENT`. Either dispatch `document.dispatchEvent(new Event(OVERLAY_OPEN_EVENT))`, or call `notify({ message, action: { label: 'Close', onClick: () => {} } })` and fire that action with `element.click()` inside `page.evaluate`. Never use a Playwright pointer click on the toaster: the pointer would expand the stack.
   - The spec **never imports `sonner`** in `page.evaluate`. A second copy of sonner's store would not be the one the app's Toaster renders.
 - **`vite preview`** (`HC_E2E_BASE_URL` set). The `/src/...` path does not exist there, and the Source Trace verify toast cannot be reached on main (bullet SOURCE-TRACE-UNWIRED, #407). So the spec uses a **fixture check**:
   - Open the same authenticated route (`/inbox` under `installMockApi`). `AppLayout` mounts `AppToaster` there, so sonner's runtime `<style>` is in `<head>`. Assert that it is: a `<style>` containing `[data-sonner-toaster]`.
-  - Inject `<ol data-sonner-toaster data-x-position="center" data-y-position="bottom" style="--width: 356px; --offset-bottom: 24px; --mobile-offset-bottom: 16px; --mobile-offset-left: 16px; --mobile-offset-right: 16px">` into `<body>`. For HC-TOAST-003, it holds `li[data-sonner-toast]` children with the data attributes of each case.
+  - Inject `<ol data-sonner-toaster data-x-position="center" data-y-position="bottom" style="--width: 356px; --gap: 14px; --front-toast-height: 56px; --offset-bottom: 24px; --mobile-offset-bottom: 16px; --mobile-offset-left: 16px; --mobile-offset-right: 16px">` into `<body>`.
+  - For HC-TOAST-003 it holds `li[data-sonner-toast]` children that copy sonner's runtime attributes and variables (`index.mjs:715-737`; `GAP = 14`, `:474`):
+    - attributes: `data-y-position="bottom"`, `data-x-position="center"`, `data-mounted="true"`, `data-styled="true"`, `data-front`, `data-expanded="false"`, `data-removed`, `data-swiping="false"`, `data-swipe-out="false"`;
+    - inline style: `--index: 1; --toasts-before: 1; --z-index: 1; --offset: 0px; --initial-height: 56px`.
+  - **Why the copy matters (#409 round 2, recurring-failures #1).** A bare `li` has no `--gap` or `--toasts-before`, so sonner's `--y` is invalid at computed-value time and the transform falls back to `none` on main. The fixture could not go RED.
   - Read computed styles through the real cascade: sonner's stylesheet plus the built `globals.css`.
   - Each test below states what its fixture asserts. The fixture is used only when `HC_E2E_BASE_URL` is set. Dev runs keep the real `notify()` trigger.
 
@@ -387,11 +391,20 @@ Not edited: `fe/components/ui/toast.tsx`, `AppLayout.tsx`, `e2e/support/gates.ts
   - RED on base at 390 and 820 is expected: the 16 or 24 px offset sits inside the tab bar's 57 px. The 1440 base result is measured in Task 1 and pasted. It is expected RED as well, because the toast sits over the sticky rail.
 - **HC-TOAST-003 (predicted RED for (a) and (b)).** At 1280×800 under reduced motion.
   - (a) A second toast while a first is showing: every element in the `[data-sonner-toaster]` subtree has the identity transform 50 ms later.
-  - (b) Dismiss the front toast, by its action button or by `OVERLAY_OPEN_EVENT`: the same check, 50 ms later.
+  - (b) Dismiss the front toast so that the pointer never enters the toaster: `document.dispatchEvent(new Event(OVERLAY_OPEN_EVENT))`, or the action button's `element.click()` inside `page.evaluate`. Never use a Playwright pointer click, because a real pointer over the toaster sets `data-expanded=true`, which is the expanded-stack stop point. Then the same check, 50 ms later.
   - (c) A **still** toast followed by a plain toast, so the still one is the back toast. Nothing of the still back toast shows. `document.elementFromPoint` at the centre and the four inset corners (2 px in) of its `[data-t0]` text rect returns a node inside the front toast, and that text rect lies inside the front toast's rect.
-  - Preview fixture: an `li[data-sonner-toast][data-expanded=false][data-front=false]` and an `li[data-sonner-toast][data-removed=true]` inside the injected `ol` both compute `transform: none`. (c) is dev-only by nature, because it needs real stacking. On preview it is replaced by the fixture assertion that the back `li` computes `transform: none` with `bottom: 0`.
+  - Preview fixture, with the attributes and variables above:
+    - (a) a back toast, `data-front="false" data-removed="false"`;
+    - (b) a removed back toast, `data-front="false" data-removed="true"`;
+    - (b′) a removed front toast, `data-front="true" data-removed="true"`.
+    - Each must compute `transform: none` on the head.
+    - On main the expected values are a `translateY(-14px)` plus `scale` matrix for (a) and a `translateY` matrix for (b) and (b′). The fixture's base run must show them.
+    - (c) needs real stacking, so on preview it becomes the fixture assertion that the back `li` (a) computes `transform: none` and `bottom: 0px`.
   - If Task 1 shows (a) and (b) green on the base, contrary to the prediction, the test stays as a guard, rule 3 is not added, and the PR says so.
-- **HC-TOAST-004 (guard).** At 390×844, sonner's own phone rule is unchanged: the list computes `transform: none`, `left` 16 px and `right` 16 px (dev: real toast; preview: fixture). Rule 1's media query must not leak below 601 px. Green on the base, labelled as a guard.
+- **HC-TOAST-004 (both sides of the breakpoint).** Dev uses a real toast; preview uses the fixture.
+  - At 390×844 and at **600**×800, sonner's own phone layout is unchanged: the list computes `transform: none`, `left: 16px` and `right: 16px`. This is a guard, green on the base.
+  - At **601**×800, rule 1 applies: `transform: none` and centred (the HC-TOAST-001 check). This is RED on the base, where the list computes `translateX(-50%)`.
+  - Together these pin both sides of `not all and (max-width: 600px)`.
 
 **Tasks.**
 - **Task 1, measure.** Run in a scratch worktree on a quiet box.
@@ -400,7 +413,11 @@ Not edited: `fe/components/ui/toast.tsx`, `AppLayout.tsx`, `e2e/support/gates.ts
 - **Task 2, fix.** Add rules 1 and 2, and rule 3 per Task 1. Re-run.
 
 **Acceptance (outputs pasted).**
-1. **The new tests.** HC-TOAST-001 and 002 go from RED on the base to GREEN on the head. HC-TOAST-003 is RED → GREEN, as predicted, or a guard that is green on both, as Task 1 decided. HC-TOAST-004 is green on both. Offender lists, rects and computed values are pasted for both runs, on dev and preview.
+1. **The new tests.** Offender lists, rects and computed values are pasted for both runs, on dev and preview.
+   - HC-TOAST-001 and 002 go from RED on the base to GREEN on the head.
+   - HC-TOAST-003 is RED → GREEN, as predicted, or a guard that is green on both, as Task 1 decided.
+   - **The preview fixture of HC-TOAST-003 must be shown RED on `origin/main`**, with each fixture `li`'s computed transform pasted. If it cannot be shown RED, the preview case is labelled a guard in the spec and the PR, and the dev case carries the RED.
+   - HC-TOAST-004 at 601 px goes RED → GREEN. At 390 and 600 px it is green on both.
 2. **The quiet-box rule for every Playwright run**, as in the rules at the top of this file. L0 holds `/tmp/claude-1000/quiet-box.lock`. Each Playwright command runs under `/tmp/claude-1000/hold_slots.sh`. Paste `uptime` (1-minute load below 1.5) and `pgrep -fa "playwright|vitest|pytest"` (empty) first. Never run beside pytest, vitest, another Playwright run or a model-host row.
 3. **Baseline, then delta.**
    - On the dev server, `npx playwright test e2e/ui-toast.spec.ts e2e/ui-shell.spec.ts e2e/ui-provenance.spec.ts e2e/ui-gates.spec.ts e2e/tailwind4-styles.spec.ts` is all green on the head. That covers every existing G5, HC-UISH-005 (rail opaque and hit-testable), HC-UISH-007 (no toast over the More sheet) and HC-UIFB-006's Playwright half.
@@ -433,6 +450,6 @@ Not edited: `fe/components/ui/toast.tsx`, `AppLayout.tsx`, `e2e/support/gates.ts
 
 **Gate, owner, model, sizing.**
 - **Gate:** none. **Ask-first files:** none. **Owner gate:** none. No new token or colour, and the toast stays bottom-centre. Rule 2's lift above the rail follows TOAST-PHONE-CHROME's candidate fix.
-- **Implementer:** Sonnet 5.5. Haiku 5.5 at effort `medium` runs the test scripts only and never edits. Opus reviews. This follows owner-decisions row MODEL-ROUTING-SONNET (2026-10-29, PR #408), which supersedes MODEL-ROUTING-HAIKU. This routing text depends on #408 merging: if #408 has not merged when this row starts, L0 confirms the routing first.
+- **Implementer:** Sonnet 5.5. Haiku 5.5 at effort `medium` runs the test scripts only and never edits. Opus reviews. This follows owner-decisions row MODEL-ROUTING-SONNET (2026-10-29, PR #408), which supersedes MODEL-ROUTING-HAIKU. #408 merged as `f85adcb3`, so the routing is settled.
 - **Est:** 2.5 h. **Runtime:** claude (Playwright, quiet box).
 - **MVP:** P1. The row blocks UI-PG-CARE's acceptance, and on phones a toast covers the Safety Rail's "Educational only, not medical advice" line, which is on the demo path.
