@@ -3,11 +3,11 @@ export const meta = {
   description: 'RSI step 2: mine failure logs, reflect, propose up to 3 small rule/replay/doc edits, deterministic gate + plugin test, PR survivors (never merged), measure',
   whenToUse: 'Standalone, or as the last stage of build-program (after every run). args {since?: ISO date, run_id?: string, dry_run?: bool}. dry_run=true skips PR creation. Owner merges RSI promotions.',
   phases: [
-    { title: 'Mine', detail: 'haiku clusters tool failures by tool + error_class (metadata only)', model: 'haiku' },
-    { title: 'Reflect', detail: 'opus GEPA-style reflection per top cluster, in parallel with a haiku runner for the Codex second proposer (read-only, two files + cluster metadata); JS merges both', model: 'opus' },
-    { title: 'Propose', detail: 'sonnet, one fresh worktree per candidate, max 3', model: 'sonnet' },
-    { title: 'Gate', detail: 'JS allow/deny on the diff, then haiku (medium) runs claude plugin validate + test, then a read-only Codex critic on the two-file diff (non-blocking when unavailable)', model: 'haiku' },
-    { title: 'Publish', detail: 'sonnet opens PRs for survivors, writes summary JSON, archives rejects', model: 'sonnet' },
+    { title: 'Mine', detail: 'haiku (xhigh) clusters tool failures by tool + error_class (metadata only)', model: 'haiku', effort: 'xhigh' },
+    { title: 'Reflect', detail: 'opus GEPA-style reflection per top cluster, in parallel with a haiku (xhigh) runner for the Codex second proposer (read-only, two files + cluster metadata); JS merges both', model: 'opus' },
+    { title: 'Propose', detail: 'sonnet, one fresh worktree per candidate, max 3', model: 'sonnet', effort: 'high' },
+    { title: 'Gate', detail: 'JS allow/deny on the diff, then haiku (medium) runs claude plugin validate + test, then a read-only Codex critic on the two-file diff (non-blocking when unavailable)', model: 'haiku', effort: 'medium' },
+    { title: 'Publish', detail: 'sonnet opens PRs for survivors, writes summary JSON, archives rejects', model: 'sonnet', effort: 'high' },
   ],
 }
 
@@ -222,7 +222,7 @@ const mined = await agent(
 5. metrics: tool_calls total; failure_rate_by_tool (failures/calls); retries (retry=true rows); items = distinct build-item runs if the logs identify them (else 0); retries_per_item; tokens_per_item only if a log has token counts, else null. previous_summary = newest <main>/.claude/logs/rsi/summary-*.json if any (read its metrics.failure_rate_by_tool into previous_failure_rate_by_tool).
 6. existing_rule_ids = ids in ${MOD}/hooks/rules.ts at origin/main (\`git show origin/main:${MOD}/hooks/rules.ts\`), empty if absent.
 ${STYLE}`,
-  { label: 'mine failures', phase: 'Mine', model: 'haiku', effort: 'low', schema: MINE_SCHEMA },
+  { label: 'mine failures', phase: 'Mine', model: 'haiku', effort: 'xhigh', schema: MINE_SCHEMA },
 )
 if (!mined) return { clusters: [], candidates: 0, accepted_prs: [], rejected: [], metrics: null, stopped: 'mine agent failed' }
 
@@ -257,7 +257,7 @@ codex exec -s read-only -C /tmp/claude-1000/rsi-codex-${RUN_ID} --skip-git-repo-
 6. Return exit_code, the last 20 lines of its output as stdout_tail, and the verbatim contents of ${CODEX_ROOT}/out.json as out_json (empty if absent).
 Give Codex nothing else: no logs, no .env, no vault paths, no other repo file, never a repo checkout or worktree as -C.
 ${STYLE}`,
-    { label: 'codex proposer', phase: 'Reflect', model: 'haiku', effort: 'low', schema: CODEX_PROPOSE_SCHEMA },
+    { label: 'codex proposer', phase: 'Reflect', model: 'haiku', effort: 'xhigh', schema: CODEX_PROPOSE_SCHEMA },
   ),
 ])
 // Agent-reported string: parse defensively; anything unusable means Claude-only.
@@ -302,7 +302,7 @@ Rules:
 - Commit (\`feat(harness): rsi candidate ${id}: <what>\`, ending with a Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com> line). Do not push. \`.claude/*\` is git-ignored: use \`git add -f <explicit paths>\`, never \`git add -A\`.
 - Return diff_names / diff_stat as the verbatim stdout of \`git diff --name-only origin/main...HEAD\` and \`git diff --stat origin/main...HEAD\`, and worktree as \`pwd\`.
 ${STYLE}`,
-      { label: `propose ${id}`, phase: 'Propose', model: 'sonnet', isolation: 'worktree', schema: PROPOSE_SCHEMA },
+      { label: `propose ${id}`, phase: 'Propose', model: 'sonnet', effort: 'high', isolation: 'worktree', schema: PROPOSE_SCHEMA },
     )
   },
   async (prop, refl, i) => {
@@ -367,7 +367,7 @@ const published = await agent(
 3. ${DRY_RUN || !accepted.length ? 'Create NO pull requests (' + (DRY_RUN ? 'dry_run=true' : 'no survivors') + '). prs=[].' : `For each survivor below: in its worktree \`git push -u origin <branch>\` (never force) and open a READY PR with \`gh pr create\` titled \`rsi: <summary> (RSI-4)\`. Body: the reflection (went wrong + smallest change), the gate output (diff names, validate tail, replay-test tail), the diff stat, a line "Codex critique: <codex_critique, verbatim>" (and which source proposed it: reflection.source), then "CI on this PR is the second half of the gate (replay set + CI): the owner merges only on green. Owner merges (RSI promotion; never agent-merged)." and the line "🤖 Generated with [Claude Code](https://claude.com/claude-code)". Do NOT merge, do not enable auto-merge. Survivors:\n${JSON.stringify(accepted)}`}
 Return PR urls, the summary path, archive path and number archived.
 ${STYLE}`,
-  { label: 'publish + archive', phase: 'Publish', model: 'sonnet', schema: PUBLISH_SCHEMA },
+  { label: 'publish + archive', phase: 'Publish', model: 'sonnet', effort: 'high', schema: PUBLISH_SCHEMA },
 )
 
 return {

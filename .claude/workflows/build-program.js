@@ -4,9 +4,9 @@ export const meta = {
   whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false, rsi?: true, run_id?: string}. auto_merge=true only with a current owner row that authorises agent merges. Nested build-items share THIS run\'s agent cap (min(16, CPUs - 2); about 4 seen on the 6-vCPU box, 2026-10-17): for more items at once, L0 runs build-wave and starts one top-level build-item Workflow per id instead.',
   phases: [
     { title: 'Select', detail: 'build-wave picks the eligible, file-disjoint set' },
-    { title: 'Build', detail: 'one build-item per id: haiku explore, opus Task 0, sonnet implement, haiku tests, opus review + verify' },
+    { title: 'Build', detail: 'one build-item per id: haiku (xhigh) explore, opus Task 0, sonnet implement, haiku (medium) tests, opus review + verify' },
     { title: 'Unblock', detail: 'opus sub-orchestrator turns a Task 0 plan gap (gates answered) into a plan delta, then the item re-runs once', model: 'opus' },
-    { title: 'Plan', detail: 'haiku search per unplanned row, then one opus planner writes plan sections + queue rows in one docs PR' },
+    { title: 'Plan', detail: 'haiku (xhigh) search per unplanned row, then one opus planner writes plan sections + queue rows in one docs PR' },
     { title: 'Merge', detail: 'only with auto_merge: opus merges green, approved, non-ask-first PRs and runs the post-merge batch', model: 'opus' },
     { title: 'RSI', detail: 'rsi-loop after every run (RSI-BUILD): mine, reflect, propose, gate, PR; its PRs are owner-merged' },
   ],
@@ -72,7 +72,7 @@ Result:\n${typeof result === 'string' ? result : JSON.stringify(result)}
 kind: done (PR opened, ready or draft-ready), plan_gap (Task 0 check 1 failed: the plan or a contract does not cover scope the owner already signed), owner_gate (an unanswered owner gate or an owner-only step blocks it), env (machine or tooling problem), review (escalated after review rounds), other.
 For owner_gate, write the exact question the owner must answer, with the options from the lane doc or plan. Never mark a gate answered unless ${DECISIONS} on origin/main has the row.
 ${STYLE}`,
-  { label: `triage ${id}`, phase: 'Unblock', model: 'haiku', effort: 'low', schema: TRIAGE_SCHEMA },
+  { label: `triage ${id}`, phase: 'Unblock', model: 'haiku', effort: 'xhigh', schema: TRIAGE_SCHEMA },
 )
 
 const unblock = (id, t) => agent(
@@ -126,14 +126,14 @@ for (let wave = 1; wave <= MAX_WAVES; wave++) {
     const rows = await agent(
       `Read ${QUEUE} on origin/main (git fetch origin; git show origin/main:${QUEUE}). List every bullet under "New rows (not yet planned)" whose id has no queue table row and no open PR. ask_first = it names ${ASK_FIRST}. Copy only; judge nothing.
 ${STYLE}`,
-      { label: 'list unplanned rows', phase: 'Plan', model: 'haiku', effort: 'low', schema: ROWS_SCHEMA },
+      { label: 'list unplanned rows', phase: 'Plan', model: 'haiku', effort: 'xhigh', schema: ROWS_SCHEMA },
     )
     const unplanned = (rows && rows.rows) || []
     if (unplanned.length) {
       const facts = (await parallel(unplanned.map((r) => () => agent(
         `Read-only code search for unplanned queue row ${r.id}: "${r.summary}". Find the exact files and line ranges involved, existing tests that cover the behaviour, and the test file a fix would extend. Quote file:line for every claim. Edit nothing.
 ${STYLE}`,
-        { label: `search ${r.id}`, phase: 'Plan', model: 'haiku', effort: 'low', schema: FACTS_SCHEMA },
+        { label: `search ${r.id}`, phase: 'Plan', model: 'haiku', effort: 'xhigh', schema: FACTS_SCHEMA },
       )))).filter(Boolean)
       const plan = await agent(
         `You are an Opus planning sub-orchestrator. Turn these unplanned queue rows into planned ones in ONE docs-only PR (branch docs/plan-new-rows-<short main sha>, worktree outside the main checkout).
