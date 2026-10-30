@@ -1,10 +1,10 @@
 # Session handoff: 2026-10-28/29 GPU-box L0 → next L0
 
-**Last Updated:** 2026-10-29
+**Last Updated:** 2026-10-30 (review fixes: #410 paused, disk re-measure, #413 pointer)
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-26 handoff](2026-10-26-session-handoff.md). Main is at `144b5d4` (#411) when this was written. Treat everything below as a lead: verify it with `gh pr view N` and `git log origin/main` before you act on it. This PR itself was not reviewed before the session ran out of context, so the next L0 has it Opus-reviewed and merges it.
+Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-26 handoff](2026-10-26-session-handoff.md). Main is at `144b5d4` (#411) when this was written. Treat everything below as a lead: verify it with `gh pr view N` and `git log origin/main` before you act on it. A later session (2026-10-30) left its own handoff in the body of [#413](https://github.com/BrooklynD23/HealthCentral/pull/413); read that too. This PR was Opus-reviewed on 2026-10-30; the owner merges it.
 
 ## 1. What this session did
 
@@ -36,7 +36,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 
 | PR | Item | State | Next |
 |---|---|---|---|
-| #410 | TOAST-SHELL | `[claim:claude]`, running | The `ui-toast` head run is GREEN: L0 got 15 passed for routing plus `ui-toast` with `TMPDIR=/dev/shm`. Tasks 4-8 remain: the dev and preview runs of 5 specs, the preview delta against the baseline, #400's G5 record, vitest/tsc/build/lint, and the backend run. Then review, CI, merge. It **builds before POPOVER-OPEN-COST** on `globals.css`. |
+| #410 | TOAST-SHELL | `[claim:claude]`, **paused** | Run `wf_9413c569-e31` stopped on 2026-10-30 ~03:00 UTC when the dev environment shut down, mid `measure TOAST-SHELL 2` (full backend pytest); no result recorded. Head `fe89d070`, all 9 CI checks green, worktree `hc-toast-shell` clean. Restart with `build-item {"id":"TOAST-SHELL","resume_pr":410}` and re-run the measure step first. The `ui-toast` head run is GREEN: L0 got 15 passed for routing plus `ui-toast` with `TMPDIR=/dev/shm`. Tasks 4-8 remain: the dev and preview runs of 5 specs, the preview delta against the baseline, #400's G5 record, vitest/tsc/build/lint, and the backend run. Then review, CI, merge. It **builds before POPOVER-OPEN-COST** on `globals.css`. |
 | #393 | POPOVER-OPEN-COST (now covers dialogs) | `[blocked:claude]`, no commits | Resume after #410 merges. The `@property` rule may merge alone if the stop rule fires (plan delta #407). |
 | #398 | UI-PG-MEDS | `[blocked:claude]` | Waits for POPOVER-OPEN-COST: HC-UIMED-002's dialog-open stillness misses 40 ms because of the shared `Modal` scroll lock. Review-round-1 fixes are pushed, and L0 rulings A, B and C are done. |
 | #400 | UI-PG-CARE | `[blocked:claude]` | Waits for TOAST-SHELL (G5 on `/care-tasks`), then rebases and re-runs dark G1. |
@@ -76,7 +76,7 @@ The quiet-box queue runs strictly one item at a time. The owner asked to "dispat
 - **The WSL disk fsync is slow.** On 2026-10-29 a synchronous 4 KiB write took about 33 ms, and up to about 500 ms under load. Every Playwright page load took 35-150 s.
   - **Run every Playwright run with `TMPDIR=/dev/shm`.** `hold_slots.sh` exports it.
   - Diagnose with `/proc/pressure/io` and `dd bs=4k count=500 oflag=dsync`.
-  - The owner cleared drive space on 2026-10-29. Re-measure on a quiet box to see whether that fixed it.
+  - The owner cleared drive space on 2026-10-29. A quiet-box re-measure afterwards gave about 12 ms per synchronous write: about 3× better than 33 ms, still far from healthy (under 1 ms). Next owner step: a Defender exclusion for the WSL `ext4.vhdx` and a host-drive health check.
 - **The box is shared with the owner's Stellaris-Adaptive-AI-Engine sessions**, which run Rust builds, pytest and Chromium, at load up to 59.
   - Extend the quiet-box precheck to `rustc|cargo|rust-lld|chrom` and foreign pytest.
   - Never kill another project's processes; ask the owner to pause them.
