@@ -1516,6 +1516,14 @@ Queue rows: queue.md, "Planned 2026-10-28, follow-ups". Rules: RUNBOOK, contract
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`
 
+## `docs/plans/2026-10-29-session-handoff.md`
+
+**Session handoff: 2026-10-28/29 GPU-box L0 → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-26 handoff. Main is at `144b5d4` (#411) when this was written. Treat everything below as a lead: verify it…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-26-session-handoff.md`
+
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
 **Project Structure Setup**
