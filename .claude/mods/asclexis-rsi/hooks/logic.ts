@@ -38,14 +38,17 @@ const FIELD_MAX = 200
  * The one fixed, non-free-text input field a rule may test, per tool; '' when none applies.
  * Bash: command. Workflow: name, else a safe scriptPath basename. Skill: skill. Agent: subagent_type.
  * mcp__<server>__<tool>: <server>, parsed from the tool name. Never prompt, args, description or content.
+ * Non-Bash values longer than FIELD_MAX give ''; Bash command is returned whole, as cmdOf does.
  * Held in memory only; callers never log it.
  */
 export function fieldOf(tool: string, input: unknown): string {
   const o = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
   const str = (k: string): string => (typeof o[k] === 'string' ? (o[k] as string) : '')
+  if (typeof tool !== 'string') return ''
+  // Bash is uncapped, exactly as cmdOf: a cap would silently skip every deny/hint rule on long commands.
+  if (tool === 'Bash') return str('command')
   let v = ''
-  if (tool === 'Bash') v = str('command')
-  else if (tool === 'Workflow') {
+  if (tool === 'Workflow') {
     v = str('name')
     if (!v) {
       const base = (str('scriptPath').split('/').pop() ?? '').replace(/\.js$/, '')
@@ -58,7 +61,7 @@ export function fieldOf(tool: string, input: unknown): string {
 }
 
 const toolMatches = (ruleTool: string, tool: string): boolean =>
-  ruleTool === tool || (ruleTool === 'mcp__*' && tool.startsWith('mcp__'))
+  ruleTool === tool || (ruleTool === 'mcp__*' && typeof tool === 'string' && tool.startsWith('mcp__'))
 
 /** First `before`/deny rule that matches this call, if any. */
 export function checkBefore(tool: string, input: unknown, rules: readonly Rule[] = RULES): Rule | undefined {
