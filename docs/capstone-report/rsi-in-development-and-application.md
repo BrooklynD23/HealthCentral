@@ -1,6 +1,6 @@
 # RSI in Development and in the Application
 
-**Last Updated:** 2026-10-17
+**Last Updated:** 2026-10-31
 **Owner:** repository owner
 **Refresh Trigger:** any RSI-loop or Track-2 run lands (fill §6); the merge of #122 or the Track-1 mod PR; any owner change to RSI-1..RSI-4, RSI-BUILD or AUTO-MERGE.
 
@@ -73,7 +73,18 @@ Build order set by the owner (RSI-BUILD): mod first, then the workflow, then the
 
 ## 6. Results
 
-**Status (2026-10-18).** Track-1 mod merged (#127). The `rsi-loop` workflow is merged (#126, #129) but has not been run: no RSI logs existed before the mod was loaded, so it needs a session started with the mod. The Track-2 evaluation harness is merged (#150) and has produced the baseline below. No constrained-decoding change, leak evaluation or detector-recall measurement exists yet.
+**Status (2026-10-18; superseded: see Track-1 `rsi-loop` runs, status 2026-10-31, below).** Track-1 mod merged (#127). The `rsi-loop` workflow is merged (#126, #129) but has not been run: no RSI logs existed before the mod was loaded, so it needs a session started with the mod. The Track-2 evaluation harness is merged (#150) and has produced the baseline below. No constrained-decoding change, leak evaluation or detector-recall measurement exists yet.
+
+**Track-1 `rsi-loop` runs (status 2026-10-31).** The workflow has run on the GPU box with the mod loaded; per-run archives are in `docs/agentic/rsi-runs/`. Two merged RSI rule PRs exist so far: #230 and #341 (the latter opened by the 2026-10-24 run). The 2026-10-26 run and the 2026-10-31 run each promoted nothing, so 2026-10-31 is the second consecutive run with zero promotions, and the cumulative promotion count stays at two.
+
+2026-10-31 run (`2026-10-31-gpubox`, workflow `wf_e5b0ec9e-d37`, args `{"since":"2026-10-26"}`; `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`). It mined 7499 tool calls into 15 clusters and proposed 0 candidates. Opus and Codex (codex-cli 0.163.0) each reflected on the top three clusters and both returned "nothing worth proposing": Bash no-such-file (39, already covered by rule `no-such-file-path`), Bash other (26, unclassified, no error text to match) and Bash exit-1 (15, generic). The existing hint for `no-such-file-path` fired on all 39 rows, and the `embedding-bundle-missing` hint fired on its 1 row. The `pkill-self` guard denied 8 of the 10 self-kill (exit 144) attempts; the other 2 had no guard recorded. There was 1 retry in 7499 calls.
+
+| Tool | Failure rate, 2026-10-24 summary | Failure rate, 2026-10-31 run |
+|---|---|---|
+| Bash | 0.0261 | 0.0188 |
+| Read | 0.0278 | 0.0578 |
+
+Both columns come from the `metrics` block of the run's `summary.json` (`previous_failure_rate_by_tool` is `summary-2026-10-24-gpubox`). The two runs cover different windows and different workloads, so the Bash fall and the Read rise are not causal evidence that any rule helped or hurt (see section 7).
 
 **Track-2 baseline (legacy chat citation, before any prompt change).** Measured by `scripts/legacy_cite_eval.py` on the owner's RTX 3080 host through Ollama, one run per model, n=20 questions, exit 0 in 11 m 7 s, with no pytest running. Questions file `questions_v1.json`, sha256 `ecb906035db228f1af9fc2d5698fe9bf9cf0e34bbd88296b5719a8a41c0d990e`. Source: PR #150 comment 6247765961; raw output on the host at `~/asclexis-evals/t2e-2e91ea2/`.
 
@@ -90,7 +101,7 @@ Results still to come:
 
 | Result | Source of the number |
 |---|---|
-| Track-1 before and after per-tool failure rate, retries, tokens per item | `.claude/logs/rsi/` scoreboard (`/rsi`) and the `rsi-loop` workflow measure stage, per run |
+| Track-1 before and after per-tool failure rate, retries, tokens per item (failure rate and retries recorded above; `tokens_per_item` is null, items 0) | `.claude/logs/rsi/` scoreboard (`/rsi`) and the `rsi-loop` workflow measure stage, per run |
 | Track-2 abstain rate and cited-answer rate on four models, after constrained decoding (the "before" is the table above) | `scripts/legacy_cite_eval.py`; PR bodies carry the counts |
 | Leak evaluation (canary recovery) | The RSI-1 leak-eval run; any recovered canary is a blocking result |
 | PHI-detector recall | Measurement on the project's synthetic vaults |
@@ -101,6 +112,7 @@ Results still to come:
 - **Small sample.** MM-1 has n=20 prompts per model, one host and one run each; differences such as 19 versus 20 are not evidence of a ranking.
 - **Abstention is not quality.** A correct abstention shows the guard works, not that the model answers well. The abstain count measures how often the citation marker is missing, which is the problem constrained decoding targets; it says nothing about answer correctness. The cited-answer rate is planned for this reason.
 - **Measurement interference.** Running the pytest suite during a model run inflates abstain counts because of the 60 s generation timeout (handoff §4); MM-1 must be run alone.
+- **Failure-rate comparisons across runs are not causal.** The per-tool rates in section 6 compare two `rsi-loop` runs that mined different windows and different work (8210 calls since 2026-10-21 against 7499 since 2026-10-26). Small counts move a rate a lot (Read 0.0278 to 0.0578), the loop has promoted no rule since #341, and nothing was held constant, so a change in rate is not evidence that a rule caused it.
 - **Seed failures are anecdotal.** The Track-1 seeds come from one session and carry no frequency information.
 - **Source quality.** The research package contains 58 sources, each marked [V] fetched, [S] snippet only, or [U] unverified; [S] and [U] items must be re-checked before citation outside the repo. The sweeps were run by Haiku agents and synthesised by the orchestrator. The package is point-in-time research (2026-10-17).
 - **No direct prior evidence for the target setting.** The research found no measurement of citation-marker fine-tuning on medical text at 1-12B.

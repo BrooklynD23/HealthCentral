@@ -357,6 +357,9 @@
     "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json": [
       "docs/agentic/rsi-runs/README.md"
     ],
+    "docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json": [
+      "docs/agentic/rsi-runs/README.md"
+    ],
     "docs/agentic/rsi-runs/README.md": [
       "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/plans/2026-10-22-session-handoff.md",
@@ -2880,7 +2883,8 @@
       "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json",
       "docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json",
       "docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json",
-      "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json"
+      "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json",
+      "docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json"
     ],
     "docs/agile/GROUNDING.md": [
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
