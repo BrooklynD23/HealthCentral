@@ -1,9 +1,11 @@
 // Data-only guard/hint table (RSI contract). `rsi-loop` proposals may edit ONLY this file,
 // replay/cases.ts and docs/agentic/recurring-failures.md.
-// Fields: id, tool, when (before|after), match (regex source; before: over the command,
-// after: over the error/output text), action (deny|hint), message, source, errorClass.
-// Optional after-only refinements: `command` (regex the command must also match),
+// Fields: id, tool, when (before|after), match (regex source; before: over the tool's fixed
+// field, after: over the error/output text), action (deny|hint), message, source, errorClass.
+// Optional after-only refinements: `command` (regex the tool's fixed field must also match),
 // `onSuccess` (also fire when the call did not fail), `absent` (regex that must NOT occur in output).
+// Fixed field per tool (never free text): Bash command; Workflow name (else safe scriptPath basename);
+// Skill skill; Agent subagent_type; mcp__<server>__<tool> -> server name. `tool: 'mcp__*'` matches that family.
 export type Rule = {
   id: string
   tool: string

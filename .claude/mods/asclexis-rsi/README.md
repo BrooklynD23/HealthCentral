@@ -7,7 +7,7 @@ Repo-shipped Claude Code mod: observe, report, guard. Built with the `plugin-aut
   - `retry`: same tool + same input fingerprint within the last 5 calls after a failure (non-reversible hash, memory only).
   - `edit_test_fail`: a `pytest|vitest|playwright test|npm test` Bash call failed after an Edit/Write since the last test run.
 - **Report:** status line `rsi: N calls · F fail · G guard`, and `/rsi` (this session + last 7 days: per-tool calls/failures/rate, retries, denials, hints by id, edit-to-test-fail cycles).
-- **Guard:** `hooks/rules.ts` is a data-only rule table (`before` deny, `after` hint). Seeds: `pkill-self`, `playwright-exec-path`, `gh-pr-edit-projects-classic`, `venv-husk`, `llama-cpp-no-compiler`. A hint is appended to what the model reads after the tool result (`context`) and its id is logged in `hint`.
+- **Guard:** `hooks/rules.ts` is a data-only rule table (`before` deny, `after` hint). A rule tests one fixed input field per tool, never free text: Bash `command`, Workflow `name` (else a safe `scriptPath` basename), Skill `skill`, Agent `subagent_type`, and for `mcp__<server>__<tool>` the `<server>` from the tool name (`tool: "mcp__*"` matches the whole family); the value is read in memory and never logged. Seeds: `pkill-self`, `playwright-exec-path`, `gh-pr-edit-projects-classic`, `venv-husk`, `llama-cpp-no-compiler`. A hint is appended to what the model reads after the tool result (`context`) and its id is logged in `hint`.
 
 ### Failure modes (decided)
 - The deny rules (before `next`) **fail closed**: if the guard code throws, the call is denied (skill guard pattern).
@@ -32,4 +32,4 @@ claude plugin test .claude/mods/asclexis-rsi
 Type-check with `tsc` using a tsconfig that includes the engine's `claude-code.d.ts` plus `hooks/`, `rsi.test.ts`, `replay/cases.ts`.
 
 ## Rules and replay set
-Each rule needs at least one positive and one `pass` case in `replay/cases.ts` (the single source; `{id, rule, tool, input, error_text?, failed?, error_class?, expect: deny|hint|pass}`; `failed` defaults to "error_text is present"; when `error_class` is present the case also asserts the logged row's `error_class` equals it, so a class case uses `"rule": ""` and `"expect": "pass"`). `rsi-loop` proposals may edit only `hooks/rules.ts`, `replay/cases.ts`, and `docs/agentic/recurring-failures.md`.
+For `before` rules `match` tests that tool's fixed field; for `after` rules `command` tests it and `match` tests the output text. Each rule needs at least one positive and one `pass` case in `replay/cases.ts` (the single source; `{id, rule, tool, input, error_text?, failed?, error_class?, expect: deny|hint|pass}`; `failed` defaults to "error_text is present"; when `error_class` is present the case also asserts the logged row's `error_class` equals it, so a class case uses `"rule": ""` and `"expect": "pass"`). `rsi-loop` proposals may edit only `hooks/rules.ts`, `replay/cases.ts`, and `docs/agentic/recurring-failures.md`.
