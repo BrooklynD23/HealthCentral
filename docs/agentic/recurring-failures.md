@@ -108,6 +108,18 @@ the exit commit never runs under test, and a failed exit commit could never turn
 into a 500. `tests/test_audit_order.py` HC-AUD-ORD-060 went red on both cases
 (200 instead of 5xx; `assert 0 == 1` rows) until `chat` committed explicitly.
 
+A 2026-10-31 instance in RAPIDOCR-BUNDLE (cross-ref §9, §3). The local-first
+test patched Python's `socket.connect` and saw nothing, while onnxruntime 1.31.0's
+native OneCollector telemetry client (static libcurl, mobile.events.data.microsoft.com)
+opened its own socket from a native thread about 9 s after the first session. A
+Python socket guard cannot see a native library. The plan's claim that an
+`LD_PRELOAD` probe had shown no traffic was never measured (§3). Opt-out is
+`ORT_DISABLE_TELEMETRY=1` before the first onnxruntime import. HC-OCR-001 and
+HC-OCR-015 now poll the process's real sockets in `/proc` and assert an empty-HOME
+tree; HC-OCR-017 keeps any other module from importing onnxruntime first.
+Recheck for a "no network" claim: a `/proc/net` socket poll after a wait longer
+than the library's first-upload delay, plus an empty-HOME file assert.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —
@@ -402,6 +414,17 @@ The class is now a test
 unaudited `"C"` or `"A2"` row fails CI.
 The dynamic-call rule had the same gap: it flagged a def passed as a bare name or `self.<def>` but not a bound method of any other object (`asyncio.to_thread(selector.detect_hardware_tier)`), so that edge left the guard without a named key until AUDIT-GUARD-ATTR-DYNAMIC widened the rule.
 
+
+A 2026-10-31 instance in RAPIDOCR-BUNDLE (cross-ref §2). PDFium accepts one
+thread at a time (pypdfium2 METADATA). The rule was enforced at one site,
+`_ocr_pdf_pages` (`_PDFIUM_LOCK`), and not at the other caller in the same class,
+`api/documents.py::get_page_image`, which renders with pdfplumber `to_image` on the
+event-loop thread. Importing a scan while the viewer fetched a page image segfaulted
+the process in 4 of 8 probe runs (PR #421 comment 6547136926). The first fix, a lock
+held across the OCR call as well, fixed one site and nested two locks. HC-OCR-016
+now runs the real `get_page_image` against four OCR workers (exit -11 before the
+lock, 6 of 6 clean after). Recheck: `grep -rn "to_image(\|pypdfium2\|PdfDocument"
+src/backend` and confirm every hit is inside `_PDFIUM_LOCK`.
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
 a *category* ("verbatim document text", "credential material", "anything
