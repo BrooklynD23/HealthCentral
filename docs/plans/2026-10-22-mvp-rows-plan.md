@@ -414,6 +414,24 @@ Then RUNBOOK §6 steps 2-6: the full suite (no new failures beyond the 5 environ
 
 **New bullet for L0 (not a row here): OCR-COPY-ENGINE.** Three patient-facing strings name Tesseract as the only reader and become wrong once RapidOCR ships: `fe/pages/SettingsPage.tsx:346` ("Extract text from scanned PDFs and lab images using Tesseract"), `fe/pages/DocumentInbox.tsx:433` (badge title "install Tesseract") and `fe/pages/VerificationWorkbench.tsx:54` ("ensure Tesseract is installed"). Those pages belong to the UI-PG-* rows (UI-PG-DOCUMENTS, UI-PG-REVIEW), so the copy change goes with them or in a small frontend row after this one merges. It is not added to this backend row, to avoid a file clash.
 
+### L0 ruling 2026-10-31: RAPIDOCR-BUNDLE PDFium lock after #421 review
+
+An orchestrator decision, not an owner row. #421 was escalated after 3 review rounds. The review found a real **BLOCKER**: PDFium runs on two threads at once. `be/api/documents.py` `get_page_image` (about `:1778-1791`) calls pdfplumber `to_image` on the loop thread without `extract._PDFIUM_LOCK`, while `_ocr_pdf_pages` runs in a worker thread. The reviewer's probe segfaulted in 4 of 8 runs. Evidence: PR #421 comment 6547136926.
+
+**Ruling.**
+
+- Add `be/api/documents.py` to the row's files, **limited to the `get_page_image` pdfplumber open/render/save block, wrapped in `with _PDFIUM_LOCK:`**. No new `to_thread`, so RAPIDOCR-AUDIT-EXCL's 3 `NAMED_DYNAMIC_EXCLUSIONS` keys are unchanged.
+- Add `docs/agentic/recurring-failures.md` to the row's files, **additions only**, for two new failure modes: PDFium is single-thread and must be enforced at one site, and native telemetry that a Python socket guard cannot see.
+
+**The reviewer's fix list (all stay in the row).**
+
+1. Narrow the lock to PDFium calls only, and run OCR outside it.
+2. Extend HC-OCR-016 with a concurrent `to_image` thread (RED before the fix, GREEN after).
+3. MINOR fixes: lazy `ocr_available`; the HC-OCR-009 spy; HC-OCR-017 skips only `models/embeddings` and uses `as_posix()`; the config warning names both engines; the `/proc` tests are `skipif` non-Linux.
+4. Run the full backend suite in `.venv-ocr` after merging origin/main.
+
+The queue row RAPIDOCR-BUNDLE (files column) is updated to match.
+
 ---
 
 ## Test tooling (TEST-DEV-DEPS (a))

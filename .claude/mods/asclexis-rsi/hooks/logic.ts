@@ -60,11 +60,28 @@ export function checkAfter(
 
 /**
  * Fixed error category for a failure no rule claimed. Never raw text.
- * Order matters: the first four checks win, then common Bash failure shapes,
- * then a bounded `exit-<n>` (1-255) from the `Exit code` line, else 'other'.
+ * Order matters: tool-error envelopes (anchored with ^, some gated on `tool`) win first,
+ * so they can never fall through to a Bash shape; then the first four Bash checks,
+ * then common Bash failure shapes, then a bounded `exit-<n>` (1-255) from the
+ * `Exit code` line, else 'other'.
  * Returns only fixed literals or `exit-` plus captured digits, never input text.
  */
-export function classifyError(text: string): string {
+export function classifyError(text: string, tool = ''): string {
+  if (/^Permission for this action was denied by the Claude Code auto mode classifier\./.test(text)) return 'permission-denied-auto'
+  if (/^<tool_use_error>InputValidationError: /.test(text)) return 'input-validation'
+  if (/^<tool_use_error>Error: No such tool available: /.test(text)) return 'no-such-tool'
+  if (EDIT_TOOLS.includes(tool) && /^<tool_use_error>File has not been read yet\. /.test(text)) return 'edit-not-read'
+  if (tool === 'Read' && /^File does not exist\./.test(text)) return 'read-not-found'
+  if (tool === 'Read' && /^File content \(\d+ tokens\) exceeds maximum allowed tokens \(\d+\)/.test(text)) return 'read-too-large'
+  if (tool === 'StructuredOutput' && /^Output does not match required schema: /.test(text)) return 'schema-mismatch'
+  if (/^The user doesn't want to proceed with this tool use\./.test(text)) return 'user-rejected'
+  if (tool === 'Workflow' && /^<tool_use_error>Workflow "[^"\n]*" not found\./.test(text)) return 'workflow-not-found'
+  if (tool === 'Workflow' && /^<tool_use_error>scriptPath must be a script path/.test(text)) return 'workflow-bad-script'
+  if (tool === 'Skill' && /^<tool_use_error>Skill \S+ cannot be used with Skill tool/.test(text)) return 'skill-disabled'
+  if (tool === 'TaskStop' && /^<tool_use_error>No task found with ID: /.test(text)) return 'task-not-found'
+  if (tool === 'TaskStop' && /^<tool_use_error>Task \S+ is not running \(status: /.test(text)) return 'task-not-running'
+  if (tool === 'Agent' && /^Concurrent subagent limit reached\./.test(text)) return 'subagent-limit'
+  if (tool === 'Grep' && /^Search failed \u2014 ripgrep rejected/.test(text)) return 'grep-pattern-rejected'
   if (/Exit code 144\b/.test(text)) return 'exit-144-self-kill'
   if (/timed out|timeout/i.test(text)) return 'timeout'
   if (/did not match|not found in file|String to replace not found/i.test(text)) return 'edit-no-match'

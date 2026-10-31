@@ -107,6 +107,8 @@ Results still to come:
 | PHI-detector recall | Measurement on the project's synthetic vaults |
 | Rejected-candidate archive | The `rsi-loop` archive |
 
+**Further harness work (planned 2026-10-31, not built).** A research pass on four other harnesses and loops (Hermes Agent, OpenClaw, Google DeepMind's evaluator-driven loops, DeepSeek Harness) is in `docs/research/2026-10-31-harness-landscape/`, with each claim re-checked against its primary source and marked confirmed, changed or dropped. Its main lesson for this project is that a self-improving loop tends to find the gaps in its own verifier, so the planned work tests the gate rather than widening what the loop may change. Four further loop rows, each awaiting owner approval, are planned in [the harness improvements plan](../plans/2026-10-31-harness-improvements-plan.md): a stricter replay test, an adversarial test of the gate functions, an archive of every candidate with lineage, and rule-hit and harness-version metrics. The plan also lists the ideas rejected because they would break the metadata-only, redaction or human-merge rules.
+
 ## 7. Limitations and threats to validity
 
 - **Small sample.** MM-1 has n=20 prompts per model, one host and one run each; differences such as 19 versus 20 are not evidence of a ranking.

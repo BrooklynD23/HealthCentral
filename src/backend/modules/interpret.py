@@ -87,6 +87,8 @@ class InterpretationResult:
     interpretation: Optional[LabInterpretation] = None
     error_message: Optional[str] = None
     safety_validation: Optional[SafetyValidationResult] = None
+    # INTERP-WITHHOLD-MSG: True only when the safety check withheld the card.
+    withheld: bool = False
 
 
 @dataclass
@@ -231,6 +233,7 @@ class InterpretModule:
                 success=False,
                 error_message=ESCALATE_TEMPLATE,
                 safety_validation=safety_result,
+                withheld=True,
             )
 
         # Check for critical values
@@ -996,6 +999,7 @@ class InterpretModule:
                 success=False,
                 error_message=ESCALATE_TEMPLATE,
                 safety_validation=safety_result,
+                withheld=True,
             )
 
         # Check for critical values
