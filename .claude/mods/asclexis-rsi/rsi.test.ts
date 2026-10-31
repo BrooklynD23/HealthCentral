@@ -1,7 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import cases from './replay/cases'
 import { RULES } from './hooks/rules'
-import { classifyError } from './hooks/logic'
+import { checkAfter, checkBefore, classifyError, fieldOf } from './hooks/logic'
+import type { Rule } from './hooks/rules'
 
 // The test environment has no fs: an in-memory one answers fs.* beneath the plugin.
 function memfs(on: any) {
@@ -225,5 +226,83 @@ describe('/rsi', () => {
     expect(r.text).toContain('1 retries')
     expect(r.text).toContain('1 denials')
     expect(r.text).toMatch(/Bash\s+calls\s+4/)
+  })
+})
+
+describe('per-tool field', () => {
+  const rule = (o: Partial<Rule>): Rule => ({
+    id: 'tf', tool: 'Workflow', when: 'before', match: 'x', action: 'deny', message: 'm', source: 's', errorClass: 'tf', ...o,
+  })
+  test('fieldOf table', () => {
+    const rows: [string, unknown, string][] = [
+      ['Bash', { command: 'ls -la' }, 'ls -la'],
+      ['Workflow', { name: 'build-item' }, 'build-item'],
+      ['Workflow', { name: 'build-item', scriptPath: '/a/b/other.js' }, 'build-item'],
+      ['Workflow', { scriptPath: '/a/b/build-item.js' }, 'build-item'],
+      ['Workflow', { scriptPath: '/a/b/build item.js' }, ''],
+      ['Workflow', { args: { id: 'build-item' }, resumeFromRunId: 'build-item' }, ''],
+      ['Skill', { skill: 'tdd', args: 'build-item' }, 'tdd'],
+      ['Skill', { skill: 's'.repeat(201) }, ''],
+      ['Skill', { skill: 's'.repeat(200) }, 's'.repeat(200)],
+      ['Skill', { skill: 3 }, ''],
+      ['Agent', { subagent_type: 'Explore', prompt: 'p', description: 'd', model: 'haiku' }, 'Explore'],
+      ['Agent', { prompt: 'Explore', description: 'Explore', model: 'Explore' }, ''],
+      ['mcp__serena__find_symbol', { name_path: 'zzz' }, 'serena'],
+      ['mcp__serena__find_symbol', null, 'serena'],
+      ['Read', { file_path: '/a/b.py' }, ''],
+      ['Edit', { old_string: 'a', new_string: 'b' }, ''],
+      ['Skill', null, ''],
+      ['Skill', [], ''],
+      ['Skill', 'tdd', ''],
+      ['Workflow', null, ''],
+      ['Agent', undefined, ''],
+      ['Bash', [], ''],
+    ]
+    for (const [tool, input, want] of rows) expect(fieldOf(tool, input)).toBe(want)
+  })
+  test('before deny matches the fixed field', () => {
+    const rules = [rule({ match: '^build-item$' })]
+    expect(checkBefore('Workflow', { name: 'build-item' }, rules)?.id).toBe('tf')
+    expect(checkBefore('Workflow', { name: 'build-wave' }, rules)).toBeUndefined()
+  })
+  test('never matches free text', () => {
+    const wf = [rule({ match: '^build-item$' })]
+    expect(checkBefore('Workflow', { name: 'build-wave', args: { id: 'build-item' } }, wf)).toBeUndefined()
+    const ag = [rule({ tool: 'Agent', match: '^Explore$' })]
+    expect(checkBefore('Agent', { subagent_type: 'general-purpose', prompt: 'Explore' }, ag)).toBeUndefined()
+    const sk = [rule({ tool: 'Skill', match: '^build-item$' })]
+    expect(checkBefore('Skill', { skill: 'tdd', args: 'build-item' }, sk)).toBeUndefined()
+  })
+  test('after hint refines by field', () => {
+    const rules = [rule({ tool: 'Skill', when: 'after', command: '^tdd$', match: 'x', action: 'hint' })]
+    expect(checkAfter('Skill', { skill: 'tdd' }, 'x', true, rules)?.id).toBe('tf')
+    expect(checkAfter('Skill', { skill: 'brainstorming' }, 'x', true, rules)).toBeUndefined()
+  })
+  test('mcp family', () => {
+    const rules = [rule({ tool: 'mcp__*', match: '^serena$' })]
+    expect(checkBefore('mcp__serena__find_symbol', {}, rules)?.id).toBe('tf')
+    expect(checkBefore('mcp__other__x', {}, rules)).toBeUndefined()
+    expect(checkBefore('Bash', { command: 'serena' }, rules)).toBeUndefined()
+  })
+  test('deny still fails closed', () => {
+    // End-to-end half is pinned by reading: register.ts runs checkBefore before `next`, and its
+    // .catch denies when `next` was not called.
+    expect(() => checkBefore('Workflow', { name: 'x' }, [rule({ match: '(' })])).toThrow()
+  })
+  test('hint still fails open and the row never echoes input', async ($, on) => {
+    const clock = mock.clock(on, { now: T0 })
+    const files = memfs(on)
+    bottom(on, 'boom', true)
+    const r: any = await $.tool.call({ tool: 'Skill', skill: 'sk-SECRET123', args: '/home/danny/x Jane Doe' })
+    await clock.settle()
+    expect(r.deny).toBeUndefined()
+    expect(r.isError).toBe(true)
+    expect(r.text).toBe('boom')
+    expect(r.context ?? []).toEqual([])
+    const [row] = rowsOf(files)
+    expect(row.hint).toBeNull()
+    expect(row.guard).toBeNull()
+    const raw = JSON.stringify(row)
+    for (const s of ['sk-SECRET123', 'SECRET', '/home/danny', 'Jane', 'Doe']) expect(raw).not.toContain(s)
   })
 })
