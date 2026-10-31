@@ -50,6 +50,7 @@ export function LabInterpreter() {
   const [panelInterpretation, setPanelInterpretation] = useState<PanelInterpretationResponse | null>(null);
   const [groundedSummary, setGroundedSummary] = useState<string | null>(null);
   const [groundedValidation, setGroundedValidation] = useState<{ isValid: boolean; score: number } | null>(null);
+  const [withheldNotice, setWithheldNotice] = useState<{ observationId: string; message: string } | null>(null);
 
   const {
     data: observations,
@@ -90,10 +91,19 @@ export function LabInterpreter() {
 
   const handleGenerateInterpretation = () => {
     if (!effectiveObservation) return;
+    const observationId = effectiveObservation.id;
     generateInterpretation.mutate(
-      { observationId: effectiveObservation.id },
+      { observationId },
       {
         onSuccess: (data) => {
+          if (data.withheld) {
+            // INTERP-WITHHOLD-MSG: show the escalation message, never a grounded card.
+            setWithheldNotice({ observationId, message: data.full_response });
+            setGroundedSummary(null);
+            setGroundedValidation(null);
+            return;
+          }
+          setWithheldNotice(null);
           setGroundedSummary(data.full_response);
           setGroundedValidation({
             isValid: data.is_valid,
@@ -292,6 +302,22 @@ export function LabInterpreter() {
               </CardContent>
             </Card>
           ) : null}
+          {/* The polite live region stays mounted so screen readers announce the
+              notice when it appears inside it. */}
+          {effectiveObservation && (
+            <div aria-live="polite" data-testid="withheld-live-region">
+              {withheldNotice && withheldNotice.observationId === effectiveObservation.id && (
+                <Card role="status">
+                  <CardContent className="py-4 space-y-2">
+                    <p className="text-sm font-medium text-ink">
+                      Asclexis could not produce a safe explanation for this result.
+                    </p>
+                    <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
           {groundedSummary && (
             <Card>
               <CardHeader>
