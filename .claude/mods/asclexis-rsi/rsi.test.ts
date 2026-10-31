@@ -123,6 +123,8 @@ describe('classifyError, non-Bash', () => {
     expect(classifyError('Output does not match required schema: x', 'Read')).toBe('other')
     const scoped = ['edit-not-read', 'read-not-found', 'read-too-large', 'schema-mismatch', 'workflow-not-found', 'workflow-bad-script', 'skill-disabled', 'task-not-found', 'task-not-running', 'subagent-limit', 'grep-pattern-rejected']
     for (const [, text, cls] of MEASURED) if (scoped.includes(cls)) expect(classifyError(text, 'Bash')).not.toBe(cls)
+    // Anchors: the same text partway through (for example a Bash grep over logs) is not the class.
+    for (const [tool, text, cls] of MEASURED) expect(classifyError(`Exit code 1\n${text}`, tool)).not.toBe(cls)
   })
   test('tool envelope wins over Bash shapes', () => {
     const t = '<tool_use_error>InputValidationError: Monitor failed due to the following issue:\ntimeout_ms must be a number'
