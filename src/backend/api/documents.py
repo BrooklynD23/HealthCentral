@@ -607,7 +607,9 @@ async def _run_extraction_pipeline(
         decrypted_doc = get_decrypted_document(profile_id, document.id)
         extract_module = ExtractModule()
         if document.doc_type == "lab_pdf":
-            extraction_result = await extract_module.extract_from_pdf(decrypted_doc, document.id)
+            extraction_result = await extract_module.extract_from_pdf(
+                decrypted_doc, document.id, ocr_pages=ocr_effective
+            )
         elif document.doc_type == "lab_pdf_scanned":
             extraction_result = await extract_module.extract_from_scanned_pdf(
                 decrypted_doc,

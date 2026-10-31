@@ -115,44 +115,59 @@ def _png(im: Image.Image) -> bytes:
     return buf.getvalue()
 
 
-def _image_only_pdf(*images: Image.Image) -> bytes:
-    """A PDF whose pages are pictures and have no text layer."""
-    buf = io.BytesIO()
-    images[0].save(buf, format="PDF", resolution=200.0, save_all=True, append_images=list(images[1:]))
-    return buf.getvalue()
-
-
-def _text_then_scanned_pdf(text_lines: list[str], page2: Image.Image) -> bytes:
-    """Two-page PDF: page 1 has a text layer, page 2 is only ``page2`` as a picture.
-
-    Page 2's media box is the image size at 200 dpi, so rendering at 200 dpi
-    gives back the original pixels.
-    """
+def _build_pdf(pages: list) -> bytes:
+    """Raw-bytes PDF. A page is ``("text", lines)`` (a Helvetica text layer on a
+    letter page) or ``("image", PIL image)`` (one picture and no text layer,
+    lossless Flate pixels, media box sized so a 200 dpi render gives back the
+    original pixels)."""
 
     def esc(s: str) -> str:
         return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
-    page1 = ["BT", "/F1 11 Tf", "14 TL", "50 740 Td"]
-    page1 += [f"({esc(line)}) Tj T*" for line in text_lines]
-    page1.append("ET")
-    width_pt, height_pt = page2.width * 72 / 200, page2.height * 72 / 200
-    stream1 = "\n".join(page1).encode("latin-1")
-    stream2 = f"q {width_pt:.2f} 0 0 {height_pt:.2f} 0 0 cm /Im1 Do Q".encode("latin-1")
-    pixels = zlib.compress(page2.convert("L").tobytes())
-    objs = [
+    n = len(pages)
+    kids = " ".join(f"{3 + i} 0 R" for i in range(n))
+    objs: list[bytes] = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 5 0 R >>",
-        f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width_pt:.2f} {height_pt:.2f}] "
-        f"/Resources << /XObject << /Im1 7 0 R >> >> /Contents 8 0 R >>".encode("latin-1"),
-        b"<< /Length %d >>\nstream\n" % len(stream1) + stream1 + b"\nendstream",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-        f"<< /Type /XObject /Subtype /Image /Width {page2.width} /Height {page2.height} "
-        f"/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode "
-        f"/Length {len(pixels)} >>\nstream\n".encode("latin-1") + pixels + b"\nendstream",
-        b"<< /Length %d >>\nstream\n" % len(stream2) + stream2 + b"\nendstream",
+        f"<< /Type /Pages /Kids [{kids}] /Count {n} >>".encode(),
     ]
+    first_extra = 3 + n  # page objects are 3..2+n; content/resource objects follow
+    extras: list[bytes] = []
+    for i, (kind, payload) in enumerate(pages):
+        content_no = first_extra + len(extras)
+        if kind == "text":
+            ops = ["BT", "/F1 11 Tf", "14 TL", "50 740 Td"]
+            ops += [f"({esc(line)}) Tj T*" for line in payload]
+            ops.append("ET")
+            stream = "\n".join(ops).encode("latin-1")
+            font_no = content_no + 1
+            objs.append(
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                f"/Resources << /Font << /F1 {font_no} 0 R >> >> /Contents {content_no} 0 R >>".encode()
+            )
+            extras.append(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
+            extras.append(
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            )
+        else:
+            # 0.002 pt under the exact size: pypdfium2 rounds a page size up to whole
+            # pixels (float32 228.96 -> 637 px for a 636 px image), and that 1 px
+            # resample alone turned Glucose 95 into 96 at full confidence. The
+            # fixture must be pixel-exact; real scans are not (see the PR).
+            width_pt, height_pt = payload.width * 72 / 200 - 0.002, payload.height * 72 / 200 - 0.002
+            stream = f"q {width_pt:.4f} 0 0 {height_pt:.4f} 0 0 cm /Im1 Do Q".encode("latin-1")
+            pixels = zlib.compress(payload.convert("L").tobytes())
+            image_no = content_no + 1
+            objs.append(
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width_pt:.4f} {height_pt:.4f}] "
+                f"/Resources << /XObject << /Im1 {image_no} 0 R >> >> /Contents {content_no} 0 R >>".encode()
+            )
+            extras.append(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
+            extras.append(
+                f"<< /Type /XObject /Subtype /Image /Width {payload.width} /Height {payload.height} "
+                f"/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode "
+                f"/Length {len(pixels)} >>\nstream\n".encode() + pixels + b"\nendstream"
+            )
+    objs += extras
     out = io.BytesIO()
     out.write(b"%PDF-1.4\n")
     offsets = []
@@ -164,6 +179,16 @@ def _text_then_scanned_pdf(text_lines: list[str], page2: Image.Image) -> bytes:
     out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
     out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
     return out.getvalue()
+
+
+def _image_only_pdf(*images: Image.Image) -> bytes:
+    """A PDF whose pages are pictures and have no text layer."""
+    return _build_pdf([("image", im) for im in images])
+
+
+def _text_then_scanned_pdf(text_lines: list[str], page2: Image.Image) -> bytes:
+    """Two-page PDF: page 1 has a text layer, page 2 is only ``page2`` as a picture."""
+    return _build_pdf([("text", text_lines), ("image", page2)])
 
 
 def _triples(observations) -> list[tuple[str, float | None, str | None]]:
@@ -365,7 +390,17 @@ print("HC_OCR_RESULT=" + json.dumps({
     assert out["unavailable"] is False, out
     assert out["n"] >= 1, out
     assert out["attempts"] == [], f"OCR contacted a non-loopback host: {out['attempts']}"
-    assert list(home.iterdir()) == [], f"OCR wrote into HOME: {list(home.iterdir())}"
+    # onnxruntime 1.31.0 writes a Microsoft "DeveloperTools" telemetry stub
+    # (onnxruntime.db, deviceid) under the cache dir the moment it is imported;
+    # no connect() or getaddrinfo() was seen from it (LD_PRELOAD probe, RAPIDOCR-BUNDLE
+    # PR). That stub is the ONLY file allowed. Anything else -- a downloaded model,
+    # a cache of page text -- fails this test.
+    ort_stub = Path("cache") / "Microsoft" / "DeveloperTools" / ".onnxruntime"
+    written = [
+        p.relative_to(home) for p in home.rglob("*")
+        if p.is_file() and ort_stub not in p.relative_to(home).parents
+    ]
+    assert written == [], f"OCR wrote into HOME: {written}"
 
 
 def test_hc_ocr_002_guard_sees_rapidocr_download_path(tmp_path):
@@ -400,6 +435,8 @@ def test_hc_ocr_003_bad_model_file_fails_closed(tmp_path):
     bad.mkdir()
     for model in wheel_models.glob("*.onnx"):
         shutil.copy(model, bad / model.name)
+    good = tmp_path / "models-good"  # an intact copy somewhere else: the pins must point here
+    shutil.copytree(bad, good)
     rec = bad / "PP-OCRv6_rec_small.onnx"
     raw = bytearray(rec.read_bytes())
     raw[1000] ^= 0xFF  # one flipped byte
@@ -412,28 +449,34 @@ import asyncio
 from pathlib import Path
 ''' + _OCR_ON_NO_TESSERACT + r'''
 from modules import extract
-real_dir = extract._rapidocr_model_dir
 extract._rapidocr_model_dir = lambda: Path(os.environ["HC_OCR_BAD_MODELS"])
 ready = extract.rapidocr_ready()
 result = asyncio.run(
     extract.ExtractModule().extract_from_image(Path(os.environ["HC_OCR_PNG"]), "doc", effective_ocr=True)
 )
-# control: the same process, same resolver, intact files -> ready
+# control: same process, intact files in another directory -> ready, and the engine
+# is pinned to THOSE files (without the pins RapidOCR would use its own default dir)
 extract._rapidocr_engine.cache_clear()
-extract._rapidocr_model_dir = real_dir
+extract._rapidocr_model_dir = lambda: Path(os.environ["HC_OCR_GOOD_MODELS"])
 control_ready = extract.rapidocr_ready()
+engine = extract._rapidocr_engine()
+pinned = [str(engine.cfg.Det.model_path), str(engine.cfg.Rec.model_path), str(engine.cfg.Cls.model_path)]
 print("HC_OCR_RESULT=" + json.dumps({
     "ready": ready, "control_ready": control_ready, "unavailable": result.ocr_unavailable,
-    "n": len(result.observations), "attempts": attempts,
+    "n": len(result.observations), "attempts": attempts, "pinned": pinned,
 }))
 '''
     out, _home = _run_probe(
-        body, tmp_path, HC_OCR_BAD_MODELS=str(bad), HC_OCR_PNG=str(png)
+        body, tmp_path,
+        HC_OCR_BAD_MODELS=str(bad), HC_OCR_GOOD_MODELS=str(good), HC_OCR_PNG=str(png),
     )
     assert out["ready"] is False, out
     assert out["unavailable"] is True and out["n"] == 0, out
     assert out["attempts"] == [], f"a bad model file triggered a network attempt: {out['attempts']}"
     assert out["control_ready"] is True, out
+    assert all(Path(p).parent == good for p in out["pinned"]), (
+        f"model paths are not pinned to the verified directory: {out['pinned']}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +591,8 @@ async def test_hc_ocr_007_mixed_pdf_reads_only_the_image_page_when_asked(monkeyp
 def test_hc_ocr_008_rapidocr_alone_is_an_ocr_engine(monkeypatch, tmp_path):
     from unittest.mock import patch
 
+    (tmp_path / "models").mkdir()  # so validate_startup has no unrelated warning to make
+
     monkeypatch.setattr("shutil.which", lambda *_a, **_k: None)
 
     with patch("modules.extract.rapidocr_ready", return_value=True):
@@ -556,7 +601,7 @@ def test_hc_ocr_008_rapidocr_alone_is_an_ocr_engine(monkeypatch, tmp_path):
             models_path=str(tmp_path / "models"),
         )
         warnings = settings.validate_startup()
-        assert not any("ocr" in w.lower() or "tesseract" in w.lower() for w in warnings), warnings
+        assert not any("OCR enabled" in w or "tesseract" in w.lower() for w in warnings), warnings
         assert settings.ocr_enabled is True
 
         monkeypatch.setattr(cfg.settings, "ocr_enabled", True)

@@ -8,9 +8,13 @@ Handles:
 - Confidence scoring
 """
 
+import asyncio
+import functools
+import hashlib
 import io
 import logging
 import re
+import threading
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from datetime import datetime
@@ -74,6 +78,218 @@ _UNIT_ALT = (
 )
 
 
+# ---------------------------------------------------------------------------
+# OCR engine (RAPIDOCR-BUNDLE)
+#
+# RapidOCR ships its three ONNX models inside the wheel. The engine is built
+# only from those files, with every model path pinned, so RapidOCR's own
+# download branch (requests.get in rapidocr/utils/download_file.py) can never
+# run. A missing or modified file means "no engine", never a download.
+# Tesseract stays as the fallback when it is on PATH.
+# ---------------------------------------------------------------------------
+
+# File name -> SHA-256, copied from rapidocr 3.10.0 default_models.yaml.
+_RAPIDOCR_MODEL_SHA256 = {
+    "PP-OCRv6_det_small.onnx": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f",
+    "PP-OCRv6_rec_small.onnx": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884",
+    "ch_ppocr_mobile_v2.0_cls_mobile.onnx": "e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c",
+}
+_OCR_RASTER_DPI = 200  # 300 dpi read no better than 200 in the RAPIDOCR-RESEARCH run
+_MIN_PAGE_CHARS = 20  # non-space characters for a page to count as readable
+_RAPIDOCR_LOCK = threading.Lock()  # one page at a time through the shared engine
+
+
+def _rapidocr_model_dir() -> Path:
+    """Directory of the models inside the installed rapidocr wheel."""
+    import importlib.resources as resources
+
+    return Path(str(resources.files("rapidocr") / "models"))
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+@functools.lru_cache(maxsize=1)
+def _rapidocr_engine():
+    """The RapidOCR engine, or None when it cannot be built safely offline.
+
+    Logs file names only, never document text.
+    """
+    try:
+        import cv2  # noqa: F401
+        import onnxruntime  # noqa: F401
+        from rapidocr import RapidOCR
+
+        model_dir = _rapidocr_model_dir()
+    except Exception as exc:  # ImportError, or a broken install
+        logger.warning("RapidOCR is not available (%s)", type(exc).__name__)
+        return None
+
+    paths: dict[str, str] = {}
+    for name, expected in _RAPIDOCR_MODEL_SHA256.items():
+        path = model_dir / name
+        try:
+            actual = _file_sha256(path)
+        except OSError:
+            logger.warning("RapidOCR model file is missing: %s", name)
+            return None
+        if actual != expected:
+            logger.warning("RapidOCR model file has the wrong SHA-256, not using it: %s", name)
+            return None
+        paths[name] = str(path)
+
+    try:
+        return RapidOCR(params={
+            "Det.model_path": paths["PP-OCRv6_det_small.onnx"],
+            "Rec.model_path": paths["PP-OCRv6_rec_small.onnx"],
+            "Cls.model_path": paths["ch_ppocr_mobile_v2.0_cls_mobile.onnx"],
+            "EngineConfig.onnxruntime.intra_op_num_threads": 1,
+            "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+            "Global.log_level": "warning",
+        })
+    except Exception as exc:
+        logger.warning("RapidOCR could not start (%s)", type(exc).__name__)
+        return None
+
+
+def rapidocr_ready() -> bool:
+    """True when the bundled RapidOCR engine can read pages on this machine."""
+    return _rapidocr_engine() is not None
+
+
+def _remove_ruled_lines(gray):
+    """Paint long horizontal and vertical rules white (grid tables read far better)."""
+    import cv2
+    import numpy as np
+
+    binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    horizontal = cv2.morphologyEx(
+        binary, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (120, 1))
+    )
+    vertical = cv2.morphologyEx(
+        binary, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 120))
+    )
+    mask = cv2.dilate(cv2.bitwise_or(horizontal, vertical), np.ones((5, 5), np.uint8))
+    cleaned = gray.copy()
+    cleaned[mask > 0] = 255
+    return cleaned
+
+
+def _lines_from_boxes(boxes, texts) -> list[str]:
+    """Join recognised boxes into text lines: cluster by y, then order by x."""
+    items = []
+    for box, text in zip(boxes, texts):
+        xs = [pt[0] for pt in box]
+        ys = [pt[1] for pt in box]
+        items.append((sum(ys) / len(ys), min(xs), max(ys) - min(ys), text))
+    if not items:
+        return []
+    heights = sorted(item[2] for item in items)
+    half_median = 0.5 * heights[len(heights) // 2]
+    items.sort(key=lambda item: item[0])
+    rows: list[list[tuple]] = []
+    for item in items:
+        if rows and abs(item[0] - sum(r[0] for r in rows[-1]) / len(rows[-1])) < half_median:
+            rows[-1].append(item)
+        else:
+            rows.append([item])
+    return [" ".join(i[3] for i in sorted(row, key=lambda i: i[1])) for row in rows]
+
+
+def _ocr_image_text(image) -> str:
+    """Read one page image (PIL) into text. RapidOCR first, Tesseract as fallback.
+
+    Blocking and CPU-heavy: callers run it with ``asyncio.to_thread``.
+    """
+    engine = _rapidocr_engine()
+    if engine is not None:
+        import numpy as np
+
+        gray = _remove_ruled_lines(np.array(image.convert("L")))
+        with _RAPIDOCR_LOCK:
+            output = engine(gray)
+        boxes = [] if output.boxes is None else output.boxes.tolist()
+        return "\n".join(_lines_from_boxes(boxes, list(output.txts or ())))
+
+    from core.config import is_tesseract_on_path
+
+    if is_tesseract_on_path():
+        import pytesseract
+
+        return pytesseract.image_to_string(image)
+    raise RuntimeError("no OCR engine is available")
+
+
+def _ocr_backend_ready(*, pdf: bool) -> bool:
+    """True when an engine and the libraries its page path needs can be imported."""
+    try:
+        if rapidocr_ready():
+            if pdf:
+                import pypdfium2  # noqa: F401
+            return True
+        from core.config import is_tesseract_on_path
+
+        if not is_tesseract_on_path():
+            return False
+        import pytesseract  # noqa: F401
+
+        if pdf:
+            import pdf2image  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _ocr_pdf_pages(pdf_bytes: bytes, page_numbers: Optional[list[int]] = None) -> dict[int, str]:
+    """OCR PDF pages (1-based; all pages when None) into {page: text}.
+
+    RapidOCR path: pypdfium2 renders each page, no Poppler needed. Tesseract
+    fallback path: pdf2image, as before. Blocking: run with ``asyncio.to_thread``.
+    """
+    texts: dict[int, str] = {}
+    if rapidocr_ready():
+        import pypdfium2 as pdfium
+
+        document = pdfium.PdfDocument(pdf_bytes)
+        try:
+            for number in page_numbers or range(1, len(document) + 1):
+                page = document[number - 1]
+                try:
+                    image = page.render(scale=_OCR_RASTER_DPI / 72).to_pil()
+                finally:
+                    page.close()
+                texts[number] = _ocr_image_text(image)
+        finally:
+            document.close()
+        return texts
+
+    from pdf2image import convert_from_bytes
+
+    if page_numbers is None:
+        for number, image in enumerate(convert_from_bytes(pdf_bytes), start=1):
+            texts[number] = _ocr_image_text(image)
+        return texts
+    for number in page_numbers:
+        images = convert_from_bytes(pdf_bytes, first_page=number, last_page=number)
+        texts[number] = _ocr_image_text(images[0]) if images else ""
+    return texts
+
+
+def _read_pdf_bytes(pdf_source: Union[Path, BinaryIO, io.BytesIO]) -> bytes:
+    if isinstance(pdf_source, (Path, str)):
+        return Path(pdf_source).read_bytes()
+    position = pdf_source.tell()
+    pdf_source.seek(0)
+    data = pdf_source.read()
+    pdf_source.seek(position)
+    return data
+
+
 class ExtractModule:
     """
     Document extraction service.
@@ -127,6 +343,8 @@ class ExtractModule:
         self,
         pdf_source: Union[Path, BinaryIO, io.BytesIO],
         document_id: str,
+        *,
+        ocr_pages: bool = False,
     ) -> ExtractionResult:
         """
         Extract lab values from a text-based PDF.
@@ -135,6 +353,10 @@ class ExtractModule:
             pdf_source: Path to PDF file, or file-like object (BytesIO) containing PDF data.
                        BytesIO is used when reading decrypted documents from memory.
             document_id: Document ID for provenance
+            ocr_pages: Read pages with no text layer by OCR (callers pass the
+                       profile's effective-OCR flag). A page leaves
+                       ``pages_without_text`` only when OCR gives at least
+                       20 non-space characters; its rows are ``ocr_pdf``.
 
         Returns:
             ExtractionResult with observations
@@ -148,17 +370,37 @@ class ExtractModule:
         collection_dates = []
         pages_text: list[str] = []
         pages_without_text: list[int] = []
+        pdf_bytes: Optional[bytes] = None
+        ocr_available = ocr_pages and _ocr_backend_ready(pdf=True)
 
         with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""
+                page_is_ocr = False
+                if len("".join(text.split())) < _MIN_PAGE_CHARS:
+                    if ocr_available:
+                        try:
+                            if pdf_bytes is None:
+                                pdf_bytes = _read_pdf_bytes(pdf_source)
+                            ocr_text = (
+                                await asyncio.to_thread(_ocr_pdf_pages, pdf_bytes, [page_num])
+                            ).get(page_num, "")
+                        except Exception as exc:  # one unreadable page must not lose the text pages
+                            logger.warning(
+                                "OCR failed on page %d (%s)", page_num, type(exc).__name__
+                            )
+                            ocr_text = ""
+                        if len("".join(ocr_text.split())) >= _MIN_PAGE_CHARS:
+                            text = ocr_text
+                            page_is_ocr = True
+                    if not page_is_ocr:
+                        pages_without_text.append(page_num)
                 pages_text.append(text)
-                if len("".join(text.split())) < 20:
-                    pages_without_text.append(page_num)
+                obs_start = len(observations)
 
-                # Extract tables (more structured)
-                tables = page.extract_tables() or []
+                # Extract tables (more structured); an OCR page has none
+                tables = [] if page_is_ocr else (page.extract_tables() or [])
 
                 # Process tables for lab values
                 table_obs_all: list[ExtractedObservation] = []
@@ -202,6 +444,13 @@ class ExtractModule:
                         o for o in text_obs
                         if o.unit and (o.analyte_raw.strip().lower(), o.value) not in seen
                     )
+
+                if page_is_ocr:
+                    # Same rule as the scanned-PDF and image paths: OCR rows are
+                    # capped, and the recogniser's own score never enters it.
+                    for obs in observations[obs_start:]:
+                        obs.confidence = min(obs.confidence * 0.8, 0.7)
+                        obs.extraction_method = "ocr_pdf"
 
                 # Extract dates
                 dates = self._extract_dates(text)
@@ -619,10 +868,7 @@ class ExtractModule:
                 ocr_unavailable=True,
             )
 
-        try:
-            import pytesseract
-            from pdf2image import convert_from_bytes
-        except ImportError:
+        if not _ocr_backend_ready(pdf=True):
             return ExtractionResult(
                 document_id=document_id,
                 observations=[],
@@ -639,13 +885,13 @@ class ExtractModule:
             pdf_source.seek(0)
             pdf_bytes = pdf_source.read()
 
-        images = convert_from_bytes(pdf_bytes)
+        # RapidOCR (pypdfium2 pages) or the Tesseract fallback (pdf2image), off the event loop.
+        page_texts = await asyncio.to_thread(_ocr_pdf_pages, pdf_bytes)
         observations = []
         collection_dates = []
         pages_text: list[str] = []
 
-        for page_num, image in enumerate(images, start=1):
-            text = pytesseract.image_to_string(image)
+        for page_num, text in sorted(page_texts.items()):
             pages_text.append(text)
             # Use existing text extraction on OCR output
             text_obs = self._extract_from_text(text, page_num, document_id)
@@ -721,9 +967,18 @@ class ExtractModule:
             )
 
         try:
-            import pytesseract
             from PIL import Image
         except ImportError:
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
+
+        if not _ocr_backend_ready(pdf=False):
             return ExtractionResult(
                 document_id=document_id,
                 observations=[],
@@ -739,7 +994,7 @@ class ExtractModule:
             image_source.seek(0)
             image = Image.open(image_source)
 
-        text = pytesseract.image_to_string(image)
+        text = await asyncio.to_thread(_ocr_image_text, image)
         observations = self._extract_from_text(text, 1, document_id)
         # Lower confidence for OCR-derived observations
         for obs in observations:
