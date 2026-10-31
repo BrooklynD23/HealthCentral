@@ -80,7 +80,7 @@ export const register: Register = on => {
         denied,
         guard: guardRule?.id ?? null,
         hint: hintRule?.id ?? null,
-        error_class: rule?.errorClass ?? (failed ? classifyError(text) : null),
+        error_class: rule?.errorClass ?? (failed ? classifyError(text, tool) : null),
         retry, edit_test_fail,
       }
       calls++

@@ -14,7 +14,7 @@ Repo-shipped Claude Code mod: observe, report, guard. Built with the `plugin-aut
 - Logging and hints (after `next`) **fail open**: they run in their own try/catch, writes are fire-and-forget, so telemetry can never block, fail, or alter a call.
 
 ## Privacy
-Metadata only. Rows never contain command text, file contents, tool output, prompts, or paths. `error_class` is a fixed category from the rule table (or `exit-144-self-kill`, `timeout`, `edit-no-match`, `permission-denied`, `module-not-found`, `command-not-found`, `no-such-file`, `tests-failed`, `git-fatal`, `syntax-error`, `exit-<n>` (1-255), `other`), never raw text. Logs stay local in the git-ignored `.claude/logs/`. Nothing leaves the machine.
+Metadata only. Rows never contain command text, file contents, tool output, prompts, or paths. `error_class` is a fixed category from the rule table (or, for non-Bash tool errors, `input-validation`, `no-such-tool`, `edit-not-read`, `read-not-found`, `read-too-large`, `schema-mismatch`, `user-rejected`, `workflow-not-found`, `workflow-bad-script`, `skill-disabled`, `task-not-found`, `task-not-running`, `subagent-limit`, `grep-pattern-rejected`, `permission-denied-auto`; or `exit-144-self-kill`, `timeout`, `edit-no-match`, `permission-denied`, `module-not-found`, `command-not-found`, `no-such-file`, `tests-failed`, `git-fatal`, `syntax-error`, `exit-<n>` (1-255), `other`), never raw text. Logs stay local in the git-ignored `.claude/logs/`. Nothing leaves the machine.
 
 ## Load it
 ```
@@ -32,4 +32,4 @@ claude plugin test .claude/mods/asclexis-rsi
 Type-check with `tsc` using a tsconfig that includes the engine's `claude-code.d.ts` plus `hooks/`, `rsi.test.ts`, `replay/cases.ts`.
 
 ## Rules and replay set
-Each rule needs at least one positive and one `pass` case in `replay/cases.ts` (the single source; `{id, rule, tool, input, error_text?, failed?, expect: deny|hint|pass}`; `failed` defaults to "error_text is present"). `rsi-loop` proposals may edit only `hooks/rules.ts`, `replay/cases.ts`, and `docs/agentic/recurring-failures.md`.
+Each rule needs at least one positive and one `pass` case in `replay/cases.ts` (the single source; `{id, rule, tool, input, error_text?, failed?, error_class?, expect: deny|hint|pass}`; `failed` defaults to "error_text is present"; when `error_class` is present the case also asserts the logged row's `error_class` equals it, so a class case uses `"rule": ""` and `"expect": "pass"`). `rsi-loop` proposals may edit only `hooks/rules.ts`, `replay/cases.ts`, and `docs/agentic/recurring-failures.md`.
