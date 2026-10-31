@@ -399,7 +399,8 @@ class ExtractModule:
         pages_text: list[str] = []
         pages_without_text: list[int] = []
         pdf_bytes: Optional[bytes] = None
-        ocr_available = ocr_pages and _ocr_backend_ready(pdf=True)
+        # Asked on the loop the first time a page is short of text, never for an all-text PDF.
+        ocr_available: Optional[bool] = None
 
         with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
@@ -407,6 +408,8 @@ class ExtractModule:
                 text = page.extract_text() or ""
                 page_is_ocr = False
                 if len("".join(text.split())) < _MIN_PAGE_CHARS:
+                    if ocr_available is None:
+                        ocr_available = bool(ocr_pages and _ocr_backend_ready(pdf=True))
                     if ocr_available:
                         try:
                             if pdf_bytes is None:

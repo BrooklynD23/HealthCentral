@@ -233,7 +233,7 @@ class Settings(BaseSettings):
         # Check OCR availability (bundled RapidOCR, or Tesseract on PATH)
         if self.ocr_enabled and not (shutil.which("tesseract") or _rapidocr_ready()):
             warnings.append(
-                "OCR enabled but tesseract not found on PATH; disabling OCR"
+                "OCR enabled but no OCR engine (bundled RapidOCR or Tesseract) is available; disabling OCR"
             )
             self.ocr_enabled = False
 

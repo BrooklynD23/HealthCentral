@@ -335,6 +335,14 @@ settings.ocr_enabled = True
 '''
 
 
+# The native-socket check (and the probes that share its machinery) read /proc/self/fd,
+# which exists on Linux only. Windows ETW and macOS are not covered (RDB-L1/L2).
+_NEEDS_PROC_FD = pytest.mark.skipif(
+    not Path("/proc/self/fd").exists(),
+    reason="reads /proc/self/fd; the native-socket check runs on Linux only",
+)
+
+
 def _run_probe(body: str, tmp_path: Path, **extra_env: str) -> tuple[dict, Path]:
     """Run ``body`` in a fresh interpreter under the guard; return (result, empty HOME)."""
     home = tmp_path / "home-empty"
@@ -451,6 +459,7 @@ def _import_over_http(profile_db, monkeypatch, tmp_path, filename: str, data: by
 # HC-OCR-001 .. 003: nothing leaves the machine
 # ---------------------------------------------------------------------------
 
+@_NEEDS_PROC_FD
 def test_hc_ocr_001_scanned_image_is_read_with_no_network(tmp_path):
     pytest.importorskip("rapidocr")
     png = tmp_path / "page.png"
@@ -768,6 +777,15 @@ async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
     assert response.json()["observations_extracted"] == 0
 
     # Same switch on a mixed PDF: OCR off must leave the picture page unread and say so.
+    # The spy would hand back a readable HbA1c row for page 2, so only the OCR call itself
+    # can put that row in the database: it must never be made.
+    ocr_calls = []
+
+    def spy(pdf_bytes, page_numbers=None):
+        ocr_calls.append(page_numbers)
+        return {2: "HbA1c 9.1 % 4.0-5.6\nGlucose 95 mg/dL 70-100"}
+
+    monkeypatch.setattr("modules.extract._ocr_pdf_pages", spy)
     with patch("modules.extract.rapidocr_ready", return_value=True):
         response, _master = _import_over_http(
             profile_db, monkeypatch, tmp_path, "mixed.pdf", _mixed_pdf()
@@ -781,6 +799,7 @@ async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
     ).scalars().all()
     assert [o for o in mixed_rows if o.source_page == 2] == []
     assert len([o for o in mixed_rows if o.source_page == 1]) == 3
+    assert ocr_calls == [], "OCR is off: no page may be sent to the OCR engine"
 
 
 def test_hc_ocr_014_disabled_ocr_loads_no_engine(tmp_path):
@@ -881,7 +900,27 @@ async def test_hc_ocr_012_ocr_does_not_block_the_event_loop(monkeypatch):
         task.cancel()
     assert ticks >= 5, f"event loop advanced only {ticks} ticks during a 0.5 s OCR call"
 
+    # Readiness (importing the engine) is asked on the loop, so ask it only when a page
+    # is short of text, never for a PDF that is all text, and only once per document.
+    calls = []
 
+    def ready(*, pdf):
+        calls.append(pdf)
+        return False
+
+    monkeypatch.setattr(extract, "_ocr_backend_ready", ready)
+    await ExtractModule().extract_from_pdf(
+        io.BytesIO(_build_pdf([("text", _MIXED_TEXT_LINES)])), "doc", ocr_pages=True
+    )
+    assert calls == [], "a text-only PDF must not probe the OCR engine"
+    await ExtractModule().extract_from_pdf(
+        io.BytesIO(_build_pdf([("text", _MIXED_TEXT_LINES), ("image", _column_page()), ("image", _column_page())])),
+        "doc", ocr_pages=True,
+    )
+    assert calls == [True], "the engine is probed once, the first time a page needs OCR"
+
+
+@_NEEDS_PROC_FD
 def test_hc_ocr_015_native_socket_check_sees_what_the_python_guard_cannot(tmp_path):
     """Control for 001's /proc check: it must flag a remote peer and ignore loopback."""
     import socket
@@ -932,6 +971,7 @@ def test_hc_ocr_015_native_socket_check_sees_what_the_python_guard_cannot(tmp_pa
         assert inode in _socket_inodes()
 
 
+@_NEEDS_PROC_FD
 def test_hc_ocr_016_pdfium_is_never_entered_by_two_threads(tmp_path):
     """PDFium is not thread-safe (pypdfium2 METADATA). Two threads inside it abort the
     whole process (``free(): invalid pointer``, exit 134; or a segfault, exit 139).
@@ -1027,9 +1067,9 @@ def test_hc_ocr_017_only_the_engine_builder_imports_onnxruntime():
     offenders = []
     for path in sorted(BACKEND_DIR.rglob("*.py")):
         rel = path.relative_to(BACKEND_DIR)
-        if rel.parts[0] in {"tests", "scripts", "migrations", "venv", ".venv", "models"} or any(
-            part.startswith(".venv") for part in rel.parts
-        ):
+        if rel.parts[0] in {"tests", "scripts", "migrations", "venv", ".venv"} or rel.parts[:2] == (
+            "models", "embeddings",
+        ) or any(part.startswith(".venv") for part in rel.parts):
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -1051,7 +1091,7 @@ def test_hc_ocr_017_only_the_engine_builder_imports_onnxruntime():
             ):
                 names = [node.args[0].value]
             if any(n == "onnxruntime" or n.startswith("onnxruntime.") for n in names):
-                offenders.append(f"{rel}:{node.lineno}")
+                offenders.append(f"{rel.as_posix()}:{node.lineno}")
     assert [o.split(":")[0] for o in offenders] == ["modules/extract.py"], offenders
     # ...and that one import is inside _rapidocr_engine, after the opt-out line.
     source = (BACKEND_DIR / "modules" / "extract.py").read_text(encoding="utf-8")
