@@ -1,6 +1,6 @@
 # Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient
 
-**Last Updated:** 2026-10-29 (POPOVER-OPEN-COST widened to dialog opens after the UI-PG-MEDS #398 stop: [delta](#delta-2026-10-29-popover-open-cost-widened-to-dialog-opens-ui-pg-meds-398-stop), planned on `41fa382`; earlier 2026-10-28: owner answers STILLNESS-GAP-BOUND "Fix first, frame waits" and STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing": §7.11 rows GATES-NAV-BOUND (L0) and STILLNESS-NAV-LATE planned on `6b3dd27`; UI-SHELL depends on GATES-NAV-BOUND; §11 answered line); 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
+**Last Updated:** 2026-10-30 (Opus planner, FOLLOWUPS-1030: pointers to SOURCE-TRACE-WIRE in UI-PG-RESULTS and UI-PG-REVIEW, NAV70-CI-MISS folded into STILLNESS-NAV-LATE, box rules point to the RUNBOOK §10.1 quiet-box precheck); 2026-10-29 (POPOVER-OPEN-COST widened to dialog opens after the UI-PG-MEDS #398 stop: [delta](#delta-2026-10-29-popover-open-cost-widened-to-dialog-opens-ui-pg-meds-398-stop), planned on `41fa382`; earlier 2026-10-28: owner answers STILLNESS-GAP-BOUND "Fix first, frame waits" and STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing": §7.11 rows GATES-NAV-BOUND (L0) and STILLNESS-NAV-LATE planned on `6b3dd27`; UI-SHELL depends on GATES-NAV-BOUND; §11 answered line); 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE, prompt 45's two answers as rows UI-DEPS and UI-FIXTURE-NAME, and prompt 48's three answers as rows UI-ROUTE-MOTION, UI-AUTH-SCREENS and SESSION-LOCK-NOW (same PR).
 **Base measured:** `origin/main` @ `257e072` (2026-10-23; merged since the first draft's `15fe095`: #321 MVP-REAUTH-401, #315 CPU-DEFAULT-PHI4, #318 OLLAMA-NUM-CTX, #314 FE-EXPLAIN-ERR, #319 GAUGE-ZERO-WIDTH, #320 INTERP-REGEN-500). The designers and the UI review read `7749744`; since then `src/frontend` changed only through #321 (`services/api.ts`, `profiles.ts`, `backup.ts`), #314 (`ExplainAssistant.tsx`) and #319 (`ReferenceRangeComparison.tsx`) with their tests, and both prototype patches still pass `git apply --check` on `257e072`. Every e2e line cited in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) was read on `257e072` and re-read after #323 (docs) and #312 SESSION-REENTRY Task 1 (`7667439`), which this branch has merged.
@@ -682,6 +682,8 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Acceptance:** G; Results route total ≤ 205 kB gz. **Est:** 5 h. **MVP:** P1.
 
+**Delta 2026-10-30 (SOURCE-TRACE-WIRE):** keep HC-STW-001…005 green, and carry `InterpretedResultCard`'s `observation` prop into `ResultsPage.tsx` when `LabInterpreter.tsx` is folded in. See [SOURCE-TRACE-WIRE](2026-10-30-followups-plan.md#source-trace-wire--give-the-source-trace-sheet-a-real-caller-on-the-interpreted-result).
+
 #### UI-PG-DOCUMENTS — Documents page and the import and processing showcase
 
 **Files:** `fe/pages/DocumentInbox.tsx`, `fe/components/documents/CategoryBadge.tsx` (delete; no importer), `ExtractionConfidenceBadge.tsx` (words first, shown only below the threshold), `HighlightChips.tsx` (Tags, max 2 + "+N"), `fe/__tests__/DocumentInbox.test.tsx` (selectors only), `fe/__tests__/ui-documents.test.tsx` (new), `e2e/ui-documents.spec.ts` (new). `EntityDetailView.tsx` belongs to UI-PG-REVIEW.
@@ -713,6 +715,8 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 | HC-UIREV-005 | the Edit dialog's current value passes `stillnessProbe` from the Edit click | yes |
 
 **Acceptance:** G. **Est:** 4 h. **MVP:** P1.
+
+**Delta 2026-10-30 (SOURCE-TRACE-WIRE):** add HC-UIREV-006: on `/verify`, "Show source" on a row opens the Source Trace sheet for that row (e2e), reusing `ObservationSourceTrace`. See [SOURCE-TRACE-WIRE](2026-10-30-followups-plan.md#source-trace-wire--give-the-source-trace-sheet-a-real-caller-on-the-interpreted-result).
 
 #### UI-PG-ASK — Ask: the chat owns its scroll, citations open on tap
 
@@ -1032,7 +1036,7 @@ Unchanged: `e2e/support/gates.ts`, every bound, the 20 ms interval and the 800 m
 **Quiet-box rule (every Playwright timing run in this row).** These are the STILLNESS-NAV-LATE box rules:
 - L0 holds `/tmp/claude-1000/quiet-box.lock`, and no model-host row runs meanwhile.
 - Wrap each Playwright command in `/tmp/claude-1000/hold_slots.sh`.
-- Just before each wrapped run, paste `uptime` and `pgrep -fa "playwright|vitest|pytest"`. The 1-minute load must be below 1.5, and no process that is not yours may appear. Otherwise wait up to 30 minutes (`wait_quiet.sh`), then report the processes and stop.
+- Just before each wrapped run, paste `uptime` and the quiet-box `pgrep` and `ss` checks (RUNBOOK §10.1). The 1-minute load must be below 1.5, and no process that is not yours may appear. Otherwise wait up to 30 minutes (`wait_quiet.sh`), then report the processes and stop.
 - Never run pytest inside the wrapped command.
 - Every run counts: no re-run to get a pass.
 - HC-UIOV-010 and HC-UIOV-011 are not timing checks and may run on any box.
@@ -1183,9 +1187,11 @@ Do not copy `node_modules`, `pw-out*`, `test-results`, `out` or `dist-branch`.
 **Box rules (every Playwright run in this row).**
 - L0 holds `/tmp/claude-1000/quiet-box.lock`, and no model-host row runs meanwhile.
 - Wrap every Playwright command in `/tmp/claude-1000/hold_slots.sh`.
-- Just before each wrapped run, paste `uptime` and `pgrep -fa "playwright|vitest|pytest"`. The 1-minute load must be below 1.5, and nothing that is not yours may appear. Otherwise wait up to 30 minutes, then report the processes.
+- Just before each wrapped run, paste `uptime` and the quiet-box `pgrep` and `ss` checks (RUNBOOK §10.1). The 1-minute load must be below 1.5, and nothing that is not yours may appear. Otherwise wait up to 30 minutes, then report the processes.
 - Never run pytest inside the wrapped command. `wait_quiet.sh` is the waiting pattern.
 - Every run counts: no re-run to get a pass.
+
+**Delta 2026-10-30 (NAV70-CI-MISS folded in):** CI misses of HC-UISH-009 on `/search` (4 of 79 E2E attempts, 71-77 ms, one on `main`) are added to Task 1's report, and an after-merge count of 60 E2E attempts closes the item. See [NAV70-CI-MISS](2026-10-30-followups-plan.md#nav70-ci-miss--folded-into-stillness-nav-late-as-ci-evidence-and-an-after-merge-count). The bounds are unchanged.
 
 **Task 1: diagnosis (MEASURE; no product or harness change).** Use systematic-debugging.
 1. **Copy the evidence.** Copy the files above into `docs/reviews/<run date>/stillness-nav-evidence/l0-2026-10-27/` and paste `sha256sum` against the table.
