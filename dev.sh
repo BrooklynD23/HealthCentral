@@ -119,7 +119,23 @@ if [ -z "$PROVIDER" ]; then
 fi
 REQ_FILE="$BACKEND_DIR/requirements.txt"
 NOCC_FILTERED=""
-if [ -z "$COMPILER" ]; then
+# llama-cpp-python: install the pinned prebuilt CPU wheel first, so no C++ toolchain is needed.
+# The source build (and the compiler check below) applies only when this step is skipped
+# (CMAKE_ARGS set) or finds no wheel for this platform.
+LLAMA_PIN="$(sed -n 's/^[[:space:]]*llama-cpp-python==\([^[:space:];#]*\).*/\1/p' "$REQ_FILE" | head -n 1)"
+LLAMA_WHEEL_OK=0
+if [ -n "${CMAKE_ARGS:-}" ]; then
+  status "CMAKE_ARGS is set: skipping the prebuilt llama-cpp-python wheel (pip builds it from source)"
+elif [ -n "$LLAMA_PIN" ]; then
+  status "Installing llama-cpp-python $LLAMA_PIN from the prebuilt wheel index ..."
+  if "$VENV_PY" -m pip install --only-binary=llama-cpp-python --index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "llama-cpp-python==$LLAMA_PIN" --no-deps >"$LOG_DIR/dev-llama-wheel.log" 2>&1; then
+    LLAMA_WHEEL_OK=1
+    ok "llama-cpp-python $LLAMA_PIN is ready (prebuilt wheel)"
+  else
+    warn "No prebuilt llama-cpp-python $LLAMA_PIN wheel was installed (no wheel for this platform, or the index is unreachable; log: logs/dev-llama-wheel.log); pip will try a source build"
+  fi
+fi
+if [ "$LLAMA_WHEEL_OK" = "0" ] && [ -z "$COMPILER" ]; then
   if [ "$PROVIDER" = "ollama" ]; then
     warn "llama-cpp-python skipped: no C compiler; LLM_PROVIDER=ollama does not need it"
     NOCC_FILTERED="$(mktemp)"
@@ -153,6 +169,15 @@ else
 fi
 [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
 [ "${HC_DEV_STOP_AFTER_DEPS:-}" != "1" ] || { status "HC_DEV_STOP_AFTER_DEPS=1 set; stopping after dependencies."; exit 0; }
+
+# --- STEP 3a: embedding model (document chunks need it) ----------------------
+# The backend loads it offline and never downloads it; this is the one fetch (about 88 MB, once).
+# Already installed: download_models.py says so and makes no network call.
+status "Checking the embedding model ..."
+if ! (cd "$BACKEND_DIR" && "$VENV_PY" scripts/download_models.py embedding); then
+  die "The embedding model is missing and could not be fetched (it needs internet once, about 88 MB). To retry: cd $BACKEND_DIR && $VENV_PY scripts/download_models.py embedding"
+fi
+ok "Embedding model is ready"
 
 # --- STEP 3b: OCR tools (detect only; no system installs) --------------------
 TESSERACT_OK=0
