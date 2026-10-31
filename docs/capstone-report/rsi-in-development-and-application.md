@@ -73,7 +73,7 @@ Build order set by the owner (RSI-BUILD): mod first, then the workflow, then the
 
 ## 6. Results
 
-**Status (2026-10-18).** Track-1 mod merged (#127). The `rsi-loop` workflow is merged (#126, #129) but has not been run: no RSI logs existed before the mod was loaded, so it needs a session started with the mod. The Track-2 evaluation harness is merged (#150) and has produced the baseline below. No constrained-decoding change, leak evaluation or detector-recall measurement exists yet.
+**Status (2026-10-18; superseded: see Track-1 `rsi-loop` runs, status 2026-10-31, below).** Track-1 mod merged (#127). The `rsi-loop` workflow is merged (#126, #129) but has not been run: no RSI logs existed before the mod was loaded, so it needs a session started with the mod. The Track-2 evaluation harness is merged (#150) and has produced the baseline below. No constrained-decoding change, leak evaluation or detector-recall measurement exists yet.
 
 **Track-1 `rsi-loop` runs (status 2026-10-31).** The workflow has run on the GPU box with the mod loaded; per-run archives are in `docs/agentic/rsi-runs/`. Two merged RSI rule PRs exist so far: #230 and #341 (the latter opened by the 2026-10-24 run). The 2026-10-26 run and the 2026-10-31 run each promoted nothing, so 2026-10-31 is the second consecutive run with zero promotions, and the cumulative promotion count stays at two.
 
