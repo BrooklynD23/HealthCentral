@@ -5,26 +5,34 @@ Plan: docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md,
 "Delta 2026-10-30" and "Delta 2026-10-30b" (ISE-DISC-SCOPE, ISE-SEED-HITS).
 
 HC-ISE-005 / HC-ISE-006: the reworded seed text (Task 1).
+HC-ISE-001..004: a card that fails validate_interpretation is withheld (Task 2).
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 import models  # noqa: F401  (registers tables on Base.metadata)
+from api.interpretations import router as interpretations_router
+from core.auth import get_profile_db_session
 from core.database import Base
 from core.profile_database import ProfileDatabaseBase
-from models import InterventionMapping, Observation
+from models import InterventionMapping, LabInterpretation, Observation
 from models.knowledge_base import BiomarkerKnowledge
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.interpret import InterpretModule
+from modules.interpret_safety import InterpretationSafetyGuard
 from modules.knowledge_loader import get_knowledge_loader
+from tests.support.routes import route_client
 
 
 # Copied from tests/test_biomarker_assistant.py (not imported across test modules).
@@ -300,3 +308,157 @@ async def test_hc_ise_006_installed_rows_pick_up_reworded_text(real_master_sessi
 
     assert len(_OLD_TEXTS) == 12
     assert not problems, "\n".join(problems)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-ISE-001..004: a card that fails the safety check is withheld
+# ──────────────────────────────────────────────────────────────────────────────
+
+PROFILE_ID = "profile-a"  # route_client's default session profile_id
+COLLECTED = datetime(2026, 3, 1, 9, 0, 0)
+DOSING_TEXT = (
+    "Your LDL is 190 mg/dL [KB:ldl]. You should take 20 mg atorvastatin daily."
+)
+# Cited, names exactly one disclaimer group ("doctor") and gives no advice, so
+# the guard fails it on missing_disclaimers alone (asserted in HC-ISE-002).
+ONE_GROUP_TEXT = (
+    "Your LDL Cholesterol result is listed as 120 mg/dL [KB:ldl]. "
+    "Ask your doctor what it means for you."
+)
+
+
+async def _engine_session(base):
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(base.metadata.create_all)
+    return AsyncSession(engine, expire_on_commit=False), engine
+
+
+@pytest_asyncio.fixture
+async def dbs():
+    profile_db, p_engine = await _engine_session(ProfileDatabaseBase)
+    master_db, m_engine = await _engine_session(Base)
+    obs = Observation(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, doc_id=str(uuid.uuid4()),
+        analyte_canonical="ldl", analyte_raw="LDL Cholesterol", value=120.0,
+        unit="mg/dL", ref_low=0.0, ref_high=130.0, collected_at=COLLECTED,
+    )
+    profile_db.add(obs)
+    await profile_db.commit()
+    try:
+        yield profile_db, master_db, obs.id
+    finally:
+        await profile_db.close()
+        await master_db.close()
+        await p_engine.dispose()
+        await m_engine.dispose()
+
+
+# Copied from tests/test_interpret_safety_metadata.py (not imported across modules).
+async def _post_interpret(profile_db, master_db, obs_id, query=""):
+    with route_client(
+        interpretations_router, "/interpretations", profile_id=PROFILE_ID, master_db=master_db
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        return client.post(f"/interpretations/observations/{obs_id}/interpret{query}")
+
+
+async def _rows(profile_db) -> list[LabInterpretation]:
+    profile_db.expire_all()
+    return list((await profile_db.execute(select(LabInterpretation))).scalars().all())
+
+
+def _patch_generated_text(text: str):
+    return patch.object(
+        InterpretModule, "_generate_interpretation", AsyncMock(return_value=(text, None))
+    )
+
+
+@pytest.mark.asyncio
+async def test_hc_ise_001_prohibited_text_is_withheld_over_http(dbs, caplog):
+    caplog.set_level(logging.DEBUG)  # or the log assertion below cannot fail
+    profile_db, master_db, obs_id = dbs
+    with _patch_generated_text(DOSING_TEXT):
+        resp = await _post_interpret(profile_db, master_db, obs_id)
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+    assert await _rows(profile_db) == []
+    assert "atorvastatin" not in resp.text.lower()
+    assert "atorvastatin" not in caplog.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_hc_ise_002_disclaimer_only_failure_is_withheld_over_http(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+
+    # Precondition: this exact text is a disclaimer-only failure in the real guard.
+    guard = InterpretationSafetyGuard()
+    final_text, final_advice = guard.add_required_disclaimers(
+        interpretation_text=ONE_GROUP_TEXT, advice_text=None
+    )
+    verdict = guard.validate_interpretation(
+        interpretation_text=final_text, advice_text=final_advice, require_citations=True
+    )
+    assert verdict.checks_failed == ["missing_disclaimers"], verdict.checks_failed
+
+    with _patch_generated_text(ONE_GROUP_TEXT):
+        resp = await _post_interpret(profile_db, master_db, obs_id)
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+    assert await _rows(profile_db) == []
+    assert "what it means for you" not in resp.text
+    assert "what it means for you" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_hc_ise_003_failed_regenerate_keeps_the_old_card(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    first = await _post_interpret(profile_db, master_db, obs_id)
+    assert first.status_code == 201, first.text
+    (old,) = await _rows(profile_db)
+    old_id, old_text, old_count = old.id, old.interpretation_text, old.regeneration_count
+
+    with _patch_generated_text(DOSING_TEXT):
+        resp = await _post_interpret(
+            profile_db, master_db, obs_id, query="?force_regenerate=true"
+        )
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+
+    (kept,) = await _rows(profile_db)
+    assert kept.id == old_id
+    assert kept.interpretation_text == old_text
+    assert kept.regeneration_count == old_count
+    assert "atorvastatin" not in caplog.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_hc_ise_004_model_path_withholds_a_failed_card(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    # Cited, so _validate_llm_citations keeps it from falling back to the template.
+    selector.run_inference = AsyncMock(
+        return_value={"choices": [{"text": DOSING_TEXT}]}
+    )
+    module = InterpretModule(model_selector=selector)
+    result = await module.interpret_with_model(
+        observation_id=obs_id, profile_id=PROFILE_ID,
+        profile_db=profile_db, master_db=master_db,
+    )
+    selector.run_inference.assert_awaited()  # the model path ran, not the template
+    assert result.success is False
+    assert result.error_message == ESCALATE_TEMPLATE
+    assert await _rows(profile_db) == []
+    assert "atorvastatin" not in caplog.text.lower()
