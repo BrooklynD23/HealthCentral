@@ -142,7 +142,7 @@ test('HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule id
 });
 
 test(
-  'HC-UIG-002 axeGate on /inbox reports color-contrast',
+  'HC-UIG-002 axeGate on /inbox reports no color-contrast',
   async ({ page }) => {
     await installMockApi(page);
     await seedMockSession(page);
