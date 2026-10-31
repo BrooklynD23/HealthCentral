@@ -392,7 +392,7 @@ Existing pins that change setup, not assertions: `test_config_validation.py` `te
 5. Config: `config.py` (008 GREEN, 009 still GREEN). Re-run the pins listed above.
 6. *(blocked: #316, SQLCIPHER-WHEEL; OCR-DEFAULT-ON answered "On, patient opts in")* Launcher sync and the opt-in preference defaults, as in the 2026-10-30 note below the Task 6 table. Owner-box checks RDB-L1 (Windows `dev.ps1` on a box without Tesseract writes `OCR_ENABLED=true`, and a scanned import is parsed) and RDB-L2 (same with `dev.sh`).
 
-**Files (Tasks 1-5, verified on `144b5d48`):** `be/requirements.txt` (OCR block `:41-47` only), `be/modules/extract.py` (`extract_from_pdf` signature and the no-text-page branch, `extract_from_scanned_pdf`, `extract_from_image`, new private helpers), `be/core/config.py` (`:233-238`, `:297-304`, `:314-330` only), `be/api/documents.py` (`:609-610` only), `be/tests/test_ocr_rapid.py` (new), `be/tests/test_config_validation.py` (setup of the three tests only), `THIRD_PARTY_NOTICES.md` (new), `docs/INDEX.md` and `docs/_link_graph.json` (regenerated if the docs index picks up the new file), slots. **Task 6** adds the files in its table. **Not edited:** `be/scripts/download_models.py`, `.gitignore`, `dev.ps1` / `dev.sh` (until Task 6), the migrations, the frontend, and the four ask-first modules. **Delta:** +13 backend. **Est:** 6 h for Tasks 1-5; Task 6 adds 1 h ("On when reader installed") or 1.5 h ("On, patient opts in").
+**Files (Tasks 1-5, verified on `144b5d48`):** `be/requirements.txt` (OCR block `:41-47` only), `be/modules/extract.py` (`extract_from_pdf` signature and the no-text-page branch, `extract_from_scanned_pdf`, `extract_from_image`, new private helpers), `be/core/config.py` (`:233-238`, `:297-304`, `:314-330` only), `be/api/documents.py` (`:609-610` only), `be/tests/test_ocr_rapid.py` (new), `be/tests/test_config_validation.py` (setup of the three tests only), `be/tests/test_audit_order_guard.py` (exactly three new `NAMED_DYNAMIC_EXCLUSIONS` entries for the `asyncio.to_thread` OCR calls, owner RAPIDOCR-AUDIT-EXCL 2026-10-31; the guard's logic in `tests/support/callgraph.py` and every other exclusion are untouched), `THIRD_PARTY_NOTICES.md` (new), `docs/INDEX.md` and `docs/_link_graph.json` (regenerated if the docs index picks up the new file), slots. **Task 6** adds the files in its table. **Not edited:** `be/scripts/download_models.py`, `.gitignore`, `dev.ps1` / `dev.sh` (until Task 6), the migrations, the frontend, and the four ask-first modules. **Delta:** +13 backend. **Est:** 6 h for Tasks 1-5; Task 6 adds 1 h ("On when reader installed") or 1.5 h ("On, patient opts in").
 
 **Acceptance** (in the worktree, after the final `git merge origin/main`; paste the output):
 
@@ -413,6 +413,24 @@ Then RUNBOOK §6 steps 2-6: the full suite (no new failures beyond the 5 environ
 **Owner gates:** OCR-FOR-MVP (b), OCR-SIZE ("Accept 271 MB") and **OCR-DEFAULT-ON** ("On, patient opts in", answered 2026-10-30, owner-decisions row OCR-DEFAULT-ON; [Owner gates](#owner-gates) item 7) answered. Task 6's design is fixed by that answer (note below the Task 6 table). **Order:** Tasks 1-5 are ready. This changes the section above, which put the whole row after SQLCIPHER-WHEEL and the launcher rows: Tasks 1-5 no longer touch `dev.ps1` or `dev.sh`, and on `be/requirements.txt` they edit a different hunk from SQLCIPHER-WHEEL (`:41-47` against `:31-32`). They keep that row's rule: never beside a non-draft PR on `be/requirements.txt` (SQLCIPHER-WHEEL, any dependency row). Task 6 waits on #316 and SQLCIPHER-WHEEL (OCR-DEFAULT-ON answered 2026-10-30). **Medical data path:** say so in the PR. OCR rows are unverified like every imported row. With safety mode on they are not interpreted until checked (`api/interpretations.py:461`). With it off, the Interpret page can explain an unchecked value, as it already does for text-PDF rows; this row does not change that. **MVP:** P1 (unchanged).
 
 **New bullet for L0 (not a row here): OCR-COPY-ENGINE.** Three patient-facing strings name Tesseract as the only reader and become wrong once RapidOCR ships: `fe/pages/SettingsPage.tsx:346` ("Extract text from scanned PDFs and lab images using Tesseract"), `fe/pages/DocumentInbox.tsx:433` (badge title "install Tesseract") and `fe/pages/VerificationWorkbench.tsx:54` ("ensure Tesseract is installed"). Those pages belong to the UI-PG-* rows (UI-PG-DOCUMENTS, UI-PG-REVIEW), so the copy change goes with them or in a small frontend row after this one merges. It is not added to this backend row, to avoid a file clash.
+
+### L0 ruling 2026-10-31: RAPIDOCR-BUNDLE PDFium lock after #421 review
+
+An orchestrator decision, not an owner row. #421 was escalated after 3 review rounds. The review found a real **BLOCKER**: PDFium runs on two threads at once. `be/api/documents.py` `get_page_image` (about `:1778-1791`) calls pdfplumber `to_image` on the loop thread without `extract._PDFIUM_LOCK`, while `_ocr_pdf_pages` runs in a worker thread. The reviewer's probe segfaulted in 4 of 8 runs. Evidence: PR #421 comment 6547136926.
+
+**Ruling.**
+
+- Add `be/api/documents.py` to the row's files, **limited to the `get_page_image` pdfplumber open/render/save block, wrapped in `with _PDFIUM_LOCK:`**. No new `to_thread`, so RAPIDOCR-AUDIT-EXCL's 3 `NAMED_DYNAMIC_EXCLUSIONS` keys are unchanged.
+- Add `docs/agentic/recurring-failures.md` to the row's files, **additions only**, for two new failure modes: PDFium is single-thread and must be enforced at one site, and native telemetry that a Python socket guard cannot see.
+
+**The reviewer's fix list (all stay in the row).**
+
+1. Narrow the lock to PDFium calls only, and run OCR outside it.
+2. Extend HC-OCR-016 with a concurrent `to_image` thread (RED before the fix, GREEN after).
+3. MINOR fixes: lazy `ocr_available`; the HC-OCR-009 spy; HC-OCR-017 skips only `models/embeddings` and uses `as_posix()`; the config warning names both engines; the `/proc` tests are `skipif` non-Linux.
+4. Run the full backend suite in `.venv-ocr` after merging origin/main.
+
+The queue row RAPIDOCR-BUNDLE (files column) is updated to match.
 
 ---
 
