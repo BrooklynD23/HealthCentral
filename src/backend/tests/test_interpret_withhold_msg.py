@@ -170,6 +170,25 @@ def _assert_withheld_answer(resp, rag):
     rag.query.assert_not_awaited()
 
 
+async def _assert_one_withheld_row(master_db, obs_id: str, expected_checks: list[str]):
+    """First generate writes no `started` row, so the withheld row stands alone:
+    ids and check type names only, no status key, no prose."""
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    (row,) = rows
+    assert row.profile_id == PROFILE_ID
+    assert row.entity_type == "observation"
+    assert row.entity_id == obs_id
+    details = json.loads(row.details_json)
+    assert details == {
+        "reason": "safety_check_failed", "decision": "escalate", "checks_failed": expected_checks,
+    }
+    assert "status" not in details
+    blob = _row_blob(row).lower()
+    for leaked in ("atorvastatin", "ldl", "cholesterol", "mg/dl", "120.0", "20 mg", "ask your doctor"):
+        assert leaked not in blob, leaked
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # HC-IWM-001 / HC-IWM-002: grounded route answers 201 with the escalation message
 # ──────────────────────────────────────────────────────────────────────────────
@@ -184,6 +203,20 @@ async def test_hc_iwm_001_grounded_route_answers_withheld_card_with_message(dbs,
     assert await _cards(profile_db) == []
     assert "atorvastatin" not in resp.text.lower()
     assert "atorvastatin" not in caplog.text.lower()
+    await _assert_one_withheld_row(master_db, obs_id, _guard_verdict(DOSING_TEXT).checks_failed)
+
+    # Same withhold decision at the model-path site (no route caller today):
+    # the result must carry withheld=True there too (recurring-failures #9).
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": DOSING_TEXT}]})
+    model_result = await InterpretModule(model_selector=selector).interpret_with_model(
+        observation_id=obs_id, profile_id=PROFILE_ID,
+        profile_db=profile_db, master_db=master_db,
+    )
+    selector.run_inference.assert_awaited()
+    assert model_result.success is False
+    assert model_result.withheld is True
 
 
 @pytest.mark.asyncio
@@ -198,6 +231,7 @@ async def test_hc_iwm_002_grounded_route_disclaimer_only_failure_is_withheld(dbs
     assert await _cards(profile_db) == []
     assert "what it means for you" not in resp.text
     assert "what it means for you" not in caplog.text
+    await _assert_one_withheld_row(master_db, obs_id, ["missing_disclaimers"])
 
 
 # ──────────────────────────────────────────────────────────────────────────────
