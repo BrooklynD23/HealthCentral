@@ -302,15 +302,21 @@ export function LabInterpreter() {
               </CardContent>
             </Card>
           ) : null}
-          {withheldNotice && withheldNotice.observationId === effectiveObservation?.id && (
-            <Card role="status">
-              <CardContent className="py-4 space-y-2">
-                <p className="text-sm font-medium text-ink">
-                  Asclexis could not produce a safe explanation for this result.
-                </p>
-                <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
-              </CardContent>
-            </Card>
+          {/* The polite live region stays mounted so screen readers announce the
+              notice when it appears inside it. */}
+          {effectiveObservation && (
+            <div aria-live="polite" data-testid="withheld-live-region">
+              {withheldNotice && withheldNotice.observationId === effectiveObservation.id && (
+                <Card role="status">
+                  <CardContent className="py-4 space-y-2">
+                    <p className="text-sm font-medium text-ink">
+                      Asclexis could not produce a safe explanation for this result.
+                    </p>
+                    <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           )}
           {groundedSummary && (
             <Card>

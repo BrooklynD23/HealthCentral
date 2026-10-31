@@ -312,15 +312,22 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     });
   });
 
-  it('HC-IWM-FE-001 shows the lead line and the message in a status region, no badge, no grounded card', async () => {
-    mockPage({ post: withheldBody });
+  it('HC-IWM-FE-001 shows the lead line and the message as plain text in a status region, no badge, no grounded card', async () => {
+    const MARKUP = 'Plain **x** and <b>y</b> here.';
+    mockPage({ post: () => ({ ...withheldBody(), full_response: MARKUP }) });
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    const generate = await screen.findByRole('button', { name: /Generate Interpretation/i });
+    // The polite live region is mounted (empty) before the answer, so the notice is announced.
+    const mounted = screen.getByTestId('withheld-live-region');
+    expect(mounted.textContent).toBe('');
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(generate);
 
     const lead = await screen.findByText(LEAD);
     const region = lead.closest('[role="status"]');
-    expect(region).not.toBeNull();
-    expect(region?.textContent).toContain(ESCALATE_TEXT);
+    expect(mounted.contains(region)).toBe(true);
+    expect(region?.textContent).toContain(MARKUP);
+    expect(region?.querySelector('strong, b')).toBeNull();
     expect(screen.queryByText(/Grounded faithfulness/i)).toBeNull();
     expect(screen.queryByText('Grounded explanation')).toBeNull();
   });
