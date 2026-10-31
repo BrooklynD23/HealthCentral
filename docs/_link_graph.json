@@ -1211,6 +1211,7 @@
       "docs/reviews/2026-10-22/kv-prefix-measure.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/research/2026-10-22-judge-laya/00-README.md",
@@ -1347,6 +1348,7 @@
       "docs/plans/2026-10-30-followups-plan.md"
     ],
     "docs/plans/2026-10-30-followups-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md"
     ],
@@ -3239,6 +3241,8 @@
       "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/plans/2026-10-30-followups-plan.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
