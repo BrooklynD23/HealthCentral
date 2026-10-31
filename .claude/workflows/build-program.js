@@ -66,6 +66,42 @@ const MERGE_SCHEMA = {
   required: ['merged', 'skipped'],
 }
 
+// Pure and self-contained (extracted alone by the test fixture): no outer consts, no log/args references.
+// RSI-MINE-OUTCOMES: map a build-item result string to ONE fixed stop_class literal (the 18-value enum in rsi-loop.js).
+// The fixed prefixes come from build-item.js; the free-text tail of a Task 0 or block stop is only read in memory, by
+// phrase-family regex, to pick a literal. Nothing from the result is ever returned. Subclass precedence (first match
+// wins): resume-identity, file-list-gap, lock-or-slot, plan-gap, owner-gate; so a tail that says both "Plan gap" and
+// "a file outside the row's list" is file-list-gap. No match: task0-other (Task 0 tail) or stopped-after-claim (block tail).
+function outcomeClass(result) {
+  if (typeof result !== 'string') return 'unknown'
+  const s = result.replace(/^﻿/, '').trim()
+  const first = s.split('\n')[0]
+  const fin = /^https?:\/\/\S+\/pull\/\d+\s+(READY|DRAFT|FAILED|BLOCKED)\b/i.exec(first)
+  if (fin) return { READY: 'done-ready', DRAFT: 'done-draft', FAILED: 'failed', BLOCKED: 'blocked-after-verify' }[fin[1].toUpperCase()]
+  if (/^ERROR\s+[^\s:]+:/i.test(first)) return 'error'
+  if (/^ESCALATED\s+[^\s:]+\s+after\b/i.test(first)) return 'escalated'
+  const sub = (tail, fallback) => {
+    const FAMILIES = [
+      ['resume-identity', [/\bidentity checks?\b/i, /\bresume of PR #?\d+/i, /\bresume identity\b/i, /\btitle is not \[(?:blocked|escalated):/i]],
+      ['file-list-gap', [/\bfile[- ]list gap\b/i, /\bnot in (?:the |its |this )?(?:row|brief|plan)\b/i, /\bfiles? outside (?:of )?(?:the |its |this )?(?:row|brief|plan)\b/i, /\bout-of-row files?\b/i]],
+      ['lock-or-slot', [/\blocked by (?:open )?PR\b/i, /\bno free (?:code )?slot/i, /\blost (?:the )?claim race\b/i, /\b(?:lock|slot) check\b/i, /\bdenied by permission\b/i, /\bpermission classifier\b/i]],
+      ['plan-gap', [/\bplan[- ]gap\b/i]],
+      ['owner-gate', [/\bowner[- ]gate\b/i, /\bunanswered\b[^.\n]{0,40}\bgate\b/i, /\bgate\b[^.\n]{0,40}\bunanswered\b/i, /\bno owner[- ]decisions? (?:row|answer)/i, /\bwaiting (?:for|on) (?:the )?owner\b/i]],
+    ]
+    for (const [cls, res] of FAMILIES) if (res.some((re) => re.test(tail))) return cls
+    return fallback
+  }
+  if (/^STOPPED\s+[^\s:]+:\s+not found in\b/i.test(first)) return 'not-found'
+  if (/^STOPPED\s+[^\s:]+:.*\bis owner or model-machine work\b/i.test(first)) return 'owner-or-model-machine'
+  if (/^STOPPED\s+[^\s:]+:\s+runtime is\b/i.test(first)) return 'runtime-mismatch'
+  if (/^STOPPED\s+[^\s:]+:\s+unexpected worktree\b/i.test(first)) return 'bad-worktree-shape'
+  const t0 = /^STOPPED\s+[^\s:]+\s+at Task 0:([\s\S]*)$/i.exec(s)
+  if (t0) return sub(t0[1], 'task0-other')
+  const blk = /^STOPPED\s+[^\s:]+\s+\(PR #\d+, retitled \[blocked:[a-z]+\]\):([\s\S]*)$/i.exec(s)
+  if (blk) return sub(blk[1], 'stopped-after-claim')
+  return 'unknown'
+}
+
 const triage = (id, result) => agent(
   `Classify this build-item result for queue item ${id}. Read the PR and its latest comment with gh if a PR number appears.
 Result:\n${typeof result === 'string' ? result : JSON.stringify(result)}
@@ -115,7 +151,7 @@ for (let wave = 1; wave <= MAX_WAVES; wave++) {
   )
   built.filter(Boolean).forEach((r) => {
     if (r.t && r.t.kind === 'owner_gate' && r.t.owner_question) ownerQuestions.push(`${r.id}: ${r.t.owner_question}`)
-    report.push({ wave, id: r.id, kind: r.t ? r.t.kind : 'unknown', summary: r.t ? r.t.summary : String(r.result), rerun: r.rerun || null })
+    report.push({ wave, id: r.id, kind: r.t ? r.t.kind : 'unknown', summary: r.t ? r.t.summary : String(r.result), rerun: r.rerun || null, stop_class: outcomeClass(r.result), rerun_stop_class: r.rerun ? outcomeClass(r.rerun) : null })
   })
 
   // Planning runs once per program run: it writes shared files (queue.md, lane docs) in one docs PR.
@@ -179,7 +215,16 @@ ${STYLE}`,
 let rsi = null
 if (RSI) {
   phase('RSI')
-  rsi = await workflow('rsi-loop', { run_id: (args && args.run_id) || 'build-program' })
+  // RSI-MINE-OUTCOMES: only fixed literals and the queue id go to rsi-loop (kind, stop_class); rsi-loop re-validates them.
+  // build-item's triage can fail, and the report then holds kind 'unknown', which is outside the triage enum: map it to 'other'.
+  const TRIAGE_KINDS = ['done', 'plan_gap', 'owner_gate', 'env', 'review', 'other']
+  const outcomes = report.filter((r) => r.kind !== 'plan' && r.kind !== 'merge').flatMap((r) => {
+    const kind = TRIAGE_KINDS.includes(r.kind) ? r.kind : 'other'
+    const rows = [{ id: r.id, kind, stop_class: r.stop_class }]
+    if (r.rerun_stop_class) rows.push({ id: r.id, kind, stop_class: r.rerun_stop_class })
+    return rows
+  })
+  rsi = await workflow('rsi-loop', { run_id: (args && args.run_id) || 'build-program', outcomes })
     .catch((e) => ({ error: `rsi-loop: ${e && e.message}` }))
 }
 
