@@ -360,7 +360,7 @@ def _run_probe(body: str, tmp_path: Path, **extra_env: str) -> tuple[dict, Path]
         cwd=tmp_path, env=env, capture_output=True, text=True, timeout=600,
     )
     lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("HC_OCR_RESULT=")]
-    assert proc.returncode == 0 and lines, f"probe crashed:\n{proc.stderr[-3000:]}"
+    assert proc.returncode == 0 and lines, f"probe crashed (exit {proc.returncode}):\n{proc.stderr[-3000:]}"
     return json.loads(lines[-1].split("=", 1)[1]), home
 
 
@@ -932,13 +932,19 @@ def test_hc_ocr_015_native_socket_check_sees_what_the_python_guard_cannot(tmp_pa
         assert inode in _socket_inodes()
 
 
-def test_hc_ocr_016_concurrent_pdf_ocr_does_not_crash_pdfium(tmp_path):
-    """PDFium is not thread-safe (pypdfium2 METADATA). Two imports at once run
-    ``_ocr_pdf_pages`` in two asyncio.to_thread workers; without a lock around the
-    PdfDocument they abort the whole process (``free(): invalid pointer``, exit 134).
+def test_hc_ocr_016_pdfium_is_never_entered_by_two_threads(tmp_path):
+    """PDFium is not thread-safe (pypdfium2 METADATA). Two threads inside it abort the
+    whole process (``free(): invalid pointer``, exit 134; or a segfault, exit 139).
 
-    A subprocess probe, because the failure is a native abort that would kill pytest.
-    Only PDFium is exercised: the engine and the page-image read are stubbed.
+    Two races, one probe, because the failure is a native abort that would kill pytest:
+    * four ``asyncio.to_thread`` workers run the real ``_ocr_pdf_pages`` against each other;
+    * meanwhile the loop thread runs the REAL ``api.documents.get_page_image`` coroutine
+      (pdfplumber ``to_image``, which is PDFium too) over every page, again and again.
+    Only the engine, the database, auth, audit and the page cache are stubbed.
+
+    What this still cannot see: a PDFium call from a route other than ``get_page_image``
+    or from a thread this test does not start (a grep of ``to_image(`` / ``pypdfium2`` /
+    ``PdfDocument`` is the recheck), and a race that needs a different PDF than the fixture.
     """
     pytest.importorskip("pypdfium2")
     pdf = tmp_path / "pages.pdf"
@@ -947,9 +953,14 @@ def test_hc_ocr_016_concurrent_pdf_ocr_does_not_crash_pdfium(tmp_path):
     text_page = ("text", [f"Glucose: {n} mg/dL (70-100)" for n in range(30)])
     pdf.write_bytes(_build_pdf([text_page, ("image", _column_page()), text_page, ("image", _column_page())]))
     body = r'''
+import asyncio
+import io
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from modules import extract
+import api.documents as documents
+
 extract.rapidocr_ready = lambda: True
 extract._ocr_image_text = lambda image: "page"
 data = Path(os.environ["HC_OCR_PDF"]).read_bytes()
@@ -957,20 +968,52 @@ errors = []
 
 def work():
     try:
-        for _ in range(3):
+        for _ in range(12):
             assert len(extract._ocr_pdf_pages(data)) == 4
     except BaseException as exc:
         errors.append(type(exc).__name__)
 
-threads = [threading.Thread(target=work) for _ in range(4)]
+class _Result:
+    def scalar_one_or_none(self):
+        return SimpleNamespace(id="doc", profile_id="p", source="pages.pdf")
+
+class _ProfileDb:
+    async def execute(self, *args, **kwargs):
+        return _Result()
+
+async def _audit(*args, **kwargs):
+    return None
+
+documents.validate_uuid = lambda *a, **k: None
+documents.verify_document_access = lambda *a, **k: None
+documents.get_decrypted_document = lambda *a, **k: io.BytesIO(data)
+documents._page_image_cache_get = lambda key: None
+documents._page_image_cache_set = lambda key, value: None
+documents.audit_and_commit = _audit
+session = SimpleNamespace(profile_id="p")
+
+async def render_all():
+    rendered = 0
+    for number in range(1, 5):
+        response = await documents.get_page_image(
+            "doc", number, session, profile_db=_ProfileDb(), master_db=None
+        )
+        assert response.body[:8] == b"\x89PNG\r\n\x1a\n"
+        rendered += 1
+    return rendered
+
+threads = [threading.Thread(target=work) for _ in range(3)]
 for t in threads:
     t.start()
+rendered = 0
+for _ in range(15):
+    rendered += asyncio.run(render_all())
 for t in threads:
     t.join()
-print("HC_OCR_RESULT=" + json.dumps({"errors": errors}))
+print("HC_OCR_RESULT=" + json.dumps({"errors": errors, "rendered": rendered}))
 '''
     out, _home = _run_probe(body, tmp_path, HC_OCR_PDF=str(pdf))
-    assert out["errors"] == [], out
+    assert out == {"errors": [], "rendered": 60}, out
 
 
 def test_hc_ocr_017_only_the_engine_builder_imports_onnxruntime():
