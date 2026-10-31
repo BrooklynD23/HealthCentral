@@ -1,8 +1,8 @@
 # RSI harness 2026-10-31 — plans for RSI-ERRCLASS-NONBASH, RSI-RULE-TOOLFIELD, RSI-MINE-OUTCOMES and RSI-OWNER-NOTES
 
-**Last Updated:** 2026-10-31 (Opus planner on `d6bc6643`: four RSI-loop improvements planned as queue rows, per owner row RSI-HARNESS-PLAN (answered 2026-10-31; recorded by a parallel docs PR). Each row is **planned, awaiting owner approval**, not ready)
+**Last Updated:** 2026-10-31 (Opus planner on `d6bc6643`: four RSI-loop improvements planned as queue rows, per owner row RSI-HARNESS-PLAN (answered 2026-10-31; recorded by a parallel docs PR). Each row was **planned, awaiting owner approval**; the owner approved all four under RSI-HARNESS-GO (answered 2026-10-31), so each is now **ready** in its planned order)
 **Owner:** repository owner
-**Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every row needs its own owner yes (gate **RSI-HARNESS-GO**, one answer per row) before build-item may claim it. Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). The drafted owner questions at the end are not asked; L0 has them reviewed before AskUserQuestion.
+**Status:** APPROVED (owner, RSI-HARNESS-GO, L0 AskUserQuestion, answered 2026-10-31: all four rows). Docs only. Rows A-D are ready in their planned order (A→B, C→D); the owner still merges every PR (RSI-4). Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). Of the drafted owner questions at the end, RSI-HARNESS-GO and OQ-RSI-NOTES-DENY are answered; the others are not asked.
 **Base measured:** `origin/main` @ `d6bc6643` (2026-10-31, #422 merged). Every `file:line` below was re-read by the planner on that commit. `claude plugin validate .claude/mods/asclexis-rsi` → `Validation passed` (exit 0); `claude plugin test .claude/mods/asclexis-rsi` → `29 pass, 0 fail` (exit 0, CLI 2.1.316), measured by a Haiku (medium) test runner in the planner worktree.
 **Refresh Trigger:** any edit before these rows are built to `.claude/mods/asclexis-rsi/hooks/logic.ts`, `hooks/register.ts`, `hooks/rules.ts`, `replay/cases.ts`, `rsi.test.ts` or `README.md`, `.claude/workflows/rsi-loop.js` or `.claude/workflows/build-program.js`; a change to the rsi-log row format; an owner answer to RSI-HARNESS-GO or to a question below; a Claude Code CLI upgrade that changes a tool's error text.
 
@@ -93,7 +93,7 @@ Queue rows: [queue.md, "Planned 2026-10-31, RSI harness"](2026-10-15-build-progr
 
 **Files:** `.claude/mods/asclexis-rsi/hooks/logic.ts` (`classifyError` only, `:61-84`), `.claude/mods/asclexis-rsi/hooks/register.ts` (`:83`, one argument), `.claude/mods/asclexis-rsi/rsi.test.ts` (one line after `:41`; new describe; one logger test), `.claude/mods/asclexis-rsi/replay/cases.ts` (additions only), `.claude/mods/asclexis-rsi/README.md` (`:17`, `:35`).
 
-**depends_on:** —. **Never beside:** RSI-RULE-TOOLFIELD (same files; this row goes first), any open rsi-loop RSI PR that edits `replay/cases.ts` (Task 0 checks `gh pr list --search "rsi: in:title" --state open` and `gh pr diff --name-only`). **Owner gates:** RSI-HARNESS-GO (open); owner merges (RSI-4). **Stops:** a shape that cannot be matched without reading past its fixed prefix; any need to log text, a path or a new row field.
+**depends_on:** —. **Never beside:** RSI-RULE-TOOLFIELD (same files; this row goes first), any open rsi-loop RSI PR that edits `replay/cases.ts` (Task 0 checks `gh pr list --search "rsi: in:title" --state open` and `gh pr diff --name-only`). **Owner gates:** RSI-HARNESS-GO (answered 2026-10-31: yes); owner merges (RSI-4). **Stops:** a shape that cannot be matched without reading past its fixed prefix; any need to log text, a path or a new row field.
 
 ---
 
@@ -139,7 +139,7 @@ Queue rows: [queue.md, "Planned 2026-10-31, RSI harness"](2026-10-15-build-progr
 
 **Files:** `.claude/mods/asclexis-rsi/hooks/logic.ts` (`fieldOf`; `checkBefore` / `checkAfter` `:36-59`), `.claude/mods/asclexis-rsi/hooks/rules.ts` (header comment `:1-6` only), `.claude/mods/asclexis-rsi/rsi.test.ts` (new describe), `.claude/mods/asclexis-rsi/README.md` (`:10`, `:35`).
 
-**depends_on:** RSI-ERRCLASS-NONBASH merged. **Never beside:** RSI-ERRCLASS-NONBASH; an open rsi-loop RSI PR that edits `rules.ts` (header comment hunk; rebase after it). **Owner gates:** RSI-HARNESS-GO (open); owner merges (RSI-4). **Stops:** a needed field that is free text; any change that would log the field.
+**depends_on:** RSI-ERRCLASS-NONBASH merged. **Never beside:** RSI-ERRCLASS-NONBASH; an open rsi-loop RSI PR that edits `rules.ts` (header comment hunk; rebase after it). **Owner gates:** RSI-HARNESS-GO (answered 2026-10-31: yes); owner merges (RSI-4). **Stops:** a needed field that is free text; any change that would log the field.
 
 ---
 
@@ -176,7 +176,7 @@ Queue rows: [queue.md, "Planned 2026-10-31, RSI harness"](2026-10-15-build-progr
 
 **Files:** `.claude/workflows/rsi-loop.js` (`MINE_SCHEMA` `:131-154`; Mine prompt `:217-224`; new `validOutcomes` after `:128`; `summary` `:356-362`; returns `:227`, `:232`, `:278`, `:373-380`), `.claude/workflows/build-program.js` (new `outcomeClass`; `:182` arg), `docs/agentic/rsi-runs/README.md` (one line: `summary.json` carries `outcome_clusters`, fixed classes only).
 
-**depends_on:** —. **Never beside:** RSI-OWNER-NOTES (same `rsi-loop.js`; this row goes first); any other `.claude/workflows/rsi-loop.js` or `build-program.js` PR; a running `build-program` or `rsi-loop` workflow on the box while the PR is tested (the dry run reads the live logs). **Owner gates:** RSI-HARNESS-GO (open); owner merges (RSI-4). **Stops:** a needed field that is free text; any write of a title, slug or stop reason; any change to the gate functions.
+**depends_on:** —. **Never beside:** RSI-OWNER-NOTES (same `rsi-loop.js`; this row goes first); any other `.claude/workflows/rsi-loop.js` or `build-program.js` PR; a running `build-program` or `rsi-loop` workflow on the box while the PR is tested (the dry run reads the live logs). **Owner gates:** RSI-HARNESS-GO (answered 2026-10-31: yes); owner merges (RSI-4). **Stops:** a needed field that is free text; any write of a title, slug or stop reason; any change to the gate functions.
 
 ---
 
@@ -206,13 +206,13 @@ Queue rows: [queue.md, "Planned 2026-10-31, RSI harness"](2026-10-15-build-progr
 
 **Files:** `.claude/workflows/rsi-loop.js` (`REFLECT_SCHEMA` `:155-166`; Reflect prompt `:243-246`; new `ownerNotes`; `summary` `:356-362`; return `:278`), `docs/agentic/rsi-runs/README.md` (one line on `owner_notes`).
 
-**depends_on:** RSI-MINE-OUTCOMES merged (shared file; and notes on outcome clusters need them). It can be built without C only by an L0 queue edit that drops the outcome-cluster keys from rule (8). **Never beside:** RSI-MINE-OUTCOMES; any other `rsi-loop.js` PR. **Owner gates:** RSI-HARNESS-GO (open); OQ-RSI-NOTES-DENY (drafted; the recommended answer is the design above); owner merges (RSI-4). **Stops:** any path by which a note could reach a worktree, a commit or a PR.
+**depends_on:** RSI-MINE-OUTCOMES merged (shared file; and notes on outcome clusters need them). It can be built without C only by an L0 queue edit that drops the outcome-cluster keys from rule (8). **Never beside:** RSI-MINE-OUTCOMES; any other `rsi-loop.js` PR. **Owner gates:** RSI-HARNESS-GO (answered 2026-10-31: yes); OQ-RSI-NOTES-DENY (answered 2026-10-31: "Drop it (Recommended)", the design above); owner merges (RSI-4). **Stops:** any path by which a note could reach a worktree, a commit or a PR.
 
 ---
 
-## Drafted owner questions (not asked)
+## Drafted owner questions (RSI-HARNESS-GO and OQ-RSI-NOTES-DENY answered 2026-10-31; the rest not asked)
 
-- **RSI-HARNESS-GO** (one per row: A, B, C, D). "Build row <id> as planned in `docs/plans/2026-10-31-rsi-harness-plan.md`?" Options: (a) yes, as planned (Recommended); (b) not now. No row is claimed before its yes is recorded on `origin/main`.
-- **OQ-RSI-NOTES-DENY** (Row D). "Should an owner note whose target is a DENY path (tests, `scripts/`, `.github/`, thresholds, ask-first files) be dropped?" Options: (a) drop it, so the loop never suggests edits there (Recommended: conservative, matches the PR gate); (b) keep it as a note, marked `deny:<reason>`, since a note edits nothing.
+- **RSI-HARNESS-GO** (answered 2026-10-31: all four, A, B, C and D) (one per row: A, B, C, D). "Build row <id> as planned in `docs/plans/2026-10-31-rsi-harness-plan.md`?" Options: (a) yes, as planned (Recommended); (b) not now. No row is claimed before its yes is recorded on `origin/main`.
+- **OQ-RSI-NOTES-DENY** (Row D; answered 2026-10-31: "Drop it (Recommended)", option (a)). "Should an owner note whose target is a DENY path (tests, `scripts/`, `.github/`, thresholds, ask-first files) be dropped?" Options: (a) drop it, so the loop never suggests edits there (Recommended: conservative, matches the PR gate); (b) keep it as a note, marked `deny:<reason>`, since a note edits nothing.
 - **OQ-RSI-SESSIONLOG** (follow-up to Row A, optional). "`session_log.py` mirrors `classifyError` for Edit/Write/Bash. Add `edit-not-read` there too, as its own row (pytest, `test_session_log_hook.py`)?" Options: (a) yes, own row after Row A (Recommended); (b) no, the mod's log is enough.
 - **OQ-RSI-FIXTURE** (Rows C and D, optional). "Commit the node fixture for the `rsi-loop.js` / `build-program.js` pure functions, run in CI, instead of the scratch `sed` + node pattern?" Options: (a) keep the scratch pattern used since §2.17 (Recommended: no new CI job); (b) commit it as `.claude/workflows/tests/*.mjs` with a CI step (a new row).
