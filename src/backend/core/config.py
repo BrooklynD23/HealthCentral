@@ -230,8 +230,8 @@ class Settings(BaseSettings):
             except OSError as e:
                 warnings.append(f"Cannot create models directory '{self.models_path}': {e}")
 
-        # Check OCR availability
-        if self.ocr_enabled and not shutil.which("tesseract"):
+        # Check OCR availability (bundled RapidOCR, or Tesseract on PATH)
+        if self.ocr_enabled and not (shutil.which("tesseract") or _rapidocr_ready()):
             warnings.append(
                 "OCR enabled but tesseract not found on PATH; disabling OCR"
             )
@@ -294,14 +294,27 @@ def is_tesseract_on_path() -> bool:
     return shutil.which("tesseract") is not None
 
 
+def _rapidocr_ready() -> bool:
+    """True if the bundled RapidOCR engine is usable (lazy import: extract imports config)."""
+    from modules.extract import rapidocr_ready
+
+    return rapidocr_ready()
+
+
+def _ocr_engine_available() -> bool:
+    """An OCR engine is installed: Tesseract on PATH, or bundled RapidOCR."""
+    return is_tesseract_on_path() or _rapidocr_ready()
+
+
 def is_ocr_available() -> bool:
     """
-    Server-level OCR capability: deployment allows OCR and Tesseract is installed.
+    Server-level OCR capability: deployment allows OCR and an engine is installed
+    (bundled RapidOCR, or Tesseract on PATH).
 
-    Startup validation may set ocr_enabled False if Tesseract was missing at boot.
+    Startup validation may set ocr_enabled False if no engine was found at boot.
     Per-profile user preference is handled separately via compute_ocr_effective.
     """
-    return settings.ocr_enabled and is_tesseract_on_path()
+    return settings.ocr_enabled and _ocr_engine_available()
 
 
 def user_ocr_preference_enabled(user_settings: object | None) -> bool:
@@ -313,7 +326,7 @@ def user_ocr_preference_enabled(user_settings: object | None) -> bool:
 
 def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:
     """
-    Effective OCR for a profile: env cap, Tesseract, and user toggle.
+    Effective OCR for a profile: env cap, an OCR engine, and user toggle.
 
     Returns:
         (effective, blockers) where blockers are stable codes for the UI:
@@ -322,9 +335,10 @@ def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:
     blockers: list[str] = []
     if not settings.ocr_enabled:
         blockers.append("disabled_by_admin")
-    if not is_tesseract_on_path():
+    engine_available = _ocr_engine_available()
+    if not engine_available:
         blockers.append("tesseract_missing")
     if not user_pref_enabled:
         blockers.append("user_disabled")
-    effective = settings.ocr_enabled and is_tesseract_on_path() and user_pref_enabled
+    effective = settings.ocr_enabled and engine_available and user_pref_enabled
     return effective, blockers
