@@ -38,6 +38,7 @@ describe('replay set', () => {
       const [row] = rowsOf(files)
       if (c.expect === 'deny') expect(row.guard).toBe(c.rule)
       if (c.expect === 'hint') expect(row.hint).toBe(c.rule)
+      if (c.error_class !== undefined) expect(row.error_class).toBe(c.error_class)
       if (c.expect === 'pass') (expect(row.guard).toBeNull(), expect(row.hint).toBeNull())
     })
   }
@@ -92,6 +93,59 @@ describe('classifyError', () => {
   })
 })
 
+describe('classifyError, non-Bash', () => {
+  // [tool, neutral first line, class]. Placeholders only: no real path, name or secret.
+  const MEASURED: [string, string, string][] = [
+    ['Monitor', '<tool_use_error>InputValidationError: Monitor failed due to the following issue:\nThe required parameter `x` is missing', 'input-validation'],
+    ['Nope', '<tool_use_error>Error: No such tool available: Nope. Use one of the listed tools.', 'no-such-tool'],
+    ['Edit', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['Write', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['MultiEdit', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['NotebookEdit', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['Read', 'File does not exist. Note: your current working directory is /x.', 'read-not-found'],
+    ['Read', 'File content (30000 tokens) exceeds maximum allowed tokens (25000). Use offset and limit parameters.', 'read-too-large'],
+    ['StructuredOutput', 'Output does not match required schema: x', 'schema-mismatch'],
+    ['AskUserQuestion', "The user doesn't want to proceed with this tool use. The tool use was rejected.", 'user-rejected'],
+    ['Workflow', '<tool_use_error>Workflow "x" not found. Available: a, b', 'workflow-not-found'],
+    ['Workflow', '<tool_use_error>scriptPath must be a script path this tool returned, or a file you can already read.', 'workflow-bad-script'],
+    ['Skill', '<tool_use_error>Skill x cannot be used with Skill tool due to disable-model-invocation', 'skill-disabled'],
+    ['TaskStop', '<tool_use_error>No task found with ID: x', 'task-not-found'],
+    ['TaskStop', '<tool_use_error>Task x is not running (status: completed)', 'task-not-running'],
+    ['Agent', 'Concurrent subagent limit reached. You can run 4 subagents at once.', 'subagent-limit'],
+    ['Grep', 'Search failed — ripgrep rejected the pattern, glob, or file type without searching:', 'grep-pattern-rejected'],
+    ['Bash', 'Permission for this action was denied by the Claude Code auto mode classifier. Reason: x', 'permission-denied-auto'],
+  ]
+  test('fixed classes for measured tool errors', () => {
+    for (const [tool, text, cls] of MEASURED) expect(classifyError(text, tool)).toBe(cls)
+  })
+  test('tool-scoped classes need the tool', () => {
+    expect(classifyError('File does not exist.', 'Bash')).toBe('other')
+    expect(classifyError('Output does not match required schema: x', 'Read')).toBe('other')
+    const scoped = ['edit-not-read', 'read-not-found', 'read-too-large', 'schema-mismatch', 'workflow-not-found', 'workflow-bad-script', 'skill-disabled', 'task-not-found', 'task-not-running', 'subagent-limit', 'grep-pattern-rejected']
+    for (const [, text, cls] of MEASURED) if (scoped.includes(cls)) expect(classifyError(text, 'Bash')).not.toBe(cls)
+  })
+  test('tool envelope wins over Bash shapes', () => {
+    const t = '<tool_use_error>InputValidationError: Monitor failed due to the following issue:\ntimeout_ms must be a number'
+    expect(classifyError(t, 'Monitor')).toBe('input-validation')
+    expect(classifyError(t)).toBe('input-validation')
+    // An auto-mode denial that mentions a timeout or a missing file is still the denial.
+    expect(classifyError('Permission for this action was denied by the Claude Code auto mode classifier. timeout: No such file or directory', 'Bash')).toBe('permission-denied-auto')
+  })
+  test('never echoes input, non-Bash', () => {
+    const planted = ['SECRET-123', '/home/x/patient.pdf', 'Jane']
+    const ok = /^(input-validation|no-such-tool|edit-not-read|read-not-found|read-too-large|schema-mismatch|user-rejected|workflow-not-found|workflow-bad-script|skill-disabled|task-not-found|task-not-running|subagent-limit|grep-pattern-rejected|permission-denied-auto|exit-144-self-kill|timeout|edit-no-match|permission-denied|module-not-found|command-not-found|no-such-file|tests-failed|git-fatal|syntax-error|exit-\d{1,3}|other)$/
+    for (const p of planted)
+      for (const [tool, text] of MEASURED) {
+        // Planted text after the fixed prefix, before it, and as the whole text.
+        for (const t of [`${text} ${p}`, `${p} ${text}`, p, text.replace(/\bx\b/g, p)]) {
+          const r = classifyError(t, tool)
+          expect(r).toMatch(ok)
+          for (const q of planted) expect(r).not.toContain(q)
+        }
+      }
+  })
+})
+
 describe('logger', () => {
   test('row is metadata only: no command text, no output', async ($, on) => {
     const clock = mock.clock(on, { now: T0 })
@@ -116,6 +170,18 @@ describe('logger', () => {
     expect(raw).not.toContain('secretpkg')
     const [row] = rowsOf(files)
     expect(row.error_class).toBe('module-not-found')
+  })
+  test('Read row classifies without the text', async ($, on) => {
+    const clock = mock.clock(on, { now: T0 })
+    const files = memfs(on)
+    bottom(on, 'File does not exist. Note: your current working directory is /home/x/Jane.', true)
+    await $.tool.call({ tool: 'Read', file_path: '/home/x/patient.pdf' })
+    await clock.settle()
+    const raw = [...files.values()].join('')
+    expect(raw).not.toContain('patient')
+    expect(raw).not.toContain('Jane')
+    const [row] = rowsOf(files)
+    expect(row.error_class).toBe('read-not-found')
   })
   test('detects retry after a failure', async ($, on) => {
     const clock = mock.clock(on, { now: T0 })
