@@ -170,23 +170,31 @@ def _assert_withheld_answer(resp, rag):
     rag.query.assert_not_awaited()
 
 
-async def _assert_one_withheld_row(master_db, obs_id: str, expected_checks: list[str]):
-    """First generate writes no `started` row, so the withheld row stands alone:
-    ids and check type names only, no status key, no prose."""
-    rows = await _audit_rows(master_db)
-    assert [r.event_type for r in rows] == ["interpretation.withheld"]
-    (row,) = rows
+def _assert_withheld_row(
+    row: AuditLog, obs_id: str, expected_checks: list[str], status: str | None = None
+):
+    """Ids and check type names only, no prose. `status` is "completed" when the
+    row closes a regenerate's `started` row, and absent on a first generate."""
+    assert row.event_type == "interpretation.withheld"
     assert row.profile_id == PROFILE_ID
     assert row.entity_type == "observation"
     assert row.entity_id == obs_id
-    details = json.loads(row.details_json)
-    assert details == {
+    expected = {
         "reason": "safety_check_failed", "decision": "escalate", "checks_failed": expected_checks,
     }
-    assert "status" not in details
+    if status is not None:
+        expected["status"] = status
+    assert json.loads(row.details_json) == expected
     blob = _row_blob(row).lower()
     for leaked in ("atorvastatin", "ldl", "cholesterol", "mg/dl", "120.0", "20 mg", "ask your doctor"):
         assert leaked not in blob, leaked
+
+
+async def _assert_one_withheld_row(master_db, obs_id: str, expected_checks: list[str]):
+    """First generate writes no `started` row, so the withheld row stands alone."""
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    _assert_withheld_row(rows[0], obs_id, expected_checks)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -283,6 +291,9 @@ async def test_hc_iwm_004_plain_regenerate_withhold_closes_the_started_row(dbs):
         ("interpretation.generate", "started"),
         ("interpretation.withheld", "completed"),
     ]
+    _assert_withheld_row(
+        rows[1], obs_id, _guard_verdict(DOSING_TEXT).checks_failed, status="completed"
+    )
     (kept,) = await _cards(profile_db)
     assert (kept.id, kept.interpretation_text, kept.regeneration_count) == (
         old_id, old_text, old_count,
@@ -315,6 +326,9 @@ async def test_hc_iwm_005_grounded_regenerate_withhold_closes_the_started_row(db
         ("interpretation.grounded", "started"),
         ("interpretation.withheld", "completed"),
     ]
+    _assert_withheld_row(
+        rows[1], obs_id, _guard_verdict(DOSING_TEXT).checks_failed, status="completed"
+    )
     (kept,) = await _cards(profile_db)
     assert (kept.id, kept.interpretation_text) == (old_id, old_text)
 
@@ -355,6 +369,18 @@ async def test_hc_iwm_008_non_withheld_failure_keeps_the_500_mapping(dbs):
         assert resp.status_code == 500, (message, resp.text)
         assert resp.json()["detail"] == message
         rag.query.assert_not_awaited()
+        assert "interpretation.withheld" not in [
+            r.event_type for r in await _audit_rows(master_db)
+        ]
+
+    # Same control on the plain route: an unflagged failure, even one carrying
+    # the escalation string, keeps its 500 and writes no withheld row.
+    for message in ("boom", ESCALATE_TEMPLATE):
+        failed = InterpretationResult(success=False, error_message=message)
+        with patch.object(InterpretModule, "interpret_observation", AsyncMock(return_value=failed)):
+            resp = _call(profile_db, master_db, "POST", _plain_url(obs_id))
+        assert resp.status_code == 500, (message, resp.text)
+        assert resp.json()["detail"] == message
         assert "interpretation.withheld" not in [
             r.event_type for r in await _audit_rows(master_db)
         ]
