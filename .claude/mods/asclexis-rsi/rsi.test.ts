@@ -257,6 +257,13 @@ describe('per-tool field', () => {
       ['Workflow', null, ''],
       ['Agent', undefined, ''],
       ['Bash', [], ''],
+      ['Bash', { command: 'echo ' + 'x'.repeat(300) }, 'echo ' + 'x'.repeat(300)],
+      ['Workflow', { name: 3, scriptPath: '/a/build-item.js' }, 'build-item'],
+      ['Workflow', { name: 'n'.repeat(201) }, ''],
+      ['Agent', { subagent_type: 'a'.repeat(201) }, ''],
+      ['mcp__', {}, ''],
+      ['mcp__srv', {}, 'srv'],
+      [undefined as unknown as string, {}, ''],
     ]
     for (const [tool, input, want] of rows) expect(fieldOf(tool, input)).toBe(want)
   })
@@ -264,6 +271,15 @@ describe('per-tool field', () => {
     const rules = [rule({ match: '^build-item$' })]
     expect(checkBefore('Workflow', { name: 'build-item' }, rules)?.id).toBe('tf')
     expect(checkBefore('Workflow', { name: 'build-wave' }, rules)).toBeUndefined()
+    // Bash stays uncapped: the default rules must still fire on commands over 200 chars.
+    const kill = ['pkill', '-f', 'vite'].join(' ') + ' ' + 'x'.repeat(250)
+    expect(kill.length).toBeGreaterThan(200)
+    expect(checkBefore('Bash', { command: kill })?.id).toBe('pkill-self')
+    const gh = 'gh pr edit 12 --title t --body ' + 'y'.repeat(250)
+    expect(checkAfter('Bash', { command: gh }, 'Projects (classic) is being deprecated', true)?.id).toBe('gh-pr-edit-projects-classic')
+    const py = 'cd src/backend && ' + 'A=1 '.repeat(50) + '.venv/bin/pytest -q tests/'
+    expect(py.length).toBeGreaterThan(200)
+    expect(checkAfter('Bash', { command: py }, '', false)?.id).toBe('venv-husk')
   })
   test('never matches free text', () => {
     const wf = [rule({ match: '^build-item$' })]
@@ -283,6 +299,14 @@ describe('per-tool field', () => {
     expect(checkBefore('mcp__serena__find_symbol', {}, rules)?.id).toBe('tf')
     expect(checkBefore('mcp__other__x', {}, rules)).toBeUndefined()
     expect(checkBefore('Bash', { command: 'serena' }, rules)).toBeUndefined()
+    expect(checkBefore('mcpx', {}, rules)).toBeUndefined()
+    // An exact-name rule keeps matching (backward compatible); its field is still the server.
+    const exact = [rule({ tool: 'mcp__serena__find_symbol', match: '^serena$' })]
+    expect(checkBefore('mcp__serena__find_symbol', {}, exact)?.id).toBe('tf')
+    // A malformed event (no string tool) must not throw, as on main.
+    const bad = undefined as unknown as string
+    expect(() => checkBefore(bad, {}, rules)).not.toThrow()
+    expect(checkBefore(bad, {}, rules)).toBeUndefined()
   })
   test('deny still fails closed', () => {
     // End-to-end half is pinned by reading: register.ts runs checkBefore before `next`, and its
