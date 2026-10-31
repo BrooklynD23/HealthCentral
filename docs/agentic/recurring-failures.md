@@ -214,6 +214,12 @@ next full run. `docs_lint.py` does not check whether the generated index is
 current; only the pytest suite does. The documented command and the actual gate
 were two different things, and the passing one was the one that got run.
 
+**Box instance (2026-10-29, #410; queue bullet FOREIGN-CHROMIUM-ON-BOX).** The contaminant was the box, not the tree.
+- A stillness timing run's quiet-box precheck was `pgrep -fa "playwright|vitest|pytest"`.
+- Another repo's session was driving its own Chromium (`shoot.mjs`) on the same box at the time. The pattern could not see it.
+- The check also could never print nothing. Run from an agent's Bash tool, `pgrep -f` matches the agent's own `bash -c` command line, which contains the pattern (planner check, 2026-10-30). So every agent was already judging by eye which lines were its own.
+- The precheck now lives once, in [RUNBOOK](../plans/2026-10-15-build-program/RUNBOOK.md) §10.1, in bracket form (`[p]laywright|…`, which does not match itself), with Chromium, Rust and port checks added.
+
 **Recheck:** when anything else is editing the tree, verify commit-level gates in
 a throwaway `git worktree` detached at HEAD, not in place. Related: parallel
 agents running `git add` sweep each other's staged work — commit with explicit

@@ -159,6 +159,8 @@ Run in the worktree after the **final** `git merge origin/main`. Paste every com
 
 Then retitle, which releases the slot (§3): `gh pr edit <n> --title "<type>(<scope>): <summary> (<ID>)"`. Run `gh pr ready <n>` **unless** a merge-only gate is unanswered or the item is a parked draft ([contracts.md](contracts.md) §b rule 2, R-5).
 
+**If `gh pr ready` is refused** by the permission system (seen for Claude Code build-item agents on #396, #397 and #402, 2026-10-28; bullet GH-READY-REFUSED), do not retry it, and do not reach the same state another way (`gh api`, GraphQL `markPullRequestReadyForReview`). Finish the PR body, write "ready: L0" in the final report, and L0 runs `gh pr ready <n>`.
+
 ---
 
 ## 7. Count slots and merge sync
@@ -211,6 +213,11 @@ Two workflows, explicit models throughout:
   - **Measurement steps** (a plan task that needs a full-suite or coverage run): the implementer returns `status: "measure"` with the commands; a Haiku runner runs them under `pyslot.sh` (allow-listed pytest arguments only; the script builds the command) and the implementer continues with the output (at most 3 times).
   - **Resume** a stopped item with `{"id": "<ID>", "resume_pr": <n>}`: Task 0 re-uses the item's own `[blocked:claude]` draft, or an `[escalated:claude]` one that has an `L0 ruling:` comment after the escalation (open or closed by L0 with its branch kept), re-takes the slot, reads the stop comment and any L0 ruling after it, and briefs only the tasks not yet committed.
   - **Model-machine rows:** only a literal `(model machine)` runtime (B-4, B-7, B-9) is refused. A row that names model-machine *tasks* (LEGACY-CITE-PROMPT Task 0 step 4 and Task 5) is built, and those tasks are skipped and left for L0 on a quiet box.
+  - **Quiet box** (stillness timing runs only; functional e2e and vitest run under normal load, L0 ruling on #402). L0 holds `/tmp/claude-1000/quiet-box.lock`, no model-host row runs, and each Playwright command runs under `/tmp/claude-1000/hold_slots.sh`. Just before each run, paste all three checks:
+    - `uptime`: the 1-minute load is below 1.5;
+    - `pgrep -fa '[p]laywright|[v]ite|[p]ytest|[c]hrom|[c]argo|[r]ustc|[r]ust-lld'` prints nothing that is not yours. The brackets stop `pgrep` matching its own `bash -c` command line, which the unbracketed pattern always does. The pattern also covers another project's Chromium, Rust builds and pytest on this shared box (bullet FOREIGN-CHROMIUM-ON-BOX, #410);
+    - `ss -ltn | grep -E ':(3000|4173|5173|8000)\b'` prints nothing: no dev server, preview or backend is left over from an earlier run.
+    Otherwise wait up to 30 minutes, then report the processes. Never kill another project's process; L0 asks the owner to pause it. This precheck supersedes the narrower `pgrep -fa "playwright|vitest|pytest"` that older plans quote.
   - **L0 note:** `{"id": "<ID>", "l0_note": "..."}` passes L0 evidence or a ruling into Task 0, for example a model-host probe L0 ran itself.
   - **Agent cap:** a nested `workflow('build-item')` (inside `build-program` or `build-wave {"nested": true}`) shares its parent's agent cap, so only a few items run at once. For a full wave, L0 starts each `build-item` as its own top-level Workflow.
 
