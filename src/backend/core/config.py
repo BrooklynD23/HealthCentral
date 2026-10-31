@@ -302,10 +302,14 @@ def _rapidocr_ready() -> bool:
 
 
 def _rapidocr_installed() -> bool:
-    """True if the rapidocr package is installed. Imports nothing (find_spec on a top-level name)."""
+    """True if rapidocr and onnxruntime are both installed. Imports nothing (find_spec on
+    top-level names). The requirements marker leaves onnxruntime out on an Intel Mac."""
     import importlib.util
 
-    return importlib.util.find_spec("rapidocr") is not None
+    return (
+        importlib.util.find_spec("rapidocr") is not None
+        and importlib.util.find_spec("onnxruntime") is not None
+    )
 
 
 def _ocr_engine_available() -> bool:

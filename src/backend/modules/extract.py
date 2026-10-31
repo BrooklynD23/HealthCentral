@@ -95,7 +95,12 @@ _UNIT_ALT = (
 # ORT_DISABLE_TELEMETRY=1 BEFORE the first onnxruntime import stops it (measured:
 # no socket in 80 s, no files written); disable_telemetry_events() alone does not
 # stop the files. This breaks the Local-first rule if it is ever removed.
+# Set here, at import, as well as in _rapidocr_engine: any onnxruntime import that
+# comes after this module is imported is then covered. HC-OCR-017 forbids any other
+# product module from importing onnxruntime.
 # ---------------------------------------------------------------------------
+
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
 
 # File name -> SHA-256, copied from rapidocr 3.10.0 default_models.yaml.
 _RAPIDOCR_MODEL_SHA256 = {
@@ -106,6 +111,9 @@ _RAPIDOCR_MODEL_SHA256 = {
 _OCR_RASTER_DPI = 200  # 300 dpi read no better than 200 in the RAPIDOCR-RESEARCH run
 _MIN_PAGE_CHARS = 20  # non-space characters for a page to count as readable
 _RAPIDOCR_LOCK = threading.Lock()  # one page at a time through the shared engine
+# PDFium is not thread-safe (pypdfium2 METADATA): two worker threads in it abort the whole
+# process. Held from PdfDocument() to close(); always taken before _RAPIDOCR_LOCK, never after.
+_PDFIUM_LOCK = threading.Lock()
 
 
 def _rapidocr_model_dir() -> Path:
@@ -268,17 +276,18 @@ def _ocr_pdf_pages(pdf_bytes: bytes, page_numbers: Optional[list[int]] = None) -
     if rapidocr_ready():
         import pypdfium2 as pdfium
 
-        document = pdfium.PdfDocument(pdf_bytes)
-        try:
-            for number in page_numbers or range(1, len(document) + 1):
-                page = document[number - 1]
-                try:
-                    image = page.render(scale=_OCR_RASTER_DPI / 72).to_pil()
-                finally:
-                    page.close()
-                texts[number] = _ocr_image_text(image)
-        finally:
-            document.close()
+        with _PDFIUM_LOCK:
+            document = pdfium.PdfDocument(pdf_bytes)
+            try:
+                for number in page_numbers or range(1, len(document) + 1):
+                    page = document[number - 1]
+                    try:
+                        image = page.render(scale=_OCR_RASTER_DPI / 72).to_pil()
+                    finally:
+                        page.close()
+                    texts[number] = _ocr_image_text(image)
+            finally:
+                document.close()
         return texts
 
     from pdf2image import convert_from_bytes

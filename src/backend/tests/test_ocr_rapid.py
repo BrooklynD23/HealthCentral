@@ -1,4 +1,4 @@
-"""HC-OCR-001..015 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
+"""HC-OCR-001..017 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
 
 Medical data path. Every fixture here is synthetic (PIL ImageFont.load_default,
 no real patient data) and drawn on the column and ruled-grid layouts of the
@@ -200,6 +200,21 @@ def _text_then_scanned_pdf(text_lines: list[str], page2: Image.Image) -> bytes:
     return _build_pdf([("text", text_lines), ("image", page2)])
 
 
+_MIXED_TEXT_LINES = [
+    "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
+    "Glucose: 95 mg/dL (70-100)",
+    "Creatinine: 1.1 mg/dL (0.7-1.3)",
+    "Sodium: 140 mmol/L (135-145)",
+]
+
+
+def _mixed_pdf() -> bytes:
+    """Page 1 has a text layer; page 2 is only a picture holding one HbA1c row."""
+    return _text_then_scanned_pdf(
+        _MIXED_TEXT_LINES, _column_page([("HbA1c", "9.1", "%", "4.0-5.6")])
+    )
+
+
 def _triples(observations) -> list[tuple[str, float | None, str | None]]:
     return [(o.analyte_raw.strip().lower(), o.value, o.unit) for o in observations]
 
@@ -260,6 +275,18 @@ def _native_remote_peers(inodes, net_dir="/proc/net") -> list:
             if not ip.is_unspecified and not ip.is_loopback:
                 peers.append(table + ":" + str(ip) + ":" + str(int(port, 16)))
     return peers
+
+
+def _watch_native_peers(stop, seen, interval=0.2, inodes=_socket_inodes, net_dir="/proc/net") -> None:
+    """Poll until ``stop`` (a threading.Event) is set, adding every remote peer to ``seen``.
+
+    One /proc snapshot misses a connection that opens and closes between two looks
+    (a closed socket keeps no fd and shows as inode 0), so keep the union.
+    """
+    while True:
+        seen.update(_native_remote_peers(inodes(), net_dir))
+        if stop.wait(interval):
+            return
 
 
 # ---------------------------------------------------------------------------
@@ -429,23 +456,32 @@ def test_hc_ocr_001_scanned_image_is_read_with_no_network(tmp_path):
     png = tmp_path / "page.png"
     png.write_bytes(_png(_column_page()))
     body = (
-        "import inspect, time\n"
+        "import inspect, threading, time\n"
         + inspect.getsource(_socket_inodes)
         + inspect.getsource(_native_remote_peers)
+        + inspect.getsource(_watch_native_peers)
         + r'''
 import asyncio
 from pathlib import Path
 ''' + _OCR_ON_NO_TESSERACT + r'''
 from modules import extract
+# Watch the real sockets (/proc) from before the first onnxruntime import until well past
+# the point where its telemetry client uploads (a native thread, about 9 s after the
+# session is created). Polling keeps the union, so a connection that opens and closes
+# in between is still seen.
+seen, stop = set(), threading.Event()
+watcher = threading.Thread(target=_watch_native_peers, args=(stop, seen))
+watcher.start()
 result = asyncio.run(
     extract.ExtractModule().extract_from_image(Path(os.environ["HC_OCR_PNG"]), "doc", effective_ocr=True)
 )
-# onnxruntime's telemetry client uploads from a native thread about 9 s after the
-# session is created; wait past that, then read the real sockets from /proc.
 time.sleep(15)
+stop.set()
+watcher.join()
+seen.update(_native_remote_peers(_socket_inodes()))
 print("HC_OCR_RESULT=" + json.dumps({
     "n": len(result.observations), "unavailable": result.ocr_unavailable, "attempts": attempts,
-    "native_peers": _native_remote_peers(_socket_inodes()),
+    "native_peers": sorted(seen),
     "ort_env": os.environ.get("ORT_DISABLE_TELEMETRY"),
 }))
 '''
@@ -615,20 +651,31 @@ async def test_hc_ocr_006_scanned_pdf_import_is_parsed_not_pending(profile_db, m
     assert len(import_rows) == 1, [type(o).__name__ for o in master.added]
     assert master.commit_snapshots and master.commit_snapshots[-1] >= 1
 
+    # The patient's OCR switch reaches a mixed PDF too: api/documents.py passes
+    # ocr_pages=ocr_effective. Only the route can see that kwarg (007 calls the module).
+    response, _master = _import_over_http(
+        profile_db, monkeypatch, tmp_path, "mixed.pdf", _mixed_pdf()
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["pages_without_text"] in ([], None), response.json()
+    mixed_rows = (
+        await profile_db.execute(
+            select(Observation).where(Observation.doc_id == response.json()["document"]["id"])
+        )
+    ).scalars().all()
+    page2 = [o for o in mixed_rows if o.source_page == 2]
+    assert [(o.analyte_raw.lower(), o.value) for o in page2] == [("hba1c", 9.1)], page2
+    assert page2[0].user_verified is False and page2[0].extraction_confidence <= 0.7
+    assert len([o for o in mixed_rows if o.source_page == 1]) == 3
+
 
 @pytest.mark.asyncio
 async def test_hc_ocr_007_mixed_pdf_reads_only_the_image_page_when_asked(monkeypatch):
     pytest.importorskip("rapidocr")
     _ocr_on(monkeypatch)
     _no_tesseract(monkeypatch)
-    text_lines = [
-        "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
-        "Glucose: 95 mg/dL (70-100)",
-        "Creatinine: 1.1 mg/dL (0.7-1.3)",
-        "Sodium: 140 mmol/L (135-145)",
-    ]
-    scanned = _column_page([("HbA1c", "9.1", "%", "4.0-5.6")])
-    pdf = _text_then_scanned_pdf(text_lines, scanned)
+    text_lines = _MIXED_TEXT_LINES
+    pdf = _mixed_pdf()
 
     with_ocr = await ExtractModule().extract_from_pdf(io.BytesIO(pdf), "doc", ocr_pages=True)
     page2 = [o for o in with_ocr.observations if o.provenance and o.provenance.page == 2]
@@ -684,6 +731,21 @@ def test_hc_ocr_008_rapidocr_alone_is_an_ocr_engine(monkeypatch, tmp_path):
         effective, blockers = cfg.compute_ocr_effective(True)
         assert effective is False and "tesseract_missing" in blockers
 
+    # OCR switched off by the admin: nothing is built, "an engine is installed" is judged
+    # from the packages alone. rapidocr without onnxruntime (an Intel Mac install) is no engine.
+    import importlib.util as util
+
+    real_find_spec = util.find_spec
+
+    def installed(*names):
+        return lambda name, *a, **k: object() if name in names else real_find_spec(name, *a, **k)
+
+    monkeypatch.setattr(cfg.settings, "ocr_enabled", False)
+    monkeypatch.setattr(util, "find_spec", installed("rapidocr", "onnxruntime"))
+    assert "tesseract_missing" not in cfg.compute_ocr_effective(True)[1]
+    monkeypatch.setattr(util, "find_spec", lambda name, *a, **k: None if name == "onnxruntime" else installed("rapidocr")(name, *a, **k))
+    assert "tesseract_missing" in cfg.compute_ocr_effective(True)[1]
+
 
 @pytest.mark.asyncio
 async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
@@ -704,6 +766,21 @@ async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
     assert response.status_code == 201, response.text
     assert response.json()["document"]["status"] == "pending_ocr", response.json()["document"]
     assert response.json()["observations_extracted"] == 0
+
+    # Same switch on a mixed PDF: OCR off must leave the picture page unread and say so.
+    with patch("modules.extract.rapidocr_ready", return_value=True):
+        response, _master = _import_over_http(
+            profile_db, monkeypatch, tmp_path, "mixed.pdf", _mixed_pdf()
+        )
+    assert response.status_code == 201, response.text
+    assert response.json()["pages_without_text"] == [2], response.json()
+    mixed_rows = (
+        await profile_db.execute(
+            select(Observation).where(Observation.doc_id == response.json()["document"]["id"])
+        )
+    ).scalars().all()
+    assert [o for o in mixed_rows if o.source_page == 2] == []
+    assert len([o for o in mixed_rows if o.source_page == 1]) == 3
 
 
 def test_hc_ocr_014_disabled_ocr_loads_no_engine(tmp_path):
@@ -831,10 +908,112 @@ def test_hc_ocr_015_native_socket_check_sees_what_the_python_guard_cannot(tmp_pa
     assert peers == ["tcp:4.150.223.102:443", "tcp6:74.151.238.100:443"], peers
     assert _native_remote_peers({"2222"}, str(tmp_path)) == []  # an inode we do not hold is ignored
 
+    # the watcher keeps a peer that was there for one look and gone before the next
+    import threading
+
+    table("tcp", [("66DF9604:01BB", "1111")])
+    seen, stop = set(), threading.Event()
+    watcher = threading.Thread(
+        target=_watch_native_peers, args=(stop, seen, 0.01, lambda: {"1111"}, str(tmp_path))
+    )
+    watcher.start()
+    deadline = time.monotonic() + 10
+    while not seen and time.monotonic() < deadline:
+        time.sleep(0.01)
+    table("tcp", [])  # connection closed
+    time.sleep(0.1)
+    stop.set()
+    watcher.join()
+    assert seen == {"tcp:4.150.223.102:443"}, seen
+
     # and the inode lookup sees a real socket that Python's patched connect() never touched
     with socket.socket() as sock:
         inode = os.readlink(f"/proc/self/fd/{sock.fileno()}")[len("socket:["):-1]
         assert inode in _socket_inodes()
+
+
+def test_hc_ocr_016_concurrent_pdf_ocr_does_not_crash_pdfium(tmp_path):
+    """PDFium is not thread-safe (pypdfium2 METADATA). Two imports at once run
+    ``_ocr_pdf_pages`` in two asyncio.to_thread workers; without a lock around the
+    PdfDocument they abort the whole process (``free(): invalid pointer``, exit 134).
+
+    A subprocess probe, because the failure is a native abort that would kill pytest.
+    Only PDFium is exercised: the engine and the page-image read are stubbed.
+    """
+    pytest.importorskip("pypdfium2")
+    pdf = tmp_path / "pages.pdf"
+    # Text pages are what make PDFium's shared font state race; a scan of only
+    # pictures did not crash it in 30 tries, a mixed document did on every try.
+    text_page = ("text", [f"Glucose: {n} mg/dL (70-100)" for n in range(30)])
+    pdf.write_bytes(_build_pdf([text_page, ("image", _column_page()), text_page, ("image", _column_page())]))
+    body = r'''
+import threading
+from pathlib import Path
+from modules import extract
+extract.rapidocr_ready = lambda: True
+extract._ocr_image_text = lambda image: "page"
+data = Path(os.environ["HC_OCR_PDF"]).read_bytes()
+errors = []
+
+def work():
+    try:
+        for _ in range(3):
+            assert len(extract._ocr_pdf_pages(data)) == 4
+    except BaseException as exc:
+        errors.append(type(exc).__name__)
+
+threads = [threading.Thread(target=work) for _ in range(4)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
+print("HC_OCR_RESULT=" + json.dumps({"errors": errors}))
+'''
+    out, _home = _run_probe(body, tmp_path, HC_OCR_PDF=str(pdf))
+    assert out["errors"] == [], out
+
+
+def test_hc_ocr_017_only_the_engine_builder_imports_onnxruntime():
+    """ORT_DISABLE_TELEMETRY only works if it is set before the FIRST onnxruntime import
+    in the process. ``extract._rapidocr_engine`` sets it. Any other product module that
+    imports onnxruntime (sentence-transformers' ONNX backend, a new runner) could import
+    it first, and then telemetry starts no matter what 001 sees in a fresh process.
+    Local imports count: they run whenever the code path does."""
+    import ast
+
+    offenders = []
+    for path in sorted(BACKEND_DIR.rglob("*.py")):
+        rel = path.relative_to(BACKEND_DIR)
+        if rel.parts[0] in {"tests", "scripts", "migrations", "venv", ".venv", "models"} or any(
+            part.startswith(".venv") for part in rel.parts
+        ):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                names = [node.module]
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, (ast.Name, ast.Attribute))
+                and getattr(node.func, "attr", getattr(node.func, "id", "")) in {"import_module", "__import__"}
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                names = [node.args[0].value]
+            if any(n == "onnxruntime" or n.startswith("onnxruntime.") for n in names):
+                offenders.append(f"{rel}:{node.lineno}")
+    assert [o.split(":")[0] for o in offenders] == ["modules/extract.py"], offenders
+    # ...and that one import is inside _rapidocr_engine, after the opt-out line.
+    source = (BACKEND_DIR / "modules" / "extract.py").read_text(encoding="utf-8")
+    body = source.split("def _rapidocr_engine", 1)[1].split("\ndef ", 1)[0]
+    assert body.index('os.environ["ORT_DISABLE_TELEMETRY"] = "1"') < body.index("import onnxruntime")
 
 
 # ---------------------------------------------------------------------------
