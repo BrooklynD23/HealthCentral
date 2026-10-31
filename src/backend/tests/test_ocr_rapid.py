@@ -1,4 +1,4 @@
-"""HC-OCR-001..013 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
+"""HC-OCR-001..015 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
 
 Medical data path. Every fixture here is synthetic (PIL ImageFont.load_default,
 no real patient data) and drawn on the column and ruled-grid layouts of the
@@ -13,12 +13,21 @@ The subprocess tests (001-003) follow test_embedding_no_network.py HC-LHH-001:
 a fresh interpreter, a guard that patches socket.connect / connect_ex /
 getaddrinfo, RECORDS every non-loopback attempt and REFUSES it, and a HOME that
 is an empty directory.
+
+The Python guard cannot see a native library that opens its own socket.
+onnxruntime 1.31.0 ships a Microsoft telemetry client (static libcurl) that
+does exactly that, so 001 also waits and then reads the process's real sockets
+from /proc (``_native_remote_peers``). The product opts out with
+ORT_DISABLE_TELEMETRY=1 before the first onnxruntime import; 001 and 003 prove
+the product sets it (the probe strips any inherited ORT_* variable), and 002
+alone passes it in by hand because it builds RapidOCR itself.
 """
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import io
 import json
 import os
@@ -209,6 +218,51 @@ def _ocr_on(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Native socket check (the Python guard cannot see libcurl inside a wheel)
+# ---------------------------------------------------------------------------
+
+def _socket_inodes() -> set:
+    """Inodes of every socket this process holds open, native ones included."""
+    found = set()
+    for fd in os.listdir("/proc/self/fd"):
+        try:
+            target = os.readlink("/proc/self/fd/" + fd)
+        except OSError:
+            continue
+        if target.startswith("socket:["):
+            found.add(target[len("socket:["):-1])
+    return found
+
+
+def _native_remote_peers(inodes, net_dir="/proc/net") -> list:
+    """Non-loopback remote endpoints of the given socket inodes (tcp, tcp6, udp, udp6)."""
+    import ipaddress
+
+    peers = []
+    for table in ("tcp", "tcp6", "udp", "udp6"):
+        try:
+            with open(net_dir + "/" + table) as handle:
+                lines = handle.read().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            cols = line.split()
+            if len(cols) < 10 or cols[9] not in inodes:
+                continue
+            raw, port = cols[2].split(":")
+            data = bytes.fromhex(raw)
+            if len(data) == 4:
+                data = data[::-1]
+            else:
+                data = b"".join(data[i:i + 4][::-1] for i in range(0, 16, 4))
+            ip = ipaddress.ip_address(data)
+            ip = getattr(ip, "ipv4_mapped", None) or ip
+            if not ip.is_unspecified and not ip.is_loopback:
+                peers.append(table + ":" + str(ip) + ":" + str(int(port, 16)))
+    return peers
+
+
+# ---------------------------------------------------------------------------
 # Subprocess guard (HC-LHH-001 pattern)
 # ---------------------------------------------------------------------------
 
@@ -260,7 +314,7 @@ def _run_probe(body: str, tmp_path: Path, **extra_env: str) -> tuple[dict, Path]
     home.mkdir()
     env = {
         k: v for k, v in os.environ.items()
-        if not k.startswith(("HF_", "TRANSFORMERS_", "XDG_", "HOME", "USERPROFILE"))
+        if not k.startswith(("HF_", "TRANSFORMERS_", "XDG_", "HOME", "USERPROFILE", "ORT_"))
     }
     env.update(
         HOME=str(home),
@@ -374,7 +428,11 @@ def test_hc_ocr_001_scanned_image_is_read_with_no_network(tmp_path):
     pytest.importorskip("rapidocr")
     png = tmp_path / "page.png"
     png.write_bytes(_png(_column_page()))
-    body = r'''
+    body = (
+        "import inspect, time\n"
+        + inspect.getsource(_socket_inodes)
+        + inspect.getsource(_native_remote_peers)
+        + r'''
 import asyncio
 from pathlib import Path
 ''' + _OCR_ON_NO_TESSERACT + r'''
@@ -382,24 +440,25 @@ from modules import extract
 result = asyncio.run(
     extract.ExtractModule().extract_from_image(Path(os.environ["HC_OCR_PNG"]), "doc", effective_ocr=True)
 )
+# onnxruntime's telemetry client uploads from a native thread about 9 s after the
+# session is created; wait past that, then read the real sockets from /proc.
+time.sleep(15)
 print("HC_OCR_RESULT=" + json.dumps({
     "n": len(result.observations), "unavailable": result.ocr_unavailable, "attempts": attempts,
+    "native_peers": _native_remote_peers(_socket_inodes()),
+    "ort_env": os.environ.get("ORT_DISABLE_TELEMETRY"),
 }))
 '''
+    )
     out, home = _run_probe(body, tmp_path, HC_OCR_PNG=str(png))
     assert out["unavailable"] is False, out
     assert out["n"] >= 1, out
     assert out["attempts"] == [], f"OCR contacted a non-loopback host: {out['attempts']}"
-    # onnxruntime 1.31.0 writes a Microsoft "DeveloperTools" telemetry stub
-    # (onnxruntime.db, deviceid) under the cache dir the moment it is imported;
-    # no connect() or getaddrinfo() was seen from it (LD_PRELOAD probe, RAPIDOCR-BUNDLE
-    # PR). That stub is the ONLY file allowed. Anything else -- a downloaded model,
-    # a cache of page text -- fails this test.
-    ort_stub = Path("cache") / "Microsoft" / "DeveloperTools" / ".onnxruntime"
-    written = [
-        p.relative_to(home) for p in home.rglob("*")
-        if p.is_file() and ort_stub not in p.relative_to(home).parents
-    ]
+    assert out["native_peers"] == [], f"a native library opened a non-loopback socket: {out['native_peers']}"
+    assert out["ort_env"] == "1", "the product must opt out of onnxruntime telemetry itself"
+    # The temp home is still empty afterwards (spec row HC-OCR-001): no model download,
+    # no cache of page text, and no Microsoft/DeveloperTools telemetry queue or device id.
+    written = sorted(str(p.relative_to(home)) for p in home.rglob("*"))
     assert written == [], f"OCR wrote into HOME: {written}"
 
 
@@ -422,7 +481,11 @@ print("HC_OCR_RESULT=" + json.dumps({
     "outcome": outcome, "attempts": attempts, "entries": sorted(os.listdir(root)),
 }))
 '''
-    out, _home = _run_probe(body, tmp_path, HC_OCR_ROOT=str(empty_models))
+    # Builds RapidOCR itself, bypassing the product's telemetry opt-out, so it passes
+    # the opt-out by hand; 001 and 003 are the tests that prove the product sets it.
+    out, _home = _run_probe(
+        body, tmp_path, HC_OCR_ROOT=str(empty_models), ORT_DISABLE_TELEMETRY="1"
+    )
     assert any(a.endswith("modelscope.cn") for a in out["attempts"]), out
     assert out["outcome"] != "ok", out
     assert out["entries"] == [], f"a refused download left files behind: {out['entries']}"
@@ -643,6 +706,27 @@ async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
     assert response.json()["observations_extracted"] == 0
 
 
+def test_hc_ocr_014_disabled_ocr_loads_no_engine(tmp_path):
+    """OCR is off by default. Asking whether it is effective (every Settings GET and
+    lab import does) must not import onnxruntime / cv2 or build the engine."""
+    body = r'''
+import sys
+shutil.which = lambda *args, **kwargs: None
+from core import config as cfg
+cfg.settings.ocr_enabled = False
+effective, blockers = cfg.compute_ocr_effective(True)
+available = cfg.is_ocr_available()
+print("HC_OCR_RESULT=" + json.dumps({
+    "effective": effective, "blockers": blockers, "available": available,
+    "loaded": sorted(m for m in ("onnxruntime", "cv2", "rapidocr") if m in sys.modules),
+}))
+'''
+    out, _home = _run_probe(body, tmp_path)
+    assert out["loaded"] == [], f"a disabled-OCR check imported the engine: {out['loaded']}"
+    assert out["effective"] is False and out["available"] is False, out
+    assert "disabled_by_admin" in out["blockers"], out
+
+
 # ---------------------------------------------------------------------------
 # HC-OCR-010 .. 012: engine order, ruled grids, event loop
 # ---------------------------------------------------------------------------
@@ -719,6 +803,38 @@ async def test_hc_ocr_012_ocr_does_not_block_the_event_loop(monkeypatch):
     finally:
         task.cancel()
     assert ticks >= 5, f"event loop advanced only {ticks} ticks during a 0.5 s OCR call"
+
+
+def test_hc_ocr_015_native_socket_check_sees_what_the_python_guard_cannot(tmp_path):
+    """Control for 001's /proc check: it must flag a remote peer and ignore loopback."""
+    import socket
+
+    def table(name: str, rows: list[tuple[str, str]]) -> None:
+        header = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"
+        body = "".join(
+            f"   {k}: 00000000:0000 {rem} 01 00000000:00000000 00:00000000 00000000  1000        0 {inode}\n"
+            for k, (rem, inode) in enumerate(rows)
+        )
+        (tmp_path / name).write_text(header + body)
+
+    # 4.150.223.102:443 (little-endian hex), as in the review's ss output
+    table("tcp", [("66DF9604:01BB", "1111"), ("0100007F:0050", "2222"), ("00000000:0000", "3333")])
+    # ::1, ::ffff:127.0.0.1 (loopback) and ::ffff:74.151.238.100 (remote)
+    table("tcp6", [
+        ("00000000000000000000000001000000:0050", "4444"),
+        ("0000000000000000FFFF00000100007F:0050", "5555"),
+        ("0000000000000000FFFF000064EE974A:01BB", "6666"),
+    ])
+    table("udp", [])
+    table("udp6", [])
+    peers = _native_remote_peers({"1111", "2222", "3333", "4444", "5555", "6666", "9999"}, str(tmp_path))
+    assert peers == ["tcp:4.150.223.102:443", "tcp6:74.151.238.100:443"], peers
+    assert _native_remote_peers({"2222"}, str(tmp_path)) == []  # an inode we do not hold is ignored
+
+    # and the inode lookup sees a real socket that Python's patched connect() never touched
+    with socket.socket() as sock:
+        inode = os.readlink(f"/proc/self/fd/{sock.fileno()}")[len("socket:["):-1]
+        assert inode in _socket_inodes()
 
 
 # ---------------------------------------------------------------------------

@@ -301,6 +301,13 @@ def _rapidocr_ready() -> bool:
     return rapidocr_ready()
 
 
+def _rapidocr_installed() -> bool:
+    """True if the rapidocr package is installed. Imports nothing (find_spec on a top-level name)."""
+    import importlib.util
+
+    return importlib.util.find_spec("rapidocr") is not None
+
+
 def _ocr_engine_available() -> bool:
     """An OCR engine is installed: Tesseract on PATH, or bundled RapidOCR."""
     return is_tesseract_on_path() or _rapidocr_ready()
@@ -335,7 +342,12 @@ def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:
     blockers: list[str] = []
     if not settings.ocr_enabled:
         blockers.append("disabled_by_admin")
-    engine_available = _ocr_engine_available()
+    # OCR is off by default and this runs on every Settings GET and lab import: only
+    # build the engine (cv2/onnxruntime, ~2 s, +66 MB) when OCR is actually enabled.
+    if settings.ocr_enabled:
+        engine_available = _ocr_engine_available()
+    else:
+        engine_available = is_tesseract_on_path() or _rapidocr_installed()
     if not engine_available:
         blockers.append("tesseract_missing")
     if not user_pref_enabled:

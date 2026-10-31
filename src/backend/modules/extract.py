@@ -13,6 +13,7 @@ import functools
 import hashlib
 import io
 import logging
+import os
 import re
 import threading
 from dataclasses import dataclass, field
@@ -86,6 +87,14 @@ _UNIT_ALT = (
 # download branch (requests.get in rapidocr/utils/download_file.py) can never
 # run. A missing or modified file means "no engine", never a download.
 # Tesseract stays as the fallback when it is on PATH.
+#
+# onnxruntime 1.31.0 also ships a Microsoft telemetry client (static libcurl,
+# https://mobile.events.data.microsoft.com/OneCollector/1.0/). A bare import
+# writes a device id and queues a ProcessInfo event (interpreter path, OS, CPU),
+# and a native thread uploads it about 9 s after a session is created. Setting
+# ORT_DISABLE_TELEMETRY=1 BEFORE the first onnxruntime import stops it (measured:
+# no socket in 80 s, no files written); disable_telemetry_events() alone does not
+# stop the files. This breaks the Local-first rule if it is ever removed.
 # ---------------------------------------------------------------------------
 
 # File name -> SHA-256, copied from rapidocr 3.10.0 default_models.yaml.
@@ -120,10 +129,14 @@ def _rapidocr_engine():
 
     Logs file names only, never document text.
     """
+    # Unconditional and before the first onnxruntime import (see the block comment above).
+    os.environ["ORT_DISABLE_TELEMETRY"] = "1"
     try:
         import cv2  # noqa: F401
-        import onnxruntime  # noqa: F401
+        import onnxruntime
         from rapidocr import RapidOCR
+
+        onnxruntime.disable_telemetry_events()
 
         model_dir = _rapidocr_model_dir()
     except Exception as exc:  # ImportError, or a broken install
@@ -842,7 +855,8 @@ class ExtractModule:
         """
         Extract lab values from a scanned PDF using OCR.
 
-        Uses pdf2image to convert pages to images, then pytesseract for OCR.
+        Uses RapidOCR first (pages rendered with pypdfium2), with Tesseract
+        (pdf2image + pytesseract) as the fallback.
         OCR observations get base confidence 0.4 (lower than text extraction).
         Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
@@ -878,12 +892,7 @@ class ExtractModule:
                 ocr_unavailable=True,
             )
 
-        # Read PDF bytes
-        if isinstance(pdf_source, (Path, str)):
-            pdf_bytes = Path(pdf_source).read_bytes()
-        else:
-            pdf_source.seek(0)
-            pdf_bytes = pdf_source.read()
+        pdf_bytes = _read_pdf_bytes(pdf_source)
 
         # RapidOCR (pypdfium2 pages) or the Tesseract fallback (pdf2image), off the event loop.
         page_texts = await asyncio.to_thread(_ocr_pdf_pages, pdf_bytes)
@@ -941,7 +950,8 @@ class ExtractModule:
         """
         Extract lab values from a direct image import (.png/.jpg).
 
-        Uses pytesseract for OCR. Observations get base confidence 0.4.
+        Uses RapidOCR first, with Tesseract (pytesseract) as the fallback.
+        Observations get base confidence 0.4.
         Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
         from core.config import is_ocr_available
