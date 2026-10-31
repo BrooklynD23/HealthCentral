@@ -194,6 +194,18 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
         "alembic runner in a thread; own connection, schema only",
+    "modules/extract.py::ExtractModule.extract_from_image::asyncio.to_thread(_ocr_image_text)":
+        "RapidOCR in a thread over image bytes only, no DB session. _ocr_image_text reaches 10 defs "
+        "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "
+        "The caller keeps its own audit and commit.",
+    "modules/extract.py::ExtractModule.extract_from_pdf::asyncio.to_thread(_ocr_pdf_pages)":
+        "RapidOCR in a thread over PDF bytes only, no DB session. _ocr_pdf_pages reaches 13 defs "
+        "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "
+        "The caller keeps its own audit and commit.",
+    "modules/extract.py::ExtractModule.extract_from_scanned_pdf::asyncio.to_thread(_ocr_pdf_pages)":
+        "RapidOCR in a thread over PDF bytes only, no DB session. _ocr_pdf_pages reaches 13 defs "
+        "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "
+        "The caller keeps its own audit and commit.",
     "modules/platform_notifications.py::DesktopNotifierProvider.send::DeliveryResult(platform)":
         "dataclass field named like a def; no call",
     "modules/platform_notifications.py::MockProvider.send::DeliveryResult(platform)":
