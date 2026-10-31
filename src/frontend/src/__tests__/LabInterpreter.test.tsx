@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LabInterpreter } from '@/pages/LabInterpreter';
@@ -344,7 +344,7 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     expect(screen.queryByText(ESCALATE_TEXT)).toBeNull();
   });
 
-  it('HC-IWM-FE-003 a normal answer still shows the grounded card, and a withheld one keeps the stored card', async () => {
+  it('HC-IWM-FE-003 a normal answer still shows the grounded card, a withheld one keeps the stored card, and a retry clears the notice', async () => {
     // Normal answer: grounded card and faithfulness badge, no notice.
     mockPage({
       post: () => ({
@@ -375,5 +375,37 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     await screen.findByText(LEAD);
     expect(screen.getByText('Stored card text.')).toBeInTheDocument();
     expect(screen.queryByText('No interpretation yet')).toBeNull();
+    cleanup();
+
+    // Withheld first (no card saved), then a normal answer on the same page:
+    // the notice must be cleared, never shown beside the grounded explanation.
+    vi.clearAllMocks();
+    let posts = 0;
+    mockPage({
+      post: () => {
+        posts += 1;
+        if (posts === 1) return withheldBody();
+        return {
+          interpretation: storedCard,
+          grounded_segments: [],
+          full_response: '**FACTS**\nSecond try grounded text.',
+          insufficient_context: false,
+          insufficient_reasons: [],
+          verification: { ...emptyVerification, enabled: true, faithfulness_score: 1 },
+          is_valid: true,
+          validation_errors: [],
+        };
+      },
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText(LEAD);
+    expect(screen.queryByText('Grounded explanation')).toBeNull();
+
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText('Grounded explanation');
+    expect(posts).toBe(2);
+    expect(screen.queryByText(LEAD)).toBeNull();
+    expect(screen.queryByText(ESCALATE_TEXT)).toBeNull();
   });
 });
