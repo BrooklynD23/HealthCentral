@@ -607,7 +607,9 @@ async def _run_extraction_pipeline(
         decrypted_doc = get_decrypted_document(profile_id, document.id)
         extract_module = ExtractModule()
         if document.doc_type == "lab_pdf":
-            extraction_result = await extract_module.extract_from_pdf(decrypted_doc, document.id)
+            extraction_result = await extract_module.extract_from_pdf(
+                decrypted_doc, document.id, ocr_pages=ocr_effective
+            )
         elif document.doc_type == "lab_pdf_scanned":
             extraction_result = await extract_module.extract_from_scanned_pdf(
                 decrypted_doc,
@@ -1773,21 +1775,25 @@ async def get_page_image(
 
             import pdfplumber
 
-            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
-            with pdfplumber.open(decrypted_doc) as pdf:
-                if page_number > len(pdf.pages):
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
-                    )
-                page = pdf.pages[page_number - 1]
-                img = page.to_image(resolution=resolution)
+            from modules.extract import _PDFIUM_LOCK
 
-                buf = BytesIO()
-                img.save(buf, format="PNG")
-                buf.seek(0)
-                content = buf.getvalue()
-                is_freshly_rendered = True
+            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
+            # PDFium is not thread-safe: OCR workers render pages on other threads.
+            with _PDFIUM_LOCK:
+                with pdfplumber.open(decrypted_doc) as pdf:
+                    if page_number > len(pdf.pages):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
+                        )
+                    page = pdf.pages[page_number - 1]
+                    img = page.to_image(resolution=resolution)
+
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    buf.seek(0)
+                    content = buf.getvalue()
+                    is_freshly_rendered = True
     except HTTPException:
         raise
     except FileNotFoundError:
