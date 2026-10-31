@@ -1,0 +1,722 @@
+"""HC-OCR-001..013 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
+
+Medical data path. Every fixture here is synthetic (PIL ImageFont.load_default,
+no real patient data) and drawn on the column and ruled-grid layouts of the
+RAPIDOCR-RESEARCH report (docs/research/2026-10-22-rapidocr).
+
+Tests that need the engine call ``pytest.importorskip("rapidocr")`` inside the
+test, never at module level, so the collected count is the same in an
+environment without the OCR packages. A skip is not a pass: the engine tests
+must be run in the OCR venv before claiming them.
+
+The subprocess tests (001-003) follow test_embedding_no_network.py HC-LHH-001:
+a fresh interpreter, a guard that patches socket.connect / connect_ex /
+getaddrinfo, RECORDS every non-loopback attempt and REFUSES it, and a HOME that
+is an empty directory.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+import zlib
+from pathlib import Path
+
+import pytest
+import pytest_asyncio
+from PIL import Image, ImageDraw, ImageFont
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import modules  # noqa: E402
+from api import documents as documents_api  # noqa: E402
+from api.documents import router as documents_router  # noqa: E402
+from core import config as cfg  # noqa: E402
+from core.auth import get_profile_db_session  # noqa: E402
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import Observation  # noqa: E402
+from modules import extract  # noqa: E402
+from modules.extract import ExtractModule  # noqa: E402
+from modules.ingest import ImportResult  # noqa: E402
+from tests.support.routes import route_client  # noqa: E402
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = BACKEND_DIR.parents[1]
+
+# ---------------------------------------------------------------------------
+# Synthetic fixtures
+# ---------------------------------------------------------------------------
+
+_FONT = ImageFont.load_default(size=28)  # scalable, no system font needed in CI
+
+# analyte, value text, unit, reference range
+_ROWS = [
+    ("Glucose", "95", "mg/dL", "70-100"),
+    ("Creatinine", "1.1", "mg/dL", "0.6-1.3"),
+    ("Sodium", "140", "mmol/L", "136-145"),
+    ("Potassium", "4.2", "mmol/L", "3.5-5.1"),
+    ("Hemoglobin", "13.5", "g/dL", "12.0-17.0"),
+    ("HbA1c", "5.4", "%", "4.0-5.6"),
+]
+_TRUTH = {(a.lower(), float(v), u) for a, v, u, _ in _ROWS}
+
+# Measured in the OCR venv on the column fixture (RapidOCR 3.10.0, 1 thread):
+# 5 of 6 rows found, all 5 correct. Hemoglobin's unit is read "7p/6", so that
+# row is missing -- missing, not wrong. NEVER lower this number to make a run
+# pass: a drop means the engine or the page reading got worse.
+_FOUND_FLOOR = 5
+
+
+def _column_page(rows=_ROWS) -> Image.Image:
+    im = Image.new("L", (1700, 200 + 56 * len(rows) + 100), 255)
+    dr = ImageDraw.Draw(im)
+    dr.text((100, 50), "Collected: 03/14/2025", font=_FONT, fill=0)
+    xs = [100, 600, 800, 1000]
+    for x, head in zip(xs, ["Test", "Result", "Units", "Range"]):
+        dr.text((x, 120), head, font=_FONT, fill=0)
+    for k, row in enumerate(rows):
+        for x, text in zip(xs, row):
+            dr.text((x, 180 + k * 56), text, font=_FONT, fill=0)
+    return im
+
+
+def _grid_page(rows=_ROWS) -> Image.Image:
+    row_h, y0 = 62, 120
+    im = Image.new("L", (1700, y0 + (len(rows) + 2) * row_h + 60), 255)
+    dr = ImageDraw.Draw(im)
+    dr.text((100, 50), "Collected: 03/14/2025", font=_FONT, fill=0)
+    cols = [100, 560, 860, 1160, 1600]
+    for k in range(len(rows) + 2):
+        dr.line([(cols[0], y0 + k * row_h), (cols[-1], y0 + k * row_h)], fill=0, width=2)
+    for c in cols:
+        dr.line([(c, y0), (c, y0 + (len(rows) + 1) * row_h)], fill=0, width=2)
+    for c, head in zip(cols, ["Test", "Result", "Units", "Range"]):
+        dr.text((c + 12, y0 + 14), head, font=_FONT, fill=0)
+    for k, row in enumerate(rows):
+        for c, text in zip(cols, row):
+            dr.text((c + 12, y0 + (k + 1) * row_h + 14), text, font=_FONT, fill=0)
+    return im
+
+
+def _png(im: Image.Image) -> bytes:
+    buf = io.BytesIO()
+    im.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _image_only_pdf(*images: Image.Image) -> bytes:
+    """A PDF whose pages are pictures and have no text layer."""
+    buf = io.BytesIO()
+    images[0].save(buf, format="PDF", resolution=200.0, save_all=True, append_images=list(images[1:]))
+    return buf.getvalue()
+
+
+def _text_then_scanned_pdf(text_lines: list[str], page2: Image.Image) -> bytes:
+    """Two-page PDF: page 1 has a text layer, page 2 is only ``page2`` as a picture.
+
+    Page 2's media box is the image size at 200 dpi, so rendering at 200 dpi
+    gives back the original pixels.
+    """
+
+    def esc(s: str) -> str:
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    page1 = ["BT", "/F1 11 Tf", "14 TL", "50 740 Td"]
+    page1 += [f"({esc(line)}) Tj T*" for line in text_lines]
+    page1.append("ET")
+    width_pt, height_pt = page2.width * 72 / 200, page2.height * 72 / 200
+    stream1 = "\n".join(page1).encode("latin-1")
+    stream2 = f"q {width_pt:.2f} 0 0 {height_pt:.2f} 0 0 cm /Im1 Do Q".encode("latin-1")
+    pixels = zlib.compress(page2.convert("L").tobytes())
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 6 0 R >> >> /Contents 5 0 R >>",
+        f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width_pt:.2f} {height_pt:.2f}] "
+        f"/Resources << /XObject << /Im1 7 0 R >> >> /Contents 8 0 R >>".encode("latin-1"),
+        b"<< /Length %d >>\nstream\n" % len(stream1) + stream1 + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        f"<< /Type /XObject /Subtype /Image /Width {page2.width} /Height {page2.height} "
+        f"/ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode "
+        f"/Length {len(pixels)} >>\nstream\n".encode("latin-1") + pixels + b"\nendstream",
+        b"<< /Length %d >>\nstream\n" % len(stream2) + stream2 + b"\nendstream",
+    ]
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objs, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode())
+    out.write("".join(f"{o:010d} 00000 n \n" for o in offsets).encode())
+    out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+def _triples(observations) -> list[tuple[str, float | None, str | None]]:
+    return [(o.analyte_raw.strip().lower(), o.value, o.unit) for o in observations]
+
+
+def _assert_no_wrong_value(observations) -> None:
+    wrong = [t for t in _triples(observations) if t not in _TRUTH]
+    assert wrong == [], f"OCR produced values that are not in the truth set: {wrong}"
+
+
+def _no_tesseract(monkeypatch) -> None:
+    monkeypatch.setattr(cfg, "is_tesseract_on_path", lambda: False)
+
+
+def _ocr_on(monkeypatch) -> None:
+    monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
+
+
+# ---------------------------------------------------------------------------
+# Subprocess guard (HC-LHH-001 pattern)
+# ---------------------------------------------------------------------------
+
+_GUARD = r'''
+import json, os, shutil, socket
+attempts = []
+_LOOPBACK = {"127.0.0.1", "::1", "localhost", None, ""}
+
+def _record(target):
+    host = target[0] if isinstance(target, tuple) and target else target
+    if isinstance(host, bytes):
+        host = host.decode()
+    if isinstance(host, str) and host not in _LOOPBACK and not host.startswith("127."):
+        attempts.append(str(host))
+        raise OSError("non-loopback network blocked by HC-OCR guard")
+
+_connect = socket.socket.connect
+_connect_ex = socket.socket.connect_ex
+_getaddrinfo = socket.getaddrinfo
+
+def _guard_connect(self, address):
+    _record(address)
+    return _connect(self, address)
+
+def _guard_connect_ex(self, address):
+    _record(address)
+    return _connect_ex(self, address)
+
+def _guard_getaddrinfo(host, *args, **kwargs):
+    _record((host,))
+    return _getaddrinfo(host, *args, **kwargs)
+
+socket.socket.connect = _guard_connect
+socket.socket.connect_ex = _guard_connect_ex
+socket.getaddrinfo = _guard_getaddrinfo
+'''
+
+# Tesseract absent and OCR switched on, as on a launcher machine without Tesseract.
+_OCR_ON_NO_TESSERACT = r'''
+shutil.which = lambda *args, **kwargs: None
+from core.config import settings
+settings.ocr_enabled = True
+'''
+
+
+def _run_probe(body: str, tmp_path: Path, **extra_env: str) -> tuple[dict, Path]:
+    """Run ``body`` in a fresh interpreter under the guard; return (result, empty HOME)."""
+    home = tmp_path / "home-empty"
+    home.mkdir()
+    env = {
+        k: v for k, v in os.environ.items()
+        if not k.startswith(("HF_", "TRANSFORMERS_", "XDG_", "HOME", "USERPROFILE"))
+    }
+    env.update(
+        HOME=str(home),
+        XDG_CACHE_HOME=str(home / "cache"),
+        USERPROFILE=str(home),
+        PYTHONPATH=str(BACKEND_DIR),
+        PYTHONDONTWRITEBYTECODE="1",
+        TEST_MODE="1",
+        DATABASE_ENCRYPTION_REQUIRED="false",
+        APP_MODE="server",
+        SQLITE_DATABASE_PATH=str(tmp_path / "ocr.db"),
+        **extra_env,
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", _GUARD + body],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=600,
+    )
+    lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("HC_OCR_RESULT=")]
+    assert proc.returncode == 0 and lines, f"probe crashed:\n{proc.stderr[-3000:]}"
+    return json.loads(lines[-1].split("=", 1)[1]), home
+
+
+# ---------------------------------------------------------------------------
+# Route harness (same shape as HC-ISP-002 in test_documents_api.py)
+# ---------------------------------------------------------------------------
+
+class _CommitTrackingMasterDb:
+    def __init__(self) -> None:
+        self.added: list = []
+        self.commit_snapshots: list[int] = []
+
+    def add(self, obj) -> None:
+        self.added.append(obj)
+
+    async def commit(self) -> None:
+        self.commit_snapshots.append(len(self.added))
+
+
+@pytest_asyncio.fixture
+async def profile_db():
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+def _import_over_http(profile_db, monkeypatch, tmp_path, filename: str, data: bytes):
+    """POST ``data`` to /documents/import with the real extractor and real doc-type detection."""
+    from modules.ingest import IngestModule as RealIngest
+
+    stored: dict[str, bytes] = {}
+    classifier = RealIngest(vault_path=tmp_path / "classify", encryption_key=b"x" * 32)
+
+    class _Ingest:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def import_document(self, *, file, filename, **_kwargs):
+            payload = file.read()
+            doc_id = str(uuid.uuid4())
+            stored[doc_id] = payload
+            return ImportResult(
+                document_id=doc_id,
+                path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                content_hash=hashlib.sha256(payload).hexdigest(),
+                doc_type=classifier.detect_doc_type(filename, payload),
+                page_count=1,
+                is_duplicate=False,
+                metadata={},
+                encrypted=True,
+            )
+
+    async def _no_classify(**_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+    monkeypatch.setattr(modules, "IngestModule", _Ingest)
+    monkeypatch.setattr(
+        documents_api, "get_decrypted_document", lambda _pid, doc_id: io.BytesIO(stored[doc_id])
+    )
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+
+    master = _CommitTrackingMasterDb()
+    with route_client(
+        documents_router, "/documents", profile_id="profile-a", master_db=master
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        response = client.post(
+            "/documents/import", files={"file": (filename, data, "application/pdf")}
+        )
+    return response, master
+
+
+# ---------------------------------------------------------------------------
+# HC-OCR-001 .. 003: nothing leaves the machine
+# ---------------------------------------------------------------------------
+
+def test_hc_ocr_001_scanned_image_is_read_with_no_network(tmp_path):
+    pytest.importorskip("rapidocr")
+    png = tmp_path / "page.png"
+    png.write_bytes(_png(_column_page()))
+    body = r'''
+import asyncio
+from pathlib import Path
+''' + _OCR_ON_NO_TESSERACT + r'''
+from modules import extract
+result = asyncio.run(
+    extract.ExtractModule().extract_from_image(Path(os.environ["HC_OCR_PNG"]), "doc", effective_ocr=True)
+)
+print("HC_OCR_RESULT=" + json.dumps({
+    "n": len(result.observations), "unavailable": result.ocr_unavailable, "attempts": attempts,
+}))
+'''
+    out, home = _run_probe(body, tmp_path, HC_OCR_PNG=str(png))
+    assert out["unavailable"] is False, out
+    assert out["n"] >= 1, out
+    assert out["attempts"] == [], f"OCR contacted a non-loopback host: {out['attempts']}"
+    assert list(home.iterdir()) == [], f"OCR wrote into HOME: {list(home.iterdir())}"
+
+
+def test_hc_ocr_002_guard_sees_rapidocr_download_path(tmp_path):
+    """Positive control for 001: without the model pins, RapidOCR's own download
+    branch is reachable, and this guard records it and refuses it."""
+    pytest.importorskip("rapidocr")
+    empty_models = tmp_path / "models-empty"
+    empty_models.mkdir()
+    body = r'''
+import numpy as np
+from rapidocr import RapidOCR
+root = os.environ["HC_OCR_ROOT"]
+try:
+    RapidOCR(params={"Global.model_root_dir": root})(np.full((64, 200, 3), 255, np.uint8))
+    outcome = "ok"
+except Exception as exc:
+    outcome = type(exc).__name__
+print("HC_OCR_RESULT=" + json.dumps({
+    "outcome": outcome, "attempts": attempts, "entries": sorted(os.listdir(root)),
+}))
+'''
+    out, _home = _run_probe(body, tmp_path, HC_OCR_ROOT=str(empty_models))
+    assert any(a.endswith("modelscope.cn") for a in out["attempts"]), out
+    assert out["outcome"] != "ok", out
+    assert out["entries"] == [], f"a refused download left files behind: {out['entries']}"
+
+
+def test_hc_ocr_003_bad_model_file_fails_closed(tmp_path):
+    rapidocr = pytest.importorskip("rapidocr")
+    wheel_models = Path(rapidocr.__file__).parent / "models"
+    bad = tmp_path / "models-bad"
+    bad.mkdir()
+    for model in wheel_models.glob("*.onnx"):
+        shutil.copy(model, bad / model.name)
+    rec = bad / "PP-OCRv6_rec_small.onnx"
+    raw = bytearray(rec.read_bytes())
+    raw[1000] ^= 0xFF  # one flipped byte
+    rec.write_bytes(bytes(raw))
+    png = tmp_path / "page.png"
+    png.write_bytes(_png(_column_page()))
+
+    body = r'''
+import asyncio
+from pathlib import Path
+''' + _OCR_ON_NO_TESSERACT + r'''
+from modules import extract
+real_dir = extract._rapidocr_model_dir
+extract._rapidocr_model_dir = lambda: Path(os.environ["HC_OCR_BAD_MODELS"])
+ready = extract.rapidocr_ready()
+result = asyncio.run(
+    extract.ExtractModule().extract_from_image(Path(os.environ["HC_OCR_PNG"]), "doc", effective_ocr=True)
+)
+# control: the same process, same resolver, intact files -> ready
+extract._rapidocr_engine.cache_clear()
+extract._rapidocr_model_dir = real_dir
+control_ready = extract.rapidocr_ready()
+print("HC_OCR_RESULT=" + json.dumps({
+    "ready": ready, "control_ready": control_ready, "unavailable": result.ocr_unavailable,
+    "n": len(result.observations), "attempts": attempts,
+}))
+'''
+    out, _home = _run_probe(
+        body, tmp_path, HC_OCR_BAD_MODELS=str(bad), HC_OCR_PNG=str(png)
+    )
+    assert out["ready"] is False, out
+    assert out["unavailable"] is True and out["n"] == 0, out
+    assert out["attempts"] == [], f"a bad model file triggered a network attempt: {out['attempts']}"
+    assert out["control_ready"] is True, out
+
+
+# ---------------------------------------------------------------------------
+# HC-OCR-004 .. 007: reading pages
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_ocr_004_image_only_pdf_is_read_without_tesseract(monkeypatch):
+    pytest.importorskip("rapidocr")
+    _ocr_on(monkeypatch)
+    _no_tesseract(monkeypatch)
+
+    def _poppler_must_not_run(*_args, **_kwargs):
+        raise AssertionError("pdf2image was used on the RapidOCR path")
+
+    monkeypatch.setattr("pdf2image.convert_from_bytes", _poppler_must_not_run)
+
+    pdf = _image_only_pdf(_column_page())
+    result = await ExtractModule().extract_from_scanned_pdf(io.BytesIO(pdf), "doc", effective_ocr=True)
+
+    assert result.ocr_unavailable is False
+    _assert_no_wrong_value(result.observations)
+    assert len(result.observations) >= _FOUND_FLOOR, _triples(result.observations)
+    assert {o.extraction_method for o in result.observations} == {"ocr_pdf"}
+    assert all(o.confidence <= 0.7 for o in result.observations)
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_005_image_is_read_without_tesseract(monkeypatch):
+    pytest.importorskip("rapidocr")
+    _ocr_on(monkeypatch)
+    _no_tesseract(monkeypatch)
+
+    result = await ExtractModule().extract_from_image(
+        io.BytesIO(_png(_column_page())), "doc", effective_ocr=True
+    )
+
+    assert result.ocr_unavailable is False
+    _assert_no_wrong_value(result.observations)
+    assert len(result.observations) >= _FOUND_FLOOR, _triples(result.observations)
+    assert {o.extraction_method for o in result.observations} == {"ocr_image"}
+    assert all(o.confidence <= 0.7 for o in result.observations)
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_006_scanned_pdf_import_is_parsed_not_pending(profile_db, monkeypatch, tmp_path):
+    """Route level: OCR on, Tesseract absent, RapidOCR present -> parsed, rows unverified."""
+    pytest.importorskip("rapidocr")
+    import json as _json
+
+    _ocr_on(monkeypatch)
+    _no_tesseract(monkeypatch)
+
+    response, master = _import_over_http(
+        profile_db, monkeypatch, tmp_path, "scan.pdf", _image_only_pdf(_column_page())
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["document"]["status"] == "parsed", body["document"]
+    assert body["observations_extracted"] >= _FOUND_FLOOR, body
+
+    rows = (await profile_db.execute(select(Observation))).scalars().all()
+    assert len(rows) == body["observations_extracted"]
+    assert rows and all(r.user_verified is False for r in rows), [r.user_verified for r in rows]
+
+    import_rows = [
+        o for o in master.added
+        if type(o).__name__ == "AuditLog"
+        and o.details_json
+        and _json.loads(o.details_json).get("doc_type") == "lab_pdf_scanned"
+    ]
+    assert len(import_rows) == 1, [type(o).__name__ for o in master.added]
+    assert master.commit_snapshots and master.commit_snapshots[-1] >= 1
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_007_mixed_pdf_reads_only_the_image_page_when_asked(monkeypatch):
+    pytest.importorskip("rapidocr")
+    _ocr_on(monkeypatch)
+    _no_tesseract(monkeypatch)
+    text_lines = [
+        "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
+        "Glucose: 95 mg/dL (70-100)",
+        "Creatinine: 1.1 mg/dL (0.7-1.3)",
+        "Sodium: 140 mmol/L (135-145)",
+    ]
+    scanned = _column_page([("HbA1c", "9.1", "%", "4.0-5.6")])
+    pdf = _text_then_scanned_pdf(text_lines, scanned)
+
+    with_ocr = await ExtractModule().extract_from_pdf(io.BytesIO(pdf), "doc", ocr_pages=True)
+    page2 = [o for o in with_ocr.observations if o.provenance and o.provenance.page == 2]
+    assert [(o.analyte_raw.lower(), o.value) for o in page2] == [("hba1c", 9.1)], _triples(page2)
+    assert page2[0].extraction_method == "ocr_pdf" and page2[0].confidence <= 0.7
+    assert with_ocr.pages_without_text == []
+    page1 = [o for o in with_ocr.observations if o.provenance and o.provenance.page == 1]
+    assert len(page1) == 3 and {o.extraction_method for o in page1} == {"pdf_text"}
+
+    default = await ExtractModule().extract_from_pdf(io.BytesIO(pdf), "doc")
+    assert default.pages_without_text == [2]
+    assert [o for o in default.observations if o.provenance and o.provenance.page == 2] == []
+
+    blank = _text_then_scanned_pdf(text_lines, Image.new("L", (1700, 400), 255))
+    unreadable = await ExtractModule().extract_from_pdf(io.BytesIO(blank), "doc", ocr_pages=True)
+    assert unreadable.pages_without_text == [2]
+
+
+# ---------------------------------------------------------------------------
+# HC-OCR-008 / 009: configuration
+# ---------------------------------------------------------------------------
+
+def test_hc_ocr_008_rapidocr_alone_is_an_ocr_engine(monkeypatch, tmp_path):
+    from unittest.mock import patch
+
+    monkeypatch.setattr("shutil.which", lambda *_a, **_k: None)
+
+    with patch("modules.extract.rapidocr_ready", return_value=True):
+        settings = cfg.Settings(
+            app_env="development", ocr_enabled=True, jwt_secret="test-secret",
+            models_path=str(tmp_path / "models"),
+        )
+        warnings = settings.validate_startup()
+        assert not any("ocr" in w.lower() or "tesseract" in w.lower() for w in warnings), warnings
+        assert settings.ocr_enabled is True
+
+        monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
+        assert cfg.is_ocr_available() is True
+        assert cfg.compute_ocr_effective(True) == (True, [])
+
+    with patch("modules.extract.rapidocr_ready", return_value=False):
+        settings = cfg.Settings(
+            app_env="development", ocr_enabled=True, jwt_secret="test-secret",
+            models_path=str(tmp_path / "models"),
+        )
+        warnings = settings.validate_startup()
+        assert any("tesseract" in w.lower() for w in warnings), warnings
+        assert settings.ocr_enabled is False
+        monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
+        assert cfg.is_ocr_available() is False
+        effective, blockers = cfg.compute_ocr_effective(True)
+        assert effective is False and "tesseract_missing" in blockers
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
+    """GREEN before and after: shipping an engine does not switch OCR on."""
+    from unittest.mock import patch
+
+    assert cfg.Settings.model_fields["ocr_enabled"].default is False
+    monkeypatch.setattr(cfg.settings, "ocr_enabled", False)  # the code default
+    _no_tesseract(monkeypatch)
+
+    with patch("modules.extract.rapidocr_ready", create=True, return_value=True):
+        effective, blockers = cfg.compute_ocr_effective(True)
+        assert effective is False and "disabled_by_admin" in blockers, blockers
+
+        response, _master = _import_over_http(
+            profile_db, monkeypatch, tmp_path, "scan.pdf", _image_only_pdf(_column_page())
+        )
+    assert response.status_code == 201, response.text
+    assert response.json()["document"]["status"] == "pending_ocr", response.json()["document"]
+    assert response.json()["observations_extracted"] == 0
+
+
+# ---------------------------------------------------------------------------
+# HC-OCR-010 .. 012: engine order, ruled grids, event loop
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_hc_ocr_010_rapidocr_first_tesseract_only_as_fallback(monkeypatch):
+    from unittest.mock import MagicMock
+
+    pytest.importorskip("pytesseract")
+    pytest.importorskip("pdf2image")
+    _ocr_on(monkeypatch)
+    monkeypatch.setattr(cfg, "is_tesseract_on_path", lambda: True)  # Tesseract "present"
+
+    tess = MagicMock(return_value="Glucose 95 mg/dL 70-100\nSodium 140 mmol/L 136-145\n")
+    monkeypatch.setattr("pytesseract.image_to_string", tess)
+
+    # Part 1: engine ready -> Tesseract is not called.
+    pytest.importorskip("rapidocr")
+    result = await ExtractModule().extract_from_image(
+        io.BytesIO(_png(_column_page())), "doc", effective_ocr=True
+    )
+    assert result.observations, "RapidOCR should have read the page"
+    tess.assert_not_called()
+
+    # Part 2: engine not ready -> Tesseract once per page, pages rasterised by pdf2image.
+    monkeypatch.setattr(extract, "_rapidocr_engine", lambda: None)
+    pages = [Image.new("L", (300, 100), 255), Image.new("L", (300, 100), 255)]
+    convert = MagicMock(return_value=pages)
+    monkeypatch.setattr("pdf2image.convert_from_bytes", convert)
+    result = await ExtractModule().extract_from_scanned_pdf(
+        io.BytesIO(b"%PDF-1.4 fake"), "doc", effective_ocr=True
+    )
+    convert.assert_called_once()
+    assert tess.call_count == 2
+    assert {o.extraction_method for o in result.observations} == {"ocr_pdf"}
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_011_ruled_lines_are_removed_before_reading(monkeypatch):
+    pytest.importorskip("rapidocr")
+    page = _grid_page()
+    module = ExtractModule()
+
+    with_derule = module._extract_from_text(await asyncio.to_thread(extract._ocr_image_text, page), 1, "d")
+
+    monkeypatch.setattr(extract, "_remove_ruled_lines", lambda gray: gray)
+    without = module._extract_from_text(await asyncio.to_thread(extract._ocr_image_text, page), 1, "d")
+
+    _assert_no_wrong_value(with_derule)
+    names = lambda obs: {n for n, _v, _u in _triples(obs)}  # noqa: E731
+    assert names(with_derule) >= names(without), (names(with_derule), names(without))
+    assert len(with_derule) >= _FOUND_FLOOR, _triples(with_derule)
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_012_ocr_does_not_block_the_event_loop(monkeypatch):
+    _ocr_on(monkeypatch)
+    monkeypatch.setattr(cfg, "is_tesseract_on_path", lambda: True)
+    monkeypatch.setattr(extract, "_ocr_image_text", lambda _image: (time.sleep(0.5), "")[1])
+
+    ticks = 0
+
+    async def ticker() -> None:
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.05)
+            ticks += 1
+
+    task = asyncio.create_task(ticker())
+    try:
+        await ExtractModule().extract_from_image(
+            io.BytesIO(_png(Image.new("L", (200, 80), 255))), "doc", effective_ocr=True
+        )
+    finally:
+        task.cancel()
+    assert ticks >= 5, f"event loop advanced only {ticks} ticks during a 0.5 s OCR call"
+
+
+# ---------------------------------------------------------------------------
+# HC-OCR-013: notices
+# ---------------------------------------------------------------------------
+
+def _ocr_block_requirements() -> list[tuple[str, str]]:
+    """(package, specifier version) for the OCR block of requirements.txt."""
+    lines = (BACKEND_DIR / "requirements.txt").read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("#") and "OCR" in ln)
+    found: list[tuple[str, str]] = []
+    for ln in lines[start:]:
+        ln = ln.strip()
+        if ln.startswith("# ====") and found:
+            break
+        if not ln or ln.startswith("#"):
+            continue
+        match = re.match(r"([A-Za-z0-9_.-]+)\s*(?:==|>=)\s*([0-9][0-9A-Za-z.]*)", ln)
+        assert match, f"unparsed OCR requirement line: {ln!r}"
+        found.append((match.group(1).lower(), match.group(2)))
+    return found
+
+
+def test_hc_ocr_013_third_party_notices_cover_the_ocr_block():
+    notices_path = REPO_ROOT / "THIRD_PARTY_NOTICES.md"
+    assert notices_path.is_file(), "THIRD_PARTY_NOTICES.md is missing"
+    notices = notices_path.read_text(encoding="utf-8")
+
+    packages = _ocr_block_requirements()
+    names = {n for n, _ in packages}
+    assert {"rapidocr", "onnxruntime", "opencv-python-headless", "pypdfium2"} <= names, names
+
+    licence = re.compile(r"Apache-2\.0|MIT|BSD|HPND")
+    rows = [ln for ln in notices.splitlines() if ln.lstrip().startswith("|")]
+    for name, version in packages:
+        row = next((r for r in rows if re.search(rf"\|\s*`?{re.escape(name)}`?\s*\|", r, re.I)), None)
+        assert row, f"no notices table row for {name}"
+        assert version in row, f"{name}: pinned version {version} missing from its row: {row}"
+        assert licence.search(row), f"{name}: no licence in its row: {row}"
+
+    assert "LGPL" in notices
+    for lib in ("libavcodec", "libavformat", "libavutil", "libswscale", "libswresample"):
+        assert lib in notices, f"FFmpeg statement does not name {lib}"
+    assert "opencv_python_headless.libs" in notices
+    assert "PaddleOCR" in notices and "Apache-2.0" in notices
+    assert re.search(r"modif", notices, re.I), "PaddleOCR modification notice is missing"
