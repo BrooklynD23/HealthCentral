@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
 import { m, AnimatePresence } from 'framer-motion';
-import { Button, Card, CardContent, CardHeader, CardTitle, modalVariants, backdropVariants } from '@/components/ui';
+import { Button, IconButton } from '@/components/ui';
+import { Modal } from '@/components/ui/Dialog';
 import { cn } from '@/utils/cn';
 import type { DoseLog, MedicationSchedule } from '@/services/types';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface DoseLoggingModalProps {
   medicationName: string;
@@ -30,7 +30,22 @@ export function DoseLoggingModal({
   onClose,
   isSubmitting,
 }: DoseLoggingModalProps) {
-  const prefersReducedMotion = useReducedMotion();
+  // The control that opened the dialog, read at first render (before the dialog moves focus into itself).
+  const [opener] = useState<HTMLElement | null>(() =>
+    document.activeElement instanceof HTMLElement ? document.activeElement : null
+  );
+  // Radix hands focus to its Trigger on close, and this dialog has none (the parent mounts it), so the opener
+  // gets focus back when the dialog unmounts. That covers Close, Escape and a successful submit (the parent
+  // unmounts the dialog then, without onClose). React StrictMode also runs this cleanup once at mount, so the
+  // re-run setup cancels the timer that cleanup queued; the opener is not focused while the dialog is open.
+  const returnFocus = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    window.clearTimeout(returnFocus.current);
+    return () => {
+      // The timer runs after Radix's own unmount work, which would otherwise win.
+      returnFocus.current = window.setTimeout(() => opener?.focus(), 0);
+    };
+  }, [opener]);
   const [mode, setMode] = useState<'taken' | 'skipped'>('taken');
   const [skipReason, setSkipReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -69,44 +84,31 @@ export function DoseLoggingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <m.div
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={backdropVariants}
-        className="absolute inset-0 bg-black/40 backdrop-blur-xs"
+    // M0 (still): the dose text is T0, so the dialog opens and closes with no motion of its own. The scrim may fade.
+    <Modal
+      name="DoseLoggingModal"
+      variant="dialog"
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Log Dose"
+      still
+      showClose={false}
+    >
+      <IconButton
+        variant="ghost"
+        aria-label="Close"
         onClick={onClose}
-        aria-hidden
-      />
-
-      {/* Modal */}
-      <m.div
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        variants={prefersReducedMotion ? backdropVariants : modalVariants}
-        className="relative z-10 w-full max-w-md"
+        className="absolute right-4 top-4 rounded-[10px]"
       >
-        <Card className="shadow-elevated border-black/8">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Log Dose</CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              aria-label="Close"
-              className="h-8 w-8 rounded-lg"
-            >
-              <X className="w-4 h-4" />
-            </Button>
-          </CardHeader>
+        <X className="w-4 h-4" aria-hidden="true" />
+      </IconButton>
 
-          <CardContent className="space-y-4">
-            <p className="text-sm text-ink-secondary">
-              Logging for <strong className="text-ink">{medicationName}</strong>
-            </p>
+      <div className="space-y-4">
+        <p className="text-sm text-ink-secondary" data-t0="">
+          Logging for <strong className="text-ink">{medicationName}</strong>
+        </p>
 
             {/* Taken / Skipped Toggle */}
             <div className="grid grid-cols-2 gap-2 p-1 bg-surface-muted rounded-2xl">
@@ -117,7 +119,7 @@ export function DoseLoggingModal({
                   'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all relative',
                   'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2',
                   mode === 'taken'
-                    ? 'bg-white text-status-verified shadow-xs'
+                    ? 'bg-surface-elevated text-status-verified shadow-xs'
                     : 'text-ink-secondary hover:text-ink'
                 )}
               >
@@ -131,7 +133,7 @@ export function DoseLoggingModal({
                   'flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all relative',
                   'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2',
                   mode === 'skipped'
-                    ? 'bg-white text-status-caution shadow-xs'
+                    ? 'bg-surface-elevated text-status-caution shadow-xs'
                     : 'text-ink-secondary hover:text-ink'
                 )}
               >
@@ -160,7 +162,7 @@ export function DoseLoggingModal({
                           'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
                           'focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-1',
                           skipReason === reason.value
-                            ? 'bg-status-caution text-white shadow-xs'
+                            ? 'bg-status-caution text-[var(--on-status)] shadow-xs'
                             : 'bg-surface-sunken text-ink-secondary hover:bg-black/8'
                         )}
                       >
@@ -206,9 +208,7 @@ export function DoseLoggingModal({
                 'Log as Skipped'
               )}
             </Button>
-          </CardContent>
-        </Card>
-      </m.div>
-    </div>
+      </div>
+    </Modal>
   );
 }

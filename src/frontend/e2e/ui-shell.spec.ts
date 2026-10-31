@@ -293,7 +293,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
   test.describe.configure({ retries: 0 });
   test.use({ viewport: DESKTOP });
 
-  for (const route of AUTH_ROUTES) {
+  // /notifications is a planned redirect with no route container of its own (HC-UIMED-004): left out of this loop.
+  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/notifications')) {
     test(`HC-UISH-003: opacity-only route fade on ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator('[data-route-container]')).toBeVisible({ timeout: 15_000 });
@@ -787,6 +788,11 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
   test.use({ viewport: PHONE });
 
   test('HC-UISH-007: with a toast visible, opening More leaves no toast over the sheet', async ({ page }) => {
+    // The toast module is imported from a /src path, which only the dev server serves (no such path on a preview or deployed build).
+    test.skip(
+      !!process.env.HC_E2E_BASE_URL,
+      'HC_E2E_BASE_URL is set: the /src/components/ui/toast.tsx import path exists only on the dev server'
+    );
     await openRoute(page, '/inbox');
     await expect(page.getByRole('navigation', { name: 'Tab bar' })).toBeVisible({ timeout: 15_000 });
     await page.evaluate(async () => {
@@ -966,7 +972,6 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
  */
 const PAGE_OVERFLOW: Record<string, { selector: string; fixBy: string }> = {
   '/inbox': { selector: 'div.flex.items-center.gap-1', fixBy: 'UI-PG-DOCUMENTS' },
-  '/medications/med-fixture-1': { selector: 'div.flex.items-center.gap-2', fixBy: 'UI-PG-MEDS' },
   '/explain': { selector: 'div.w-80.space-y-4', fixBy: 'UI-PG-ASK' },
   '/export': { selector: 'div.flex.items-center.gap-3', fixBy: 'UI-PG-EXPORT' },
 };
