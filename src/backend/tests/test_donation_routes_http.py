@@ -24,6 +24,7 @@ import api.donation as donation_api
 from api.donation import CURRENT_CONSENT_TEXT_VERSION
 from core.auth import get_profile_db_session, require_auth
 from core.profile_database import ProfileDatabaseBase
+from models.chat_session import ChatTurn
 from models.data_donation import DonatedRecord, DonationConsent
 from tests.support.routes import route_client
 
@@ -120,6 +121,7 @@ async def _count(session, purpose=None):
 @pytest.mark.parametrize("method,path,body", [
     ("GET", PATH, None),
     ("PUT", f"{PATH}/fine_tune", {"granted": True, "consent_text_version": VERSION}),
+    ("POST", f"{PREFIX}/fine_tune/collect", {"confirmed": True}),
 ])
 def test_hc_don_004b_http_requires_auth(method, path, body):
     with route_client(donation_api.router, PREFIX, master_db=_master_db()) as client:
@@ -243,6 +245,15 @@ async def test_hc_don_005f_revoke_without_active_row_never_echoes_client_version
     assert resp.status_code == 200, resp.text
     assert resp.json()["consent_text_version"] == CURRENT_CONSENT_TEXT_VERSION
     assert resp.json()["deleted_count"] == 0
+
+
+def test_hc_don_005f_export_403_names_the_card_label():
+    """Drift pin: the 403 detail quotes the same label the card shows."""
+    import re
+
+    m = re.search(r"fine_tune:\s*\{\s*label:\s*'([^']+)'", CARD.read_text(encoding="utf-8"))
+    assert m, "fine_tune label not found in DataDonationCard.tsx"
+    assert f"\u201c{m.group(1)}\u201d" in feedback_api.EXPORT_CONSENT_DETAIL
 
 
 def test_hc_don_005e_card_version_matches_server_constant():
@@ -613,3 +624,168 @@ async def test_hc_don_005i_concurrent_grant_is_409_not_500_and_writes_no_audit(v
     assert _audit_rows(master) == []
     rows = (await vault.execute(select(DonationConsent))).scalars().all()
     assert len(rows) == 1 and rows[0].revoked_at is None
+
+
+# ---------------------------------------------------------------------------
+# PR-2: collect route (HC-DON-016b)
+# ---------------------------------------------------------------------------
+
+from models.response_feedback import ResponseFeedback  # noqa: E402
+
+
+async def _rate(session, profile_id, session_id, turn_id, prompt="What does a high LDL mean?"):
+    # collect only donates feedback whose assistant turn still exists
+    session.add(ChatTurn(id=f"u-{turn_id}", session_id=session_id, profile_id=profile_id,
+                         turn_index=0, role="user", content=prompt))
+    session.add(ChatTurn(id=turn_id, session_id=session_id, profile_id=profile_id,
+                         turn_index=1, role="assistant", content="a"))
+    row = ResponseFeedback(
+        profile_id=profile_id, session_id=session_id, turn_id=turn_id, rating=1,
+        prompt_snapshot=prompt, response_text="It is a cholesterol marker.",
+    )
+    session.add(row)
+    await session.commit()
+    return row.id
+
+
+def _collect(vault, purpose="fine_tune", body=None, **kw):
+    return _call("POST", vault, f"{PREFIX}/{purpose}/collect", json=body if body is not None else {"confirmed": True}, **kw)
+
+
+@pytest.mark.asyncio
+async def test_hc_don_016b_collect_route(vault):
+    await _rate(vault, PROFILE_A, "s1", "t1")
+
+    # confirmed=false -> 400, nothing audited or stored
+    resp, mdb = _collect(vault, body={"confirmed": False})
+    assert resp.status_code == 400 and _audit_rows(mdb) == []
+
+    # no consent -> 200 with a zero count
+    resp, mdb = _collect(vault)
+    assert resp.status_code == 200 and resp.json()["collected"] == 0
+    assert await _count(vault) == 0
+
+    # unknown purpose -> 422
+    resp, _ = _collect(vault, purpose="nope")
+    assert resp.status_code == 422
+
+    # granted -> collected; audit pair holds counts only
+    resp, _ = _put(vault, "fine_tune", True)
+    assert resp.status_code == 200
+    resp, mdb = _collect(vault)
+    assert resp.status_code == 200
+    assert resp.json()["collected"] == 1 and resp.json()["dropped_total"] == 0
+    assert await _count(vault, "fine_tune") == 1
+    rows = [r for r in _audit_rows(mdb) if r.action.startswith("donation.collect")]
+    assert len(rows) == 2  # A2 started + completed
+    assert all(r.entity_type == "donation" and r.entity_id == "fine_tune" for r in rows)
+    blob = " ".join(r.details_json or "" for r in rows)
+    assert "LDL" not in blob and "cholesterol" not in blob
+    assert json.loads(rows[1].details_json)["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# PR-2: RL export consent (HC-DON-021) and source-delete (HC-DON-022)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch  # noqa: E402
+
+import api.assistant as assistant_api  # noqa: E402
+import api.feedback as feedback_api  # noqa: E402
+from models.chat_session import ChatSession  # noqa: E402
+
+
+def _export(vault, export_root):
+    with patch.object(feedback_api, "_DEFAULT_EXPORT_DIR", export_root), \
+         patch.object(feedback_api, "_emit_audit", AsyncMock()):
+        with route_client(feedback_api.router, "/feedback", profile_id=PROFILE_A,
+                          master_db=_master_db(), raise_server_exceptions=False) as client:
+            async def _profile_db():
+                return vault
+            client.app.dependency_overrides[get_profile_db_session] = _profile_db
+            return client.post("/feedback/export", json={"confirmed": True})
+
+
+@pytest.mark.asyncio
+async def test_hc_don_021_rl_export_needs_current_fine_tune_consent(vault, tmp_path):
+    await _rate(vault, PROFILE_A, "s1", "t1")
+    root = tmp_path / "exports"
+
+    # no consent
+    resp = _export(vault, root)
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == feedback_api.EXPORT_CONSENT_DETAIL
+    assert not root.exists() or not any(root.rglob("*"))
+
+    # consent for another purpose does not count
+    _put(vault, "synthetic_seed", True)
+    assert _export(vault, root).status_code == 403
+
+    # consent on older wording (stale) is refused too
+    vault.add(DonationConsent(profile_id=PROFILE_A, purpose="fine_tune", consent_text_version="2026-10-01-v1"))
+    await vault.commit()
+    assert _export(vault, root).status_code == 403
+    assert not root.exists() or not any(root.rglob("*"))
+
+    # current consent -> export works as before
+    row = (await vault.execute(select(DonationConsent).where(DonationConsent.purpose == "fine_tune"))).scalars().one()
+    row.consent_text_version = VERSION
+    await vault.commit()
+    resp = _export(vault, root)
+    assert resp.status_code == 200, resp.text
+    assert (root / f"profile_{PROFILE_A}" / "grpo_rewards.jsonl").exists()
+
+
+@pytest.mark.asyncio
+async def test_hc_don_022_deleting_a_session_deletes_its_donated_copies(vault):
+    ids = {}
+    for sid in ("sa", "sb"):
+        vault.add(ChatSession(id=sid, profile_id=PROFILE_A))
+        await vault.commit()
+        ids[sid] = await _rate(vault, PROFILE_A, sid, f"t-{sid}")
+        vault.add(DonatedRecord(
+            id=f"real-{sid}", profile_id=PROFILE_A, purpose="fine_tune", origin="real",
+            source_kind="response_feedback", source_id=ids[sid],
+            prompt_redacted="p", response_redacted="r",
+        ))
+        vault.add(DonatedRecord(
+            id=f"syn-{sid}", profile_id=PROFILE_A, purpose="fine_tune", origin="synthetic",
+            source_kind="response_feedback", parent_id=f"real-{sid}",
+            prompt_redacted="p", response_redacted="r",
+        ))
+    # Client-supplied session_id disagrees with the turn's session: only the
+    # turn_id-in-session branch of delete_for_session can find this row.
+    vault.add(ChatTurn(id="t-x", session_id="sa", profile_id=PROFILE_A, turn_index=2,
+                       role="assistant", content="a"))
+    vault.add(ResponseFeedback(id="fb-other", profile_id=PROFILE_A, session_id="other", turn_id="t-x",
+                               rating=1, prompt_snapshot="q", response_text="r"))
+    vault.add(DonatedRecord(
+        id="real-other", profile_id=PROFILE_A, purpose="fine_tune", origin="real",
+        source_kind="response_feedback", source_id="fb-other",
+        prompt_redacted="p", response_redacted="r",
+    ))
+    await vault.commit()
+    assert await _count(vault) == 5
+
+    master_db = _master_db()
+    with route_client(assistant_api.router, "/assistant", profile_id=PROFILE_A,
+                      master_db=master_db, raise_server_exceptions=False) as client:
+        async def _profile_db():
+            return vault
+        client.app.dependency_overrides[get_profile_db_session] = _profile_db
+        resp = client.delete("/assistant/sessions/sa")
+
+    assert resp.status_code == 204, resp.text
+    left = (await vault.execute(select(DonatedRecord.id))).scalars().all()
+    assert sorted(left) == ["real-sb", "syn-sb"]
+    assert len(_audit_rows(master_db)) == 2  # A2 started + completed unchanged
+
+    # The next collect must not re-donate the deleted session's feedback.
+    vault.add(DonationConsent(profile_id=PROFILE_A, purpose="fine_tune", consent_text_version=VERSION))
+    await vault.commit()
+    resp, _ = _collect(vault)
+    assert resp.status_code == 200, resp.text
+    sources = (await vault.execute(
+        select(DonatedRecord.source_id).where(DonatedRecord.origin == "real")
+    )).scalars().all()
+    assert ids["sa"] not in sources
