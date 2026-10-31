@@ -32,10 +32,38 @@ const cmdOf = (tool: string, input: unknown): string =>
     ? (input as { command: string }).command
     : ''
 
+const FIELD_MAX = 200
+
+/**
+ * The one fixed, non-free-text input field a rule may test, per tool; '' when none applies.
+ * Bash: command. Workflow: name, else a safe scriptPath basename. Skill: skill. Agent: subagent_type.
+ * mcp__<server>__<tool>: <server>, parsed from the tool name. Never prompt, args, description or content.
+ * Held in memory only; callers never log it.
+ */
+export function fieldOf(tool: string, input: unknown): string {
+  const o = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
+  const str = (k: string): string => (typeof o[k] === 'string' ? (o[k] as string) : '')
+  let v = ''
+  if (tool === 'Bash') v = str('command')
+  else if (tool === 'Workflow') {
+    v = str('name')
+    if (!v) {
+      const base = (str('scriptPath').split('/').pop() ?? '').replace(/\.js$/, '')
+      v = /^[A-Za-z0-9._-]+$/.test(base) ? base : ''
+    }
+  } else if (tool === 'Skill') v = str('skill')
+  else if (tool === 'Agent') v = str('subagent_type')
+  else if (tool.startsWith('mcp__')) v = tool.split('__')[1] ?? ''
+  return v.length <= FIELD_MAX ? v : ''
+}
+
+const toolMatches = (ruleTool: string, tool: string): boolean =>
+  ruleTool === tool || (ruleTool === 'mcp__*' && tool.startsWith('mcp__'))
+
 /** First `before`/deny rule that matches this call, if any. */
 export function checkBefore(tool: string, input: unknown, rules: readonly Rule[] = RULES): Rule | undefined {
-  const cmd = cmdOf(tool, input)
-  return rules.find(r => r.when === 'before' && r.action === 'deny' && r.tool === tool && new RegExp(r.match).test(cmd))
+  const field = fieldOf(tool, input)
+  return rules.find(r => r.when === 'before' && r.action === 'deny' && toolMatches(r.tool, tool) && new RegExp(r.match).test(field))
 }
 
 /** First `after` rule that matches the finished call, if any. */
@@ -46,13 +74,13 @@ export function checkAfter(
   failed: boolean,
   rules: readonly Rule[] = RULES,
 ): Rule | undefined {
-  const cmd = cmdOf(tool, input)
+  const field = fieldOf(tool, input)
   return rules.find(
     r =>
       r.when === 'after' &&
-      r.tool === tool &&
+      toolMatches(r.tool, tool) &&
       (failed || r.onSuccess === true) &&
-      (r.command === undefined || new RegExp(r.command).test(cmd)) &&
+      (r.command === undefined || new RegExp(r.command).test(field)) &&
       new RegExp(r.match).test(text) &&
       (r.absent === undefined || !new RegExp(r.absent).test(text)),
   )
