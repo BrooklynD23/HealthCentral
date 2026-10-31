@@ -238,3 +238,135 @@ describe('HC-LAB-001: grounded explanation panel renders bold runs, not raw mark
     expect(container.textContent ?? '').toContain('<script>alert(2)</script>');
   });
 });
+
+describe('HC-IWM-FE: a withheld explanation shows the escalation message', () => {
+  const ESCALATE_TEXT =
+    "This is a question for your doctor or pharmacist. Asclexis can explain what your verified results say, but it can't advise on diagnosis, treatment, or medication decisions. Please bring this question to your clinician.";
+  const LEAD = 'Asclexis could not produce a safe explanation for this result.';
+  const ldl = { ...observation, id: 'obs-2', analyte_canonical: 'ldl', analyte_raw: 'LDL Cholesterol' };
+  const storedCard = {
+    id: 'interp-stored',
+    observation_id: 'obs-1',
+    interpretation_text: 'Stored card text.',
+    severity_level: 'mild',
+    advice_text: null,
+    citations: [],
+    context: null,
+    model_id: 'template-v1',
+    model_tier: 'template',
+    confidence_score: 0.9,
+    requires_physician_review: false,
+    physician_review_reason: null,
+    viewed_at: null,
+    created_at: '2026-01-01T00:00:00Z',
+  };
+  const emptyVerification = {
+    enabled: false,
+    total_claims: 0,
+    verified_claims: 0,
+    failed_claims: 0,
+    faithfulness_score: 0,
+    authority_score: 0,
+    summary: '',
+    issues: [],
+  };
+
+  function withheldBody() {
+    return {
+      interpretation: null,
+      withheld: true,
+      grounded_segments: [{ segment_type: 'uncertainty', content: ESCALATE_TEXT, citations: [] }],
+      full_response: ESCALATE_TEXT,
+      insufficient_context: false,
+      insufficient_reasons: [],
+      verification: emptyVerification,
+      is_valid: false,
+      validation_errors: [],
+    };
+  }
+
+  function mockPage(opts: { stored?: boolean; observations?: unknown[]; post: () => unknown }) {
+    vi.mocked(api.apiGet).mockImplementation(async (url) => {
+      if (url === '/settings/model/external-api') {
+        return { use_external_api: false, api_key_configured: false };
+      }
+      if (url === '/observations/') return opts.observations ?? [observation];
+      if (String(url).includes('/interpretation')) {
+        if (opts.stored) return storedCard;
+        throw new api.ApiError(404, 'Not Found', 'not found');
+      }
+      throw new Error(`unmocked ${url}`);
+    });
+    vi.mocked(api.apiPost).mockImplementation(async (url) => {
+      if (String(url).includes('/interpret-grounded')) return opts.post();
+      throw new Error(`unmocked POST ${url}`);
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuthStore.getState().setAuth({
+      token: 'test-token',
+      profileId: 'profile-123',
+      profileName: 'Test Profile',
+    });
+  });
+
+  it('HC-IWM-FE-001 shows the lead line and the message in a status region, no badge, no grounded card', async () => {
+    mockPage({ post: withheldBody });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+
+    const lead = await screen.findByText(LEAD);
+    const region = lead.closest('[role="status"]');
+    expect(region).not.toBeNull();
+    expect(region?.textContent).toContain(ESCALATE_TEXT);
+    expect(screen.queryByText(/Grounded faithfulness/i)).toBeNull();
+    expect(screen.queryByText('Grounded explanation')).toBeNull();
+  });
+
+  it('HC-IWM-FE-002 hides the notice when another observation is selected', async () => {
+    mockPage({ observations: [observation, ldl], post: withheldBody });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText(LEAD);
+
+    fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+
+    await waitFor(() => expect(screen.queryByText(LEAD)).toBeNull());
+    expect(screen.queryByText(ESCALATE_TEXT)).toBeNull();
+  });
+
+  it('HC-IWM-FE-003 a normal answer still shows the grounded card, and a withheld one keeps the stored card', async () => {
+    // Normal answer: grounded card and faithfulness badge, no notice.
+    mockPage({
+      post: () => ({
+        interpretation: storedCard,
+        grounded_segments: [],
+        full_response: '**FACTS**\nNormal grounded text.',
+        insufficient_context: false,
+        insufficient_reasons: [],
+        verification: { ...emptyVerification, enabled: true, faithfulness_score: 1 },
+        is_valid: true,
+        validation_errors: [],
+      }),
+    });
+    const first = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText('Grounded explanation');
+    expect(screen.getByText(/Grounded faithfulness/i)).toBeInTheDocument();
+    expect(screen.queryByText(LEAD)).toBeNull();
+    first.unmount();
+
+    // Withheld answer over a stored card: the hook must not write null to the cache.
+    vi.clearAllMocks();
+    mockPage({ stored: true, post: withheldBody });
+    renderPage();
+    expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+
+    await screen.findByText(LEAD);
+    expect(screen.getByText('Stored card text.')).toBeInTheDocument();
+    expect(screen.queryByText('No interpretation yet')).toBeNull();
+  });
+});

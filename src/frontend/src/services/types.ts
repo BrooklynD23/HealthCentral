@@ -343,7 +343,8 @@ export interface GroundedVerification {
 }
 
 export interface GroundedInterpretationResponse {
-  interpretation: InterpretationResponse;
+  interpretation: InterpretationResponse | null;
+  withheld?: boolean;
   grounded_segments: GroundedInterpretationSegment[];
   full_response: string;
   insufficient_context: boolean;
