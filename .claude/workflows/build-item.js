@@ -1,12 +1,12 @@
 export const meta = {
   name: 'build-item',
-  description: 'Run one build-program queue item: explore, Task 0 + claim, implement test-first, haiku test run, review (max 3), verify + PR',
+  description: 'Run one build-program queue item: explore, Task 0 + claim, implement test-first (sonnet), haiku test run, review (max 3), verify + PR',
   whenToUse: 'L0 runs one queue item from docs/plans/2026-10-15-build-program/queue.md; args {id: "E-1", resume_pr?: 157}. resume_pr resumes the item\'s own [blocked:claude] / [escalated:claude] draft instead of claiming anew. Start each item as its own top-level Workflow; queue rule 1 caps slot holders at 12.',
   phases: [
-    { title: 'Explore', detail: 'haiku reads the queue row, lane doc, plan', model: 'haiku' },
+    { title: 'Explore', detail: 'haiku (xhigh) reads the queue row, lane doc, plan', model: 'haiku', effort: 'xhigh' },
     { title: 'Plan check', detail: 'opus runs Task 0 and claims the item on GitHub', model: 'opus' },
-    { title: 'Implement', detail: 'sonnet implements test-first in the claimed worktree', model: 'sonnet' },
-    { title: 'Test', detail: 'haiku (medium) runs the test suites and acceptance commands, never edits', model: 'haiku' },
+    { title: 'Implement', detail: 'sonnet implements test-first in the claimed worktree', model: 'sonnet', effort: 'high' },
+    { title: 'Test', detail: 'haiku (medium) runs the test suites and acceptance commands, never edits', model: 'haiku', effort: 'medium' },
     { title: 'Review', detail: 'opus review, at most 3 rounds', model: 'opus' },
     { title: 'Verify', detail: 'opus measured acceptance, PR body, release slot', model: 'opus' },
   ],
@@ -117,7 +117,7 @@ const spec = await agent(
 7. architectural = true if docs/agentic/orchestration.md §5 lists the item's phase or the row says "+ Codex". security_sensitive = true if the files touch redaction, auth, encryption, export, logging or the external runner.
 Do not edit anything.
 ${STYLE}`,
-  { label: `explore ${ID}`, phase: 'Explore', model: 'haiku', effort: 'low', schema: EXPLORE_SCHEMA },
+  { label: `explore ${ID}`, phase: 'Explore', model: 'haiku', effort: 'xhigh', schema: EXPLORE_SCHEMA },
 )
 if (!spec || !spec.found) {
   return `STOPPED ${ID}: not found in ${QUEUE}`
@@ -217,7 +217,7 @@ ${findings
 ${measured ? `CONTINUATION: you already worked on this and stopped to ask for measurements. Do not redo committed work; check git log origin/main..HEAD and continue from your last step.\nYour previous report:\n${prior.report}\nCommits so far: ${(prior.commits || []).join(', ') || 'none'}\nMeasurement output (Haiku runner, verbatim, oldest first):\n${measured}\n` : ''}Measurement steps: if the plan needs a full-suite run, a coverage run or another long measurement, do not run it. Return status=measure with measure_commands = pytest ARGUMENTS only, run from src/backend (e.g. "tests/ -q" or "tests/ --cov=modules --cov-report=term -q"; allowed: tests/ paths, -q -x -v --collect-only --tb= --durations= --cov=<pkg> --cov-report=term[-missing] -k/-m=<word>); anything else is rejected. A Haiku runner runs them and you are called again with the output.
 Rules: edit only the brief's files; stage explicit paths (never git add -A); commit as the plan lists; never edit an ask-first file unless the brief names its signed gate; never weaken a test, threshold or validation. You write the tests; you run ONLY the focused test files you touch (for RED/GREEN), always as ""$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 <venv python> -m pytest <file>". A Haiku runner runs the full suite and acceptance; do not run it yourself. Push to ${plan.branch} when done. Review rounds, the Codex (or substitute) adversarial review, the PR body and after-the-change re-runs of the plan's acceptance commands are later workflow stages, not yours: once the brief's code and test tasks are committed, return status=done even if the brief lists those steps (#215 stop, 2026-10-20). A plan task that needs a baseline or before/after run of a non-pytest command (e.g. save both eval-gate outputs and diff them) is yours: if you cannot run it, return status=stopped, never done. List each vitest test you wrote as NOT RUN unless you ran it. If something blocks you, status=stopped with the reason; do not work around it.
 ${STYLE}`,
-  { label: `implement ${ID}${round ? ` r${round}` : ''}${measured ? ' +measured' : ''}`, phase: 'Implement', model: 'sonnet', schema: IMPL_SCHEMA },
+  { label: `implement ${ID}${round ? ` r${round}` : ''}${measured ? ' +measured' : ''}`, phase: 'Implement', model: 'sonnet', effort: 'high', schema: IMPL_SCHEMA },
 )
 
 // Defect #2 (handoff 2026-10-18): the implementer may not run the full suite, so plan measurement
