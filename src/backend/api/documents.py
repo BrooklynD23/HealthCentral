@@ -1775,21 +1775,25 @@ async def get_page_image(
 
             import pdfplumber
 
-            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
-            with pdfplumber.open(decrypted_doc) as pdf:
-                if page_number > len(pdf.pages):
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
-                    )
-                page = pdf.pages[page_number - 1]
-                img = page.to_image(resolution=resolution)
+            from modules.extract import _PDFIUM_LOCK
 
-                buf = BytesIO()
-                img.save(buf, format="PNG")
-                buf.seek(0)
-                content = buf.getvalue()
-                is_freshly_rendered = True
+            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
+            # PDFium is not thread-safe: OCR workers render pages on other threads.
+            with _PDFIUM_LOCK:
+                with pdfplumber.open(decrypted_doc) as pdf:
+                    if page_number > len(pdf.pages):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
+                        )
+                    page = pdf.pages[page_number - 1]
+                    img = page.to_image(resolution=resolution)
+
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    buf.seek(0)
+                    content = buf.getvalue()
+                    is_freshly_rendered = True
     except HTTPException:
         raise
     except FileNotFoundError:

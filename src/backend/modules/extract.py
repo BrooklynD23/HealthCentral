@@ -111,8 +111,10 @@ _RAPIDOCR_MODEL_SHA256 = {
 _OCR_RASTER_DPI = 200  # 300 dpi read no better than 200 in the RAPIDOCR-RESEARCH run
 _MIN_PAGE_CHARS = 20  # non-space characters for a page to count as readable
 _RAPIDOCR_LOCK = threading.Lock()  # one page at a time through the shared engine
-# PDFium is not thread-safe (pypdfium2 METADATA): two worker threads in it abort the whole
-# process. Held from PdfDocument() to close(); always taken before _RAPIDOCR_LOCK, never after.
+# PDFium is not thread-safe (pypdfium2 METADATA): two threads in it abort the whole
+# process. Held only around PDFium calls (open, page, render, close), by _ocr_pdf_pages
+# and by api.documents.get_page_image. OCR itself runs outside it, so this lock and
+# _RAPIDOCR_LOCK never nest.
 _PDFIUM_LOCK = threading.Lock()
 
 
@@ -278,15 +280,19 @@ def _ocr_pdf_pages(pdf_bytes: bytes, page_numbers: Optional[list[int]] = None) -
 
         with _PDFIUM_LOCK:
             document = pdfium.PdfDocument(pdf_bytes)
-            try:
-                for number in page_numbers or range(1, len(document) + 1):
+        try:
+            with _PDFIUM_LOCK:
+                numbers = list(page_numbers or range(1, len(document) + 1))
+            for number in numbers:
+                with _PDFIUM_LOCK:
                     page = document[number - 1]
                     try:
                         image = page.render(scale=_OCR_RASTER_DPI / 72).to_pil()
                     finally:
                         page.close()
-                    texts[number] = _ocr_image_text(image)
-            finally:
+                texts[number] = _ocr_image_text(image)
+        finally:
+            with _PDFIUM_LOCK:
                 document.close()
         return texts
 
