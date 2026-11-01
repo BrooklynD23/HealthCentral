@@ -103,7 +103,9 @@ that proves each one**:
 
 - Tests written or updated, and the new ones observed failing before the fix.
 - `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` shows no new
-  failures against the baseline above.
+  failures against the baseline above. For a diff that `scripts/change_scope.py`
+  reports as `backend=false`, the PR's CI Backend Tests run is the full-suite
+  evidence (owner SPEEDUP-1-3).
 - `cd src/frontend && npx tsc --noEmit` is clean and `npx vitest run` passes.
 - The app boots: `cd src/backend && python -c "from main import app"`.
 - Every hard invariant in [CLAUDE.md](CLAUDE.md) still holds.

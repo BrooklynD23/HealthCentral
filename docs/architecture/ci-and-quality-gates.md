@@ -1,6 +1,6 @@
 # CI & Quality Gates
 
-**Last Updated:** 2026-10-21
+**Last Updated:** 2026-11-01 (HARNESS-SPEEDUP: `changes` job, docs-only skips, two new docs-lint steps)
 **Owner:** Project Lead
 **Refresh Trigger:** A CI job is added, removed, or changes what it blocks on
 
@@ -14,6 +14,7 @@ flowchart TD
 
     subgraph JOBS[".github/workflows/ci.yml"]
         direction TB
+        CHG["changes (Change Scope)<br/>change_scope.py · fetch-depth 2"]
         DOCS["docs-lint<br/>generate_docs_index.py · docs_lint.py --link-graph<br/>docs_lint.py · feature_list_lint.py<br/>repo_hygiene_check.py · time_source_lint.py"]
         BE["backend-tests<br/>pytest via run-backend-tests.sh<br/>SQLCipher installed"]
         LINT["backend-lint<br/>ruff check (F, I, W) · ruff 0.17.1"]
@@ -25,6 +26,10 @@ flowchart TD
         RSI["rsi-replay<br/>claude plugin validate · claude plugin test<br/>(Claude Code CLI 2.1.305, pinned)"]
     end
 
+    CHG -.-> BE
+    CHG -.-> FE
+    CHG -.-> EVAL
+    CHG -.-> LEGACY
     BE --> E2E
     FE --> E2E
 
@@ -47,6 +52,7 @@ flowchart TD
 
 | Job | Required | Blocks on | Why it exists |
 |---|---|---|---|
+| `changes` (`Change Scope`) | no | A crash or timeout of the job itself, which makes every job below run | Prints `docs_only=true` only for a PR whose paths are all docs and which no backend test reads. Not a required check |
 | `docs-lint` | yes | Doc drift (DOC-003…DOC-013), stale generated index, malformed feature inventory, scratch files at the repo root | Documentation that contradicts the code is worse than no documentation |
 | `backend-tests` | yes | Any pytest failure, a missing coverage report, or a coverage TOTAL below 74% (owner Q-COV, 2026-10-19). The job first runs `python scripts/download_models.py embedding` so the offline embedding model is present | The measured collected-count baseline is the one in [CLAUDE.md](../../CLAUDE.md); see "Known env-only failure" below |
 | `backend-lint` | no | Any ruff finding under the configured set in `src/backend/pyproject.toml`. Ask-first files are held by per-file-ignores until the owner approves fixing them | Catches undefined names and import/whitespace drift before the test job does |
@@ -64,6 +70,13 @@ The two purple gates are the ones that encode product-safety claims rather than
 correctness. `agent-evals` in particular holds an absolute bar: **any** injection
 that succeeds, or **any** PHI leak, fails the build — there is no threshold to
 tune downward.
+
+## Docs-only PRs skip the code jobs (HARNESS-SPEEDUP, owner SPEEDUP-1-3)
+
+- **Skip set:** `backend-tests`, `frontend-tests`, `agent-evals`, `legacy-evals` and `e2e-tests` carry `needs: changes` and `if: ${{ !cancelled() && !(needs.changes.result == 'success' && needs.changes.outputs.docs_only == 'true') }}` (`e2e-tests` instead requires `frontend-tests` and `backend-tests` success). They skip only when `changes` succeeded and printed `docs_only=true`; a failed, timed-out or silent `changes` job runs everything. `docs-lint`, `security-scan`, `backend-lint` and `rsi-replay` always run.
+- **A skipped job reports Success**, so a required check that is skipped does not block merge. The workflow has no `paths` or `paths-ignore` filter, because a filtered-out workflow leaves its required checks Pending for ever. Branch protection is unchanged.
+- **The rule** is `scripts/change_scope.py` (stdlib and git): `docs_only` needs every path under `docs/`, `openwiki/` or `*.md`, none of them named by a tracked file under `src/`, `scripts/`, `.github/` or `.claude/mods/` (full path, or its basename in quotes), and no backend, frontend or mods path. `docs/INDEX.md` and `docs/_link_graph.json` are left out of that check. Only `pull_request` runs can be docs-only; a push to `main` runs everything.
+- **Two always-run docs-lint steps** keep the couplings that Backend Tests used to cover: `generate_docs_index.py --check`, placed before the regenerate step (the committed-index half of `test_docs_index_check_passes_on_real_repo`), and `harness_drift_check.py --repo-root .` (the drift half of HC-AGENTS-008).
 
 ## Known env-only failure
 

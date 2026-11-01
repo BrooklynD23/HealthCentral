@@ -114,6 +114,7 @@ ${STYLE}`,
 const unblock = (id, t) => agent(
   `You are an Opus sub-orchestrator unblocking queue item ${id} (PR #${t.pr_number || '?'}). Task 0 stopped on a plan gap: ${t.summary}
 Do what L0 did for ASSIST-AGENT-DATES (#119): in the PR's worktree and branch (git worktree list; create one if missing), commit a plan delta to the item's lane-doc section covering exactly the scope the owner signed, with new test ids and the expected collected delta; amend the contract in contracts.md only as far as that scope needs; set the queue row status to ready; regenerate docs (python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph); push. Use Haiku subagents for code search when you need facts from many files.
+Before setting ready, apply the RUNBOOK §10.1 planner checklist and say in the plan delta which parity, guard and isolation tests you found over the touched files.
 Stop (planned=false, stop_reason = the exact owner question) if the signed scope leaves a patient-visible choice open, if a gate is unanswered in ${DECISIONS}, or if the plan would touch ${ASK_FIRST}. Never write product code here; build-item does that next.
 ${STYLE}`,
   { label: `unblock ${id}`, phase: 'Unblock', model: 'opus', effort: 'high', schema: UNBLOCK_SCHEMA },
@@ -176,6 +177,7 @@ ${STYLE}`,
 Rows:\n${JSON.stringify(unplanned, null, 1)}\nCode facts from Haiku search (a lead, not a finding; spot-check the decisive ones):\n${JSON.stringify(facts, null, 1)}
 For each row: a plan section in the right lane doc (lane-A..F under docs/plans/2026-10-15-build-program/) with tasks, RED-first test ids and assertions that fail on today's main, acceptance commands, file list and expected collected delta; then a queue table row in the right wave with depends_on, owner gates, ask-first, files, est h, runtime claude, status.
 Rows with ask_first=true: plan them, set status "blocked: owner yes on the <file> diff", and list them in owner_questions. A row whose fix is a product choice (wording, what patients see): add a gate id, status blocked, and put the question with options and your recommendation in owner_questions. Never write product code.
+Before marking a row ready, apply the RUNBOOK §10.1 planner checklist and say in the row which parity, guard and isolation tests you found.
 Regenerate docs (python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph), open the PR with a RUNBOOK §6 body, wait for CI green. Do not merge.
 ${STYLE}`,
         { label: 'plan new rows', phase: 'Plan', model: 'opus', effort: 'high', schema: PLAN_SCHEMA },
