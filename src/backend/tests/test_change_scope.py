@@ -354,6 +354,9 @@ def test_hc_scope_012_a_mention_in_a_comment_or_a_pathlib_segment_makes_the_path
     for referrer, doc in inside.items():
         assert scope([doc], repo)["docs_only"] == "false", f"{referrer} must make {doc} non-skippable"
     assert scope(["docs/plans/outside.md"], repo) == only(docs_only="true")
+    # The test-side constant (feeds HC-SCOPE-010's message) must match the script's own.
+    script_text = SCRIPT.read_text(encoding="utf-8")
+    assert 'SEARCH_PATHSPECS = ("src", "scripts", ".github", ".claude/mods")' in script_text
 
 
 def test_hc_scope_013_any_non_docs_path_is_not_docs_only(tmp_path: Path) -> None:
