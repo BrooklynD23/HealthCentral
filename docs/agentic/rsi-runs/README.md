@@ -21,6 +21,8 @@ One folder per machine and date: `<YYYY-MM-DD>-<machine>/`.
 | `summary.json` | The rsi-loop result for that run: clusters, candidates, metrics. Copy `.claude/logs/rsi/summary-<run_id>.json` when the run wrote one; otherwise copy the workflow result |
 | `summary-dry.json` | Only in `2026-10-24-gpubox`: the dry run's result object (`run_id` `2026-10-24-gpubox-dry`, `dry_run` true), with the workflow progress and prompt or result previews left out |
 
+From the RSI-MINE-OUTCOMES row on, `summary.json` also carries `outcome_clusters` (`{source, class, count, ids}`): build-item stop classes and PR-title states as fixed classes only, with queue ids and PR numbers, never titles, slugs or stop reasons.
+
 ## Windows
 
 Exact cuts, in UTC. Each folder is cut once at archive time. The live session keeps writing after that, so later rows are not archived.
