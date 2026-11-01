@@ -1,6 +1,6 @@
 # Harness speedup 2026-11-01 — plan for HARNESS-SPEEDUP
 
-**Last Updated:** 2026-11-01 (Opus planner on `5e4c2e8a`: one lane E harness row from L0's measured analysis of 2026-11-01, per owner row SPEEDUP-1-3; RUNBOOK L0 duties #2, #4 and #5 applied in the same docs PR)
+**Last Updated:** 2026-11-01 (Opus planner on `5e4c2e8a`: one lane E harness row from L0's measured analysis of 2026-11-01, per owner row SPEEDUP-1-3; RUNBOOK L0 duties #2, #4 and #5 applied in the same docs PR). Fact 3, Design §1, Task 1 and Acceptance rewritten in the build PR (#442) per the L0 ruling of 2026-11-01 10:08Z: a fail-safe reference check replaces the carve-out list
 **Owner:** repository owner
 **Status:** APPROVED (owner, SPEEDUP-1-3, L0 AskUserQuestion, answered 2026-11-01: "#1 Path-scoped tests and CI" and "#3 Small-row fast lane", both chosen). Docs only. The row is **ready**. Merge-only gate **SPEEDUP-CI-DIFF** (new, not asked yet): L0 shows the owner the `.github/workflows/ci.yml` diff before merge. Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md).
 **Base measured:** `origin/main` @ `5e4c2e8a` (2026-11-01, #438 merged). Every `file:line` below was re-read by the planner on that commit.
@@ -20,7 +20,7 @@ Queue row: [queue.md, "Planned 2026-11-01, harness speedup"](2026-10-15-build-pr
 
 1. **Required status checks (measured 2026-11-01).** `gh api repos/BrooklynD23/HealthCentral/branches/main/protection` returns `required_status_checks.contexts` = `Documentation Lint`, `Backend Tests`, `Frontend Tests`, `Agent Eval Gate`, `Security Scan`, with `strict: false` and `enforce_admins: true`. The one repository ruleset, "Default" (id 12762999), holds only `deletion` and `non_fast_forward`, and no required checks. `RSI Replay` is **not** required yet. The owner action RSI-REPLAY-REQUIRED (queue `:836`, answered 2026-10-22 "Make it required") is still pending. E2E Smoke, Backend Lint and Legacy RAG Eval Gate are not required. This matches the CI doc (`ci-and-quality-gates.md:61`, measured 2026-10-21).
 2. **CI has no filter.** `ci.yml:3-7` triggers on every push to `main` / `Security-Revamp-*` and every PR to `main`. No job has `if:` or `needs:`, except `e2e-tests`, which has `needs: [frontend-tests, backend-tests]` (`:256`). Jobs: docs-lint `:10-36`, backend-tests `:38-74`, backend-lint `:78-94`, frontend-tests `:96-131`, security-scan `:133-203`, agent-evals `:205-227`, legacy-evals `:229-251`, e2e-tests `:253-315`, rsi-replay `:317-338`. Each uses `actions/checkout@v4` with the default `fetch-depth: 1`.
-3. **Some backend tests read files outside `src/backend/`.** These are the couplings a path filter must respect. The planner listed every `REPO_ROOT` / `parents[3]` read in `src/backend/tests`:
+3. **Some backend tests read files outside `src/backend/`.** These are the couplings a path filter must respect. The planner listed every `REPO_ROOT` / `parents[3]` read in `src/backend/tests`. **Task 0 of the build (2026-11-01, `900116ed`) found one more:** `test_extraction_golden.py:32` reads `docs/agentic/eval-cards/extraction.md` (HC-EXTR-003 compares its `eval-card:current` block with a live `ExtractModule()` score). A fixed list of docs carve-outs would miss the next such read, so the L0 ruling replaces the list with a reference check (Design §1). Both real docs reads build the path from pathlib segments (`/ "docs" / "agentic" / "eval-cards" / "extraction.md"`, `REPO_ROOT / "docs" / "agentic" / "harness.md"`) and carry the full path only in a docstring, so the check also counts a quoted basename. The reads:
    - `test_docs_lint.py:118-126` reads every repo `.md` link (DOC-007), `src/frontend` README scripts (DOC-009) and **the committed `docs/INDEX.md` + `docs/_link_graph.json`** (`test_docs_index_check_passes_on_real_repo`). The CI docs-lint job regenerates the index *before* linting (`ci.yml:23-24`), so today only Backend Tests checks the committed index.
    - `test_claude_agent_definitions.py` reads `.claude/agents/*.md`, `scripts/harness_drift_check.py` and `docs/agentic/harness.md` (HC-AGENTS-008, `:237-247`: harness.md names each agent by full path, then the drift check over `docs/agentic/*.md` passes).
    - `test_session_log_hook.py` reads `.claude/hooks/session_log.py`, `.claude/settings.json` and `.claude/mods/asclexis-rsi/hooks/logic.ts` (HC-SLOG-004, `:165-167`). This is the parity test that stopped #429.
@@ -57,31 +57,34 @@ Queue row: [queue.md, "Planned 2026-11-01, harness speedup"](2026-10-15-build-pr
   ```bash
   set -uo pipefail
   if [ "$EVENT" = pull_request ] && git rev-parse -q --verify HEAD^2 >/dev/null \
-     && files=$(git diff --name-only --no-renames HEAD^1 HEAD); then
-    printf '%s\n' "$files" | python3 scripts/change_scope.py >> "$GITHUB_OUTPUT"
+     && files=$(git diff --name-only --no-renames HEAD^1 HEAD) \
+     && git show HEAD^1:scripts/change_scope.py > "$RUNNER_TEMP/change_scope_base.py"; then
+    printf '%s\n' "$files" | python3 "$RUNNER_TEMP/change_scope_base.py" --repo-root . >> "$GITHUB_OUTPUT"
   else
     echo docs_only=false >> "$GITHUB_OUTPUT"
   fi
   ```
-  `EVENT` is `${{ github.event_name }}`. On `pull_request`, `HEAD` is GitHub's merge commit, so `HEAD^1..HEAD` is exactly the PR's change against the base it merges into. `--no-renames` lists both sides of a rename, so moving `src/x.py` to `docs/x.md` counts as a code change. A push to `main` / `Security-Revamp-*`, a missing merge parent or a failed `git diff` all mean `docs_only=false`, so everything runs.
+  `EVENT` is `${{ github.event_name }}`. On `pull_request`, `HEAD` is GitHub's merge commit, so `HEAD^1..HEAD` is exactly the PR's change against the base it merges into. `--no-renames` lists both sides of a rename, so moving `src/x.py` to `docs/x.md` counts as a code change. A push to `main` / `Security-Revamp-*`, a missing merge parent, a failed `git diff` or a base with no `scripts/change_scope.py` (this PR's own run) all mean `docs_only=false`, so everything runs. **The base branch's classifier is used, never the PR's copy (L0 ruling #3, #442):** a PR that broke its own `change_scope.py` would otherwise fail open. `--repo-root .` is required: without it the script defaults to its own directory (`$RUNNER_TEMP`, not a repo), `git grep` errors and every run fails closed. A PR that edits `change_scope.py` is classified by main's version; that edit is itself a `scripts/` path, so it always runs everything.
 - **Skipped on docs-only:** `backend-tests`, `frontend-tests`, `agent-evals`, `legacy-evals`, `e2e-tests`. **Unchanged, always run:** `docs-lint`, `security-scan`, `backend-lint` (ruff, cheap) and `rsi-replay`. RSI Replay is left alone so that it is already correct if the owner makes it required (RSI-REPLAY-REQUIRED); it is not in owner SPEEDUP-1-3's skip list.
 - **The couplings in Fact 3 stay covered on docs-only PRs.** docs-lint gains two always-run steps:
   - `python3 scripts/generate_docs_index.py --check`, placed **before** the "Regenerate docs index and link graph" step (`ci.yml:23-24`). Placed after it, it could never fail. This moves the committed-index check of `test_docs_index_check_passes_on_real_repo` into a job that always runs. It fails in exactly the cases where Backend Tests fails today: the same merge ref, the same function.
   - `python3 scripts/harness_drift_check.py --repo-root .`: the drift half of HC-AGENTS-008.
   
-  DOC-007 and DOC-009 already run in `docs_lint.py` (`docs_lint.py:537-538`). Two paths are **carved out** of docs-only, because the backend tests that read them cannot be replaced by a stdlib step: `docs/agentic/harness.md` (the agent-name half of HC-AGENTS-008) and `THIRD_PARTY_NOTICES.md` (HC-OCR-013). A PR touching either one runs everything.
-- **`scripts/change_scope.py`** (new, stdlib only, the single source of the scope rule for CI and for build-item). It reads changed paths from stdin, one per line, and prints exactly four lines, `docs_only=`, `backend=`, `frontend=`, `mods=`, each `true` or `false`:
-  - `docs_only`: true only if the list is non-empty and **every** path matches `^(docs|openwiki)/` or `^[^/]+\.md$` (a root-level `.md`) and is not one of the two carve-outs.
-  - `backend`: true if any path matches one of the backend couplings: `^src/backend/`, `(^|/)requirements[^/]*\.txt$`, `(^|/)migrations/`, `^scripts/`, `^\.github/`, `^\.claude/(hooks|agents|mods)/`, `^\.claude/settings\.json$`, `^dev\.sh$`, `^THIRD_PARTY_NOTICES\.md$`, `^docs/agentic/harness\.md$`, `^src/frontend/src/components/settings/DataDonationCard\.tsx$`. A comment beside each pattern names the test that needs it (Fact 3).
-  - `frontend`: any path matching `^src/frontend/`.
-  - `mods`: any path matching `^\.claude/mods/`.
-  - **Fail closed:** empty input, or any line that is absolute, contains `..` or a backslash, or holds a control character, gives `docs_only=false backend=true frontend=true mods=true`. Any exception prints the same four lines and exits 0.
+  DOC-007 and DOC-009 already run in `docs_lint.py` (`docs_lint.py:537-538`). `docs/INDEX.md` and `docs/_link_graph.json` are covered by the first step, so the reference check leaves them out (`ci.yml` and the docs tests name both). Every other docs path that a backend test reads is caught by the **reference check** below, not by a carve-out list. `docs/agentic/harness.md` (HC-AGENTS-008) and `THIRD_PARTY_NOTICES.md` (HC-OCR-013) used to be the two carve-outs. The check subsumes them, and they stay as explicit HC-SCOPE cases.
+- **`scripts/change_scope.py`** (new, stdlib and `git` only, the single source of the scope rule for CI and for build-item). It reads changed paths from stdin, one per line, and prints exactly four lines, `docs_only=`, `backend=`, `frontend=`, `mods=`, each `true` or `false`. Optional `--repo-root DIR` (default: the script's repo) picks the checkout that `git grep` searches.
+  - **Reference check** (L0 ruling, 2026-11-01): a changed path `p` counts as **referenced** when `git -C <root> grep -F -l -e <p>` over the tracked files under `src/`, `scripts/`, `.github/` and `.claude/mods/` hits. Fail-safe addition (L1 reading 1): it also counts when the quoted basename hits in the same set, `"<basename>"` or `'<basename>'`. `docs/INDEX.md` and `docs/_link_graph.json` are never checked (L1 reading 4). A comment that merely mentions a path makes it non-skippable; that is the safe direction and it is accepted. The check applies to docs-shaped paths (those that match `^docs/`, `\.md$` or `^openwiki/`), because only those can become docs-only.
+  - `docs_only`: true only if **all** hold: the input is non-empty; every path matches `^docs/`, `\.md$` or `^openwiki/`; no path is referenced; and backend, frontend and mods are all false (L1 reading 3: a `\.md$` anywhere would admit `.claude/agents/*.md`, which HC-AGENTS-* read by listing a directory, so the literal check never sees them).
+  - `backend`: true if any path matches one of the backend couplings: `^src/backend/`, `(^|/)requirements[^/]*\.txt$`, `(^|/)migrations/`, `^scripts/`, `^\.github/`, `^\.claude/(hooks|agents|mods)/`, `^\.claude/settings\.json$`, `^dev\.sh$`, `^THIRD_PARTY_NOTICES\.md$`, `^docs/agentic/harness\.md$`, `^src/frontend/src/components/settings/DataDonationCard\.tsx$`, **or** when any docs path is referenced (so build-item runs the full suite locally for it). A comment beside each pattern names the test that needs it (Fact 3).
+  - `frontend`: any path matching `^src/frontend/`. `mods`: any path matching `^\.claude/mods/`.
+  - **Fail closed:** empty input, or any line that is absolute, contains `..` or a backslash, or holds a control character, a `git grep` error, an unknown argument or any exception gives `docs_only=false backend=true frontend=true mods=true`, exit 0.
+  - **Self-reference (L1 reading 5):** the script and its test must not hold the full path or the quoted basename of the queue file or the owner-decisions file. If they did, those two docs would stop being skippable. The tests build those names from parts (HC-SCOPE-015 guards it).
+  - **Known consequence (L1 reading 2):** the owner-decisions file is *not* docs-only on the real repo today, because `scripts/legacy_eval_gate.py:5` and `test_claude_agent_definitions.py:4` mention its path in docstrings. The ruling accepts that. The queue file alone is docs-only on the real repo.
 
 ### 2. build-item: full backend suite only when the diff reaches the backend
 
 - **Where:** `build-item.js`, beside `vitestFiles` (`:260`) and in `runTests` (`:263-278`). A new Haiku (medium) step, `scopeOf(round)`, runs exactly `git -C "<worktree>" diff --name-only --no-renames origin/main...HEAD | python3 "<worktree>/scripts/change_scope.py"`. It returns `{exit_code, output}`, with `output` verbatim. The step only runs a script, so it fits the Haiku (medium) role (MODEL-ROUTING-SONNET-IMPL). A new self-contained pure `function parseScope(text)` returns `{docs_only, backend, frontend, mods}` only when the text is exactly those four `key=true|false` lines, and `null` otherwise. `runTests` calls `scopeOf` first on every call, because each fix round changes the diff.
 - **Rule** (decided in JS, fail closed): `const s = scope && scope.exit_code === 0 ? parseScope(scope.output) : null`.
-  - Step 3 (the full suite, `:269`) runs **unless** `s && s.backend === false`. When it is skipped, the prompt says `SKIPPED-SCOPE (change_scope: backend=false; CI Backend Tests runs the full suite on this PR)`, and the runner lists it as such. It does not count against `all_passed`.
+  - Step 3 (the full suite, `:269`) runs **unless** `s && s.backend === false`. When it is skipped, the prompt says `SKIPPED-SCOPE (change_scope: backend=false; CI Backend Tests runs the full suite on this PR)`, and the runner lists it as such. When `s.docs_only` is also true, the reason reads `docs_only=true: no tracked file under src/, scripts/, .github/, .claude/mods/ names these paths; CI skips Backend Tests by design (SPEEDUP-1-3)` instead, because CI skips Backend Tests there (L0 ruling #1, #442). It does not count against `all_passed`.
   - Steps 1 (focused tests), 2 (`--collect-only`, so the count and its delta are always measured), 4 (acceptance) and 5 (`docs_lint.py`) always run.
   - When `!s || s.frontend`: vitest runs for the changed test files, as today (`:266`, `:273`), plus `npx tsc --noEmit` from `src/frontend` (RUNBOOK §6 step 5; the WSL `/mnt/` skip rule at `:273` still applies).
   - When `!s || s.mods`: `claude plugin validate .claude/mods/asclexis-rsi` and `claude plugin test .claude/mods/asclexis-rsi` run.
@@ -116,20 +119,27 @@ The checklist text is in RUNBOOK §10.1 ("Planner checklist", this docs PR). `bu
 ## Tasks (test-first)
 
 0. **Task 0 (Opus).** Re-anchor every `file:line` on the start commit. Re-measure the required checks (`gh api repos/BrooklynD23/HealthCentral/branches/main/protection --jq .required_status_checks.contexts`) and paste them. If the list now holds a job this row skips other than Backend Tests, Frontend Tests or Agent Eval Gate, keep going, since the pattern reports Success, and say so. If it holds `Change Scope`, stop and tell L0. Re-run the Fact 3 grep (`grep -rnE "parents\[[2-9]\]|REPO_ROOT|repo_root|\.\./\.\." src/backend/tests`) and list every read outside `src/backend/`. Each one becomes a `backend` coupling, or stops the row if it lies under `docs/` beyond the two carve-outs. Then a new docs-lint step is needed, and L0 rules. Quote SPEEDUP-1-3.
-1. **RED: scope rule.** New `src/backend/tests/test_change_scope.py`, which runs the script by subprocess, as `test_docs_lint.py` does. RED: the script is missing.
-   - **HC-SCOPE-001:** docs only (`docs/plans/x.md`, `openwiki/README.md`, `README.md`, `CLAUDE.md`) gives `docs_only=true backend=false frontend=false mods=false`.
-   - **HC-SCOPE-002:** carve-outs. `docs/agentic/harness.md` gives `docs_only=false backend=true`, and `THIRD_PARTY_NOTICES.md` gives the same.
-   - **HC-SCOPE-003:** every backend coupling gives `backend=true`. It is a table with one path per pattern, including `.claude/mods/asclexis-rsi/hooks/logic.ts` (HC-SLOG-004, the #429 stop), `.claude/hooks/session_log.py`, `.claude/settings.json`, `scripts/docs_lint.py`, `.github/workflows/ci.yml`, `src/backend/requirements.txt`, `dev.sh`.
+1. **RED: scope rule.** New `src/backend/tests/test_change_scope.py`, which runs the script by subprocess, as `test_docs_lint.py` does. Reference-check cases use throwaway git repos (`git init` in `tmp_path`, `--repo-root`). RED: the script is missing.
+   - **HC-SCOPE-001:** docs only (`docs/plans/x.md`, `openwiki/README.md`, `README.md`, `CLAUDE.md`, unreferenced, temp repo) gives `docs_only=true backend=false frontend=false mods=false`.
+   - **HC-SCOPE-002:** the old carve-outs as explicit cases on the real repo. `docs/agentic/harness.md` gives `docs_only=false backend=true`, and `THIRD_PARTY_NOTICES.md` gives the same.
+   - **HC-SCOPE-003:** every backend coupling gives `backend=true`. One path per pattern, including `.claude/mods/asclexis-rsi/hooks/logic.ts` (HC-SLOG-004, the #429 stop), `.claude/hooks/session_log.py`, `.claude/settings.json`, `scripts/docs_lint.py`, `.github/workflows/ci.yml`, `src/backend/requirements.txt`, `dev.sh`.
    - **HC-SCOPE-004:** `src/frontend/src/App.tsx` gives `frontend=true backend=false`. `DataDonationCard.tsx` gives `frontend=true backend=true`.
    - **HC-SCOPE-005:** `.claude/mods/asclexis-rsi/rsi.test.ts` gives `mods=true backend=true`.
    - **HC-SCOPE-006:** `.claude/workflows/build-item.js` alone gives all `false`. Mixed `docs/x.md` + `src/backend/main.py` gives `docs_only=false backend=true`.
-   - **HC-SCOPE-007:** fail closed. Empty stdin, `../x`, `/abs/x`, `a\tb` and `a\\b` each give `docs_only=false backend=true frontend=true mods=true`.
+   - **HC-SCOPE-007:** fail closed. Empty stdin, `../x`, `/abs/x`, `a\tb`, `a\\b`, a control character, a drive path, an unknown argument, and a `--repo-root` that is not a repo (a `git grep` failure) each give `docs_only=false backend=true frontend=true mods=true`.
+   - **HC-SCOPE-009:** `docs/agentic/eval-cards/extraction.md` gives `docs_only=false` on the real repo (the HC-EXTR-003 coupling). The test also asserts, with its own `git grep`, that `test_extraction_golden.py` is among the referrers.
+   - **HC-SCOPE-010:** the queue file alone gives `docs_only=true` on the real repo (path read from `git ls-files`).
+   - **HC-SCOPE-011:** the owner-decisions file alone gives `docs_only=true` in a temp repo.
+   - **HC-SCOPE-012:** a docs path mentioned only in a comment, or only as a quoted pathlib segment, gives not docs-only (temp repo); an unquoted basename does not count; a referenced docs path beside a frontend change gives `backend=true`.
+   - **HC-SCOPE-013:** any non-docs path gives not docs-only, alone or beside a docs path.
+   - **HC-SCOPE-014:** `docs/INDEX.md` and `docs/_link_graph.json` alone give `docs_only=true`, on the real repo and in a temp repo whose test names both.
+   - **HC-SCOPE-015:** neither `change_scope.py` nor `test_change_scope.py` holds the full path or quoted basename of the queue or owner-decisions file.
 2. **RED: CI wiring.** **HC-SCOPE-008** in the same file loads `ci.yml` with `yaml.safe_load` (PyYAML, as `test_claude_agent_definitions.py:24`) and checks:
    - PyYAML reads the bare `on` key as `True`, so the test reads `data.get('on', data.get(True))`. That trigger holds no `paths` and no `paths-ignore`.
    - A `changes` job exists. Its step text has `--no-renames`, `HEAD^1` and `scripts/change_scope.py`, and its checkout has `fetch-depth: 2`.
    - `backend-tests`, `frontend-tests`, `agent-evals` and `legacy-evals` each have `changes` in `needs`, and an `if` equal to the exact fail-closed string in Design §1.
    - The `if` of `e2e-tests` requires `frontend-tests` and `backend-tests` success.
-   - `docs-lint` and `security-scan` have neither `if` nor `needs`.
+   - `docs-lint`, `security-scan`, `backend-lint` and `rsi-replay` have neither `if` nor `needs`. The fail-closed `if` string is what makes a failed `changes` job run everything (the ruling's "`changes` job failure → everything runs" case).
    - docs-lint has a `generate_docs_index.py --check` step **before** the regenerate step, and a `harness_drift_check.py` step.
    
    RED: there is no `changes` job.
@@ -150,7 +160,7 @@ The checklist text is in RUNBOOK §10.1 ("Planner checklist", this docs PR). `bu
 
 ## Acceptance
 
-- `pytest tests/test_change_scope.py`: RED pasted (8 failing), then `8 passed`. The full backend suite passes (this diff touches `scripts/` and `src/backend/tests/`, so its own scope is `backend=true`). Collected delta **+8**.
+- `pytest tests/test_change_scope.py`: RED pasted (24 failing: HC-SCOPE-001..015, with HC-SCOPE-007 parametrized), then `24 passed`. The full backend suite passes (this diff touches `scripts/` and `src/backend/tests/`, so its own scope is `backend=true`). Collected delta **+24**.
 - `python3 scripts/change_scope.py` on this branch's own diff prints `docs_only=false` (the PR is code, so every CI job runs on it, including the full suite).
 - The scratch node fixture prints `speedup ok (N)`, with its RED pasted. actionlint is clean, or NOT RUN with the reason. HC-SCOPE-008 is green.
 - `git diff origin/main -- .github/workflows/ci.yml` shows only: the `changes` job; `needs:` + `if:` lines on backend-tests, frontend-tests, agent-evals, legacy-evals and e2e-tests; the 2 docs-lint steps. No step of an existing job is removed or changed. `git diff origin/main -- .claude/workflows/build-item.js` leaves `MAX_ROUNDS`, the lens code `:317-318`, `ARG_OK` / `buildMeasureCmds` (`:227-238`) and the Task 0 checks text unchanged.
@@ -162,19 +172,20 @@ The checklist text is in RUNBOOK §10.1 ("Planner checklist", this docs PR). `bu
 
 ## Risk
 
-- **Never weaken a gate.** The code path still runs every job. Only a PR whose every path is docs and not carved out skips anything, and only after `changes` succeeded. Every failure of the scope machinery runs more, not less. The committed-index and drift checks move into a job that always runs, so docs-only PRs lose no check that a Python stdlib step can make. The two that need the full test environment are carved out.
-- **Residual:** a backend test added later that reads a new path under `docs/` would not run on a docs-only PR. The RUNBOOK §10.1 planner checklist and HC-SCOPE-003's table are where that coupling must be added. Task 0 re-greps.
+- **Never weaken a gate.** The code path still runs every job. Only a PR whose every path is docs and is not referenced by a tracked file under `src/`, `scripts/`, `.github/` or `.claude/mods/` skips anything, and only after `changes` succeeded. Every failure of the scope machinery runs more, not less. The committed-index and drift checks move into a job that always runs, so docs-only PRs lose no check that a Python stdlib step can make. A docs path that a backend test reads is caught by the reference check and runs everything.
+- **Residual:** a backend test added later that reads a docs path *without* the full path or its quoted basename appearing in a tracked file under `src/`, `scripts/`, `.github/` or `.claude/mods/` (for example a directory listing or a glob) would not run on a docs-only PR. The RUNBOOK §10.1 planner checklist is where that coupling must be caught. Task 0 re-greps.
 - **Residual:** a run cancelled by hand leaves jobs skipped or cancelled. L0 never merges on a cancelled run (RUNBOOK §7 rule 6: CI green).
 - `ci.yml` is a gate file. It is approved by owner SPEEDUP-1-3, and the merge waits on SPEEDUP-CI-DIFF: L0 shows the owner the `ci.yml` diff before merge.
 
 **Files:**
 - `scripts/change_scope.py` (new)
-- `src/backend/tests/test_change_scope.py` (new, HC-SCOPE-001…008)
+- `src/backend/tests/test_change_scope.py` (new, HC-SCOPE-001…015)
 - `.github/workflows/ci.yml` (new `changes` job; `needs` + `if` on backend-tests `:38`, frontend-tests `:96`, agent-evals `:205`, legacy-evals `:229`, e2e-tests `:253-256`; docs-lint 2 steps around `:21-24`)
 - `.claude/workflows/build-item.js` (args `:26-31`; `PLANCHECK_SCHEMA` `:54-69`; Explore `:108-124` skipped under `fast`; refusals `:126-135`; Plan check `:145-155`; new `scopeOf`, `parseScope`, `fullSuite`, `fastLane` near `:260`; `runTests` `:263-278`; `testEvidence` `:296`; `block` `:196-206`; escalation `:340-348`; Verify `:357`, `:360`)
 - `.claude/workflows/build-program.js` (`:116`, `:177`, one sentence each)
 - `docs/plans/2026-10-15-build-program/RUNBOOK.md` (§6 step 2 `:135-140`; §10.1 `:212-214`)
 - `AGENT.md` (Definition of done, one clause)
+- `docs/plans/2026-11-01-harness-speedup-plan.md` (this file; added by the L0 ruling; the queue row's files cell gets it in L0's next docs PR, which must merge before this one)
 - `docs/architecture/ci-and-quality-gates.md`
 - `docs/INDEX.md`, `docs/_link_graph.json` (regenerated), slots (none edited)
 
