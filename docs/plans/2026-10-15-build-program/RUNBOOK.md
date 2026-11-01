@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Multi-Runtime Runbook
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-11-01 (§10.1: L0 preflight, rulings as PR comments with batched docs, and the planner checklist, from L0's 2026-11-01 analysis; [harness speedup plan](../2026-11-01-harness-speedup-plan.md)); 2026-10-15
 **Owner:** repository owner
 **Status:** PROPOSED (L0 runbook author). No owner approval is recorded here. Every gate keeps its state in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md).
 **Refresh Trigger:** any edit to [queue.md](queue.md) scheduling rules, [contracts.md](contracts.md) §b–§d, or [orchestration.md](../../agentic/orchestration.md); a new runtime; a change to `codex exec` flags or the Devin MCP tools; a claim race or stale claim that this file did not resolve.
@@ -220,6 +220,17 @@ Two workflows, explicit models throughout:
     Otherwise wait up to 30 minutes, then report the processes. Never kill another project's process; L0 asks the owner to pause it. This precheck supersedes the narrower `pgrep -fa "playwright|vitest|pytest"` that older plans quote.
   - **L0 note:** `{"id": "<ID>", "l0_note": "..."}` passes L0 evidence or a ruling into Task 0, for example a model-host probe L0 ran itself.
   - **Agent cap:** a nested `workflow('build-item')` (inside `build-program` or `build-wave {"nested": true}`) shares its parent's agent cap, so only a few items run at once. For a full wave, L0 starts each `build-item` as its own top-level Workflow.
+  - **L0 preflight, before each start or resume** (L0 duty, from the 2026-11-01 analysis: 5 of 10 stops were harness friction; [plan](../2026-11-01-harness-speedup-plan.md)). L0 runs these checks from the main session and fixes what it can before starting the Workflow:
+    1. **Retitles.** Auto mode denies `gh pr edit` retitles inside build-item subagents. L0 makes them itself from the main session. Until HARNESS-SPEEDUP merges, start the resume as usual; if its Task 0 stops on a denied retitle, retitle the PR to `[claim:claude…] <ID> <slug>` yourself and re-run. After HARNESS-SPEEDUP merges, retitle before the resume and post a comment whose first line is `L0 ruling: preflight retitle` (Task 0 then skips its own retitle and still runs the lock, slot and race checks). When a build-item result says `retitle: L0 → <title>`, apply that title.
+    2. **Scripts in `/tmp/claude-1000`.** For any row that runs Playwright or a quiet-box timing, `test -x /tmp/claude-1000/hold_slots.sh`. If it is missing (a reboot wipes `/tmp/claude-1000`), recreate it from the [2026-10-26 handoff](../2026-10-26-session-handoff.md) §4 appendix, with `export TMPDIR=/dev/shm` ([2026-10-29 handoff](../2026-10-29-session-handoff.md) §4).
+    3. **Quiet-box lock.** For a stillness-timing row, L0 holds `/tmp/claude-1000/quiet-box.lock` and no model-host row runs. For any other row, check that no lock is left over from a finished run.
+    4. **Worktree.** `<repo-parent>/hc-<id>` must be absent, or on the item's branch with `git status --short` empty. A dirty worktree stops Task 0. L0 resolves it first (never `reset` or `clean` work that is not yours: ask).
+    5. **Workflow-tool needs.** The Workflow tool is not available inside build-item agents. If the row's acceptance needs a Workflow run (for example an `rsi-loop` dry run), L0 runs it from the main session after the PR is pushed and pastes the output on the PR before merge. Alternatively, L0 runs it first and passes the evidence with `l0_note`.
+  - **Rulings as PR comments, docs batched** (L0 duty #5). An L0 ruling is binding from its PR comment (first line `L0 ruling:`); a resume reads it there. L0 does not open one docs PR per ruling. It batches the plan and queue text for its rulings into its next docs PR. That docs PR must merge **before** the item's PR merges, so `main` never merges code whose licence exists only in a comment.
+  - **Planner checklist** (any planner: L0, the build-program planner, an unblocker; #4 from the 2026-11-01 analysis: 3 of 10 stops were file-list gaps, HC-SLOG-004, the audit-order guard and unlisted hunks). Before marking a row ready:
+    1. Grep `src/backend/tests`, `src/frontend/src` and `src/frontend/e2e` for each file the row touches. Look for parity tests (for example `test_session_log_hook.py` HC-SLOG-004, which pins `session_log._ERROR_CLASSES` to the `classifyError` literals in `logic.ts`), guard tests (for example `test_audit_order_guard.py`) and real-repo readers (`REPO_ROOT`, `parents[3]`). List each test that must change in the row's files, with the allowed edit, and name the ones that must stay unedited.
+    2. For a workflow-script row, list every hunk the change needs, not only the named function: constants, top-level wiring, returns and prompt sentences. Name the isolation grep and the hits it must show.
+    3. Run each new test RED on `main` when that is cheap (under about a minute), and paste the output in the plan.
 
 Paste into the main Claude Code session (L0, Opus):
 
