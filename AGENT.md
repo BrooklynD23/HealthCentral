@@ -105,7 +105,9 @@ that proves each one**:
 - `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` shows no new
   failures against the baseline above. For a diff that `scripts/change_scope.py`
   reports as `backend=false`, the PR's CI Backend Tests run is the full-suite
-  evidence (owner SPEEDUP-1-3).
+  evidence, unless it also reports `docs_only=true`: then no tracked file under
+  `src/`, `scripts/`, `.github/`, `.claude/mods/` names the changed paths and CI
+  skips Backend Tests by design (owner SPEEDUP-1-3).
 - `cd src/frontend && npx tsc --noEmit` is clean and `npx vitest run` passes.
 - The app boots: `cd src/backend && python -c "from main import app"`.
 - Every hard invariant in [CLAUDE.md](CLAUDE.md) still holds.

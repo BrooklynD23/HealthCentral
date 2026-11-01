@@ -132,7 +132,7 @@ Run in the worktree. A failed check stops the item: post the failing command and
 Run in the worktree after the **final** `git merge origin/main`. Paste every command with its output.
 
 1. The plan's acceptance commands, plus the RED → GREEN output for each new test id.
-2. The full backend suite, run in the worktree only. It runs when `git diff --name-only --no-renames origin/main...HEAD | python3 scripts/change_scope.py` prints `backend=true` (or fails: the script fails closed). When it prints `backend=false`, paste that scope output and write `SKIPPED-SCOPE` in place of the run: CI Backend Tests runs the full suite on the PR (owner SPEEDUP-1-3). The collected count (step 3) is measured either way.
+2. The full backend suite, run in the worktree only. It runs when `git diff --name-only --no-renames origin/main...HEAD | python3 scripts/change_scope.py` prints `backend=true` (or fails: the script fails closed). When it prints `backend=false`, paste that scope output and write `SKIPPED-SCOPE` in place of the run: CI Backend Tests runs the full suite on the PR, unless the scope output also says `docs_only=true`: then no tracked file under `src/`, `scripts/`, `.github/`, `.claude/mods/` names these paths and CI skips Backend Tests by design (owner SPEEDUP-1-3). The collected count (step 3) is measured either way.
    ```bash
    cd src/backend && "$(git rev-parse --show-toplevel)/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 \
      ~/venvs/asclexis-311/bin/python -m pytest tests/ -p no:cacheprovider -q
