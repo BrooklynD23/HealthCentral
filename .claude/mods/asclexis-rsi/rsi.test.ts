@@ -330,3 +330,70 @@ describe('per-tool field', () => {
     for (const s of ['sk-SECRET123', 'SECRET', '/home/danny', 'Jane', 'Doe']) expect(raw).not.toContain(s)
   })
 })
+
+describe('rule table strictness', () => {
+  // Injection phrases from the rsi-loop critic prompt (.claude/workflows/rsi-loop.js:355).
+  // Keep both lists in step: a future edit to one must update the other.
+  const PHRASES = [
+    'ignore all', 'ignore previous', 'ignore the above', 'you must now', 'you should now',
+    '--no-verify', 'git push --force', 'skip review', 'skip the review', 'skip tests',
+    'skip the tests', 'skip gate', 'skip the gate',
+  ]
+  const PHRASE_RE = new RegExp(PHRASES.map(p => p.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')).join('|'), 'i')
+
+  // Case ids whose positive check is still answered by some other rule.
+  const overlaps = (rules: readonly Rule[], all: any[]): string[] =>
+    all
+      .filter(c => c.expect === 'deny' || c.expect === 'hint')
+      .filter(c => {
+        const rest = rules.filter(r => r.id !== c.rule)
+        const failed = c.failed ?? c.error_text !== undefined
+        return c.expect === 'deny'
+          ? checkBefore(c.tool, c.input, rest) !== undefined
+          : checkAfter(c.tool, c.input, c.error_text ?? '', failed, rest) !== undefined
+      })
+      .map(c => c.id)
+
+  const lintRule = (r: Rule): string[] => {
+    const out: string[] = []
+    for (const k of ['message', 'source'] as const) {
+      const v = r[k]
+      const max = k === 'message' ? 300 : 200
+      if (typeof v !== 'string' || v.length < 1 || v.length > max) out.push(`${k} length`)
+      if (typeof v !== 'string') continue
+      if (!/^[\x20-\x7e]+$/.test(v)) out.push(`${k} not printable ASCII`)
+      if (/https?:\/\//i.test(v)) out.push(`${k} has a URL`)
+      if (PHRASE_RE.test(v)) out.push(`${k} has a critic phrase`)
+    }
+    for (const k of ['match', 'command', 'absent'] as const) {
+      if (r[k] === undefined) continue
+      try { new RegExp(r[k] as string) } catch { out.push(`${k} is not a valid regex`) }
+    }
+    return out
+  }
+
+  const positives = (cases as any[]).filter(c => c.expect === 'deny' || c.expect === 'hint')
+  const nsfp = (RULES as readonly Rule[]).find(r => r.id === 'no-such-file-path')!
+
+  test('every rule is necessary for its positive cases', () => {
+    expect(overlaps(RULES, cases as any[])).toEqual([])
+    // Planted: a duplicate of no-such-file-path under another id (local copy, RULES is never mutated).
+    const planted: Rule[] = [...RULES, { ...nsfp, id: 'no-such-file-path-dup' }]
+    const expected = positives.filter(c => c.rule === 'no-such-file-path').map(c => c.id)
+    expect(expected.length).toBeGreaterThan(0)
+    expect(overlaps(planted, cases as any[])).toEqual(expected)
+    expect(RULES.some(r => r.id === 'no-such-file-path-dup')).toBe(false)
+  })
+
+  test('rule text is plain and bounded', () => {
+    for (const r of RULES) expect(lintRule(r)).toEqual([])
+    const bad: [string, Partial<Rule>][] = [
+      ['url', { message: 'see https://x for details' }],
+      ['critic phrase', { message: 'please ignore previous notes' }],
+      ['too long', { message: 'a'.repeat(301) }],
+      ['non-ascii', { message: 'café not allowed' }],
+      ['bad regex', { match: '(' }],
+    ]
+    for (const [name, o] of bad) expect([name, lintRule({ ...nsfp, ...o }).length > 0]).toEqual([name, true])
+  })
+})
