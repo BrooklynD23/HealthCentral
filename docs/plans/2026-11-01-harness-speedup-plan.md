@@ -57,13 +57,14 @@ Queue row: [queue.md, "Planned 2026-11-01, harness speedup"](2026-10-15-build-pr
   ```bash
   set -uo pipefail
   if [ "$EVENT" = pull_request ] && git rev-parse -q --verify HEAD^2 >/dev/null \
-     && files=$(git diff --name-only --no-renames HEAD^1 HEAD); then
-    printf '%s\n' "$files" | python3 scripts/change_scope.py >> "$GITHUB_OUTPUT"
+     && files=$(git diff --name-only --no-renames HEAD^1 HEAD) \
+     && git show HEAD^1:scripts/change_scope.py > "$RUNNER_TEMP/change_scope_base.py"; then
+    printf '%s\n' "$files" | python3 "$RUNNER_TEMP/change_scope_base.py" --repo-root . >> "$GITHUB_OUTPUT"
   else
     echo docs_only=false >> "$GITHUB_OUTPUT"
   fi
   ```
-  `EVENT` is `${{ github.event_name }}`. On `pull_request`, `HEAD` is GitHub's merge commit, so `HEAD^1..HEAD` is exactly the PR's change against the base it merges into. `--no-renames` lists both sides of a rename, so moving `src/x.py` to `docs/x.md` counts as a code change. A push to `main` / `Security-Revamp-*`, a missing merge parent or a failed `git diff` all mean `docs_only=false`, so everything runs.
+  `EVENT` is `${{ github.event_name }}`. On `pull_request`, `HEAD` is GitHub's merge commit, so `HEAD^1..HEAD` is exactly the PR's change against the base it merges into. `--no-renames` lists both sides of a rename, so moving `src/x.py` to `docs/x.md` counts as a code change. A push to `main` / `Security-Revamp-*`, a missing merge parent, a failed `git diff` or a base with no `scripts/change_scope.py` (this PR's own run) all mean `docs_only=false`, so everything runs. **The base branch's classifier is used, never the PR's copy (L0 ruling #3, #442):** a PR that broke its own `change_scope.py` would otherwise fail open. `--repo-root .` is required: without it the script defaults to its own directory (`$RUNNER_TEMP`, not a repo), `git grep` errors and every run fails closed. A PR that edits `change_scope.py` is classified by main's version; that edit is itself a `scripts/` path, so it always runs everything.
 - **Skipped on docs-only:** `backend-tests`, `frontend-tests`, `agent-evals`, `legacy-evals`, `e2e-tests`. **Unchanged, always run:** `docs-lint`, `security-scan`, `backend-lint` (ruff, cheap) and `rsi-replay`. RSI Replay is left alone so that it is already correct if the owner makes it required (RSI-REPLAY-REQUIRED); it is not in owner SPEEDUP-1-3's skip list.
 - **The couplings in Fact 3 stay covered on docs-only PRs.** docs-lint gains two always-run steps:
   - `python3 scripts/generate_docs_index.py --check`, placed **before** the "Regenerate docs index and link graph" step (`ci.yml:23-24`). Placed after it, it could never fail. This moves the committed-index check of `test_docs_index_check_passes_on_real_repo` into a job that always runs. It fails in exactly the cases where Backend Tests fails today: the same merge ref, the same function.
@@ -83,7 +84,7 @@ Queue row: [queue.md, "Planned 2026-11-01, harness speedup"](2026-10-15-build-pr
 
 - **Where:** `build-item.js`, beside `vitestFiles` (`:260`) and in `runTests` (`:263-278`). A new Haiku (medium) step, `scopeOf(round)`, runs exactly `git -C "<worktree>" diff --name-only --no-renames origin/main...HEAD | python3 "<worktree>/scripts/change_scope.py"`. It returns `{exit_code, output}`, with `output` verbatim. The step only runs a script, so it fits the Haiku (medium) role (MODEL-ROUTING-SONNET-IMPL). A new self-contained pure `function parseScope(text)` returns `{docs_only, backend, frontend, mods}` only when the text is exactly those four `key=true|false` lines, and `null` otherwise. `runTests` calls `scopeOf` first on every call, because each fix round changes the diff.
 - **Rule** (decided in JS, fail closed): `const s = scope && scope.exit_code === 0 ? parseScope(scope.output) : null`.
-  - Step 3 (the full suite, `:269`) runs **unless** `s && s.backend === false`. When it is skipped, the prompt says `SKIPPED-SCOPE (change_scope: backend=false; CI Backend Tests runs the full suite on this PR)`, and the runner lists it as such. It does not count against `all_passed`.
+  - Step 3 (the full suite, `:269`) runs **unless** `s && s.backend === false`. When it is skipped, the prompt says `SKIPPED-SCOPE (change_scope: backend=false; CI Backend Tests runs the full suite on this PR)`, and the runner lists it as such. When `s.docs_only` is also true, the reason reads `docs_only=true: no tracked file under src/, scripts/, .github/, .claude/mods/ names these paths; CI skips Backend Tests by design (SPEEDUP-1-3)` instead, because CI skips Backend Tests there (L0 ruling #1, #442). It does not count against `all_passed`.
   - Steps 1 (focused tests), 2 (`--collect-only`, so the count and its delta are always measured), 4 (acceptance) and 5 (`docs_lint.py`) always run.
   - When `!s || s.frontend`: vitest runs for the changed test files, as today (`:266`, `:273`), plus `npx tsc --noEmit` from `src/frontend` (RUNBOOK §6 step 5; the WSL `/mnt/` skip rule at `:273` still applies).
   - When `!s || s.mods`: `claude plugin validate .claude/mods/asclexis-rsi` and `claude plugin test .claude/mods/asclexis-rsi` run.
