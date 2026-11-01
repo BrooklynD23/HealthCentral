@@ -12,6 +12,7 @@ being skippable. The tests below build those names from parts for that reason (H
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -116,6 +117,9 @@ def queue_path() -> str:
     assert len(hits) == 1, hits
     return hits[0]
 
+
+# The git grep search set, pinned against scripts/change_scope.py::SEARCH_PATHSPECS by HC-SCOPE-012.
+SEARCH_PATHSPECS = ("src", "scripts", ".github", ".claude/mods")
 
 OWNER_DECISIONS_NAME = "owner-decisions-" + "2026-09-27" + ".md"
 
@@ -231,6 +235,15 @@ def test_hc_scope_008_ci_yml_wiring() -> None:
     run_text = "\n".join(str(s.get("run", "")) for s in changes["steps"])
     for needle in ("--no-renames", "HEAD^1", "scripts/change_scope.py"):
         assert needle in run_text, needle
+    # L0 ruling #3 (#442): classify with the BASE branch's script, never the PR's copy. A PR that
+    # broke its own classifier would otherwise fail open. `--repo-root .` keeps the git grep on the
+    # PR checkout (the script otherwise searches its own directory, $RUNNER_TEMP, a non-repo).
+    assert "git show HEAD^1:scripts/change_scope.py" in run_text
+    assert "$RUNNER_TEMP" in run_text
+    assert "--repo-root ." in run_text
+    assert not re.search(r"python3\s+scripts/change_scope\.py", run_text), (
+        "the changes job must not run the checkout's copy of the classifier"
+    )
 
     for name in ("backend-tests", "frontend-tests", "agent-evals", "legacy-evals"):
         job = jobs[name]
@@ -274,7 +287,24 @@ def test_hc_scope_009_extraction_card_is_not_docs_only_on_the_real_repo() -> Non
 
 
 def test_hc_scope_010_queue_file_alone_is_docs_only_on_the_real_repo() -> None:
-    assert scope([queue_path()]) == only(docs_only="true")
+    path = queue_path()
+    got = scope([path])
+    if got != only(docs_only="true"):
+        # Name the referrers, found with our own git grep (same pathspecs as the script).
+        base = path.rsplit("/", 1)[-1]
+        grep = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "grep", "-F", "-l", "-e", path, "-e", f'"{base}"',
+             "-e", f"'{base}'", "--", *SEARCH_PATHSPECS],
+            capture_output=True,
+            text=True,
+            env=_clean_env(),
+        )
+        pytest.fail(
+            f"{path} is no longer docs-only (got {got}). Referencing files: "
+            f"{grep.stdout.split() or 'none found by git grep'}. "
+            "by design: queue-file edits must stay docs-only (L0 ruling, #442). "
+            "Remove the reference from those files; do not widen the classifier."
+        )
 
 
 def test_hc_scope_011_owner_decisions_alone_is_docs_only_in_a_temp_repo(tmp_path: Path) -> None:
@@ -304,6 +334,26 @@ def test_hc_scope_012_a_mention_in_a_comment_or_a_pathlib_segment_makes_the_path
     # A referenced docs path forces backend=true even beside a frontend-only change.
     got = scope(["docs/plans/x.md", "src/frontend/src/App.tsx"], repo)
     assert got["backend"] == "true" and got["frontend"] == "true" and got["docs_only"] == "false"
+
+    # The search set: src/ scripts/ .github/ .claude/mods/ and nothing else (L0 ruling #2, #442).
+    # One referrer under each pathspec, each naming a different doc: each doc is not docs-only.
+    inside = {
+        "src/backend/tests/test_a.py": "docs/plans/in-src.md",
+        "scripts/a.py": "docs/plans/in-scripts.md",
+        ".github/workflows/a.yml": "docs/plans/in-github.md",
+        ".claude/mods/m/a.ts": "docs/plans/in-mods.md",
+    }
+    repo = make_repo(
+        tmp_path / "set",
+        {
+            **{ref: f"# {doc}\n" for ref, doc in inside.items()},
+            # Outside the set: a referrer under .claude/workflows/ does not count.
+            ".claude/workflows/a.js": "// docs/plans/outside.md\n",
+        },
+    )
+    for referrer, doc in inside.items():
+        assert scope([doc], repo)["docs_only"] == "false", f"{referrer} must make {doc} non-skippable"
+    assert scope(["docs/plans/outside.md"], repo) == only(docs_only="true")
 
 
 def test_hc_scope_013_any_non_docs_path_is_not_docs_only(tmp_path: Path) -> None:
