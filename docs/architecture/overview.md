@@ -149,9 +149,9 @@ flowchart LR
     WAVE --> ITEM
     subgraph ITEM["build-item.js (one per id)"]
         direction TB
-        E["explore (haiku)"] --> T0["Task 0 + claim (opus)"]
-        T0 --> IMP["implement test-first (haiku, xhigh)"]
-        IMP --> TST["run tests (haiku)"]
+        E["explore (haiku, xhigh)"] --> T0["Task 0 + claim (opus)"]
+        T0 --> IMP["implement test-first (sonnet, high)"]
+        IMP --> TST["run tests (haiku, medium)"]
         TST --> REV["review, max 3 rounds (opus)"]
         REV --> VER["verify + PR (opus)"]
     end

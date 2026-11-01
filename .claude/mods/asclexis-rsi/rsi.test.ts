@@ -1,7 +1,8 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import cases from './replay/cases'
 import { RULES } from './hooks/rules'
-import { classifyError } from './hooks/logic'
+import { checkAfter, checkBefore, classifyError, fieldOf } from './hooks/logic'
+import type { Rule } from './hooks/rules'
 
 // The test environment has no fs: an in-memory one answers fs.* beneath the plugin.
 function memfs(on: any) {
@@ -38,6 +39,7 @@ describe('replay set', () => {
       const [row] = rowsOf(files)
       if (c.expect === 'deny') expect(row.guard).toBe(c.rule)
       if (c.expect === 'hint') expect(row.hint).toBe(c.rule)
+      if (c.error_class !== undefined) expect(row.error_class).toBe(c.error_class)
       if (c.expect === 'pass') (expect(row.guard).toBeNull(), expect(row.hint).toBeNull())
     })
   }
@@ -92,6 +94,61 @@ describe('classifyError', () => {
   })
 })
 
+describe('classifyError, non-Bash', () => {
+  // [tool, neutral first line, class]. Placeholders only: no real path, name or secret.
+  const MEASURED: [string, string, string][] = [
+    ['Monitor', '<tool_use_error>InputValidationError: Monitor failed due to the following issue:\nThe required parameter `x` is missing', 'input-validation'],
+    ['Nope', '<tool_use_error>Error: No such tool available: Nope. Use one of the listed tools.', 'no-such-tool'],
+    ['Edit', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['Write', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['MultiEdit', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['NotebookEdit', '<tool_use_error>File has not been read yet. Read it first before writing to it.', 'edit-not-read'],
+    ['Read', 'File does not exist. Note: your current working directory is /x.', 'read-not-found'],
+    ['Read', 'File content (30000 tokens) exceeds maximum allowed tokens (25000). Use offset and limit parameters.', 'read-too-large'],
+    ['StructuredOutput', 'Output does not match required schema: x', 'schema-mismatch'],
+    ['AskUserQuestion', "The user doesn't want to proceed with this tool use. The tool use was rejected.", 'user-rejected'],
+    ['Workflow', '<tool_use_error>Workflow "x" not found. Available: a, b', 'workflow-not-found'],
+    ['Workflow', '<tool_use_error>scriptPath must be a script path this tool returned, or a file you can already read.', 'workflow-bad-script'],
+    ['Skill', '<tool_use_error>Skill x cannot be used with Skill tool due to disable-model-invocation', 'skill-disabled'],
+    ['TaskStop', '<tool_use_error>No task found with ID: x', 'task-not-found'],
+    ['TaskStop', '<tool_use_error>Task x is not running (status: completed)', 'task-not-running'],
+    ['Agent', 'Concurrent subagent limit reached. You can run 4 subagents at once.', 'subagent-limit'],
+    ['Grep', 'Search failed — ripgrep rejected the pattern, glob, or file type without searching:', 'grep-pattern-rejected'],
+    ['Bash', 'Permission for this action was denied by the Claude Code auto mode classifier. Reason: x', 'permission-denied-auto'],
+  ]
+  test('fixed classes for measured tool errors', () => {
+    for (const [tool, text, cls] of MEASURED) expect(classifyError(text, tool)).toBe(cls)
+  })
+  test('tool-scoped classes need the tool', () => {
+    expect(classifyError('File does not exist.', 'Bash')).toBe('other')
+    expect(classifyError('Output does not match required schema: x', 'Read')).toBe('other')
+    const scoped = ['edit-not-read', 'read-not-found', 'read-too-large', 'schema-mismatch', 'workflow-not-found', 'workflow-bad-script', 'skill-disabled', 'task-not-found', 'task-not-running', 'subagent-limit', 'grep-pattern-rejected']
+    for (const [, text, cls] of MEASURED) if (scoped.includes(cls)) expect(classifyError(text, 'Bash')).not.toBe(cls)
+    // Anchors: the same text partway through (for example a Bash grep over logs) is not the class.
+    for (const [tool, text, cls] of MEASURED) expect(classifyError(`Exit code 1\n${text}`, tool)).not.toBe(cls)
+  })
+  test('tool envelope wins over Bash shapes', () => {
+    const t = '<tool_use_error>InputValidationError: Monitor failed due to the following issue:\ntimeout_ms must be a number'
+    expect(classifyError(t, 'Monitor')).toBe('input-validation')
+    expect(classifyError(t)).toBe('input-validation')
+    // An auto-mode denial that mentions a timeout or a missing file is still the denial.
+    expect(classifyError('Permission for this action was denied by the Claude Code auto mode classifier. timeout: No such file or directory', 'Bash')).toBe('permission-denied-auto')
+  })
+  test('never echoes input, non-Bash', () => {
+    const planted = ['SECRET-123', '/home/x/patient.pdf', 'Jane']
+    const ok = /^(input-validation|no-such-tool|edit-not-read|read-not-found|read-too-large|schema-mismatch|user-rejected|workflow-not-found|workflow-bad-script|skill-disabled|task-not-found|task-not-running|subagent-limit|grep-pattern-rejected|permission-denied-auto|exit-144-self-kill|timeout|edit-no-match|permission-denied|module-not-found|command-not-found|no-such-file|tests-failed|git-fatal|syntax-error|exit-\d{1,3}|other)$/
+    for (const p of planted)
+      for (const [tool, text] of MEASURED) {
+        // Planted text after the fixed prefix, before it, and as the whole text.
+        for (const t of [`${text} ${p}`, `${p} ${text}`, p, text.replace(/\bx\b/g, p)]) {
+          const r = classifyError(t, tool)
+          expect(r).toMatch(ok)
+          for (const q of planted) expect(r).not.toContain(q)
+        }
+      }
+  })
+})
+
 describe('logger', () => {
   test('row is metadata only: no command text, no output', async ($, on) => {
     const clock = mock.clock(on, { now: T0 })
@@ -116,6 +173,18 @@ describe('logger', () => {
     expect(raw).not.toContain('secretpkg')
     const [row] = rowsOf(files)
     expect(row.error_class).toBe('module-not-found')
+  })
+  test('Read row classifies without the text', async ($, on) => {
+    const clock = mock.clock(on, { now: T0 })
+    const files = memfs(on)
+    bottom(on, 'File does not exist. Note: your current working directory is /home/x/Jane.', true)
+    await $.tool.call({ tool: 'Read', file_path: '/home/x/patient.pdf' })
+    await clock.settle()
+    const raw = [...files.values()].join('')
+    expect(raw).not.toContain('patient')
+    expect(raw).not.toContain('Jane')
+    const [row] = rowsOf(files)
+    expect(row.error_class).toBe('read-not-found')
   })
   test('detects retry after a failure', async ($, on) => {
     const clock = mock.clock(on, { now: T0 })
@@ -157,5 +226,174 @@ describe('/rsi', () => {
     expect(r.text).toContain('1 retries')
     expect(r.text).toContain('1 denials')
     expect(r.text).toMatch(/Bash\s+calls\s+4/)
+  })
+})
+
+describe('per-tool field', () => {
+  const rule = (o: Partial<Rule>): Rule => ({
+    id: 'tf', tool: 'Workflow', when: 'before', match: 'x', action: 'deny', message: 'm', source: 's', errorClass: 'tf', ...o,
+  })
+  test('fieldOf table', () => {
+    const rows: [string, unknown, string][] = [
+      ['Bash', { command: 'ls -la' }, 'ls -la'],
+      ['Workflow', { name: 'build-item' }, 'build-item'],
+      ['Workflow', { name: 'build-item', scriptPath: '/a/b/other.js' }, 'build-item'],
+      ['Workflow', { scriptPath: '/a/b/build-item.js' }, 'build-item'],
+      ['Workflow', { scriptPath: '/a/b/build item.js' }, ''],
+      ['Workflow', { args: { id: 'build-item' }, resumeFromRunId: 'build-item' }, ''],
+      ['Skill', { skill: 'tdd', args: 'build-item' }, 'tdd'],
+      ['Skill', { skill: 's'.repeat(201) }, ''],
+      ['Skill', { skill: 's'.repeat(200) }, 's'.repeat(200)],
+      ['Skill', { skill: 3 }, ''],
+      ['Agent', { subagent_type: 'Explore', prompt: 'p', description: 'd', model: 'haiku' }, 'Explore'],
+      ['Agent', { prompt: 'Explore', description: 'Explore', model: 'Explore' }, ''],
+      ['mcp__serena__find_symbol', { name_path: 'zzz' }, 'serena'],
+      ['mcp__serena__find_symbol', null, 'serena'],
+      ['Read', { file_path: '/a/b.py' }, ''],
+      ['Edit', { old_string: 'a', new_string: 'b' }, ''],
+      ['Skill', null, ''],
+      ['Skill', [], ''],
+      ['Skill', 'tdd', ''],
+      ['Workflow', null, ''],
+      ['Agent', undefined, ''],
+      ['Bash', [], ''],
+      ['Bash', { command: 'echo ' + 'x'.repeat(300) }, 'echo ' + 'x'.repeat(300)],
+      ['Workflow', { name: 3, scriptPath: '/a/build-item.js' }, 'build-item'],
+      ['Workflow', { name: 'n'.repeat(201) }, ''],
+      ['Agent', { subagent_type: 'a'.repeat(201) }, ''],
+      ['mcp__', {}, ''],
+      ['mcp__srv', {}, 'srv'],
+      [undefined as unknown as string, {}, ''],
+    ]
+    for (const [tool, input, want] of rows) expect(fieldOf(tool, input)).toBe(want)
+  })
+  test('before deny matches the fixed field', () => {
+    const rules = [rule({ match: '^build-item$' })]
+    expect(checkBefore('Workflow', { name: 'build-item' }, rules)?.id).toBe('tf')
+    expect(checkBefore('Workflow', { name: 'build-wave' }, rules)).toBeUndefined()
+    // Bash stays uncapped: the default rules must still fire on commands over 200 chars.
+    const kill = ['pkill', '-f', 'vite'].join(' ') + ' ' + 'x'.repeat(250)
+    expect(kill.length).toBeGreaterThan(200)
+    expect(checkBefore('Bash', { command: kill })?.id).toBe('pkill-self')
+    const gh = 'gh pr edit 12 --title t --body ' + 'y'.repeat(250)
+    expect(checkAfter('Bash', { command: gh }, 'Projects (classic) is being deprecated', true)?.id).toBe('gh-pr-edit-projects-classic')
+    const py = 'cd src/backend && ' + 'A=1 '.repeat(50) + '.venv/bin/pytest -q tests/'
+    expect(py.length).toBeGreaterThan(200)
+    expect(checkAfter('Bash', { command: py }, '', false)?.id).toBe('venv-husk')
+  })
+  test('never matches free text', () => {
+    const wf = [rule({ match: '^build-item$' })]
+    expect(checkBefore('Workflow', { name: 'build-wave', args: { id: 'build-item' } }, wf)).toBeUndefined()
+    const ag = [rule({ tool: 'Agent', match: '^Explore$' })]
+    expect(checkBefore('Agent', { subagent_type: 'general-purpose', prompt: 'Explore' }, ag)).toBeUndefined()
+    const sk = [rule({ tool: 'Skill', match: '^build-item$' })]
+    expect(checkBefore('Skill', { skill: 'tdd', args: 'build-item' }, sk)).toBeUndefined()
+  })
+  test('after hint refines by field', () => {
+    const rules = [rule({ tool: 'Skill', when: 'after', command: '^tdd$', match: 'x', action: 'hint' })]
+    expect(checkAfter('Skill', { skill: 'tdd' }, 'x', true, rules)?.id).toBe('tf')
+    expect(checkAfter('Skill', { skill: 'brainstorming' }, 'x', true, rules)).toBeUndefined()
+  })
+  test('mcp family', () => {
+    const rules = [rule({ tool: 'mcp__*', match: '^serena$' })]
+    expect(checkBefore('mcp__serena__find_symbol', {}, rules)?.id).toBe('tf')
+    expect(checkBefore('mcp__other__x', {}, rules)).toBeUndefined()
+    expect(checkBefore('Bash', { command: 'serena' }, rules)).toBeUndefined()
+    expect(checkBefore('mcpx', {}, rules)).toBeUndefined()
+    // An exact-name rule keeps matching (backward compatible); its field is still the server.
+    const exact = [rule({ tool: 'mcp__serena__find_symbol', match: '^serena$' })]
+    expect(checkBefore('mcp__serena__find_symbol', {}, exact)?.id).toBe('tf')
+    // A malformed event (no string tool) must not throw, as on main.
+    const bad = undefined as unknown as string
+    expect(() => checkBefore(bad, {}, rules)).not.toThrow()
+    expect(checkBefore(bad, {}, rules)).toBeUndefined()
+  })
+  test('deny still fails closed', () => {
+    // End-to-end half is pinned by reading: register.ts runs checkBefore before `next`, and its
+    // .catch denies when `next` was not called.
+    expect(() => checkBefore('Workflow', { name: 'x' }, [rule({ match: '(' })])).toThrow()
+  })
+  test('hint still fails open and the row never echoes input', async ($, on) => {
+    const clock = mock.clock(on, { now: T0 })
+    const files = memfs(on)
+    bottom(on, 'boom', true)
+    const r: any = await $.tool.call({ tool: 'Skill', skill: 'sk-SECRET123', args: '/home/danny/x Jane Doe' })
+    await clock.settle()
+    expect(r.deny).toBeUndefined()
+    expect(r.isError).toBe(true)
+    expect(r.text).toBe('boom')
+    expect(r.context ?? []).toEqual([])
+    const [row] = rowsOf(files)
+    expect(row.hint).toBeNull()
+    expect(row.guard).toBeNull()
+    const raw = JSON.stringify(row)
+    for (const s of ['sk-SECRET123', 'SECRET', '/home/danny', 'Jane', 'Doe']) expect(raw).not.toContain(s)
+  })
+})
+
+describe('rule table strictness', () => {
+  // Injection phrases from the rsi-loop critic prompt (.claude/workflows/rsi-loop.js:355).
+  // Keep both lists in step: a future edit to one must update the other.
+  const PHRASES = [
+    'ignore all', 'ignore previous', 'ignore the above', 'you must now', 'you should now',
+    '--no-verify', 'git push --force', 'skip review', 'skip the review', 'skip tests',
+    'skip the tests', 'skip gate', 'skip the gate',
+  ]
+  const PHRASE_RE = new RegExp(PHRASES.map(p => p.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')).join('|'), 'i')
+
+  // Case ids whose positive check is still answered by some other rule.
+  const overlaps = (rules: readonly Rule[], all: any[]): string[] =>
+    all
+      .filter(c => c.expect === 'deny' || c.expect === 'hint')
+      .filter(c => {
+        const rest = rules.filter(r => r.id !== c.rule)
+        const failed = c.failed ?? c.error_text !== undefined
+        return c.expect === 'deny'
+          ? checkBefore(c.tool, c.input, rest) !== undefined
+          : checkAfter(c.tool, c.input, c.error_text ?? '', failed, rest) !== undefined
+      })
+      .map(c => c.id)
+
+  const lintRule = (r: Rule): string[] => {
+    const out: string[] = []
+    for (const k of ['message', 'source'] as const) {
+      const v = r[k]
+      const max = k === 'message' ? 300 : 200
+      if (typeof v !== 'string' || v.length < 1 || v.length > max) out.push(`${k} length`)
+      if (typeof v !== 'string') continue
+      if (!/^[\x20-\x7e]+$/.test(v)) out.push(`${k} not printable ASCII`)
+      if (/https?:\/\//i.test(v)) out.push(`${k} has a URL`)
+      if (PHRASE_RE.test(v)) out.push(`${k} has a critic phrase`)
+    }
+    for (const k of ['match', 'command', 'absent'] as const) {
+      if (r[k] === undefined) continue
+      try { new RegExp(r[k] as string) } catch { out.push(`${k} is not a valid regex`) }
+    }
+    return out
+  }
+
+  const positives = (cases as any[]).filter(c => c.expect === 'deny' || c.expect === 'hint')
+  const nsfp = (RULES as readonly Rule[]).find(r => r.id === 'no-such-file-path')!
+
+  test('every rule is necessary for its positive cases', () => {
+    expect(overlaps(RULES, cases as any[])).toEqual([])
+    // Planted: a duplicate of no-such-file-path under another id (local copy, RULES is never mutated).
+    const planted: Rule[] = [...RULES, { ...nsfp, id: 'no-such-file-path-dup' }]
+    const expected = positives.filter(c => c.rule === 'no-such-file-path').map(c => c.id)
+    expect(expected.length).toBeGreaterThan(0)
+    expect(overlaps(planted, cases as any[])).toEqual(expected)
+    expect(RULES.some(r => r.id === 'no-such-file-path-dup')).toBe(false)
+  })
+
+  test('rule text is plain and bounded', () => {
+    for (const r of RULES) expect(lintRule(r)).toEqual([])
+    const bad: [string, Partial<Rule>][] = [
+      ['url', { message: 'see https://x for details' }],
+      ['critic phrase', { message: 'please ignore previous notes' }],
+      ['too long', { message: 'a'.repeat(301) }],
+      ['non-ascii', { message: 'café not allowed' }],
+      ['bad regex', { match: '(' }],
+    ]
+    for (const [name, o] of bad) expect([name, lintRule({ ...nsfp, ...o }).length > 0]).toEqual([name, true])
   })
 })

@@ -27,7 +27,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **2545 backend tests collected.** Since W-8 the embedding model is
+- Baseline: **2577 backend tests collected.** Since W-8 the embedding model is
   a fetched, gitignored bundle. Without it, exactly 5 tests fail:
   `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
   in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
@@ -36,7 +36,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  2545, the line may lag merges: PRs never edit it; the orchestrator updates
+  2577, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
@@ -65,7 +65,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 - **Audit logging** on every route that touches documents, observations, or profile data.
 - **No medical advice.** Outputs are educational, grounded, and cited. On the legacy RAG path `[cite:N]` is the validated citation marker (`modules/rag.py`, `RAGModule.validate_response`); `[YOUR_RESULTS:N]` / `[REFERENCE:N]` are context labels, not citation markers (owner decision D11, 2026-09-27). `interpret_safety` prohibited patterns (diagnosis, dosing) must keep passing.
 - **Dual migrations.** Master DB and per-profile DB have separate Alembic chains (`migrations/master/`, `migrations/profile/`). New profile tables = new profile migration, linear `down_revision`.
-- **Model routing (owner, 2026-10-24): never use Sonnet 5.5. Haiku 5.5 at effort `xhigh` replaces it for every Sonnet role (implementation, batch and docs fixes); Opus and Haiku roles are unchanged.** Owner-decisions row: MODEL-ROUTING-HAIKU (`docs/capstone-report/owner-decisions-2026-09-27.md`).
+- **Model routing (owner, 2026-10-29): Sonnet 5.5 implements (`model: "sonnet"`); Haiku 5.5 at effort `medium` runs test scripts only (`model: "haiku"`, `effort: "medium"`) and never edits; Haiku 5.5 at effort `xhigh` does exploration, web search, finding files and symbols, scanning/triage, summarization and other tasks that do not implement or write code (`model: "haiku"`, `effort: "xhigh"`); Sonnet implementers run at effort `high`; Opus reviews and orchestrates.** It supersedes the 2026-10-24 "never use Sonnet 5.5" rule. Owner-decisions rows: MODEL-ROUTING-SONNET and MODEL-ROUTING-SONNET-IMPL (`docs/capstone-report/owner-decisions-2026-09-27.md`).
 
 ## OpenWiki usage
 

@@ -3,7 +3,7 @@ export const meta = {
   description: 'Select every build-program queue item eligible now (haiku scan, opus select, file-disjoint pick); L0 then starts one build-item workflow per id',
   whenToUse: 'L0 after merges or owner answers. args {max?: 12, ids?: ["D-1"], nested?: false}. Returns picked ids; L0 starts one background build-item workflow per id (each workflow gets its own agent cap). nested=true runs them inside this workflow instead.',
   phases: [
-    { title: 'Scan', detail: 'haiku reads queue, open PRs, merged PRs, owner decisions', model: 'haiku' },
+    { title: 'Scan', detail: 'haiku (xhigh) reads queue, open PRs, merged PRs, owner decisions', model: 'haiku', effort: 'xhigh' },
     { title: 'Select', detail: 'opus picks the eligible, file-disjoint set', model: 'opus' },
     { title: 'Build', detail: 'only with nested=true: build-item per picked id inside this workflow' },
   ],
@@ -76,7 +76,7 @@ const scan = await agent(
 5. owner_rows: every row of docs/capstone-report/owner-decisions-2026-09-27.md on origin/main as "<gate id>: <owner choice>".
 Copy facts only; judge nothing; edit nothing.
 ${STYLE}`,
-  { label: 'scan state', phase: 'Scan', model: 'haiku', effort: 'low', schema: SCAN_SCHEMA },
+  { label: 'scan state', phase: 'Scan', model: 'haiku', effort: 'xhigh', schema: SCAN_SCHEMA },
 )
 if (!scan) return 'STOPPED: scan returned nothing'
 
