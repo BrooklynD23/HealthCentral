@@ -408,4 +408,31 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     expect(screen.queryByText(LEAD)).toBeNull();
     expect(screen.queryByText(ESCALATE_TEXT)).toBeNull();
   });
+
+  it('HC-IWM-FE-004 a withheld critical card shows the clinician line; a false or missing flag does not', async () => {
+    const CLINICIAN =
+      'This value is outside the range where a clinician should review it promptly. Please contact your clinician.';
+    // Flag true: one fixed line inside the status notice, as plain text.
+    mockPage({ post: () => ({ ...withheldBody(), withheld_physician_review: true }) });
+    const first = renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    const lead = await screen.findByText(LEAD);
+    const region = lead.closest('[role="status"]');
+    const line = await screen.findByText(CLINICIAN);
+    expect(region?.contains(line)).toBe(true);
+    expect(screen.getAllByText(CLINICIAN)).toHaveLength(1);
+    expect(region?.textContent).toContain(ESCALATE_TEXT);
+    first.unmount();
+
+    // Flag false, then missing (an older backend): the notice shows, the line does not.
+    for (const extra of [{ withheld_physician_review: false }, {}]) {
+      vi.clearAllMocks();
+      mockPage({ post: () => ({ ...withheldBody(), ...extra }) });
+      const view = renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+      await screen.findByText(LEAD);
+      expect(screen.queryByText(CLINICIAN)).toBeNull();
+      view.unmount();
+    }
+  });
 });
