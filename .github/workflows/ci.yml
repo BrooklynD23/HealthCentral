@@ -28,8 +28,9 @@ jobs:
         run: |
           set -uo pipefail
           if [ "$EVENT" = pull_request ] && git rev-parse -q --verify HEAD^2 >/dev/null \
-             && files=$(git diff --name-only --no-renames HEAD^1 HEAD); then
-            printf '%s\n' "$files" | python3 scripts/change_scope.py >> "$GITHUB_OUTPUT"
+             && files=$(git diff --name-only --no-renames HEAD^1 HEAD) \
+             && git show HEAD^1:scripts/change_scope.py > "$RUNNER_TEMP/change_scope_base.py"; then
+            printf '%s\n' "$files" | python3 "$RUNNER_TEMP/change_scope_base.py" --repo-root . >> "$GITHUB_OUTPUT"
           else
             echo docs_only=false >> "$GITHUB_OUTPUT"
           fi
