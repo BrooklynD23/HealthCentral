@@ -127,6 +127,57 @@ function parseCodexVerdict(text) {
   return 'UNAVAILABLE'
 }
 
+// RSI-MINE-OUTCOMES: fixed outcome categories. Nothing outside these literals (and a queue id / PR number) is ever stored.
+const OUTCOME_KINDS = ['done', 'plan_gap', 'owner_gate', 'env', 'review', 'other']
+const OUTCOME_STOP_CLASSES = ['done-ready', 'done-draft', 'failed', 'blocked-after-verify', 'not-found', 'owner-or-model-machine', 'runtime-mismatch', 'resume-identity', 'file-list-gap', 'lock-or-slot', 'plan-gap', 'owner-gate', 'task0-other', 'bad-worktree-shape', 'stopped-after-claim', 'escalated', 'error', 'unknown']
+const OUTCOME_PR_STATES = ['claim-open', 'claim-noslot-open', 'claim-stale', 'blocked-open', 'escalated-open', 'ready-open', 'merged', 'closed-unmerged']
+
+// Pure and self-contained (extracted alone by the test fixture): no MOD/ALLOW/log/args references.
+// Keep only outcome entries whose every present field is in its enum (id by the queue-id regex, pr a positive integer).
+// Output is rebuilt from the five known fields, so extra (free-text) fields are dropped, never stored.
+// Needs an identifier (id or pr) and a class (stop_class or pr_state). Notes carry counts only, never raw values.
+function validOutcomes(raw, kinds, classes, states) {
+  if (!Array.isArray(raw)) return { outcomes: [], notes: ['outcomes: not an array, ignored'] }
+  const MAX = 500
+  const notes = []
+  const absent = (x) => x === undefined || x === null
+  const outcomes = []
+  let dropped = 0
+  for (const o of raw.slice(0, MAX)) {
+    const ok = o && typeof o === 'object' && !Array.isArray(o)
+      && (absent(o.id) || (typeof o.id === 'string' && /^[A-Z0-9][A-Z0-9-]{0,39}$/.test(o.id)))
+      && (absent(o.pr) || (Number.isInteger(o.pr) && o.pr > 0 && o.pr < 1e7))
+      && (absent(o.kind) || kinds.includes(o.kind))
+      && (absent(o.stop_class) || classes.includes(o.stop_class))
+      && (absent(o.pr_state) || states.includes(o.pr_state))
+      && (!absent(o.id) || !absent(o.pr))
+      && (!absent(o.stop_class) || !absent(o.pr_state))
+    if (!ok) { dropped++; continue }
+    const e = {}
+    for (const k of ['id', 'pr', 'kind', 'stop_class', 'pr_state']) if (!absent(o[k])) e[k] = o[k]
+    outcomes.push(e)
+  }
+  if (dropped) notes.push(`outcomes: dropped ${dropped} invalid entr${dropped === 1 ? 'y' : 'ies'}`)
+  if (raw.length > MAX) notes.push(`outcomes: ${raw.length - MAX} over the ${MAX} cap, ignored`)
+  return { outcomes, notes }
+}
+// Pure and self-contained. One cluster per (source, class): an entry counts once under each class field it has
+// (stop_class, pr_state). ids are the queue id, `ID#pr` when both are known, or `#pr`. Sorted by count, then class.
+function clusterOutcomes(items, source) {
+  const by = new Map()
+  for (const o of items) {
+    const label = o.id ? (o.pr ? `${o.id}#${o.pr}` : o.id) : `#${o.pr}`
+    for (const cls of [o.stop_class, o.pr_state]) {
+      if (!cls) continue
+      if (!by.has(cls)) by.set(cls, { source, class: cls, count: 0, ids: [] })
+      const c = by.get(cls)
+      c.count++
+      if (!c.ids.includes(label)) c.ids.push(label)
+    }
+  }
+  return [...by.values()].sort((a, b) => b.count - a.count || (a.class < b.class ? -1 : 1))
+}
+
 // ---------------------------------------------------------------------------
 const MINE_SCHEMA = {
   type: 'object',
@@ -148,6 +199,12 @@ const MINE_SCHEMA = {
       previous_failure_rate_by_tool: { type: 'object', additionalProperties: { type: 'number' } },
     }, required: ['tool_calls', 'failure_rate_by_tool', 'retries'] },
     existing_rule_ids: { type: 'array', items: { type: 'string' } },
+    outcomes: { type: 'array', items: { type: 'object', properties: {
+      id: { type: 'string', description: 'queue id only, matching ^[A-Z0-9][A-Z0-9-]{0,39}$; omit when the title has none. Never a slug.' },
+      pr: { type: 'integer' },
+      stop_class: { type: 'string', enum: OUTCOME_STOP_CLASSES, description: 'only for blocked-open / escalated-open; omit otherwise' },
+      pr_state: { type: 'string', enum: OUTCOME_PR_STATES },
+    }, required: ['pr', 'pr_state'] } },
     notes: { type: 'string' },
   },
   required: ['main_checkout', 'clusters', 'metrics', 'existing_rule_ids'],
@@ -212,6 +269,12 @@ const PUBLISH_SCHEMA = {
 }
 
 // ---------------------------------------------------------------------------
+// RSI-MINE-OUTCOMES: build-program passes args.outcomes ({id, kind, stop_class}); Mine adds PR-title outcomes below.
+// Both pass through validOutcomes, so a free-text value is dropped, never stored. Reported only: never fed to Reflect, Propose or the Gate.
+const argOutcomes = args && args.outcomes !== undefined ? validOutcomes(args.outcomes, OUTCOME_KINDS, OUTCOME_STOP_CLASSES, OUTCOME_PR_STATES) : { outcomes: [], notes: [] }
+for (const n of argOutcomes.notes) log(n)
+let outcomeClusters = clusterOutcomes(argOutcomes.outcomes, 'build-item')
+
 phase('Mine')
 const mined = await agent(
   `Read-only except nothing is written. Metadata only: never copy command text, file contents, tool output or prompts into your answer.
@@ -221,15 +284,21 @@ const mined = await agent(
 4. Cluster failures (ok=false or denied=true) by tool + error_class; count, denied, retries, sources. Return the clusters sorted by count descending, all of them.
 5. metrics: tool_calls total; failure_rate_by_tool (failures/calls); retries (retry=true rows); items = distinct build-item runs if the logs identify them (else 0); retries_per_item; tokens_per_item only if a log has token counts, else null. previous_summary = newest <main>/.claude/logs/rsi/summary-*.json if any (read its metrics.failure_rate_by_tool into previous_failure_rate_by_tool).
 6. existing_rule_ids = ids in ${MOD}/hooks/rules.ts at origin/main (\`git show origin/main:${MOD}/hooks/rules.ts\`), empty if absent.
+7. outcomes (PR titles, fixed values only): \`gh pr list --state all --search "updated:>=${SINCE ? SINCE.slice(0, 10) : '<date of the window start>'}" --limit 200 --json number,title,isDraft,state,updatedAt\`. For each PR whose title starts with a RUNBOOK §3 prefix ([claim:<rt>], [claim:<rt>:noslot], [blocked:<rt>], [escalated:<rt>]) or is an open non-draft PR whose first word is a queue id, return {id, pr, pr_state}: id = that first word after the prefix only if it matches ^[A-Z0-9][A-Z0-9-]{0,39}$ (else omit id); pr = the number; pr_state = merged (state MERGED), else closed-unmerged (CLOSED, unless its title is a [claim: one, then claim-stale), else for OPEN: [claim:<rt>] claim-open (claim-stale if updatedAt is over 24 h old), [claim:<rt>:noslot] claim-noslot-open (claim-stale if over 24 h old), [blocked: blocked-open, [escalated: escalated-open, non-draft with no bracket prefix ready-open. For at most 15 blocked-open / escalated-open PRs, read ONLY the latest comment headed "blocked: tell L0" or "escalation: owner" and set stop_class to the one fixed value that fits (${OUTCOME_STOP_CLASSES.join(', ')}); if none fits, omit stop_class. Never return or write a title slug, branch name, comment text, stop reason or path.
 ${STYLE}`,
   { label: 'mine failures', phase: 'Mine', model: 'haiku', effort: 'xhigh', schema: MINE_SCHEMA },
 )
-if (!mined) return { clusters: [], candidates: 0, accepted_prs: [], rejected: [], metrics: null, stopped: 'mine agent failed' }
+if (!mined) return { clusters: [], outcome_clusters: outcomeClusters, candidates: 0, accepted_prs: [], rejected: [], metrics: null, stopped: 'mine agent failed' }
+
+const mineOutcomes = validOutcomes(mined.outcomes || [], OUTCOME_KINDS, OUTCOME_STOP_CLASSES, OUTCOME_PR_STATES)
+for (const n of mineOutcomes.notes) log(n)
+outcomeClusters = [...outcomeClusters, ...clusterOutcomes(mineOutcomes.outcomes, 'pr-title')]
+log(`outcomes: ${argOutcomes.outcomes.length} from build-item, ${mineOutcomes.outcomes.length} from PR titles`)
 
 const clusters = (mined.clusters || []).slice().sort((a, b) => b.count - a.count)
 log(`mined ${clusters.length} clusters; top: ${clusters.slice(0, 3).map((c) => `${c.tool}/${c.error_class} x${c.count}`).join(', ') || 'none'}`)
 if (!clusters.length) {
-  return { clusters: [], candidates: 0, accepted_prs: [], rejected: [], metrics: mined.metrics, note: 'no failures in window' }
+  return { clusters: [], outcome_clusters: outcomeClusters, candidates: 0, accepted_prs: [], rejected: [], metrics: mined.metrics, note: 'no failures in window' }
 }
 const topClusters = clusters.slice(0, MAX_CANDIDATES)
 if (clusters.length > topClusters.length) log(`not reflected on: ${clusters.slice(MAX_CANDIDATES).map((c) => `${c.tool}/${c.error_class}`).join(', ')} (candidate cap ${MAX_CANDIDATES})`)
@@ -275,7 +344,7 @@ for (const n of merged.notes) log(n)
 const toPropose = merged.reflections
 log(`reflections: claude ${(reflected && reflected.reflections || []).length}, codex ${codexReflections ? codexReflections.length : 0}${codexRun && codexRun.codex_version ? ` (${codexRun.codex_version})` : ''}, proposing ${toPropose.length}: ${toPropose.map((r) => r.source).join(',') || 'none'}`)
 if (!toPropose.length) {
-  return { clusters, candidates: 0, accepted_prs: [], rejected: [], metrics: mined.metrics, reflections: reflected ? reflected.reflections : [], codex_reflections: codexReflections || [], note: 'nothing worth proposing' }
+  return { clusters, outcome_clusters: outcomeClusters, candidates: 0, accepted_prs: [], rejected: [], metrics: mined.metrics, reflections: reflected ? reflected.reflections : [], codex_reflections: codexReflections || [], note: 'nothing worth proposing' }
 }
 
 // ---------------------------------------------------------------------------
@@ -356,6 +425,7 @@ phase('Publish')
 const summary = {
   run_id: RUN_ID, since: SINCE || null, dry_run: DRY_RUN, window: mined.window || null,
   clusters: clusters.map((c) => ({ tool: c.tool, error_class: c.error_class, count: c.count })),
+  outcome_clusters: outcomeClusters,
   candidates: done.length, accepted: accepted.map((r) => r.id), rejected,
   codex: { proposer: codexReflections ? 'ok' : 'unavailable', version: codexRun ? codexRun.codex_version || null : null, critique: Object.fromEntries(accepted.map((r) => [r.id, r.codex_critique])) },
   metrics: mined.metrics,
@@ -372,6 +442,7 @@ ${STYLE}`,
 
 return {
   clusters: summary.clusters,
+  outcome_clusters: summary.outcome_clusters,
   candidates: done.length,
   accepted_prs: published ? published.prs : [],
   rejected,
