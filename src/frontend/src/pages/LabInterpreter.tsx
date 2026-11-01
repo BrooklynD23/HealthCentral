@@ -319,7 +319,7 @@ export function LabInterpreter() {
                     <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
                     {withheldNotice.physicianReview && (
                       <p className="text-sm text-ink-secondary">
-                        This value is outside the range where a clinician should review it promptly. Please contact your clinician.
+                        This result may need prompt attention. Please contact your clinician promptly.
                       </p>
                     )}
                   </CardContent>

@@ -411,7 +411,7 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
 
   it('HC-IWM-FE-004 a withheld critical card shows the clinician line; a false or missing flag does not', async () => {
     const CLINICIAN =
-      'This value is outside the range where a clinician should review it promptly. Please contact your clinician.';
+      'This result may need prompt attention. Please contact your clinician promptly.';
     // Flag true: one fixed line inside the status notice, as plain text.
     mockPage({ post: () => ({ ...withheldBody(), withheld_physician_review: true }) });
     const first = renderPage();
