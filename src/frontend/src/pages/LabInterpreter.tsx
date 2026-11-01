@@ -50,7 +50,7 @@ export function LabInterpreter() {
   const [panelInterpretation, setPanelInterpretation] = useState<PanelInterpretationResponse | null>(null);
   const [groundedSummary, setGroundedSummary] = useState<string | null>(null);
   const [groundedValidation, setGroundedValidation] = useState<{ isValid: boolean; score: number } | null>(null);
-  const [withheldNotice, setWithheldNotice] = useState<{ observationId: string; message: string } | null>(null);
+  const [withheldNotice, setWithheldNotice] = useState<{ observationId: string; message: string; physicianReview: boolean } | null>(null);
 
   const {
     data: observations,
@@ -98,7 +98,11 @@ export function LabInterpreter() {
         onSuccess: (data) => {
           if (data.withheld) {
             // INTERP-WITHHOLD-MSG: show the escalation message, never a grounded card.
-            setWithheldNotice({ observationId, message: data.full_response });
+            setWithheldNotice({
+              observationId,
+              message: data.full_response,
+              physicianReview: data.withheld_physician_review === true,
+            });
             setGroundedSummary(null);
             setGroundedValidation(null);
             return;
@@ -313,6 +317,11 @@ export function LabInterpreter() {
                       Asclexis could not produce a safe explanation for this result.
                     </p>
                     <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
+                    {withheldNotice.physicianReview && (
+                      <p className="text-sm text-ink-secondary">
+                        This value is outside the range where a clinician should review it promptly. Please contact your clinician.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}
