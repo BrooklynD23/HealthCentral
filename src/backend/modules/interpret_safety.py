@@ -192,7 +192,8 @@ class InterpretationSafetyGuard:
             )
             result.warnings.append("critical_low_value")
             logger.warning(
-                f"Critical value detected: {analyte_canonical}={value} < {c_low}"
+                "Critical value detected: %s below critical threshold",
+                analyte_canonical,
             )
 
         if c_high is not None and value > c_high:
@@ -202,7 +203,8 @@ class InterpretationSafetyGuard:
             )
             result.warnings.append("critical_high_value")
             logger.warning(
-                f"Critical value detected: {analyte_canonical}={value} > {c_high}"
+                "Critical value detected: %s above critical threshold",
+                analyte_canonical,
             )
 
         if not result.requires_physician_review:
