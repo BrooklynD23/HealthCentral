@@ -15,6 +15,7 @@ export const meta = {
 // Contract: rsi-contract (log schema, rule table, replay set). Mod lives in .claude/mods/asclexis-rsi/.
 const STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
 const MAX_CANDIDATES = 3
+const MAX_OWNER_NOTES = 5
 const MOD = '.claude/mods/asclexis-rsi'
 const SINCE = args && typeof args.since === 'string' ? args.since.trim() : ''
 const RUN_ID = args && typeof args.run_id === 'string' && args.run_id.trim() ? args.run_id.trim() : 'manual'
@@ -178,6 +179,40 @@ function clusterOutcomes(items, source) {
   return [...by.values()].sort((a, b) => b.count - a.count || (a.class < b.class ? -1 : 1))
 }
 
+// RSI-OWNER-NOTES. Pure and self-contained (extracted alone by the test fixture): no ALLOW/DENY/MOD/log references; they come in as arguments.
+// Keep only notes that name a fixed kind of file outside allow and deny, for a cluster key of this run. Advice for the owner: never a PR, edit or prompt input.
+// Output is rebuilt from the four known fields; note is cut to one line of printable ASCII, 300 chars. A note with a secret-looking word is dropped, never redacted.
+// Notes carry counts and a reason only, never the dropped text.
+function ownerNotes(raw, allow, deny, max, keys) {
+  if (!Array.isArray(raw)) return { owner_notes: [], notes: ['owner_notes: not an array, ignored'] }
+  const PATTERNS = {
+    skill: /^(\.claude\/skills|skills)\/[a-z0-9-]+\/SKILL\.md$/,
+    workflow: /^\.claude\/workflows\/[a-z0-9-]+\.js$/,
+    'claude-md': /^(CLAUDE|\.\.\/CLAUDE)\.md$/,
+    'agent-md': /^AGENT\.md$/,
+    runbook: /^docs\/plans\/2026-10-15-build-program\/RUNBOOK\.md$/,
+  }
+  const drops = { shape: 0, kind: 0, pattern: 0, allow: 0, deny: 0, cluster: 0, empty: 0, secret: 0, cap: 0 }
+  const owner_notes = []
+  for (const o of raw) {
+    const isStr = (k) => o && typeof o === 'object' && !Array.isArray(o) && typeof o[k] === 'string'
+    if (!['cluster', 'target_kind', 'target', 'note'].every(isStr)) { drops.shape++; continue }
+    if (!Object.keys(PATTERNS).includes(o.target_kind)) { drops.kind++; continue }
+    if (!PATTERNS[o.target_kind].test(o.target)) { drops.pattern++; continue }
+    const target = o.target_kind === 'claude-md' ? 'CLAUDE.md' : o.target
+    if (allow.includes(target)) { drops.allow++; continue }
+    if (deny.some(([re]) => re.test(target))) { drops.deny++; continue }
+    if (!keys.includes(o.cluster)) { drops.cluster++; continue }
+    const note = o.note.replace(/[\r\n]/g, ' ').replace(/[^\x20-\x7e]/g, '').trim().slice(0, 300).trim()
+    if (!note) { drops.empty++; continue }
+    if (/token|secret|password|api[_-]?key|bearer/i.test(note)) { drops.secret++; continue }
+    if (owner_notes.length >= max) { drops.cap++; continue }
+    owner_notes.push({ cluster: o.cluster, target_kind: o.target_kind, target, note })
+  }
+  const notes = Object.entries(drops).filter(([, n]) => n).map(([why, n]) => `owner_notes: dropped ${n} (${why})`)
+  return { owner_notes, notes }
+}
+
 // ---------------------------------------------------------------------------
 const MINE_SCHEMA = {
   type: 'object',
@@ -218,7 +253,13 @@ const REFLECT_SCHEMA = {
     target_file: { type: 'string', enum: [`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.ts`, 'docs/agentic/recurring-failures.md'] },
     worth_proposing: { type: 'boolean' },
     already_covered_by: { type: 'string', description: 'existing rule id if one already covers it, else empty' },
-  }, required: ['cluster', 'went_wrong', 'smallest_change', 'target_file', 'worth_proposing'] } } },
+  }, required: ['cluster', 'went_wrong', 'smallest_change', 'target_file', 'worth_proposing'] } },
+    owner_notes: { type: 'array', items: { type: 'object', properties: {
+      cluster: { type: 'string', description: 'tool/error_class or outcome cluster key' },
+      target_kind: { type: 'string', enum: ['skill', 'workflow', 'claude-md', 'agent-md', 'runbook'] },
+      target: { type: 'string', description: 'repo-relative path of the file' },
+      note: { type: 'string', description: 'the change, one line' },
+    }, required: ['cluster', 'target_kind', 'target', 'note'] } } },
   required: ['reflections'],
 }
 const PROPOSE_SCHEMA = {
@@ -270,7 +311,7 @@ const PUBLISH_SCHEMA = {
 
 // ---------------------------------------------------------------------------
 // RSI-MINE-OUTCOMES: build-program passes args.outcomes ({id, kind, stop_class}); Mine adds PR-title outcomes below.
-// Both pass through validOutcomes, so a free-text value is dropped, never stored. Reported only: never fed to Reflect, Propose or the Gate.
+// Both pass through validOutcomes, so a free-text value is dropped, never stored. Reported only: never fed to Propose or the Gate; Reflect sees only their keys, for owner notes.
 const argOutcomes = args && args.outcomes !== undefined ? validOutcomes(args.outcomes, OUTCOME_KINDS, OUTCOME_STOP_CLASSES, OUTCOME_PR_STATES) : { outcomes: [], notes: [] }
 for (const n of argOutcomes.notes) log(n)
 let outcomeClusters = clusterOutcomes(argOutcomes.outcomes, 'build-item')
@@ -310,7 +351,7 @@ const CODEX_PROPOSE_PROMPT = `You are a second, independent reviewer of failure 
 const [reflected, codexRun] = await parallel([
   () => agent(
   `GEPA-style reflection. For each cluster below, write in natural language: what went wrong (grounded only in the metadata given), and the SMALLEST change that would have prevented it: one rule in ${MOD}/hooks/rules.ts (data-only entry: id, tool, when, match, action deny|hint, message, source, errorClass; optional after-only command, onSuccess, absent), or a row in docs/agentic/recurring-failures.md (read it first; do not duplicate an existing failure mode). Every new rule needs one positive and one negative replay case in ${MOD}/replay/cases.ts.
-Set worth_proposing=false if an existing rule already covers it (already_covered_by = its id: ${JSON.stringify(mined.existing_rule_ids)}), if it is a one-off, or if the only fix would touch tests, gate scripts, thresholds, or ask-first safety/privacy/auth code (those are never proposed). Be conservative: this is a health app.
+Set worth_proposing=false if an existing rule already covers it (already_covered_by = its id: ${JSON.stringify(mined.existing_rule_ids)}), if it is a one-off, or if the only fix would touch tests, gate scripts, thresholds, or ask-first safety/privacy/auth code (those are never proposed). Be conservative: this is a health app. When the smallest fix is outside those three files (a skill, a workflow script, CLAUDE.md, AGENT.md or the RUNBOOK), you may add at most one owner_notes entry per cluster ({cluster, target_kind, target, note}) naming the file and the change; cluster is a tool/error_class below or one of these outcome keys: ${JSON.stringify(outcomeClusters.map((c) => c.source + '/' + c.class))}. An owner note is advice for the owner, never implemented by this run; never target tests, scripts/, .github/, thresholds or ask-first files.
 Clusters:\n${JSON.stringify(topClusters, null, 1)}
 ${STYLE}`,
   { label: 'reflect', phase: 'Reflect', model: 'opus', schema: REFLECT_SCHEMA },
@@ -341,10 +382,13 @@ function parseCodexReflections(run) {
 const codexReflections = parseCodexReflections(codexRun)
 const merged = mergeReflections(reflected ? reflected.reflections : null, codexReflections, MAX_CANDIDATES)
 for (const n of merged.notes) log(n)
+const notesKept = ownerNotes((reflected && reflected.owner_notes) || [], ALLOW, DENY, MAX_OWNER_NOTES, [...topClusters.map((c) => c.tool + '/' + c.error_class), ...outcomeClusters.map((c) => c.source + '/' + c.class)])
+for (const n of notesKept.notes) log(n)
+log(`owner notes: kept ${notesKept.owner_notes.length}`)
 const toPropose = merged.reflections
 log(`reflections: claude ${(reflected && reflected.reflections || []).length}, codex ${codexReflections ? codexReflections.length : 0}${codexRun && codexRun.codex_version ? ` (${codexRun.codex_version})` : ''}, proposing ${toPropose.length}: ${toPropose.map((r) => r.source).join(',') || 'none'}`)
 if (!toPropose.length) {
-  return { clusters, outcome_clusters: outcomeClusters, candidates: 0, accepted_prs: [], rejected: [], metrics: mined.metrics, reflections: reflected ? reflected.reflections : [], codex_reflections: codexReflections || [], note: 'nothing worth proposing' }
+  return { clusters, outcome_clusters: outcomeClusters, candidates: 0, accepted_prs: [], rejected: [], metrics: mined.metrics, reflections: reflected ? reflected.reflections : [], codex_reflections: codexReflections || [], owner_notes: notesKept.owner_notes, note: 'nothing worth proposing' }
 }
 
 // ---------------------------------------------------------------------------
@@ -426,6 +470,7 @@ const summary = {
   run_id: RUN_ID, since: SINCE || null, dry_run: DRY_RUN, window: mined.window || null,
   clusters: clusters.map((c) => ({ tool: c.tool, error_class: c.error_class, count: c.count })),
   outcome_clusters: outcomeClusters,
+  owner_notes: notesKept.owner_notes,
   candidates: done.length, accepted: accepted.map((r) => r.id), rejected,
   codex: { proposer: codexReflections ? 'ok' : 'unavailable', version: codexRun ? codexRun.codex_version || null : null, critique: Object.fromEntries(accepted.map((r) => [r.id, r.codex_critique])) },
   metrics: mined.metrics,
