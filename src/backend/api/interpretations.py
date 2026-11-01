@@ -272,6 +272,9 @@ class GroundedInterpretationResponse(BaseModel):
     # None only for a withheld card (INTERP-WITHHOLD-MSG): no card is saved.
     interpretation: Optional[InterpretationResponse] = None
     withheld: bool = False
+    # INTERP-WITHHOLD-MSG: a withheld card still tells the patient to contact a
+    # clinician when the value is critical. The flag only: never the value or reason.
+    withheld_physician_review: bool = False
     grounded_segments: list[GroundedSegmentResponse]
     full_response: str
     insufficient_context: bool = False
@@ -580,6 +583,10 @@ async def generate_grounded_interpretation(
         return GroundedInterpretationResponse(
             interpretation=None,
             withheld=True,
+            withheld_physician_review=bool(
+                interp_result.safety_validation
+                and interp_result.safety_validation.requires_physician_review
+            ),
             grounded_segments=[
                 GroundedSegmentResponse(segment_type="uncertainty", content=ESCALATE_TEMPLATE, citations=[])
             ],
