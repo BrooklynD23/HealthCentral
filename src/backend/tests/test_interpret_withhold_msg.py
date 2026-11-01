@@ -8,8 +8,9 @@ Signed gate: INTERP-ENFORCE-DIFF ("Merge, then show message").
 HC-IWM-001/002/005: grounded route, 201 withheld answer (no card, no rag.query).
 HC-IWM-003/004: plain route, unchanged 500 plus one `interpretation.withheld` row.
 HC-IWM-006: `checks_failed` survives the audit allowlist, prose does not.
+HC-IWM-007: Task 3 (signed gate OQ-IWM-CRIT), a withheld critical card keeps the
+physician-review flag; the value and its reason string are never sent or audited.
 HC-IWM-008: positive control, a non-withheld failure keeps the 500 mapping.
-(HC-IWM-007 is Task 3, gated on OQ-IWM-CRIT, and is not built here.)
 
 Every route test goes through HTTP via tests/support/routes.py::route_client
 with a real in-memory master DB (audit rows) and profile DB.
@@ -346,6 +347,100 @@ def test_hc_iwm_006_checks_failed_survives_scrub_but_prose_does_not():
 
     dropped = _scrub_details({"checks_failed": ["take 500 mg daily"]})
     assert dropped == {"_scrubbed": 1}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-007: a withheld card still reports "a clinician should review this"
+# ──────────────────────────────────────────────────────────────────────────────
+
+# potassium's default critical_high is 6.5 (InterpretationSafetyGuard). The value
+# strings cannot occur in the analyte name, the fixed text or the escalation text.
+CRITICAL_VALUE = 7.35
+NORMAL_VALUE = 4.15
+
+
+async def _make_potassium(profile_db, obs_id: str, value: float) -> None:
+    obs = (
+        await profile_db.execute(select(Observation).where(Observation.id == obs_id))
+    ).scalar_one()
+    obs.analyte_canonical = "potassium"
+    obs.analyte_raw = "Potassium"
+    obs.value = value
+    obs.unit = "mmol/L"
+    obs.ref_low = 3.5
+    obs.ref_high = 5.0
+    await profile_db.commit()
+
+
+def _assert_value_and_reason_not_sent(resp, rows: list[AuditLog], caplog, value: float):
+    value_str = str(value)
+    assert value_str not in ESCALATE_TEMPLATE
+    assert value_str not in DOSING_TEXT
+    assert value_str not in resp.text
+    for phrase in ("Critical high value", "Critical low value", "critical threshold", "threshold of"):
+        assert phrase.lower() not in resp.text.lower(), phrase
+    for row in rows:
+        blob = _row_blob(row)
+        assert value_str not in blob
+        for phrase in ("Critical high value", "Critical low value", "threshold of"):
+            assert phrase.lower() not in blob.lower(), phrase
+    for record in caplog.records:
+        assert value_str not in record.getMessage()
+        assert value_str not in str(record.args)
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_007_withheld_critical_card_keeps_the_physician_review_flag(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    await _make_potassium(profile_db, obs_id, CRITICAL_VALUE)
+    caplog.clear()  # the seeding UPDATE's own driver DEBUG line carries the value
+
+    resp, rag = _grounded_withheld(dbs, DOSING_TEXT)
+    _assert_withheld_answer(resp, rag)
+    assert resp.json().get("withheld_physician_review") is True
+    assert await _cards(profile_db) == []
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    _assert_withheld_row_ids_only(rows[0], obs_id)
+    _assert_value_and_reason_not_sent(resp, rows, caplog, CRITICAL_VALUE)
+
+    # The model-path site (no route caller today) reorders the same check.
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": DOSING_TEXT}]})
+    model_result = await InterpretModule(model_selector=selector).interpret_with_model(
+        observation_id=obs_id, profile_id=PROFILE_ID,
+        profile_db=profile_db, master_db=master_db,
+    )
+    selector.run_inference.assert_awaited()
+    assert model_result.withheld is True
+    assert model_result.safety_validation.requires_physician_review is True
+    assert await _cards(profile_db) == []
+    for record in caplog.records:
+        assert str(CRITICAL_VALUE) not in record.getMessage()
+        assert str(CRITICAL_VALUE) not in str(record.args)
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_007_withheld_non_critical_card_has_no_physician_review_flag(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    await _make_potassium(profile_db, obs_id, NORMAL_VALUE)
+    caplog.clear()
+
+    resp, rag = _grounded_withheld(dbs, DOSING_TEXT)
+    _assert_withheld_answer(resp, rag)
+    assert resp.json().get("withheld_physician_review") is False
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    _assert_value_and_reason_not_sent(resp, rows, caplog, NORMAL_VALUE)
+
+
+def _assert_withheld_row_ids_only(row: AuditLog, obs_id: str):
+    assert row.event_type == "interpretation.withheld"
+    assert row.entity_id == obs_id
+    assert set(json.loads(row.details_json)) == {"reason", "decision", "checks_failed"}
 
 
 # ──────────────────────────────────────────────────────────────────────────────

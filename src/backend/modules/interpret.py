@@ -221,6 +221,19 @@ class InterpretModule:
             require_citations=True,
         )
 
+        # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
+        # before the withhold so a withheld card still carries the flag.
+        if observation.value is not None:
+            critical_result = self._safety_guard.check_critical_value(
+                analyte_canonical=observation.analyte_canonical,
+                value=observation.value,
+                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
+                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
+            )
+            if critical_result.requires_physician_review:
+                safety_result.requires_physician_review = True
+                safety_result.physician_review_reason = critical_result.physician_review_reason
+
         # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
         # Nothing is saved, deleted or committed before this return. The log
         # names the observation and the check types only, never the text.
@@ -235,18 +248,6 @@ class InterpretModule:
                 safety_validation=safety_result,
                 withheld=True,
             )
-
-        # Check for critical values
-        if observation.value is not None:
-            critical_result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
-                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
-                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
-            )
-            if critical_result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = critical_result.physician_review_reason
 
         # Build context JSON
         context_json = self._build_context_json(context)
@@ -987,6 +988,19 @@ class InterpretModule:
             require_citations=True,
         )
 
+        # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
+        # before the withhold so a withheld card still carries the flag.
+        if observation.value is not None:
+            critical_result = self._safety_guard.check_critical_value(
+                analyte_canonical=observation.analyte_canonical,
+                value=observation.value,
+                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
+                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
+            )
+            if critical_result.requires_physician_review:
+                safety_result.requires_physician_review = True
+                safety_result.physician_review_reason = critical_result.physician_review_reason
+
         # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
         # Nothing is saved, deleted or committed before this return. The log
         # names the observation and the check types only, never the text.
@@ -1001,18 +1015,6 @@ class InterpretModule:
                 safety_validation=safety_result,
                 withheld=True,
             )
-
-        # Check for critical values
-        if observation.value is not None:
-            critical_result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
-                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
-                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
-            )
-            if critical_result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = critical_result.physician_review_reason
 
         # Build context JSON
         context_json = self._build_context_json(context)
