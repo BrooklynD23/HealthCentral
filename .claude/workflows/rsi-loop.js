@@ -181,7 +181,7 @@ function clusterOutcomes(items, source) {
 
 // RSI-OWNER-NOTES. Pure and self-contained (extracted alone by the test fixture): no ALLOW/DENY/MOD/log references; they come in as arguments.
 // Keep only notes that name a fixed kind of file outside allow and deny, for a cluster key of this run. Advice for the owner: never a PR, edit or prompt input.
-// Output is rebuilt from the four known fields; note is cut to one line of printable ASCII, 300 chars. A note that looks like a secret, an absolute or home path, an email, an id (MRN/DOB/SSN or 6+ digits) is dropped, never redacted.
+// Output is rebuilt from the four known fields; note is NFKC-normalised to one line of printable ASCII, then checked whole, then cut to 300 chars. A note that looks like a secret, an absolute/home/UNC/env-home path, an email, a phone or an id (MRN/DOB/SSN, born, medical record, digit runs) is dropped, never redacted.
 // Notes carry counts and a reason only, never the dropped text.
 function ownerNotes(raw, allow, deny, max, keys) {
   if (!Array.isArray(raw)) return { owner_notes: [], notes: ['owner_notes: not an array, ignored'] }
@@ -203,11 +203,12 @@ function ownerNotes(raw, allow, deny, max, keys) {
     if (allow.includes(target)) { drops.allow++; continue }
     if (deny.some(([re]) => re.test(target))) { drops.deny++; continue }
     if (!keys.includes(o.cluster)) { drops.cluster++; continue }
-    const note = o.note.replace(/[\r\n]/g, ' ').replace(/[^\x20-\x7e]/g, '').trim().slice(0, 300).trim()
-    if (!note) { drops.empty++; continue }
-    if (/token|secret|password|api[_-]?key|bearer|\b(ghp_|gho_|ghs_|ghu_|github_pat_|sk-|xox[abps]-|AKIA)/i.test(note)) { drops.secret++; continue }
-    if (/(^|[\s"'`(\[=:,;])(\/[\w.~$-]|~\/)|[A-Za-z]:[\\/]|\\\\|[\w.-]\\[\w.-]/.test(note)) { drops.path++; continue }
-    if (/[\w.+-]+@[\w-]+\.[\w.-]+|\b(MRN|DOB|SSN)\b|\d{6}/i.test(note)) { drops.pii++; continue }
+    const line = o.note.normalize('NFKC').replace(/[\r\n]/g, ' ').replace(/[^\x20-\x7e]/g, '').trim()
+    if (!line) { drops.empty++; continue }
+    if (/token|secret|passw(or)?d|pwd|api[_-]?key|bearer|credential|authorization|\b(ghp_|gho_|ghs_|ghu_|github_pat_|sk-|sk_|hf_|xox[abps]-|AKIA|eyJ[\w-]{10,})/i.test(line)) { drops.secret++; continue }
+    if (/(^|[^\w.-])(\/[\w.~$\/-]|~[\w-]*\/)|\$\{?HOME\b|%\w+%|[A-Za-z]:[\\/]|\\\\|[\w.-]\\[\w.-]/.test(line)) { drops.path++; continue }
+    if (/[\w.+-]+@[\w-]+\.[\w.-]+|\b(MRN|DOB|SSN|born|birth)\b|medical[\s_-]*record|\d{6}|\b\d{3}-\d{2}-\d{4}\b|\b\d{3}[-.\s)]+\d{3}[-.\s]\d{4}\b|\b\d{2,4}(?:[ .]\d{2,4}){2,}\b/i.test(line)) { drops.pii++; continue }
+    const note = line.slice(0, 300).trim()
     if (owner_notes.length >= max) { drops.cap++; continue }
     owner_notes.push({ cluster: o.cluster, target_kind: o.target_kind, target, note })
   }
