@@ -16,6 +16,7 @@ export const meta = {
 const STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
 const MAX_CANDIDATES = 3
 const MAX_OWNER_NOTES = 5
+const NOTE_SUGGESTIONS = ['add-precheck', 'add-stop-rule', 'clarify-file-list', 'add-hint', 'add-recurring-failure', 'split-row', 'other-needs-human']
 const MOD = '.claude/mods/asclexis-rsi'
 const SINCE = args && typeof args.since === 'string' ? args.since.trim() : ''
 const RUN_ID = args && typeof args.run_id === 'string' && args.run_id.trim() ? args.run_id.trim() : 'manual'
@@ -53,6 +54,53 @@ const DENY = [
   [/(^|\/)core\/auth\.py$/, 'ask-first'],
   [/(^|\/)security\/encryption/, 'ask-first'],
 ]
+// RSI-OWNER-NOTES. Fixed list of files an owner note may name (git ls-files at build time, workflow scripts cannot list the repo). Still filtered through DENY.
+const NOTE_TARGETS = [
+  '.claude/skills/ask-matt/SKILL.md',
+  '.claude/skills/brainstorming/SKILL.md',
+  '.claude/skills/code-review/SKILL.md',
+  '.claude/skills/codebase-design/SKILL.md',
+  '.claude/skills/diagnosing-bugs/SKILL.md',
+  '.claude/skills/dispatching-parallel-agents/SKILL.md',
+  '.claude/skills/domain-modeling/SKILL.md',
+  '.claude/skills/executing-plans/SKILL.md',
+  '.claude/skills/finishing-a-development-branch/SKILL.md',
+  '.claude/skills/grill-with-docs/SKILL.md',
+  '.claude/skills/implement/SKILL.md',
+  '.claude/skills/improve-codebase-architecture/SKILL.md',
+  '.claude/skills/prototype/SKILL.md',
+  '.claude/skills/receiving-code-review/SKILL.md',
+  '.claude/skills/requesting-code-review/SKILL.md',
+  '.claude/skills/research/SKILL.md',
+  '.claude/skills/resolving-merge-conflicts/SKILL.md',
+  '.claude/skills/setup-matt-pocock-skills/SKILL.md',
+  '.claude/skills/subagent-driven-development/SKILL.md',
+  '.claude/skills/systematic-debugging/SKILL.md',
+  '.claude/skills/tdd/SKILL.md',
+  '.claude/skills/test-driven-development/SKILL.md',
+  '.claude/skills/to-spec/SKILL.md',
+  '.claude/skills/to-tickets/SKILL.md',
+  '.claude/skills/triage/SKILL.md',
+  '.claude/skills/using-git-worktrees/SKILL.md',
+  '.claude/skills/using-superpowers/SKILL.md',
+  '.claude/skills/verification-before-completion/SKILL.md',
+  '.claude/skills/wayfinder/SKILL.md',
+  '.claude/skills/wizard/SKILL.md',
+  '.claude/skills/writing-plans/SKILL.md',
+  '.claude/skills/writing-skills/SKILL.md',
+  '.claude/workflows/build-item.js',
+  '.claude/workflows/build-program.js',
+  '.claude/workflows/build-wave.js',
+  '.claude/workflows/rsi-loop.js',
+  'AGENT.md',
+  'CLAUDE.md',
+  'docs/agentic/recurring-failures.md',
+  'docs/plans/2026-10-15-build-program/RUNBOOK.md',
+  'skills/asclexis-agent/SKILL.md',
+  'skills/asclexis-backend/SKILL.md',
+  'skills/asclexis-evals/SKILL.md',
+  'skills/asclexis-guardrails/SKILL.md',
+].filter((p) => !DENY.some(([re]) => re.test(p)))
 function gateDiff(paths) {
   const violations = []
   if (!Array.isArray(paths) || paths.length === 0) return { ok: false, violations: ['empty diff'] }
@@ -179,38 +227,30 @@ function clusterOutcomes(items, source) {
   return [...by.values()].sort((a, b) => b.count - a.count || (a.class < b.class ? -1 : 1))
 }
 
-// RSI-OWNER-NOTES. Pure and self-contained (extracted alone by the test fixture): no ALLOW/DENY/MOD/log references; they come in as arguments.
-// Keep only notes that name a fixed kind of file outside allow and deny, for a cluster key of this run. Advice for the owner: never a PR, edit or prompt input.
-// Output is rebuilt from the four known fields; note is NFKC-normalised to one line of printable ASCII, then checked whole, then cut to 300 chars. A note that looks like a secret, an absolute/home/UNC/env-home path, an email, a phone or an id (MRN/DOB/SSN, born, medical record, digit runs) is dropped, never redacted.
-// Notes carry counts and a reason only, never the dropped text.
-function ownerNotes(raw, allow, deny, max, keys) {
-  if (!Array.isArray(raw)) return { owner_notes: [], notes: ['owner_notes: not an array, ignored'] }
-  const PATTERNS = {
-    skill: /^(\.claude\/skills|skills)\/[a-z0-9-]+\/SKILL\.md$/,
-    workflow: /^\.claude\/workflows\/[a-z0-9-]+\.js$/,
-    'claude-md': /^(CLAUDE|\.\.\/CLAUDE)\.md$/,
-    'agent-md': /^AGENT\.md$/,
-    runbook: /^docs\/plans\/2026-10-15-build-program\/RUNBOOK\.md$/,
-  }
-  const drops = { shape: 0, kind: 0, pattern: 0, allow: 0, deny: 0, cluster: 0, empty: 0, secret: 0, path: 0, pii: 0, cap: 0 }
+// RSI-OWNER-NOTES. Pure and self-contained (extracted alone by the test fixture). Keys of this run, in the form tool/error_class or source/class.
+function noteKeys(top, outcomes) {
+  return [...top.map((c) => c.tool + '/' + c.error_class), ...outcomes.map((c) => c.source + '/' + c.class)]
+    .filter((k) => /^[A-Za-z0-9_.*-]{1,80}\/[a-z0-9-]{1,40}$/.test(k))
+}
+
+// RSI-OWNER-NOTES. Pure and self-contained. A note is kept only if cluster, target and suggestion are each an exact member of their list (includes).
+// The output is rebuilt from those three fields. No text from a dropped or kept note is ever logged or echoed, only counts and a reason.
+function ownerNotes(raw, targets, keys, suggestions, max) {
+  const drops = { shape: 0, cluster: 0, target: 0, suggestion: 0, dup: 0, cap: 0 }
   const owner_notes = []
-  for (const o of raw) {
-    const isStr = (k) => o && typeof o === 'object' && !Array.isArray(o) && typeof o[k] === 'string'
-    if (!['cluster', 'target_kind', 'target', 'note'].every(isStr)) { drops.shape++; continue }
-    if (!Object.keys(PATTERNS).includes(o.target_kind)) { drops.kind++; continue }
-    if (!PATTERNS[o.target_kind].test(o.target)) { drops.pattern++; continue }
-    const target = o.target_kind === 'claude-md' ? 'CLAUDE.md' : o.target
-    if (allow.includes(target)) { drops.allow++; continue }
-    if (deny.some(([re]) => re.test(target))) { drops.deny++; continue }
-    if (!keys.includes(o.cluster)) { drops.cluster++; continue }
-    const line = o.note.normalize('NFKC').replace(/[\r\n]/g, ' ').replace(/[^\x20-\x7e]/g, '').trim()
-    if (!line) { drops.empty++; continue }
-    if (/token|secret|passw(or)?d|pwd|api[_-]?key|bearer|credential|authorization|\b(ghp_|gho_|ghs_|ghu_|github_pat_|sk-|sk_|hf_|xox[abps]-|AKIA|eyJ[\w-]{10,})/i.test(line)) { drops.secret++; continue }
-    if (/(^|[^\w.-])(\/[\w.~$\/-]|~[\w-]*\/)|\$\{?HOME\b|%\w+%|[A-Za-z]:[\\/]|\\\\|[\w.-]\\[\w.-]/.test(line)) { drops.path++; continue }
-    if (/[\w.+-]+@[\w-]+\.[\w.-]+|\b(MRN|DOB|SSN|born|birth)\b|medical[\s_-]*record|\d{6}|\b\d{3}-\d{2}-\d{4}\b|\b\d{3}[-.\s)]+\d{3}[-.\s]\d{4}\b|\b\d{2,4}(?:[ .]\d{2,4}){2,}\b/i.test(line)) { drops.pii++; continue }
-    const note = line.slice(0, 300).trim()
-    if (owner_notes.length >= max) { drops.cap++; continue }
-    owner_notes.push({ cluster: o.cluster, target_kind: o.target_kind, target, note })
+  if (!Array.isArray(raw)) drops.shape++
+  else {
+    const seen = new Set()
+    for (const o of raw) {
+      if (!o || typeof o !== 'object' || Array.isArray(o) || typeof o.cluster !== 'string' || typeof o.target !== 'string' || typeof o.suggestion !== 'string') { drops.shape++; continue }
+      if (!keys.includes(o.cluster)) { drops.cluster++; continue }
+      if (!targets.includes(o.target)) { drops.target++; continue }
+      if (!suggestions.includes(o.suggestion)) { drops.suggestion++; continue }
+      if (seen.has(o.cluster)) { drops.dup++; continue }
+      if (owner_notes.length >= max) { drops.cap++; continue }
+      seen.add(o.cluster)
+      owner_notes.push({ cluster: o.cluster, target: o.target, suggestion: o.suggestion })
+    }
   }
   const notes = Object.entries(drops).filter(([, n]) => n).map(([why, n]) => `owner_notes: dropped ${n} (${why})`)
   return { owner_notes, notes }
@@ -259,10 +299,9 @@ const REFLECT_SCHEMA = {
   }, required: ['cluster', 'went_wrong', 'smallest_change', 'target_file', 'worth_proposing'] } },
     owner_notes: { type: 'array', items: { type: 'object', properties: {
       cluster: { type: 'string', description: 'tool/error_class or outcome cluster key' },
-      target_kind: { type: 'string', enum: ['skill', 'workflow', 'claude-md', 'agent-md', 'runbook'] },
-      target: { type: 'string', description: 'repo-relative path of the file' },
-      note: { type: 'string', description: 'the change, one line' },
-    }, required: ['cluster', 'target_kind', 'target', 'note'] } } },
+      target: { type: 'string', enum: NOTE_TARGETS },
+      suggestion: { type: 'string', enum: NOTE_SUGGESTIONS },
+    }, required: ['cluster', 'target', 'suggestion'] } } },
   required: ['reflections'],
 }
 const PROPOSE_SCHEMA = {
@@ -354,7 +393,7 @@ const CODEX_PROPOSE_PROMPT = `You are a second, independent reviewer of failure 
 const [reflected, codexRun] = await parallel([
   () => agent(
   `GEPA-style reflection. For each cluster below, write in natural language: what went wrong (grounded only in the metadata given), and the SMALLEST change that would have prevented it: one rule in ${MOD}/hooks/rules.ts (data-only entry: id, tool, when, match, action deny|hint, message, source, errorClass; optional after-only command, onSuccess, absent), or a row in docs/agentic/recurring-failures.md (read it first; do not duplicate an existing failure mode). Every new rule needs one positive and one negative replay case in ${MOD}/replay/cases.ts.
-Set worth_proposing=false if an existing rule already covers it (already_covered_by = its id: ${JSON.stringify(mined.existing_rule_ids)}), if it is a one-off, or if the only fix would touch tests, gate scripts, thresholds, or ask-first safety/privacy/auth code (those are never proposed). Be conservative: this is a health app. When the smallest fix is outside those three files (a skill, a workflow script, CLAUDE.md, AGENT.md or the RUNBOOK), you may add at most one owner_notes entry per cluster ({cluster, target_kind, target, note}) naming the file and the change; cluster is a tool/error_class below or one of these outcome keys: ${JSON.stringify(outcomeClusters.map((c) => c.source + '/' + c.class))}. An owner note is advice for the owner, never implemented by this run; never target tests, scripts/, .github/, thresholds or ask-first files.
+Set worth_proposing=false if an existing rule already covers it (already_covered_by = its id: ${JSON.stringify(mined.existing_rule_ids)}), if it is a one-off, or if the only fix would touch tests, gate scripts, thresholds, or ask-first safety/privacy/auth code (those are never proposed). Be conservative: this is a health app. When the smallest fix is outside those three files, you may add at most one owner_notes entry per cluster: {cluster, target, suggestion}, with cluster one of ${JSON.stringify(noteKeys(topClusters, outcomeClusters))}, target exactly one of ${JSON.stringify(NOTE_TARGETS)}, and suggestion one of ${JSON.stringify(NOTE_SUGGESTIONS)}. There is no free-text field, and anything else is dropped. An owner note is advice for the owner, never implemented by this run.
 Clusters:\n${JSON.stringify(topClusters, null, 1)}
 ${STYLE}`,
   { label: 'reflect', phase: 'Reflect', model: 'opus', schema: REFLECT_SCHEMA },
@@ -385,7 +424,7 @@ function parseCodexReflections(run) {
 const codexReflections = parseCodexReflections(codexRun)
 const merged = mergeReflections(reflected ? reflected.reflections : null, codexReflections, MAX_CANDIDATES)
 for (const n of merged.notes) log(n)
-const notesKept = ownerNotes((reflected && reflected.owner_notes) || [], ALLOW, DENY, MAX_OWNER_NOTES, [...topClusters.map((c) => c.tool + '/' + c.error_class), ...outcomeClusters.map((c) => c.source + '/' + c.class)])
+const notesKept = ownerNotes((reflected && reflected.owner_notes) || [], NOTE_TARGETS, noteKeys(topClusters, outcomeClusters), NOTE_SUGGESTIONS, MAX_OWNER_NOTES)
 for (const n of notesKept.notes) log(n)
 log(`owner notes: kept ${notesKept.owner_notes.length}`)
 const toPropose = merged.reflections
