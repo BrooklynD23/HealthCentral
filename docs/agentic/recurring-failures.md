@@ -238,9 +238,11 @@ agents running `git add` sweep each other's staged work — commit with explicit
 pathspecs (`git commit -m … -- <paths>`), and never `git reset` to clean up.
 And for **any** docs change, `scripts/docs_lint.py` passing is not sufficient —
 run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py
---link-graph`, or run the backend suite, which is the only place the freshness of
-those two generated files is actually asserted. A docs-only diff is not a reason
-to skip the suite; it is the case where the relevant check is least obvious.
+--link-graph`. CI no longer runs Backend Tests on a docs-only PR (path-scoped CI,
+#442), so see what it will do:
+`git diff --name-only origin/main...HEAD | python3 scripts/change_scope.py --repo-root .`
+(the Change Scope job's output). `docs_only=false` means a code path mentions one
+of your docs, a docs↔test coupling, and the full suite runs; run it locally too.
 
 ---
 
