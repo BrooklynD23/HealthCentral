@@ -74,6 +74,9 @@ def verify_observation_access(observation: Observation, session: Session) -> Non
 
 router = APIRouter()
 
+# Flags the extractor emits (modules/extract.py), after strip().upper().
+_PRINTED_FLAGS = frozenset({"H", "L", "HH", "LL", "A", "HIGH", "LOW", "ABNORMAL", "CRITICAL"})
+
 
 # Panel definitions - maps panel IDs to canonical analyte names
 PANEL_DEFINITIONS = {
@@ -464,14 +467,20 @@ async def verify_observation(
     observation.version += 1
 
     # Recalculate abnormal status only when this request changed the numbers
-    # or the row has no flag: a plain Verify must not erase or overwrite the
-    # lab's printed flag, but it still flags an out-of-range value the report
-    # left unflagged (the extractor never derives a flag from the range).
+    # or the row has no extractor-vocabulary flag: a plain Verify must not
+    # erase or overwrite the lab's printed flag, but it still flags an
+    # out-of-range value the report left unflagged (the extractor never
+    # derives a flag from the range). Free-text import flags ("N", "Normal")
+    # are not abnormal markers, so they are recalculated as before.
     numbers_changed = any(
         f in changes and changes[f]["old"] != changes[f]["new"]
         for f in ("value", "ref_low", "ref_high")
     )
-    if (numbers_changed or observation.flag is None) and observation.value is not None:
+    has_printed_flag = (
+        observation.flag is not None
+        and observation.flag.strip().upper() in _PRINTED_FLAGS
+    )
+    if (numbers_changed or not has_printed_flag) and observation.value is not None:
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"
