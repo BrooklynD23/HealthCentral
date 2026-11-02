@@ -25,6 +25,8 @@ From the RSI-MINE-OUTCOMES row on, `summary.json` also carries `outcome_clusters
 
 From the RSI-OWNER-NOTES row on, `summary.json` may also carry `owner_notes` (`{cluster, target, suggestion}`, fixed values only, at most 5): advice for the owner about one file from a fixed list (a `SKILL.md` under `.claude/skills/` or `skills/asclexis-*`, a script in `.claude/workflows/`, `CLAUDE.md`, `AGENT.md`, the RUNBOOK or `docs/agentic/recurring-failures.md`, which is also on the loop's allow-list), never a PR or an edit. L0 reads them after each run and turns any it agrees with into a queue bullet.
 
+The rsi-loop gate (`gateDiff`, `gateNumstat`, `parseCodexVerdict`) has an adversarial fixture, `.claude/workflows/tests/rsi-gate.fixture.mjs`: it pins the allow-list, every deny reason, path escapes, the rename pair, the additions-only rule for `rules.ts`, `cases.ts` and `docs/agentic/recurring-failures.md`, and the Codex verdict parser. Run it with `node .claude/workflows/tests/rsi-gate.fixture.mjs` (prints `gate ok (N)`); CI RSI Replay runs it.
+
 ## Windows
 
 Exact cuts, in UTC. Each folder is cut once at archive time. The live session keeps writing after that, so later rows are not archived.
