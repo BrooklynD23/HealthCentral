@@ -40,7 +40,7 @@ test.describe('Authentication Flow', () => {
     // Click create
     await page.getByRole('button', { name: /create your profile/i }).click();
 
-    // Should show progress steps
+    // The create button shows its loading label while POST /profiles is pending (no timed fake steps)
     await expect(page.getByText('Creating your profile…')).toBeVisible();
 
     // SEC-RECOV-001: the one-time recovery code is shown before the app is

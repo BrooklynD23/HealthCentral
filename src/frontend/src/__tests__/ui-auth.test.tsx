@@ -20,6 +20,7 @@ import { RecoverProfile } from '@/pages/RecoverProfile';
 import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
+import { duration, ease } from '@/motion/tokens';
 
 vi.mock('@/services/api', () => ({
   apiPost: vi.fn(),
@@ -129,11 +130,11 @@ describe('HC-UIAUTH-001: a fixed field error disappears on the next valid input'
     // The other field's error is untouched by the first field's fix.
     expect(screen.getByText('Password is required')).toBeInTheDocument();
 
+    // 'Password is required' is no longer true once anything is typed; the live rule list takes over.
     await user.type(screen.getByPlaceholderText('Create a secure password'), 'Secure1');
-    // Still not valid (7 characters): the error stays until the rule is met.
-    expect(screen.getByText('Password is required')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('Create a secure password'), 'x');
     expect(screen.queryByText('Password is required')).not.toBeInTheDocument();
+    expect(screen.getByText('At least 8 characters')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(api.apiPost).not.toHaveBeenCalled();
   });
 
@@ -149,7 +150,7 @@ describe('HC-UIAUTH-001: a fixed field error disappears on the next valid input'
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('keeps the password error while the rules are unmet after a submit', async () => {
+  it('drops the submit-time rule list as soon as the password is edited, so no met rule stays listed', async () => {
     const user = userEvent.setup({ delay: null });
     renderPage(<ProfileSetup />);
 
@@ -160,10 +161,14 @@ describe('HC-UIAUTH-001: a fixed field error disappears on the next valid input'
     expect(alert).toHaveTextContent(/at least one uppercase letter/i);
 
     await user.type(screen.getByPlaceholderText('Create a secure password'), 'A');
-    // Uppercase met, digit still missing: Submit stays authoritative, the error is not re-derived.
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-    await user.type(screen.getByPlaceholderText('Create a secure password'), '1');
+    // The stale list (which still names the uppercase rule) is gone. The live hints list only what is unmet.
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('At least one uppercase letter')).not.toBeInTheDocument();
+    expect(screen.getByText('At least one digit')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Create a secure password'), '1');
+    expect(screen.queryByText('At least one digit')).not.toBeInTheDocument();
+    // Submit stays authoritative: nothing was added on change.
+    expect(api.apiPost).not.toHaveBeenCalled();
   });
 });
 
@@ -223,6 +228,52 @@ describe('HC-UIAUTH-002: no progress that is not tied to the real request', () =
     expect(fromFlow).toEqual([]);
   });
 
+  it('while the POST is pending the recovery link cannot be used (the one-time code would be lost) and the fields are locked', async () => {
+    const user = userEvent.setup({ delay: null });
+    let resolvePost: (value: unknown) => void = () => undefined;
+    vi.mocked(api.apiPost).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePost = resolve;
+      })
+    );
+    renderPage(<ProfileSetup />);
+    await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
+    await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+    const link = screen.getByRole('link', { name: 'Use your recovery code' });
+    expect(link.closest('p')).not.toHaveClass('invisible');
+
+    await user.click(screen.getByRole('button', { name: /create your profile/i }));
+    await screen.findByRole('button', { name: /creating your profile…/i });
+
+    // visibility:hidden takes the link out of the tab order and out of reach of the pointer; the line keeps its
+    // height, so nothing shifts.
+    expect(link.closest('p')).toHaveClass('invisible');
+    expect(screen.getByLabelText('Profile Name')).toBeDisabled();
+    expect(screen.getByPlaceholderText('Create a secure password')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Show password' })).toBeDisabled();
+
+    resolvePost(created);
+    expect(await screen.findByTestId('recovery-code')).toHaveTextContent(CODE);
+  });
+
+  it('a failed request puts the link and the fields back, and the failure is a data-t0 alert', async () => {
+    const user = userEvent.setup({ delay: null });
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Server unavailable'));
+    renderPage(<ProfileSetup />);
+    await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
+    await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+    await user.click(screen.getByRole('button', { name: /create your profile/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/failed to create profile/i);
+    expect(alert).toHaveTextContent(/server unavailable/i);
+    expect(alert).toHaveAttribute('data-t0');
+    expect(animatedAncestor(alert)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Use your recovery code' }).closest('p')).not.toHaveClass('invisible');
+    expect(screen.getByLabelText('Profile Name')).toBeEnabled();
+    expect(screen.getByPlaceholderText('Create a secure password')).toBeEnabled();
+  });
+
   it('the loading label goes away when the request fails, and the error shows', async () => {
     const user = userEvent.setup({ delay: null });
     vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Server unavailable'));
@@ -272,8 +323,14 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
    * Unlocks with navigate mocked (the page stays mounted), then unmounts the page the way the route swap does (the cache clear removes the panel earlier, which must not start it):
    * the Lift starts when the page leaves the document.
    */
-  async function unlock(user: ReturnType<typeof userEvent.setup>) {
+  async function unlock(user: ReturnType<typeof userEvent.setup>, options: { refetchPends?: boolean } = {}) {
     vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
+    if (options.refetchPends) {
+      // After the cache clear the list is fetched again, with the new token: until that answers there is no data
+      // (the real route commit waits on a lazy chunk for about as long).
+      vi.mocked(api.apiGet).mockReset();
+      vi.mocked(api.apiGet).mockResolvedValueOnce([PROFILE]).mockReturnValue(new Promise(() => undefined));
+    }
     vi.mocked(api.apiPost).mockResolvedValueOnce({
       access_token: 'unlocked-token-456',
       token_type: 'bearer',
@@ -305,6 +362,50 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
     expect(mockNavigate).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the unlock panel on screen, inert, after the cache clear, until the page leaves', async () => {
+    const user = userEvent.setup({ delay: null });
+    fakeAnimate();
+    await unlock(user, { refetchPends: true });
+    // Navigate has run and queryClient.clear() has emptied the profile list. The route has not committed yet
+    // (here it never does): the card the user was looking at must not blank out in between.
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.length).toBeGreaterThanOrEqual(2));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const heading = screen.getByRole('heading', { name: 'Unlock your profile' });
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Maria Lopez' })).toBeInTheDocument();
+    // It is still a form with a password field, so it must not take input or focus any more.
+    expect(heading.closest('[inert]')).not.toBeNull();
+    expect(screen.getByLabelText('Unlock password')).toHaveValue('');
+  });
+
+  it('the ghost sits below the Safety Rail (z-30), the tab bar and the top bar (z-40), uses the plain card border and no shadow, and the motion tokens', async () => {
+    const user = userEvent.setup({ delay: null });
+    const lifts = fakeAnimate();
+    const view = await unlock(user);
+    view.unmount();
+    await waitFor(() => expect(lifts).toHaveLength(1));
+    const ghost = document.querySelector('[data-lift-ghost]') as HTMLElement;
+    expect(Number(ghost.style.zIndex)).toBeLessThan(30);
+    expect(Number(ghost.style.zIndex)).toBeGreaterThan(0);
+    expect(ghost.style.boxShadow).toBe('');
+    expect(ghost.className).toMatch(/\bborder\b/);
+    expect(ghost.className).toMatch(/border-black\/4/);
+    expect(ghost.className).toMatch(/bg-surface-elevated/);
+    expect(lifts[0].options.duration).toBe(duration.md * 1000);
+    expect(lifts[0].options.easing).toBe(`cubic-bezier(${ease.out.join(', ')})`);
+  });
+
+  it('a failure while drawing the ghost leaves nothing behind and throws nothing', async () => {
+    const user = userEvent.setup({ delay: null });
+    (Element.prototype as unknown as { animate: unknown }).animate = () => {
+      throw new Error('animate failed');
+    };
+    const view = await unlock(user);
+    view.unmount();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.querySelector('[data-lift-ghost]')).toBeNull();
+  });
+
   it('under reduced motion the Lift is opacity only, 150 ms', async () => {
     setReducedMotion(true);
     const user = userEvent.setup({ delay: null });
@@ -313,7 +414,7 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
     view.unmount();
     await waitFor(() => expect(lifts).toHaveLength(1));
     const { keyframes, options } = lifts[0];
-    expect(options.duration).toBe(150);
+    expect(options.duration).toBe(duration.hover * 1000);
     for (const frame of keyframes) expect(frame).not.toHaveProperty('transform');
     expect(keyframes[keyframes.length - 1].opacity).toBe('0');
   });
@@ -427,11 +528,20 @@ describe('HC-UIAUTH-005: errors sit outside the S1 wrapper and carry data-t0', (
     );
   });
 
-  it('the S1 wrapper holds the label-and-input groups and the field errors are not inside it', async () => {
+  it('the S1 wrapper holds the label-and-input groups, and the errors that appear after a submit are not inside it', async () => {
+    const user = userEvent.setup({ delay: null });
     renderPage(<ProfileSetup />);
     const name = await screen.findByLabelText('Profile Name');
     // The S1 groups move (inline opacity/transform); the inputs sit inside them.
     expect(animatedAncestor(name)).not.toBeNull();
+
+    await user.click(screen.getByRole('button', { name: /create your profile/i }));
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts).toHaveLength(2);
+    for (const alert of alerts) {
+      expect(animatedAncestor(alert)).toBeNull();
+      expect(animatedAncestor(name)!.contains(alert), 'an error inside the moving wrapper').toBe(false);
+    }
   });
 
   it('the unlock error is a data-t0 alert with no moving ancestor', async () => {
@@ -482,5 +592,36 @@ describe('HC-UIAUTH-005: errors sit outside the S1 wrapper and carry data-t0', (
     expect(alert).toHaveTextContent(/not valid/i);
     expect(alert).toHaveAttribute('data-t0');
     expect(within(document.body).getAllByRole('alert')).toHaveLength(1);
+  });
+});
+
+describe('RecoverProfile copy and field state', () => {
+  it('shows the intro with the form and not above the "no recovery code" notice', async () => {
+    vi.mocked(api.apiGet).mockResolvedValue([{ ...PROFILE, has_recovery_code: false }]);
+    const { unmount } = renderPage(<RecoverProfile />);
+    expect(await screen.findByText(/none of the profiles on this device has a recovery code/i)).toBeInTheDocument();
+    expect(screen.queryByText(/choose a new password/i)).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
+    renderPage(<RecoverProfile />);
+    await screen.findByLabelText('Recovery code');
+    // True for a code that was rotated or replaced in Settings too, so it does not say when it was saved.
+    expect(screen.getByText('Use your saved recovery code to choose a new password.')).toBeInTheDocument();
+    expect(screen.queryByText(/when you made this profile/i)).not.toBeInTheDocument();
+  });
+
+  it('a failed request does not mark the recovery code field invalid (the failure may be the password, a limit or the network)', async () => {
+    const user = userEvent.setup({ delay: null });
+    vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Password must contain an uppercase letter'));
+    renderPage(<RecoverProfile />);
+    const code = await screen.findByLabelText('Recovery code');
+    await user.selectOptions(screen.getByLabelText('Profile'), PROFILE.id);
+    await user.type(code, 'AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH');
+    await user.type(screen.getByLabelText('New password'), 'newpass123');
+    await user.click(screen.getByRole('button', { name: /unlock my records/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/uppercase/i);
+    expect(code).not.toHaveAttribute('aria-invalid');
   });
 });

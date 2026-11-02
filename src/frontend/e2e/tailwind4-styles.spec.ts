@@ -132,7 +132,8 @@ test.describe('Tailwind 4 style guard', () => {
 
   test('TW4-RECOVER: default border and placeholder (unauthenticated)', async ({ page }) => {
     await page.goto('/recover');
-    // Target: RecoverProfile.tsx:136-143, bare border utility, no border colour or placeholder class.
+    // #recover-code is the Input primitive (UI-PG-AUTH): its border is the --line-strong token (rgb(138, 133, 123)),
+    // its placeholder keeps the --ink-tertiary token.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });
     expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(138, 133, 123)');
@@ -144,8 +145,8 @@ test.describe('Tailwind 4 style guard', () => {
 
   test('TW4-FOCUS: global focus ring box-shadow (unauthenticated)', async ({ page }) => {
     await page.goto('/recover');
-    // Target: RecoverProfile.tsx:136-143 (`w-full rounded-md border px-3 py-2 text-sm font-mono`): no
-    // ring, shadow or outline class, so its focus box-shadow comes only from globals.css:288-290.
+    // Target: #recover-code, the Input primitive since UI-PG-AUTH. Its focus ring (focus-visible:ring-2, accent)
+    // is what this test reads; the assertions below are unchanged.
     // Own test so an earlier failing assert cannot mask it.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });

@@ -18,7 +18,7 @@ import {
   measureCls,
   noHorizontalScroll,
   reducedMotionSnapshot,
-  setTheme,
+  safetyVisible,
   stillnessProbe,
   type Theme,
 } from './support/gates';
@@ -35,6 +35,7 @@ const SMALL_PHONE = { width: 320, height: 640 };
 const THEMES: Theme[] = ['light', 'dark'];
 
 const NEW_PASSWORD = 'SecurePass123';
+const ROTATED_PASSWORD = 'RotatedPass456';
 
 /** /recover lists only profiles that hold a recovery code (the same seed as tailwind4-styles.spec.ts). */
 async function ensureRecoverable(request: APIRequestContext): Promise<void> {
@@ -65,6 +66,40 @@ async function createProfileUi(page: Page): Promise<string> {
   const code = page.getByTestId('recovery-code');
   await expect(code).toBeVisible({ timeout: 30000 });
   return (await code.textContent()) ?? '';
+}
+
+/** Lowest opacity on the name field and its ancestors: below 1 while S1 is still running. -1 if there is no field. */
+async function minGroupOpacity(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const input = document.querySelector('input[autocomplete="name"]');
+    if (!input) return -1;
+    let min = 1;
+    for (let el: Element | null = input; el && el !== document.body; el = el.parentElement) {
+      min = Math.min(min, parseFloat(getComputedStyle(el).opacity));
+    }
+    return min;
+  });
+}
+
+/** A profile made through the API with its one-time recovery code, so /recover can rotate it without touching the E2E profile. */
+async function createRecoverableProfile(
+  request: APIRequestContext
+): Promise<{ name: string; code: string }> {
+  const name = `UIAuth Recover ${Date.now()}`;
+  const response = await request.post(`${E2E_API_URL}/profiles/`, {
+    data: { display_name: name, password: NEW_PASSWORD },
+  });
+  expect(response.ok(), await response.text()).toBeTruthy();
+  const body = (await response.json()) as { recovery_code: string };
+  return { name, code: body.recovery_code };
+}
+
+/** Fills /recover with a malformed code (answers 400, the page shows its error) and submits. */
+async function submitMalformedRecovery(page: Page): Promise<void> {
+  await page.getByLabel('Profile', { exact: true }).selectOption({ label: E2E_PROFILE_NAME });
+  await page.locator('#recover-code').fill('AAAA-BBBB');
+  await page.getByLabel('New password').fill(NEW_PASSWORD);
+  await page.getByRole('button', { name: /unlock my records/i }).click();
 }
 
 /** Waits for the S1 entrance on the create form to finish (opacity 1 and no translate on every group). */
@@ -143,6 +178,49 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     });
   }
 
+  for (const theme of THEMES) {
+    test(`G1 axe with the create-form errors showing (${theme})`, async ({ page }) => {
+      await page.setViewportSize(DESKTOP);
+      await openCreateForm(page);
+      await settleReveal(page);
+      await page.getByRole('button', { name: /create your profile/i }).click();
+      await expect(page.getByText('Name is required')).toBeVisible();
+      const axe = await axeGate(page, { theme });
+      expect(
+        axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+        `G1 create errors ${theme}`
+      ).toEqual([]);
+    });
+
+    test(`G1 axe with the unlock error showing (${theme})`, async ({ page }) => {
+      await page.setViewportSize(DESKTOP);
+      await page.goto('/setup');
+      await expect(page.getByText('Unlock your profile')).toBeVisible({ timeout: 15000 });
+      await page.getByLabel('Profile', { exact: true }).selectOption({ label: E2E_PROFILE_NAME });
+      await page.getByLabel('Unlock password').fill('WrongPass999');
+      await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+      await expect(page.getByRole('alert')).toHaveText('Incorrect password');
+      const axe = await axeGate(page, { theme });
+      expect(
+        axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+        `G1 unlock error ${theme}`
+      ).toEqual([]);
+    });
+
+    test(`G1 axe on /recover with its error showing (${theme})`, async ({ page }) => {
+      await page.setViewportSize(DESKTOP);
+      await page.goto('/recover');
+      await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+      await submitMalformedRecovery(page);
+      await expect(page.getByRole('alert')).toBeVisible();
+      const axe = await axeGate(page, { theme });
+      expect(
+        axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+        `G1 recover error ${theme}`
+      ).toEqual([]);
+    });
+  }
+
   test('G2 CLS on a cold /setup load and opening the create form (timing)', async ({ page }) => {
     const cls = await measureCls(page, async () => {
       await page.goto('/setup');
@@ -160,6 +238,84 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     test.skip(!(await createNew.isVisible()), 'no profile on file: the form is already open');
     const inp = await maxEventDuration(page, () => createNew.click(), { cpuRate: 4 });
     expect(inp, 'G3 /setup').toBeLessThan(200);
+  });
+
+  test('G2 CLS on a cold /recover load, filling the form and showing its error (timing)', async ({ page }) => {
+    const cls = await measureCls(page, async () => {
+      await page.goto('/recover');
+      await page.locator('#recover-code').waitFor({ timeout: 15000 });
+      await submitMalformedRecovery(page);
+      await page.getByRole('alert').waitFor();
+    });
+    expect(cls, 'G2 /recover').toBeLessThan(0.1);
+  });
+
+  test('G2 CLS on submitting the empty create form and on a failed create (timing)', async ({ page }) => {
+    await page.route('**/profiles/', (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) })
+        : route.fallback()
+    );
+    const cls = await measureCls(page, async () => {
+      await openCreateForm(page);
+      await page.getByRole('button', { name: /create your profile/i }).click();
+      await page.getByText('Name is required').waitFor();
+      await page.getByLabel('Profile Name').fill(`Playwright UIAuth ${Date.now()}`);
+      await page.getByPlaceholder('Create a secure password').fill(NEW_PASSWORD);
+      await page.getByRole('button', { name: /create your profile/i }).click();
+      await page.getByText('Failed to create profile').waitFor();
+    });
+    expect(cls, 'G2 /setup errors').toBeLessThan(0.1);
+  });
+
+  test('G3 INP proxy on /recover (select, type, submit), CPU x4 (timing)', async ({ page }) => {
+    await page.goto('/recover');
+    await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+    const inp = await maxEventDuration(
+      page,
+      async () => {
+        await submitMalformedRecovery(page);
+        await page.getByRole('alert').waitFor();
+      },
+      { cpuRate: 4 }
+    );
+    expect(inp, 'G3 /recover').toBeLessThan(200);
+  });
+
+  test('G3 INP proxy on submitting the empty create form, CPU x4 (timing)', async ({ page }) => {
+    await openCreateForm(page);
+    await settleReveal(page);
+    const inp = await maxEventDuration(
+      page,
+      async () => {
+        await page.getByRole('button', { name: /create your profile/i }).click();
+        await page.getByText('Name is required').waitFor();
+      },
+      { cpuRate: 4 }
+    );
+    expect(inp, 'G3 /setup submit').toBeLessThan(200);
+  });
+
+  test('G5 reduced motion: no transform 50 ms after showing the /recover error (timing)', async ({ page }) => {
+    await page.goto('/recover');
+    await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+    await page.getByLabel('Profile', { exact: true }).selectOption({ label: E2E_PROFILE_NAME });
+    await page.locator('#recover-code').fill('AAAA-BBBB');
+    await page.getByLabel('New password').fill(NEW_PASSWORD);
+    const offenders = await reducedMotionSnapshot(page, async () => {
+      await page.getByRole('button', { name: /unlock my records/i }).click();
+      await page.getByRole('alert').waitFor();
+    });
+    expect(offenders, 'G5 /recover').toEqual([]);
+  });
+
+  test('G5 reduced motion: no transform 50 ms after submitting the empty create form (timing)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openCreateForm(page);
+    const offenders = await reducedMotionSnapshot(page, async () => {
+      await page.getByRole('button', { name: /create your profile/i }).click();
+    });
+    expect(offenders, 'G5 /setup submit').toEqual([]);
   });
 
   test('G5 reduced motion: no transform 50 ms after opening the create form (timing)', async ({ page }) => {
@@ -182,6 +338,8 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
         shellAt?: number;
         duration?: number;
         keyframes?: Record<string, unknown>[];
+        panelGap?: boolean;
+        railCoveredBy?: string | null;
         ghostHasControl?: boolean;
         ghostHtmlHasPassword?: boolean;
         ariaHidden?: string | null;
@@ -193,6 +351,14 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
       const observer = new MutationObserver(() => {
         const now = performance.now();
         const ghost = document.querySelector('[data-lift-ghost]') as HTMLElement | null;
+        // The card must not blank out between the cache clear and the route commit: while the page is still
+        // there and no ghost has taken over, the unlock heading is on screen.
+        if (!ghost && log.ghostAt === undefined && document.querySelector('[data-setup-page]')) {
+          const heading = Array.from(document.querySelectorAll('[data-setup-page] h2')).some(
+            (h) => h.textContent === 'Unlock your profile'
+          );
+          if (!heading) log.panelGap = true;
+        }
         if (ghost && log.ghostAt === undefined) {
           log.ghostAt = now;
           const animation = ghost.getAnimations()[0];
@@ -205,12 +371,24 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
           log.pointerEvents = ghost.style.pointerEvents;
         }
         if (log.shellAt === undefined && document.querySelector(shellSelector)) log.shellAt = now;
+        // G9 at first paint of the shell: what is on top at the centre of the Safety Rail. elementFromPoint skips
+        // pointer-events:none, so the ghost is made hittable for this one synchronous call, then put back.
+        const rail = document.querySelector('[data-safety-rail]');
+        if (ghost && rail && log.railCoveredBy === undefined) {
+          const box = rail.getBoundingClientRect();
+          const previous = ghost.style.pointerEvents;
+          ghost.style.pointerEvents = 'auto';
+          const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+          ghost.style.pointerEvents = previous;
+          log.railCoveredBy = top && rail.contains(top) ? null : (top?.tagName.toLowerCase() ?? 'nothing');
+        }
       });
       observer.observe(document, { childList: true, subtree: true });
     }, E2E_PROFILE_PASSWORD);
   }
 
-  async function unlock(page: Page): Promise<void> {
+  async function unlock(page: Page, viewport?: { width: number; height: number }): Promise<void> {
+    if (viewport) await page.setViewportSize(viewport);
     await page.goto('/setup');
     await expect(page.getByText('Unlock your profile')).toBeVisible({ timeout: 15000 });
     await page.getByLabel('Profile', { exact: true }).selectOption({ label: E2E_PROFILE_NAME });
@@ -248,13 +426,32 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     expect(lift.ghostHtmlHasPassword).toBe(false);
     expect(lift.ariaHidden).toBe('true');
     expect(lift.pointerEvents).toBe('none');
+    expect(lift.panelGap, 'the unlock card stayed on screen until the route committed').not.toBe(true);
 
     // It cleans up after itself, and no attribute or value in the document holds the password.
     await expect(page.locator('[data-lift-ghost]')).toHaveCount(0, { timeout: 5000 });
     expect(await documentHoldsPassword(page)).toEqual([]);
   });
 
-  test('the shell is visible within one frame of the Lift, which fades and lifts 8 px in 240 ms (timing)', async ({
+  test('at 390x844 the Lift ghost does not cover the Safety Rail, and the rail is visible once it ends (G9)', async ({
+    page,
+    request,
+  }) => {
+    await ensureE2EProfile(request);
+    await unlock(page, PHONE);
+    const lift = await page.evaluate(
+      () => (window as unknown as { __lift: { railCoveredBy?: string | null } }).__lift
+    );
+    expect(lift.railCoveredBy, 'the rail was probed while the ghost was up').not.toBeUndefined();
+    expect(lift.railCoveredBy, 'what covered the rail').toBeNull();
+    await expect(page.locator('[data-lift-ghost]')).toHaveCount(0, { timeout: 5000 });
+    const rail = await safetyVisible(page);
+    expect(rail.found).toBe(true);
+    expect(rail.inViewport).toBe(true);
+    expect(rail.effectiveOpacity).toBe(1);
+  });
+
+  test('the shell is committed in the same frame as the Lift (DOM commit stamps), which fades and lifts 8 px in 240 ms (timing)', async ({
     page,
     request,
   }) => {
@@ -271,7 +468,8 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     expect(last.opacity).toBe('0');
     expect(String(last.transform)).toContain('translateY(-8px)');
     expect(lift.shellAt, 'the shell mounted').toBeDefined();
-    expect(Math.abs(lift.shellAt! - lift.ghostAt!), 'shell within one frame of the Lift').toBeLessThanOrEqual(34);
+    // One frame at 60 Hz. These are MutationObserver stamps: they read commits, not paint.
+    expect(Math.abs(lift.shellAt! - lift.ghostAt!), 'shell within one frame of the Lift').toBeLessThanOrEqual(17);
   });
 
   test.describe('reduced motion', () => {
@@ -312,24 +510,7 @@ test.describe('HC-UIAUTH-004: the recovery code in 4-character groups', () => {
     const code = await createProfileUi(page);
     expect(code).toMatch(/^([A-Z0-9]{4}-){7}[A-Z0-9]{4}$/);
 
-    const report = await page.getByTestId('recovery-code').evaluate((block) => {
-      const blockRect = block.getBoundingClientRect();
-      const groups = Array.from(block.querySelectorAll('[data-code-group]'));
-      return {
-        text: block.textContent,
-        groupTexts: groups.map((g) => g.textContent),
-        lineCounts: groups.map((g) => {
-          const range = document.createRange();
-          range.selectNodeContents(g);
-          // Distinct line tops among the text's client rects: more than one means the group wrapped.
-          return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
-        }),
-        overflowing: groups
-          .map((g) => g.getBoundingClientRect())
-          .filter((r) => r.left < blockRect.left - 0.5 || r.right > blockRect.right + 0.5).length,
-        lineTops: Array.from(new Set(groups.map((g) => Math.round(g.getBoundingClientRect().top)))).length,
-      };
-    });
+    const report = await codeGeometry(page);
     expect(report.text).toBe(code);
     expect(report.groupTexts).toEqual(code.split('-'));
     expect(report.lineCounts.every((n) => n === 1), `group line counts ${report.lineCounts}`).toBe(true);
@@ -356,7 +537,72 @@ test.describe('HC-UIAUTH-004: the recovery code in 4-character groups', () => {
       ).toEqual([]);
     }
   });
+
+  test('/recover rotated-code step: groups intact and no horizontal scroll at 390 and 320 (G6)', async ({
+    page,
+    request,
+  }) => {
+    const profile = await createRecoverableProfile(request);
+    await page.setViewportSize(PHONE);
+    const code = await rotateOnRecoverPage(page, profile);
+    expect(code).toMatch(/^([A-Z0-9]{4}-){7}[A-Z0-9]{4}$/);
+    expect((await noHorizontalScroll(page)).ok, 'G6 390 /recover rotated').toBe(true);
+    await page.setViewportSize(SMALL_PHONE);
+    expect((await noHorizontalScroll(page)).ok, 'G6 320 /recover rotated').toBe(true);
+    const report = await codeGeometry(page);
+    expect(report.text).toBe(code);
+    expect(report.lineCounts.every((n) => n === 1), `group line counts ${report.lineCounts}`).toBe(true);
+    expect(report.overflowing, 'groups outside the code block').toBe(0);
+  });
+
+  test('/recover rotated-code step passes axe in both themes (G1)', async ({ page, request }) => {
+    const profile = await createRecoverableProfile(request);
+    await page.setViewportSize(DESKTOP);
+    await rotateOnRecoverPage(page, profile);
+    for (const theme of THEMES) {
+      const axe = await axeGate(page, { theme });
+      expect(
+        axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+        `G1 /recover rotated step ${theme}`
+      ).toEqual([]);
+    }
+  });
 });
+
+/** Geometry of the recovery-code block: its text, each group's text and line count, overflow, distinct line tops. */
+async function codeGeometry(page: Page) {
+  return page.getByTestId('recovery-code').evaluate((block) => {
+    const blockRect = block.getBoundingClientRect();
+    const groups = Array.from(block.querySelectorAll('[data-code-group]'));
+    return {
+      text: block.textContent,
+      groupTexts: groups.map((g) => g.textContent),
+      lineCounts: groups.map((g) => {
+        const range = document.createRange();
+        range.selectNodeContents(g);
+        // Distinct line tops among the text's client rects: more than one means the group wrapped.
+        return new Set(Array.from(range.getClientRects()).map((r) => Math.round(r.top))).size;
+      }),
+      overflowing: groups
+        .map((g) => g.getBoundingClientRect())
+        .filter((r) => r.left < blockRect.left - 0.5 || r.right > blockRect.right + 0.5).length,
+      lineTops: Array.from(new Set(groups.map((g) => Math.round(g.getBoundingClientRect().top)))).length,
+    };
+  });
+}
+
+/** Rotates a profile's recovery code on /recover and returns the new code once it shows. */
+async function rotateOnRecoverPage(page: Page, profile: { name: string; code: string }): Promise<string> {
+  await page.goto('/recover');
+  await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+  await page.getByLabel('Profile', { exact: true }).selectOption({ label: profile.name });
+  await page.locator('#recover-code').fill(profile.code);
+  await page.getByLabel('New password').fill(ROTATED_PASSWORD);
+  await page.getByRole('button', { name: /unlock my records/i }).click();
+  const code = page.getByTestId('recovery-code');
+  await expect(code).toBeVisible({ timeout: 30000 });
+  return (await code.textContent()) ?? '';
+}
 
 test.describe('HC-UIAUTH-005: stillness (timing)', () => {
   test('submitting during the S1 entrance: every field error passes from its first render (timing)', async ({
@@ -369,7 +615,12 @@ test.describe('HC-UIAUTH-005: stillness (timing)', () => {
     // Open the form and submit at once: the S1 groups are still rising.
     if (await createNew.isVisible()) await createNew.click();
     await stillnessProbe(page, {
-      trigger: () => page.getByRole('button', { name: /create your profile/i }).click(),
+      trigger: async () => {
+        // The point of this test: S1 is running at the click. On a box too slow to get here in time this fails,
+        // instead of quietly becoming the "after" test.
+        expect(await minGroupOpacity(page), 'S1 is still running when the form is submitted').toBeLessThan(1);
+        await page.getByRole('button', { name: /create your profile/i }).click();
+      },
       expected: ['p[role="alert"][data-t0]'],
     });
     await expect(page.getByText('Name is required')).toBeVisible();
@@ -403,6 +654,43 @@ test.describe('HC-UIAUTH-005: stillness (timing)', () => {
     await page.getByPlaceholder('Create a secure password').fill(NEW_PASSWORD);
     await stillnessProbe(page, {
       trigger: () => page.getByRole('button', { name: /create your profile/i }).click(),
+      expected: ['[data-testid="recovery-code"][data-t0]', 'p[data-t0]'],
+      lazyRoute: true,
+    });
+    await expect(page.getByTestId('recovery-code')).toBeVisible();
+  });
+
+  test('the create-failure error passes from its first render (timing)', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.route('**/profiles/', (route) =>
+      route.request().method() === 'POST'
+        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) })
+        : route.fallback()
+    );
+    await openCreateForm(page);
+    await settleReveal(page);
+    await page.getByLabel('Profile Name').fill(`Playwright UIAuth ${Date.now()}`);
+    await page.getByPlaceholder('Create a secure password').fill(NEW_PASSWORD);
+    await stillnessProbe(page, {
+      trigger: () => page.getByRole('button', { name: /create your profile/i }).click(),
+      expected: ['[role="alert"][data-t0]'],
+    });
+    await expect(page.getByRole('alert')).toContainText('Failed to create profile');
+  });
+
+  test('the /recover rotated-code step passes with the code and its warning expected (timing)', async ({
+    page,
+    request,
+  }) => {
+    const profile = await createRecoverableProfile(request);
+    await page.setViewportSize(DESKTOP);
+    await page.goto('/recover');
+    await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+    await page.getByLabel('Profile', { exact: true }).selectOption({ label: profile.name });
+    await page.locator('#recover-code').fill(profile.code);
+    await page.getByLabel('New password').fill(ROTATED_PASSWORD);
+    await stillnessProbe(page, {
+      trigger: () => page.getByRole('button', { name: /unlock my records/i }).click(),
       expected: ['[data-testid="recovery-code"][data-t0]', 'p[data-t0]'],
       lazyRoute: true,
     });
