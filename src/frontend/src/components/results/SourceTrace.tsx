@@ -11,7 +11,9 @@
  *
  * The content holds T0 values, so the sheet is `still` (M0). The only moving
  * element is the TraceMark, a separate background with no data-t0. The text never
- * moves.
+ * moves. The File value stays on one line (truncated, full name in its title), and
+ * ObservationSourceTrace loads the monospace face before the sheet opens, so neither the
+ * name nor the font swap shifts a T0 row.
  */
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -31,6 +33,8 @@ const DRAW_DELAY_MS = 160;
 const FADE_MS = 150;
 const DRAW_EASE: [number, number, number, number] = [...ease.out];
 
+/** The face of the excerpt (`font-mono`, weight 400). */
+const MONO_FONT = '400 12px "JetBrains Mono"';
 const REASON_LOADING = 'Loading the source to compare.';
 const REASON_UNAVAILABLE = 'The source is not available to compare, so this cannot be marked here.';
 
@@ -180,7 +184,10 @@ export function SourceTrace({
       <div className="space-y-5">
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt className="text-ink-secondary">File</dt>
-          <dd className="min-w-0 break-words text-ink">{sourceFile ?? 'Source file not available'}</dd>
+          {/* One line, never wrapped: a name that wrapped would push every row below it down when the document arrives. */}
+          <dd className="min-w-0 truncate break-words text-ink" title={sourceFile ?? undefined}>
+            {sourceFile ?? 'Source file not available'}
+          </dd>
 
           <dt className="text-ink-secondary">Location</dt>
           <dd className="min-w-0 break-words text-ink" data-t0="">
@@ -338,6 +345,12 @@ export function ObservationSourceTrace({
   trigger: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // The excerpt is set in JetBrains Mono (font-display: swap). Loading it now, not when the sheet opens,
+  // keeps the excerpt lines from moving when the face arrives after they mount. Absent in some
+  // environments (jsdom), and a failed load only means the fallback face stays.
+  useEffect(() => {
+    window.document.fonts?.load(MONO_FONT)?.catch(() => undefined);
+  }, []);
   const documentId = open ? observation.doc_id : undefined;
   const documentQuery = useDocument(documentId);
   const pagesQuery = useDocumentPages(documentId);
