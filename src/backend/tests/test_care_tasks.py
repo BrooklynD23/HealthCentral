@@ -685,9 +685,10 @@ async def real_profile_db():
 
 
 class TestReprocessDuplicateGuards:
-    """Reprocess deletes and recreates DocumentEntity rows with fresh UUIDs
-    while SQLite FK enforcement is off, so task.source_entity_id dangles
-    silently. Duplicate detection must therefore also key on content
+    """Reprocess deletes and recreates DocumentEntity rows with fresh UUIDs.
+    These tests run on a bare engine with FK enforcement off (production now
+    enforces it and nulls task.source_entity_id via SET NULL), so here the id
+    dangles silently. Duplicate detection must therefore also key on content
     (source_document_id + source_quote), and nothing may crash on a
     dangling entity id."""
 
@@ -744,7 +745,8 @@ class TestReprocessDuplicateGuards:
         assert task.source_entity_id == original.id
 
         # Simulate reprocess: delete + recreate the entity with a fresh UUID
-        # and identical text (FK enforcement is off, the link dangles).
+        # and identical text (this bare engine has FK enforcement off, so the
+        # link dangles; production nulls it via SET NULL).
         await db.delete(original)
         recreated = self._entity(doc_id)
         db.add(recreated)

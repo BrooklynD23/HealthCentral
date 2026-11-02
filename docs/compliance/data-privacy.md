@@ -145,8 +145,9 @@ recoverable state rather than a corrupt one:
    "permanent" deletion.
 6. In one master transaction: purge the audit rows, delete the profile row,
    delete the `backup_schedules` row, write the tombstone. The schedule row is
-   deleted explicitly rather than by FK cascade — `PRAGMA foreign_keys` is not
-   enabled, so the `ondelete="CASCADE"` on the model is inert on SQLite.
+   deleted explicitly even though `PRAGMA foreign_keys` is now ON and the
+   `ondelete="CASCADE"` on the model would fire too, because the steps are
+   ordered on purpose and restore's raw `sqlite3` path never sees the pragma.
 
 **Audit-row retention — owner decision, 2026-07-27.** The profile's audit rows
 are **purged**, and a single **anonymized** `profile.delete` tombstone is
