@@ -138,6 +138,10 @@ const PAGE_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAZAAAABkCAIAAAAnqfEgAAABDUlEQVR42u3UQREAAAzCMPyrRQI6tksk9NEU4IhIABgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYwF8DXxGNujLHPvkAAAAASUVORK5CYII=';
 const PAGE_PNG = Buffer.from(PAGE_PNG_BASE64, 'base64');
 
+/** Page 3's text. The Glucose line is the one line that holds the value 96 as a whole token (SOURCE-TRACE-WIRE). */
+const PAGE_THREE_MATCH_LINE = 'Glucose 96 mg/dL 70-99';
+const PAGE_THREE_TEXT = `Comprehensive Metabolic Panel\n${PAGE_THREE_MATCH_LINE}\nSodium 140 mmol/L 136-145`;
+
 /** Answers every /api/v1 request from the fixtures above; records the rest. */
 async function mockApi(page: Page): Promise<string[]> {
   const unmocked: string[] = [];
@@ -161,11 +165,13 @@ async function mockApi(page: Page): Promise<string[]> {
       if (path === '/documents') return json([documentFixture]);
       if (path === '/documents/highlights/summary') return json([]);
       if (path === '/pinboards') return json([]);
+      // SOURCE-TRACE-WIRE: "Show source" on /interpret reads the document's file name.
+      if (path === `/documents/${DOCUMENT_ID}`) return json(documentFixture);
       if (path === `/documents/${DOCUMENT_ID}/entities`) return json([]);
       if (path === `/documents/${DOCUMENT_ID}/pages`) {
         return json([
           { page_number: 1, text: '', has_tables: false },
-          { page_number: 3, text: '', has_tables: false },
+          { page_number: 3, text: PAGE_THREE_TEXT, has_tables: false },
         ]);
       }
       if (/^\/documents\/[^/]+\/pages\/\d+\/image$/.test(path)) {
@@ -646,6 +652,32 @@ test('HC-UIPV-007 waitForSettled needs six fresh frames on every call', async ({
   const framesAfterReadd = result.total - (result.atReadd ?? result.total);
   console.log(`HC-UIPV-007 case2 framesAfterReadd=${framesAfterReadd}`);
   expect(framesAfterReadd, 'frames elapsed after the element came back').toBeGreaterThanOrEqual(6);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-005 (SOURCE-TRACE-WIRE): "Show source" on /interpret opens the Source Trace
+// sheet with the file, the page and the matching line from the report.
+// ---------------------------------------------------------------------------
+test('HC-STW-005 Show source on /interpret opens the Source Trace sheet with the file, the page and the matching line', async ({
+  page,
+}) => {
+  const unmocked = await mockApi(page);
+  await seedSession(page);
+  await page.goto('/interpret');
+
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible();
+  await showSource.click();
+
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('provenance-report.pdf');
+  await expect(sheet).toContainText('Page 3');
+  const matchRow = sheet.locator('li', { hasText: 'Matching line:' });
+  await expect(matchRow).toHaveCount(1);
+  await expect(matchRow).toContainText(PAGE_THREE_MATCH_LINE);
+  await expect(sheet).toContainText('This is what your report states.');
+  expect(unmocked, 'every API request was mocked').toEqual([]);
 });
 
 // ---------------------------------------------------------------------------
