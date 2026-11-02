@@ -23,6 +23,8 @@ import {
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { ShowcaseReveal } from '@/components/ui/ShowcaseReveal';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { duration, ease } from '@/motion/tokens';
+import { cn } from '@/utils/cn';
 import { useCreateProfile, useLogin, useProfiles } from '@/services';
 import { ApiError } from '@/services/api';
 import { takeRestoreNotice } from '@/services/backup';
@@ -79,12 +81,12 @@ function validatePassword(password: string): {
  * 8 px in 240 ms (opacity only, 150 ms, under reduced motion) onto the shell.
  *
  * /setup sits outside the shell and navigate must stay immediate, so the panel cannot animate itself: it is
- * unmounted with the route. A detached ghost takes its place for the length of the animation: a fixed, inert,
- * aria-hidden empty card surface with the panel's rect, appended to <body> and removed when the animation ends.
- * It holds no form control and no text, so the password can never reach it. The ghost is added in the same
- * commit that removes the page, so the shell is already there beneath it. (The panel itself goes earlier, when
- * the cache clear empties the profile list, so the page root is what is watched.) Presentation only: it never
- * throws and never delays navigate.
+ * unmounted with the route. The panel stays on screen (inert) from the unlock until then, and a detached ghost
+ * takes its place for the length of the animation: a fixed, inert, aria-hidden empty card surface with the
+ * panel's rect, appended to <body> and removed when the animation ends. It holds no form control and no text, so
+ * the password can never reach it. The ghost is added in the same commit that removes the page, so the shell is
+ * already there beneath it. It sits at z-20, under the Safety Rail (z-30) and the bars (z-40), so it never covers
+ * what must stay visible. Presentation only: it never throws and never delays navigate.
  */
 function startLift(panel: HTMLElement | null, reduced: boolean): void {
   try {
@@ -92,35 +94,44 @@ function startLift(panel: HTMLElement | null, reduced: boolean): void {
     const rect = panel.getBoundingClientRect();
 
     const lift = () => {
-      const ghost = document.createElement('div');
-      ghost.setAttribute('data-lift-ghost', '');
-      ghost.setAttribute('aria-hidden', 'true');
-      Object.assign(ghost.style, {
-        position: 'fixed',
-        top: `${rect.top}px`,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        pointerEvents: 'none',
-        zIndex: '60',
-        borderRadius: '16px',
-        background: 'var(--surface-1)',
-        boxShadow: 'var(--shadow-card)',
-      });
-      if (typeof ghost.animate !== 'function') return;
-      document.body.appendChild(ghost);
-      const animation = ghost.animate(
-        reduced
-          ? [{ opacity: '1' }, { opacity: '0' }]
-          : [
-              { opacity: '1', transform: 'translateY(0)' },
-              { opacity: '0', transform: 'translateY(-8px)' },
-            ],
-        { duration: reduced ? 150 : 240, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' }
-      );
-      const remove = () => ghost.remove();
-      animation.onfinish = remove;
-      animation.oncancel = remove;
+      let ghost: HTMLDivElement | null = null;
+      try {
+        if (typeof Element.prototype.animate !== 'function') return;
+        ghost = document.createElement('div');
+        ghost.setAttribute('data-lift-ghost', '');
+        ghost.setAttribute('aria-hidden', 'true');
+        // The plain Card surface (border, no shadow: plan E1).
+        ghost.className = 'rounded-2xl border border-black/4 bg-surface-elevated';
+        Object.assign(ghost.style, {
+          position: 'fixed',
+          top: `${rect.top}px`,
+          left: `${rect.left}px`,
+          width: `${rect.width}px`,
+          height: `${rect.height}px`,
+          pointerEvents: 'none',
+          zIndex: '20',
+        });
+        document.body.appendChild(ghost);
+        const animation = ghost.animate(
+          reduced
+            ? [{ opacity: '1' }, { opacity: '0' }]
+            : [
+                { opacity: '1', transform: 'translateY(0)' },
+                { opacity: '0', transform: 'translateY(-8px)' },
+              ],
+          {
+            duration: (reduced ? duration.hover : duration.md) * 1000,
+            easing: `cubic-bezier(${ease.out.join(', ')})`,
+            fill: 'forwards',
+          }
+        );
+        const remove = () => ghost?.remove();
+        animation.onfinish = remove;
+        animation.oncancel = remove;
+      } catch {
+        // The Lift is decoration: never leave an opaque surface behind.
+        ghost?.remove();
+      }
     };
 
     // Start when the page leaves the document. If it never does (navigation did not happen), nothing is drawn.
@@ -171,8 +182,18 @@ export function ProfileSetup() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
+  // Presentation only: the profile list as it was when the unlock succeeded. queryClient.clear() empties the
+  // list until it is fetched again, and the card must not blank out before the route commits (the Lift).
+  const leavingProfilesRef = useRef<typeof profiles>(undefined);
+  const leavingProfiles = leavingProfilesRef.current;
+  const unlockProfiles = leavingProfiles ?? profiles;
   const unlockProfileId =
-    profiles?.find((p) => p.id === selectedProfileId)?.id ?? profiles?.[0]?.id;
+    unlockProfiles?.find((p) => p.id === selectedProfileId)?.id ?? unlockProfiles?.[0]?.id;
+
+  const beginLift = () => {
+    leavingProfilesRef.current = profiles;
+    startLift(unlockPanelRef.current, prefersReducedMotion);
+  };
 
   const handleUnlock = async () => {
     if (!unlockProfileId) return;
@@ -192,7 +213,7 @@ export function ProfileSetup() {
       // Nothing cached under a previous profile's session may be shown to
       // this one.
       queryClient.clear();
-      startLift(unlockPanelRef.current, prefersReducedMotion);
+      beginLift();
       navigate('/inbox');
     } catch (err) {
       login.reset();
@@ -339,8 +360,13 @@ export function ProfileSetup() {
           </CardContent>
         </Card>
 
-        {hasProfiles && !isCreating && (
-          <Card ref={unlockPanelRef} className="mb-6">
+        {(hasProfiles || leavingProfiles) && !isCreating && (
+          <Card
+            ref={unlockPanelRef}
+            className="mb-6"
+            // Once unlocked the card only waits to be lifted away: no focus, no input.
+            {...(leavingProfiles ? { inert: '' } : {})}
+          >
             <CardContent className="p-6 space-y-4">
               <h2 className="font-display text-xl font-semibold text-ink">
                 Unlock your profile
@@ -365,7 +391,7 @@ export function ProfileSetup() {
                     onChange={(e) => setSelectedProfileId(e.target.value)}
                     className="h-11 w-full rounded-xl border border-[var(--line-strong)] bg-surface-elevated px-4 py-2 text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:border-accent"
                   >
-                    {profiles!.map((p) => (
+                    {unlockProfiles!.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.display_name}
                       </option>
@@ -447,6 +473,7 @@ export function ProfileSetup() {
                             }
                           }}
                           autoComplete="name"
+                          disabled={isCreating}
                           aria-invalid={formErrors.displayName ? true : undefined}
                           aria-describedby={
                             formErrors.displayName ? 'profile-name-error' : undefined
@@ -465,13 +492,16 @@ export function ProfileSetup() {
                           onChange={(e) => {
                             const value = e.target.value;
                             setPassword(value);
-                            if (validatePassword(value).isValid) {
+                            // A submit-time message ("Password is required", a rule list) goes stale on the first
+                            // keystroke; the live hints below take over. Nothing is added here.
+                            if (value) {
                               setFormErrors((prev) =>
                                 prev.password ? { ...prev, password: undefined } : prev
                               );
                             }
                           }}
                           autoComplete="new-password"
+                          disabled={isCreating}
                           aria-invalid={formErrors.password ? true : undefined}
                           aria-describedby={
                             formErrors.password ? 'profile-password-error' : undefined
@@ -481,6 +511,7 @@ export function ProfileSetup() {
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
+                          disabled={isCreating}
                           className="absolute right-2 top-[32px] flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink transition-colors"
                           aria-label={showPassword ? 'Hide password' : 'Show password'}
                         >
@@ -552,7 +583,9 @@ export function ProfileSetup() {
 
                 {/* SEC-RECOV-001: the way back in for an existing profile
                     whose password has been forgotten. */}
-                <p className="text-center text-sm text-ink-secondary">
+                {/* Hidden (not removed) while the request runs: leaving now would lose the one-time code, and
+                    removing the line would move the card. */}
+                <p className={cn('text-center text-sm text-ink-secondary', isCreating && 'invisible')}>
                   Already have a profile and forgot the password?{' '}
                   <Link to="/recover" className="text-ink underline underline-offset-4">
                     Use your recovery code
@@ -562,7 +595,11 @@ export function ProfileSetup() {
             </Card>
 
             {error && (
-              <div className="mt-4 p-4 bg-status-critical/10 border border-status-critical/20 rounded-xl flex items-start gap-3">
+              <div
+                role="alert"
+                data-t0=""
+                className="mt-4 p-4 bg-status-critical/10 border border-status-critical/20 rounded-xl flex items-start gap-3"
+              >
                 <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-status-critical">

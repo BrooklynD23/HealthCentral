@@ -84,10 +84,6 @@ export function RecoverProfile() {
         <Card>
           <CardHeader>
             <CardTitle>Recover your profile</CardTitle>
-            <p className="text-sm text-ink-secondary">
-              Use the recovery code you saved when you made this profile to
-              choose a new password.
-            </p>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -109,6 +105,9 @@ export function RecoverProfile() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
+                <p className="text-sm text-ink-secondary">
+                  Use your saved recovery code to choose a new password.
+                </p>
                 <div>
                   <label
                     htmlFor="recover-profile"
@@ -141,9 +140,6 @@ export function RecoverProfile() {
                   autoComplete="off"
                   hint="Spacing and capitalisation don't matter."
                   className="font-mono"
-                  {...(error
-                    ? { 'aria-invalid': true, 'aria-describedby': 'recover-code-hint recover-error' }
-                    : {})}
                 />
 
                 <Input
