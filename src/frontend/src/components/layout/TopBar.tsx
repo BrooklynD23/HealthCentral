@@ -39,6 +39,7 @@ export function TopBar() {
       <Link
         to="/search"
         aria-label="Search"
+        data-palette-trigger=""
         className="ml-auto inline-flex min-h-target min-w-target items-center justify-center rounded-xl border border-border bg-surface-elevated text-ink hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden lg:hidden"
       >
         <Search className="h-5 w-5" aria-hidden="true" />

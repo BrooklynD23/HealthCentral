@@ -7,7 +7,7 @@ import { useSearch, type SearchRecordType } from '@/services/search';
 import type { Observation } from '@/services/types';
 import { useAuthStore } from '@/stores/authStore';
 import { navGroups } from './navConfig';
-import { closePalette, PALETTE_TRIGGER_SELECTOR, usePaletteOpen } from './paletteEvents';
+import { closePalette, PALETTE_TRIGGER_SELECTOR, usePaletteOpen, usePaletteSession } from './paletteEvents';
 
 /**
  * The command palette (plan §3.3, UI-PALETTE). Lazy: AppLayout fetches this chunk on the first open.
@@ -21,11 +21,17 @@ import { closePalette, PALETTE_TRIGGER_SELECTOR, usePaletteOpen } from './palett
  * (L0 ruling 6573186885). So this is a WAI-ARIA combobox and listbox on the Radix Dialog. The active option is derived
  * on every render from the visible options (the stored choice if it is still visible, else the first), and the input's
  * `aria-activedescendant` is that option's id, so it can only name a rendered option and is absent when there are none.
+ *
+ * The body (state, the observations and the record search) is a child of the dialog, so it mounts on each open and
+ * unmounts after the close. A closed palette then holds no live query for a focus refetch to re-run (each /search and
+ * /observations call writes an audit row), and a reopened one starts with an empty query.
  */
 
 const DEBOUNCE_MS = 150;
 const MAX_RESULTS = 8;
 const MAX_RECORDS = 5;
+/** The /search route refuses a longer q with a 422 (api/search.py). */
+const MAX_QUERY_LENGTH = 200;
 
 interface Entry {
   /** Unique across the palette; the key of the selection. */
@@ -90,6 +96,52 @@ function matchesQuery(entry: Entry, words: string[]): boolean {
 
 export default function CommandPalette() {
   const open = usePaletteOpen();
+  const session = usePaletteSession();
+
+  // Focus returns to where the palette was opened from. Below lg the header button is hidden, so the phone search
+  // link stands in: take the trigger that is rendered.
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useLayoutEffect(() => {
+    if (open && !wasOpen.current) {
+      const focused = document.activeElement;
+      opener.current = focused instanceof HTMLElement && focused !== document.body ? focused : null;
+    }
+    if (!open && wasOpen.current) {
+      const triggers = Array.from(document.querySelectorAll<HTMLElement>(PALETTE_TRIGGER_SELECTOR));
+      const target = opener.current?.isConnected
+        ? opener.current
+        : (triggers.find((el) => el.getClientRects().length > 0) ?? triggers[0]);
+      // After Radix's own unmount work, which would otherwise win (DoseLoggingModal does the same).
+      window.setTimeout(() => target?.focus(), 0);
+    }
+    wasOpen.current = open;
+  }, [open]);
+
+  return (
+    <Modal
+      name="CommandPalette"
+      variant="dialog"
+      still
+      showClose={false}
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) closePalette();
+      }}
+      title={<span className="sr-only">Command palette</span>}
+      description={<span className="sr-only">Type to find a result, a page or an action. Enter on text searches your records.</span>}
+      className="top-[12vh] max-w-xl translate-y-0 overflow-hidden p-0"
+    >
+      {/* Modal puts mt-4 between its (screen-reader only) header and the content; cancel it so the input sits at the top. */}
+      <div className="-mt-4">
+        <PaletteBody key={session} />
+      </div>
+    </Modal>
+  );
+}
+
+function PaletteBody() {
+  const open = usePaletteOpen();
   const navigate = useNavigate();
   const { profileId } = useAuthStore();
   const { data: observations } = useObservations({ profile_id: profileId || '' });
@@ -99,7 +151,7 @@ export default function CommandPalette() {
   const listId = useId();
   const trimmed = query.trim();
   const debounced = useDebounced(trimmed, DEBOUNCE_MS);
-  // A closed palette keeps no live query: a stale refetch would write a search.view audit row nobody asked for.
+  // Closing stops the query at once, even while the dialog is held for its exit: a refetch would write a search.view audit row.
   const { data: found } = useSearch({ q: open ? debounced : '', limit: MAX_RECORDS });
 
   const groups = useMemo<Group[]>(() => {
@@ -192,26 +244,6 @@ export default function CommandPalette() {
     if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: 'nearest' });
   }, [activeId]);
 
-  // Focus returns to where the palette was opened from (the header trigger when it was opened from the page body).
-  const opener = useRef<HTMLElement | null>(null);
-  const wasOpen = useRef(false);
-  useLayoutEffect(() => {
-    if (open && !wasOpen.current) {
-      const active = document.activeElement;
-      opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
-      setQuery('');
-      setChosen('');
-    }
-    if (!open && wasOpen.current) {
-      const target = opener.current?.isConnected
-        ? opener.current
-        : document.querySelector<HTMLElement>(PALETTE_TRIGGER_SELECTOR);
-      // After Radix's own unmount work, which would otherwise win (DoseLoggingModal does the same).
-      window.setTimeout(() => target?.focus(), 0);
-    }
-    wasOpen.current = open;
-  }, [open]);
-
   const run = (entry: Entry) => {
     entry.run(navigate);
     closePalette();
@@ -239,21 +271,7 @@ export default function CommandPalette() {
   };
 
   return (
-    <Modal
-      name="CommandPalette"
-      variant="dialog"
-      still
-      showClose={false}
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) closePalette();
-      }}
-      title={<span className="sr-only">Command palette</span>}
-      description={<span className="sr-only">Type to find a result, a page or an action. Enter on text searches your records.</span>}
-      className="top-[12vh] max-w-xl translate-y-0 overflow-hidden p-0"
-    >
-      {/* Modal puts mt-4 between its (screen-reader only) header and the content; cancel it so the input sits at the top. */}
-      <div className="-mt-4">
+    <>
       <input
         role="combobox"
         aria-label="Search results, pages and records"
@@ -264,6 +282,7 @@ export default function CommandPalette() {
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}
+        maxLength={MAX_QUERY_LENGTH}
         value={query}
         onChange={(event) => changeQuery(event.target.value)}
         onKeyDown={onKeyDown}
@@ -302,7 +321,10 @@ export default function CommandPalette() {
                   <Icon className="h-4 w-4 shrink-0 text-ink-secondary" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{entry.label}</span>
                   {entry.detail ? (
-                    <span data-t0="" className="shrink-0 tabular-nums text-ink-secondary">
+                    <span
+                      data-t0=""
+                      className="max-w-[50%] text-right tabular-nums text-ink-secondary [overflow-wrap:anywhere]"
+                    >
                       {entry.detail}
                     </span>
                   ) : null}
@@ -318,7 +340,6 @@ export default function CommandPalette() {
           </div>
         ))}
       </div>
-      </div>
-    </Modal>
+    </>
   );
 }

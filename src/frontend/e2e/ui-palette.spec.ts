@@ -86,11 +86,11 @@ function describeViolation(v: AxeViolation): string {
 }
 
 /** Opens the app with the mock API, the observations and the search answer the palette reads. */
-async function openApp(page: Page, route = '/inbox') {
+async function openApp(page: Page, route = '/inbox', observations: Observation[] = OBSERVATIONS) {
   const mock = await installMockApi(page);
   await page.route(/\/api\/v1\/observations\/?(\?.*)?$/, (route) =>
     route.request().method() === 'GET'
-      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(OBSERVATIONS) })
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(observations) })
       : route.fallback()
   );
   await page.route(/\/api\/v1\/search\/?(\?.*)?$/, (route) =>
@@ -330,6 +330,76 @@ test.describe('UI-PALETTE', () => {
     expect(report.nodes).toBeGreaterThan(0);
   });
 
+  test('the palette chunk is fetched on the first open, not before', async ({ page }) => {
+    const chunk: string[] = [];
+    page.on('request', (request) => {
+      if (/CommandPalette/.test(new URL(request.url()).pathname)) chunk.push(request.url());
+    });
+    await openApp(page);
+    await page.locator('main').click({ position: { x: 5, y: 5 } });
+    expect(chunk, 'no CommandPalette request while the app is idle').toEqual([]);
+    await openWithKeys(page);
+    await expect.poll(() => chunk.length, { message: 'the first open fetches it' }).toBeGreaterThan(0);
+  });
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`a 255-character value keeps the analyte name and the unverified mark inside the list at ${viewport.width}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const long = observation({
+        id: 'long1',
+        analyte_canonical: 'long_result',
+        analyte_raw: 'Long Result',
+        value: null,
+        value_text: 'W'.repeat(255),
+        unit: null,
+        user_verified: false,
+      });
+      await openApp(page, '/timeline', [long]);
+      await openWithKeys(page);
+      await input(page).pressSequentially('long result');
+      const row = dialog(page).getByRole('option', { name: /Long Result/ });
+      await expect(row).toBeVisible();
+      const m = await row.evaluate((option) => {
+        const list = option.closest('[role="listbox"]') as HTMLElement;
+        const listBox = list.getBoundingClientRect();
+        const [name, value] = Array.from(option.querySelectorAll('span'));
+        const nameBox = name.getBoundingClientRect();
+        const valueBox = value.getBoundingClientRect();
+        return {
+          nameWidth: nameBox.width,
+          nameTruncated: name.scrollWidth > name.clientWidth,
+          valueRight: valueBox.right,
+          valueLeft: valueBox.left,
+          listLeft: listBox.left,
+          listRight: listBox.right,
+          valueText: value.textContent ?? '',
+          rowOverflow: option.scrollWidth - option.clientWidth,
+          listOverflow: list.scrollWidth - list.clientWidth,
+        };
+      });
+      expect(m.nameWidth, 'the analyte name keeps room').toBeGreaterThanOrEqual(60);
+      expect(m.nameTruncated, 'the name "Long Result" is not cut').toBe(false);
+      expect(m.valueLeft).toBeGreaterThanOrEqual(m.listLeft);
+      expect(m.valueRight, 'the value wraps inside the list').toBeLessThanOrEqual(m.listRight);
+      expect(m.rowOverflow).toBeLessThanOrEqual(0);
+      expect(m.listOverflow).toBeLessThanOrEqual(0);
+      expect(m.valueText.endsWith('(unverified)'), 'the D4 mark is in the same text as the value').toBe(true);
+      const scroll = await noHorizontalScroll(page);
+      expect(scroll.ok, `scrollWidth ${scroll.scrollWidth} > innerWidth ${scroll.innerWidth}`).toBe(true);
+    });
+  }
+
+  test('HC-UIPAL-004: below lg Escape returns focus to the phone search link (the header button is hidden)', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await openApp(page, '/timeline');
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+    await openWithKeys(page);
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(page.getByRole('banner').getByRole('link', { name: 'Search' })).toBeFocused();
+  });
+
   for (const viewport of [PHONE, SMALL_PHONE]) {
     test(`G6: no horizontal scroll with the palette open at ${viewport.width}`, async ({ page }) => {
       await page.setViewportSize(viewport);
@@ -381,16 +451,21 @@ test.describe('UI-PALETTE', () => {
     expect(inp).toBeLessThan(200);
   });
 
-  test('G5 (quiet box): with reduced motion no element has a transform while the palette is open, typed in and moved through', async ({ page }) => {
+  test('G5 (quiet box): with reduced motion no element has a transform after the palette opens, after typing and after moving', async ({ page }) => {
     await openApp(page);
-    const offenders = await reducedMotionSnapshot(page, async () => {
+    // One snapshot per interaction (the plan's "after each interaction"), each taken 50 ms after its own action.
+    const open = await reducedMotionSnapshot(page, async () => {
       await page.keyboard.press('Control+K');
       await expect(dialog(page)).toBeVisible({ timeout: 15_000 });
+    });
+    const typed = await reducedMotionSnapshot(page, async () => {
       await input(page).pressSequentially('chol');
       await expect(dialog(page).getByRole('option', { name: /LDL Cholesterol/ })).toBeVisible();
+    });
+    const moved = await reducedMotionSnapshot(page, async () => {
       await page.keyboard.press('ArrowDown');
     });
     // The Dialog centres with a translate property, which is not a transform; anything listed here is motion.
-    expect(offenders).toEqual([]);
+    expect({ open, typed, moved }).toEqual({ open: [], typed: [], moved: [] });
   });
 });

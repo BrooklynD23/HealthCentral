@@ -6,11 +6,13 @@ import { createElement, Fragment, useEffect, useSyncExternalStore, type ReactNod
  * QueryClient, so TopBar can import it on its own.
  */
 
-/** The header button that opens the palette. Escape and Enter return focus to it (TopBar sets the attribute). */
+/** The header button (desktop) or search link (phone) the palette returns focus to. TopBar sets the attribute on both. */
 export const PALETTE_TRIGGER_SELECTOR = '[data-palette-trigger]';
 
 let isOpen = false;
 let hasOpened = false;
+/** Counts opens, so the palette body can start fresh on each one (even a reopen inside the close hold). */
+let openCount = 0;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -28,6 +30,7 @@ export function openPalette() {
   if (isOpen) return;
   isOpen = true;
   hasOpened = true;
+  openCount += 1;
   emit();
 }
 
@@ -37,8 +40,21 @@ export function closePalette() {
   emit();
 }
 
+/** The open state and keys belong to the shell: when the shell unmounts, the next one starts closed and unfetched. */
+function resetPalette() {
+  if (!isOpen && !hasOpened) return;
+  isOpen = false;
+  hasOpened = false;
+  emit();
+}
+
 export function usePaletteOpen(): boolean {
   return useSyncExternalStore(subscribe, () => isOpen, () => false);
+}
+
+/** Changes on every open. */
+export function usePaletteSession(): number {
+  return useSyncExternalStore(subscribe, () => openCount, () => 0);
 }
 
 /** Renders its children only after the first open, so a lazy palette inside it is not fetched before then. */
@@ -78,6 +94,9 @@ export function usePaletteShortcuts() {
       }
     };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      resetPalette();
+    };
   }, []);
 }
