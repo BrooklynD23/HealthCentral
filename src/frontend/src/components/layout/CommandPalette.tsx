@@ -58,6 +58,9 @@ const RECORD_LINK: Record<SearchRecordType, { icon: LucideIcon; to: string; kind
   observation: { icon: FlaskConical, to: '/trends', kind: 'Observation' },
 };
 
+/** /trends names its analyte with ?analyte= (the page reads it; without it the chart is the first analyte's). */
+const trendsFor = (analyte: string) => `/trends?${new URLSearchParams({ analyte }).toString()}`;
+
 /** The most recent observation of each analyte, newest date first (an undated one counts as oldest). */
 function latestByAnalyte(observations: Observation[] | undefined): Observation[] {
   const latest = new Map<string, Observation>();
@@ -165,7 +168,7 @@ function PaletteBody() {
         keywords: [obs.analyte_canonical, 'result', 'lab'],
         icon: FlaskConical,
         detail: formatLatest(obs),
-        run: (go: typeof navigate) => go(`/trends?${new URLSearchParams({ analyte: obs.analyte_canonical }).toString()}`),
+        run: (go: typeof navigate) => go(trendsFor(obs.analyte_canonical)),
       }))
       .filter(matches)
       .slice(0, MAX_RESULTS);
@@ -210,13 +213,15 @@ function PaletteBody() {
       if (debounced === trimmed) {
         for (const hit of found?.results ?? []) {
           const meta = RECORD_LINK[hit.type];
+          // An observation hit's id is the observation's id: open that analyte's chart, or plain /trends if it is not in the list.
+          const analyte = hit.type === 'observation' ? observations?.find((obs) => obs.id === hit.id)?.analyte_canonical : undefined;
           records.push({
             value: `record:${hit.type}:${hit.id}`,
             label: hit.title,
             keywords: [],
             icon: meta.icon,
             unverified: hit.verified_status === 'unverified',
-            run: (go: typeof navigate) => go(meta.to),
+            run: (go: typeof navigate) => go(analyte ? trendsFor(analyte) : meta.to),
           });
         }
       }
