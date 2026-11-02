@@ -107,6 +107,28 @@ const answerWithCitations = {
   turn_id: 'turn-1',
 };
 
+/** The record behind obs-1 as GET /observations returns it. */
+const hemoglobinObservation = {
+  id: 'obs-1',
+  profile_id: 'profile-123',
+  doc_id: 'doc-1',
+  analyte_canonical: 'hemoglobin',
+  analyte_raw: 'Hemoglobin',
+  value: 14.2,
+  value_text: null,
+  unit: 'g/dL',
+  ref_low: 13.5,
+  ref_high: 17.5,
+  ref_range_text: null,
+  flag: null,
+  is_abnormal: false,
+  collected_at: '2026-03-14',
+  user_verified: true,
+  extraction_confidence: 0.92,
+  source_page: 2,
+  source_bbox_json: null,
+};
+
 async function sendQuestion(user: ReturnType<typeof userEvent.setup>, text: string) {
   await user.type(screen.getByPlaceholderText('Ask about your results...'), text);
   await user.click(screen.getByRole('button', { name: 'Send question' }));
@@ -261,7 +283,7 @@ describe('UI-PG-ASK', () => {
       const answer = await screen.findByText(/hemoglobin level is 14.2/);
 
       expect(answer.closest('[data-t0]'), 'the answer text').not.toBeNull();
-      const chips = screen.getAllByRole('button', { name: /^\[\d\]/ });
+      const chips = screen.getAllByRole('button', { name: /^Citation \d/ });
       expect(chips).toHaveLength(2);
       for (const chip of chips) expect(chip.querySelector('[data-t0]') ?? chip.closest('[data-t0]'), chip.textContent ?? '').not.toBeNull();
       expect(screen.getByText(/does not provide medical advice/i).closest('[data-t0]'), 'the disclaimer').not.toBeNull();
@@ -285,7 +307,7 @@ describe('UI-PG-ASK', () => {
       const list = screen.getByRole('log', { name: 'Conversation' });
 
       expect(inlineMotionOnPath(answer, list)).toEqual([]);
-      for (const chip of screen.getAllByRole('button', { name: /^\[\d\]/ })) {
+      for (const chip of screen.getAllByRole('button', { name: /^Citation \d/ })) {
         expect(inlineMotionOnPath(chip, list)).toEqual([]);
       }
     });
@@ -325,32 +347,171 @@ describe('UI-PG-ASK', () => {
     });
 
     // Blind spot: a Radix popover in jsdom has no collision handling; position is not asserted.
-    it('a citation chip opens a popover with the quote, and a deep link when the citation has one', async () => {
+    it('a citation chip is the UI-PROVENANCE CitationTooltip: it opens the quote, and "Open source" opens the trace sheet', async () => {
       const user = userEvent.setup();
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => (url === '/observations/' ? [hemoglobinObservation] : []));
       vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithCitations);
       renderAsk();
       await sendQuestion(user, 'Test question');
       await screen.findByText(/hemoglobin level is 14.2/);
 
-      await user.click(screen.getByRole('button', { name: /^\[1\] Quest Lab Report/ }));
-      const dialog = await screen.findByRole('dialog', { name: /Source 1/ });
+      await user.click(await screen.findByRole('button', { name: /^Citation 1:/ }));
+      const dialog = await screen.findByRole('dialog', { name: 'Citation 1' });
       expect(within(dialog).getByText(/Hemoglobin: 14\.2 g\/dL \(13\.5-17\.5\)/)).toBeInTheDocument();
+      expect(within(dialog).getByText('Page 2')).toBeInTheDocument();
 
-      await user.click(within(dialog).getByRole('button', { name: 'Show in source document' }));
-      expect(await screen.findByTestId('location')).toHaveTextContent('/verify?observation=obs-1&doc=doc-1&page=2');
+      await user.click(within(dialog).getByRole('button', { name: 'Open source' }));
+      expect(await screen.findByRole('dialog', { name: 'Source for Hemoglobin' })).toBeInTheDocument();
     });
 
-    it('a citation with no source region opens the quote but offers no link (CITE-SRC-001)', async () => {
+    it('a citation with no observation behind it opens the quote but offers no "Open source"', async () => {
       const user = userEvent.setup();
       vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithCitations);
       renderAsk();
       await sendQuestion(user, 'Test question');
       await screen.findByText(/hemoglobin level is 14.2/);
 
-      await user.click(screen.getByRole('button', { name: /^\[2\] Medical Reference/ }));
-      const dialog = await screen.findByRole('dialog', { name: /Source 2/ });
+      await user.click(screen.getByRole('button', { name: /^Citation 2:/ }));
+      const dialog = await screen.findByRole('dialog', { name: 'Citation 2' });
       expect(within(dialog).getByText(/oxygen-carrying protein/)).toBeInTheDocument();
-      expect(within(dialog).queryByRole('button', { name: 'Show in source document' })).toBeNull();
+      expect(within(dialog).queryByRole('button', { name: 'Open source' })).toBeNull();
+    });
+
+    it('the source name stays visible next to the chip', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithCitations);
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/hemoglobin level is 14.2/);
+      expect(screen.getByText(/Quest Lab Report/)).toBeInTheDocument();
+      expect(screen.getByText(/Medical Reference/)).toBeInTheDocument();
+    });
+
+    it('a citation whose observation is not in the loaded list keeps its CITE-SRC-001 deep link', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithCitations);
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/hemoglobin level is 14.2/);
+
+      // obs-1 is not in the (empty) observation list, so there is nothing to trace: the chip goes to the workbench.
+      await user.click(screen.getByRole('button', { name: /^\[1\] Quest Lab Report/ }));
+      expect(await screen.findByTestId('location')).toHaveTextContent('/verify?observation=obs-1&doc=doc-1&page=2');
+    });
+  });
+
+  // Recurring failure #1: every test above mocks a real sentence as text_snippet. The default agent path
+  // (AGENT_ENABLED_DEFAULT) does not: be/api/assistant.py `_to_api_citation` sets text_snippet = locator or source_id,
+  // and the locator is a row id (modules/agent/nodes/draft.py, graph.py). These are the shapes it really emits.
+  describe('UI-PG-ASK: citations in the shape the default agent path sends', () => {
+    const OBS_ID = '7b0e6a52-3c1d-4f0a-9d2e-5a1f0c9b8e11';
+    const TASK_ID = 'c41d9a08-77b2-4e5f-8a63-0d2b9e7f4a10';
+    const DOC_ID = '0f9e8d7c-6b5a-4c3d-9e2f-1a0b9c8d7e6f';
+    const ENTITY_ID = '5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a';
+    const agentObservation = {
+      source_type: 'user_document', doc_id: null, doc_title: null, page: null,
+      observation_id: OBS_ID, entity_id: null, text_snippet: OBS_ID, relevance_score: 1.0,
+    };
+    const agentTask = {
+      source_type: 'user_document', doc_id: null, doc_title: null, page: null,
+      observation_id: null, entity_id: null, text_snippet: TASK_ID, relevance_score: 1.0,
+    };
+    const agentEntity = {
+      source_type: 'user_document', doc_id: DOC_ID, doc_title: null, page: null,
+      observation_id: null, entity_id: ENTITY_ID, text_snippet: DOC_ID, relevance_score: 1.0,
+    };
+    const agentAnswer = (citations: unknown[]) => ({
+      ...answerWithCitations,
+      segments: [{ segment_type: 'report_facts', content: 'Your hemoglobin is 14.2 g/dL.', citations }],
+      full_response: 'Your hemoglobin is 14.2 g/dL.',
+    });
+    const traced = { ...hemoglobinObservation, id: OBS_ID };
+
+    it('an observation citation shows the record, never its row id, and offers Open source', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => (url === '/observations/' ? [traced] : []));
+      vi.mocked(api.apiPost).mockResolvedValueOnce(agentAnswer([agentObservation]));
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/Your hemoglobin is 14.2/);
+
+      await user.click(await screen.findByRole('button', { name: /^Citation 1:/ }));
+      const dialog = await screen.findByRole('dialog', { name: 'Citation 1' });
+      expect(dialog).not.toHaveTextContent(OBS_ID);
+      expect(within(dialog).getByText(/Hemoglobin: 14\.2 g\/dL/)).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Open source' })).toBeInTheDocument();
+      expect(document.body).not.toHaveTextContent(OBS_ID);
+    });
+
+    it('a care-task citation has no quote and no target, so it is a plain label, not a chip', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce(agentAnswer([agentTask]));
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/Your hemoglobin is 14.2/);
+
+      const sources = screen.getByText('Sources:').parentElement as HTMLElement;
+      expect(within(sources).queryByRole('button')).toBeNull();
+      expect(sources).not.toHaveTextContent(TASK_ID);
+      expect(document.body).not.toHaveTextContent(TASK_ID);
+    });
+
+    it('an entity citation keeps its deep link and never shows the document id as a quote', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce(agentAnswer([agentEntity]));
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/Your hemoglobin is 14.2/);
+
+      const sources = screen.getByText('Sources:').parentElement as HTMLElement;
+      expect(sources).not.toHaveTextContent(DOC_ID);
+      await user.click(within(sources).getByRole('button'));
+      expect(await screen.findByTestId('location')).toHaveTextContent(`/verify?entity=${ENTITY_ID}&doc=${DOC_ID}`);
+    });
+
+    it('a chunk locator ("doc:page") is not shown as a quote either', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce(
+        agentAnswer([{ source_type: 'reference', doc_id: null, doc_title: null, page: null, observation_id: null, entity_id: null, text_snippet: `${DOC_ID}:3`, relevance_score: 1.0 }])
+      );
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/Your hemoglobin is 14.2/);
+      expect(document.body).not.toHaveTextContent(DOC_ID);
+      expect(within(screen.getByText('Sources:').parentElement as HTMLElement).queryByRole('button')).toBeNull();
+    });
+  });
+
+  describe('UI-PG-ASK: restored messages', () => {
+    // Blind spot: vitest sees only the first frame (no LazyMotion), so this proves a restored message does not start
+    // at M6's first frame. That a sent one finishes M6 is measured in e2e/ui-ask.spec.ts.
+    it('a restored patient message does not replay M6, a freshly sent one does', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => {
+        if (url === '/assistant/sessions') {
+          return { sessions: [{ session_id: 's1', title: null, turn_count: 2, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }] };
+        }
+        if (url === '/assistant/sessions/s1') {
+          return {
+            session_id: 's1',
+            title: null,
+            turns: [
+              { role: 'user', content: 'What was my A1C?', turn_id: 't1' },
+              { role: 'assistant', content: 'Your A1C restored answer', turn_id: 't2' },
+            ],
+          };
+        }
+        return [];
+      });
+      vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithCitations);
+      renderAsk();
+      const restored = (await screen.findByText('What was my A1C?')).closest('[data-role="user"]') as HTMLElement;
+      expect(restored.style.opacity).not.toBe('0.35');
+      expect(restored.style.transform).not.toMatch(/translateY\(6px\)/);
+
+      await sendQuestion(user, 'A fresh question');
+      const fresh = (await screen.findByText('A fresh question')).closest('[data-role="user"]') as HTMLElement;
+      expect(fresh.style.opacity).toBe('0.35');
     });
   });
 });
