@@ -322,6 +322,21 @@ test.describe('UI-PALETTE', () => {
     await expect(trigger(page)).toBeFocused();
   });
 
+  test('HC-UIPAL-004: a pick from a button in the page returns focus to the trigger once that page is gone', async ({ page }) => {
+    await openApp(page);
+    const pageButton = page.getByRole('main').getByRole('button').first();
+    await pageButton.focus();
+    await expect(pageButton).toBeFocused();
+    await page.keyboard.press('Control+K');
+    await expect(dialog(page)).toBeVisible({ timeout: 15_000 });
+    await input(page).pressSequentially('timeline');
+    await expect(dialog(page).getByRole('option', { name: /Timeline/ }).first()).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/timeline$/, { timeout: 15_000 });
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(trigger(page)).toBeFocused();
+  });
+
   test('HC-UIPAL-004: Enter on free text goes to /search?q=', async ({ page }) => {
     await openApp(page);
     await trigger(page).click();
@@ -447,11 +462,11 @@ test.describe('UI-PALETTE', () => {
   // tab (.bg-accent.text-white). ui-shell's G6 and G1 do not see it because the shell mock answers /observations with
   // [] (the empty state, no chart). UI-PG-RESULTS replaces the page.
   // These tests PASS BY ASSERTING THE KNOWN FAILURE, so a green report here is a recorded gate failure, not a pass.
-  // What they do NOT catch: the G6 pin passes at any overflow size (the figure depends on the fixture: 474 with this
-  // spec's, 436 with one analyte), the dark pin compares rule ids only (a new contrast defect passes) and runs at 1440
+  // What they do NOT catch: the G6 pin passes at any overflow size (the size varies with what the page shows: it is
+  // measured, not fixed), the dark pin compares rule ids only (a new contrast defect passes) and runs at 1440
   // only (at 390 the blocking nodes differ). L0 decides whether this row may carry the debt, and in which form
   // (test.fail with positive assertions, as ui-shell.spec.ts:1104 does). The chart assertion above each stays gating.
-  const TRENDS_DEBT = 'PRE-EXISTING on /trends (UI-PG-RESULTS replaces the page): if this now fails the debt is paid, so delete the inversion';
+  const TRENDS_DEBT = 'PRE-EXISTING on /trends (UI-PG-RESULTS replaces the page): if this now fails, either the debt is paid (G6 fits; dark has no violation) or, for dark, a different rule id is reported, which means the debt grew. Read the numbers and the rule ids before changing anything';
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
     test(`G6: /trends?analyte=ldl_cholesterol still overflows horizontally at ${viewport.width} (KNOWN FAILURE, pre-existing, pinned)`, async ({ page }) => {

@@ -100,7 +100,13 @@ function LocationProbe() {
   );
 }
 
-function renderShell(initialPath = '/inbox', gated = false) {
+/** A button that belongs to the page at /inbox and is gone on any other route (a stand-in for a button in a page's main). */
+function PageButton() {
+  const { pathname } = useLocation();
+  return pathname === '/inbox' ? <button type="button">Page action</button> : null;
+}
+
+function renderShell(initialPath = '/inbox', gated = false, withPageButton = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -112,6 +118,7 @@ function renderShell(initialPath = '/inbox', gated = false) {
               <>
                 <TopBar />
                 <input aria-label="Some field" />
+                {withPageButton && <PageButton />}
                 {gated ? (
                   <PaletteMount>
                     <CommandPalette />
@@ -321,6 +328,20 @@ describe('HC-UIPAL-004: Escape returns focus to the trigger, and Enter on free t
     await screen.findByRole('dialog', { name: 'Command palette' });
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it('a pick that leaves the page it was opened from returns focus to the header trigger, not <body>', async () => {
+    const user = userEvent.setup();
+    renderShell('/inbox', false, true);
+    const pageButton = screen.getByRole('button', { name: 'Page action' });
+    act(() => pageButton.focus());
+    expect(pageButton).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    await user.type(await screen.findByRole('combobox'), 'timeline{Enter}');
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/timeline$/));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.queryByRole('button', { name: 'Page action' }), 'the page it was opened from is gone').toBeNull();
     await waitFor(() => expect(trigger()).toHaveFocus());
   });
 
@@ -623,6 +644,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
     glucose: { title: 'GLUCOSE CHART', latest: 117 },
     ldl_cholesterol: { title: 'LDL CHART', latest: 143 },
     hdl_cholesterol: { title: 'HDL CHART', latest: 52 },
+    'a&g_ratio': { title: 'AG CHART', latest: 15 },
   };
   const trendFor = (analyte: string) => ({
     analyte_canonical: analyte,
@@ -654,14 +676,14 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
   /** Holds the observations answer until the test lets it go (for the "still loading" case). */
   let releaseObservations: (() => void) | null = null;
 
-  function renderTrends(initialPath: string, holdObservations = false, withPalette = false) {
+  function renderTrends(initialPath: string, holdObservations = false, withPalette = false, answer: Observation[] = OBSERVATIONS) {
     const gate = new Promise<void>((resolve) => {
       releaseObservations = resolve;
     });
     vi.mocked(apiGet).mockImplementation((async (path: string) => {
       if (path === '/observations/') {
         if (holdObservations) await gate;
-        return OBSERVATIONS;
+        return answer;
       }
       const trend = /^\/observations\/trends\/(.+)$/.exec(path);
       if (trend && TRENDS[trend[1]]) return trendFor(trend[1]);
@@ -817,6 +839,22 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
       await expectChartOf('ldl_cholesterol');
     });
 
+    it('k) before /observations answers the hit is not offered (it could only open the first analyte); once it does, it opens LDL', async () => {
+      observationHit('l1');
+      renderTrends('/trends', true, true);
+      const user = userEvent.setup();
+      act(() => openPalette());
+      await user.type(await screen.findByRole('combobox'), 'zzq');
+      const root = dialog();
+      await within(root).findByRole('option', { name: /Search records for/ });
+      await settle(300); // past the 150 ms debounce, where the hit would have rendered
+      expect(within(root).queryByRole('option', { name: /LDL Cholesterol/ })).toBeNull();
+      await act(async () => releaseObservations?.());
+      await user.click(await within(root).findByRole('option', { name: /LDL Cholesterol/ }));
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=ldl_cholesterol$/));
+      await expectChartOf('ldl_cholesterol');
+    });
+
     it('j) the hit\'s id matches no observation: plain /trends, the first analyte, no error', async () => {
       observationHit('not-an-observation');
       renderTrends('/trends', false, true);
@@ -826,5 +864,20 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
       expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends$/);
       await expectChartOf('glucose');
     });
+  });
+
+  it('l) a Results pick for an analyte with a reserved character: the URL is encoded and the chart is that analyte\'s', async () => {
+    const withAg = [
+      ...OBSERVATIONS,
+      observation({ id: 'ag1', analyte_canonical: 'a&g_ratio', analyte_raw: 'A&G Ratio', value: 14, unit: 'mg/dL', collected_at: '2026-04-10' }),
+    ];
+    renderTrends('/trends', false, true, withAg);
+    await expectChartOf('glucose');
+    const user = userEvent.setup();
+    act(() => openPalette());
+    await user.type(await screen.findByRole('combobox'), 'ratio');
+    await user.click(await within(dialog()).findByRole('option', { name: /A&G Ratio/ }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=a%26g_ratio$/));
+    await expectChartOf('a&g_ratio');
   });
 });
