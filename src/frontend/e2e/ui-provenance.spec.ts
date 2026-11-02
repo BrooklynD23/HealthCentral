@@ -594,6 +594,45 @@ test('HC-UIPV-006 the Source Trace sheet is still from its opening click (stilln
 });
 
 // ---------------------------------------------------------------------------
+// HC-STW-012 (SOURCE-TRACE-WIRE, review round 2): the same probe with a 51-character file name, at
+// the default 1280 px (the side sheet; below 1024 px the sheet is anchored to the bottom, so any
+// content that mounts below the rows moves them whatever the name is). The name arrives with the lazy document GET; if it wrapped, every row below it (Location,
+// Result, ...) would move down at that moment. The stored name is the uploaded file's name
+// (api/documents.py:450), so a long one is real. Only the document route is answered here; mockApi
+// is not edited. The excerpt lines are probed too, so it also goes red if the JetBrains Mono swap
+// moves them (rect [878,317.3,172.2,15] -> [878,316.3,171.6,17] without the early font load).
+// ---------------------------------------------------------------------------
+const LONG_SOURCE_NAME = 'quarterly-metabolic-panel-lab-report-final-2026.pdf';
+test('HC-STW-012 the Source Trace sheet stays still when the file name is long', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  await page.route(new RegExp(`/api/v1/documents/${DOCUMENT_ID}$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...documentFixture, source: LONG_SOURCE_NAME }),
+    })
+  );
+  await seedSession(page);
+  await page.goto('/interpret');
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible({ timeout: 20_000 });
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+  await showSource.scrollIntoViewIfNeeded();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  const report = await stillnessProbe(page, {
+    kind: 'overlay',
+    trigger: () => showSource.click(),
+    expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet.getByText(LONG_SOURCE_NAME)).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIPV-007: waitForSettled counts six fresh frames on every call. Its state used to live on
 // window across calls, so a second call on a replaced element returned on its first frame, and
 // frames counted before the element vanished survived its absence.
