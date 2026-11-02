@@ -710,10 +710,12 @@ export function ExplainAssistant() {
       <div className="flex min-w-0 flex-1 flex-col">
         {/* The card is as tall as the space between the shell's header and its Safety Rail / tab bar (AppLayout writes
             --shell-top-h and --shell-bottom-h), so the composer and the disclaimer under it are in view without a page
-            scroll and the message list is the only thing that scrolls. 2.5rem / 4rem: the main area's padding. */}
+            scroll and the message list is the only thing that scrolls. 2.5rem / 4rem: the main area's padding.
+            overflow-anchor: none keeps the browser from treating a node inside the list as the page's scroll anchor:
+            when the list scrolls itself to the newest message, the anchor moved and the page was scrolled to follow. */}
         <Card
           className={cn(
-            'flex flex-col overflow-hidden min-h-[28rem]',
+            'flex flex-col overflow-hidden min-h-[28rem] [overflow-anchor:none]',
             'h-[calc(100dvh-var(--shell-top-h,4rem)-var(--shell-bottom-h,3rem)-2.5rem)]',
             'lg:h-[calc(100dvh-var(--shell-top-h,4rem)-var(--shell-bottom-h,3rem)-4rem)]'
           )}
