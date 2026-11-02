@@ -19,6 +19,8 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Badge, EmptyState } f
 // thinking-orbs lazily: never import that library from this page (HC-UISK-004).
 import { AlertDialog } from '@/components/ui/AlertDialog';
 import { Sheet } from '@/components/ui/Sheet';
+import { BeamBorder } from '@/components/ui/BeamBorder';
+import { ThinkingOrb } from '@/components/ui/ThinkingOrb';
 import { cn } from '@/utils/cn';
 import {
   useDocuments,
@@ -84,6 +86,15 @@ export function DocumentInbox() {
   // Highlight chips for recent documents (HC-M16) — organizational tags only
   const { data: highlightSummary = [] } = useHighlightsSummary();
   const highlightsByDoc = new Map(highlightSummary.map((s) => [s.doc_id, s.counts]));
+
+  // A process counts as running only while its request is in flight. A stored status of 'pending' does not prove
+  // one (plan §2.6, S2), so the list is never read for this. There is no page index to report: POST
+  // /documents/import is one synchronous request, so the card names the document, not "page N of M".
+  const processingName: string | null = importDocument.isPending
+    ? (importDocument.variables?.file.name ?? 'document')
+    : reprocessDocument.isPending
+      ? (documents.find((d) => d.id === reprocessDocument.variables)?.source || 'document')
+      : null;
 
   const closePreview = () => setPreviewDocId(null);
 
@@ -227,15 +238,10 @@ export function DocumentInbox() {
             <div
               className={cn(
                 'w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-colors',
-                isDragging ? 'bg-accent text-white' : 'bg-surface-muted text-ink-secondary',
-                importDocument.isPending && 'animate-pulse'
+                isDragging ? 'bg-accent text-white' : 'bg-surface-muted text-ink-secondary'
               )}
             >
-              {importDocument.isPending ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
-                <Upload className="w-6 h-6" />
-              )}
+              <Upload className="w-6 h-6" />
             </div>
             <h3 className="font-medium text-ink mb-1">
               {importDocument.isPending 
@@ -315,6 +321,19 @@ export function DocumentInbox() {
                   {pagesWithoutTextNotice(lastImport.pages_without_text ?? [])}
                 </p>
               )}
+              {lastImport.observations_extracted > 0 && (
+                <p className="text-sm font-medium">
+                  <Link
+                    to={`/verify?doc=${lastImport.document.id}&mode=all`}
+                    data-t0
+                    data-inbox-handoff
+                    className="text-ink underline underline-offset-4 hover:text-accent-hover"
+                  >
+                    {lastImport.observations_extracted}{' '}
+                    {lastImport.observations_extracted === 1 ? 'value' : 'values'} ready to review
+                  </Link>
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={() => setPreviewDocId(lastImport.document.id)}>
@@ -367,6 +386,19 @@ export function DocumentInbox() {
           </CardContent>
         </Card>
       ))}
+
+      {/* After the handoff, so removing the card when the request ends cannot move the handoff. The alerts and
+          warnings above are never inside it (HC-UIDOC-004). */}
+      {processingName !== null && (
+        <BeamBorder active className="rounded-2xl">
+          <Card>
+            <CardContent className="py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <p className="min-w-0 break-words font-medium text-ink">{processingName}</p>
+              <ThinkingOrb size={20} status={`Reading ${processingName}`} />
+            </CardContent>
+          </Card>
+        </BeamBorder>
+      )}
 
       <Card>
         <CardHeader>
