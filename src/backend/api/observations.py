@@ -463,8 +463,13 @@ async def verify_observation(
     observation.verified_at = utcnow()
     observation.version += 1
 
-    # Recalculate abnormal status
-    if observation.value is not None:
+    # Recalculate abnormal status only when this request changed the numbers:
+    # a plain Verify must not erase the lab's printed flag.
+    numbers_changed = any(
+        f in changes and changes[f]["old"] != changes[f]["new"]
+        for f in ("value", "ref_low", "ref_high")
+    )
+    if numbers_changed and observation.value is not None:
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"
