@@ -155,3 +155,37 @@ async def test_hc_vkf_007_edited_ref_high_flags_unchanged_value(profile_db):
     obs = await _verify_and_load(profile_db, obs_id, {"ref_high": 13.0})
     assert obs.is_abnormal is True
     assert obs.flag == "H"
+
+    # ref_low edited so the unchanged value is now below it: also recalculated.
+    lo_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                            value=14.0, ref_low=12.0, ref_high=16.0)
+    lo = await _verify_and_load(profile_db, lo_id, {"ref_low": 15.0})
+    assert lo.is_abnormal is True
+    assert lo.flag == "L"
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(profile_db):
+    # The extractor never derives a flag from the range, and ingest sets
+    # is_abnormal = flag is not None. A report line with no printed flag but a
+    # value outside its printed range must still be flagged by a plain Verify
+    # (what origin/main did). Only a row with NO flag is recalculated; a flag
+    # the lab printed is never overwritten (001-004).
+    hi_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                            value=18.0, ref_low=12.0, ref_high=16.0)
+    hi = await _verify_and_load(profile_db, hi_id, {})
+    assert hi.is_abnormal is True
+    assert hi.flag == "H"
+
+    lo_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                            value=9.0, ref_low=12.0, ref_high=16.0)
+    lo = await _verify_and_load(profile_db, lo_id, {})
+    assert lo.is_abnormal is True
+    assert lo.flag == "L"
+
+    # An unflagged row inside its range stays unflagged.
+    ok_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                            value=14.0, ref_low=12.0, ref_high=16.0)
+    ok = await _verify_and_load(profile_db, ok_id, {})
+    assert ok.is_abnormal is False
+    assert ok.flag is None
