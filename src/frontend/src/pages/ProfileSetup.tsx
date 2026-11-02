@@ -7,7 +7,7 @@
  * Stores the returned JWT token in authStore.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Button, Card, CardContent, Input } from '@/components/ui';
 import { ShowcaseReveal } from '@/components/ui/ShowcaseReveal';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useCreateProfile, useLogin, useProfiles } from '@/services';
 import { ApiError } from '@/services/api';
 import { takeRestoreNotice } from '@/services/backup';
@@ -73,9 +74,58 @@ function validatePassword(password: string): {
   };
 }
 
+/**
+ * The Lift (plan section 4.1, owner UI-AUTH-SCREENS): on a successful unlock the unlock panel fades and lifts
+ * 8 px in 240 ms (opacity only, 150 ms, under reduced motion) onto the shell.
+ *
+ * /setup sits outside the shell and navigate must stay immediate, so the panel cannot animate itself: it is
+ * unmounted with the route. A detached ghost takes its place for the length of the animation: a fixed, inert,
+ * aria-hidden empty card surface with the panel's rect, appended to <body> and removed when the animation ends.
+ * It holds no form control and no text, so the password can never reach it. Presentation only: it never throws.
+ */
+function startLift(panel: HTMLElement | null, reduced: boolean): void {
+  try {
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const ghost = document.createElement('div');
+    ghost.setAttribute('data-lift-ghost', '');
+    ghost.setAttribute('aria-hidden', 'true');
+    Object.assign(ghost.style, {
+      position: 'fixed',
+      top: `${rect.top}px`,
+      left: `${rect.left}px`,
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      pointerEvents: 'none',
+      zIndex: '60',
+      borderRadius: '16px',
+      background: 'var(--surface-1)',
+      boxShadow: 'var(--shadow-card)',
+    });
+    if (typeof ghost.animate !== 'function') return;
+    document.body.appendChild(ghost);
+    const animation = ghost.animate(
+      reduced
+        ? [{ opacity: '1' }, { opacity: '0' }]
+        : [
+            { opacity: '1', transform: 'translateY(0)' },
+            { opacity: '0', transform: 'translateY(-8px)' },
+          ],
+      { duration: reduced ? 150 : 240, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' }
+    );
+    const remove = () => ghost.remove();
+    animation.onfinish = remove;
+    animation.oncancel = remove;
+  } catch {
+    // The Lift is decoration: a failure here must never reach the unlock flow.
+  }
+}
+
 export function ProfileSetup() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const prefersReducedMotion = useReducedMotion();
+  const unlockPanelRef = useRef<HTMLDivElement>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // SEC-RECOV-001: shown once, between creation and entering the app.
@@ -126,6 +176,7 @@ export function ProfileSetup() {
       // Nothing cached under a previous profile's session may be shown to
       // this one.
       queryClient.clear();
+      startLift(unlockPanelRef.current, prefersReducedMotion);
       navigate('/inbox');
     } catch (err) {
       login.reset();
@@ -273,64 +324,71 @@ export function ProfileSetup() {
         </Card>
 
         {hasProfiles && !isCreating && (
-          <div className="mb-6">
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <h2 className="font-display text-xl font-semibold text-ink">
-                  Unlock your profile
-                </h2>
-                <form
-                  className="space-y-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void handleUnlock();
-                  }}
-                >
-                  <div>
-                    <label
-                      htmlFor="unlock-profile"
-                      className="block text-sm font-medium text-ink mb-1.5"
-                    >
-                      Profile
-                    </label>
-                    <select
-                      id="unlock-profile"
-                      value={unlockProfileId ?? ''}
-                      onChange={(e) => setSelectedProfileId(e.target.value)}
-                      className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-ink"
-                    >
-                      {profiles!.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.display_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Input
-                    type="password"
-                    label="Unlock password"
-                    placeholder="Your password"
-                    value={unlockPassword}
-                    onChange={(e) => setUnlockPassword(e.target.value)}
-                    autoComplete="current-password"
-                  />
-                  {unlockError && (
-                    <p role="alert" className="text-sm text-status-critical">
-                      {unlockError}
-                    </p>
-                  )}
-                  <Button
-                    type="submit"
-                    size="lg"
-                    className="w-full"
-                    disabled={login.isPending}
+          <Card ref={unlockPanelRef} className="mb-6">
+            <CardContent className="p-6 space-y-4">
+              <h2 className="font-display text-xl font-semibold text-ink">
+                Unlock your profile
+              </h2>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleUnlock();
+                }}
+              >
+                <div>
+                  <label
+                    htmlFor="unlock-profile"
+                    className="block text-sm font-medium text-ink mb-1.5"
                   >
-                    Unlock
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
+                    Profile
+                  </label>
+                  <select
+                    id="unlock-profile"
+                    value={unlockProfileId ?? ''}
+                    onChange={(e) => setSelectedProfileId(e.target.value)}
+                    className="h-11 w-full rounded-xl border border-[var(--line-strong)] bg-surface-elevated px-4 py-2 text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:border-accent"
+                  >
+                    {profiles!.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Input
+                  id="unlock-password"
+                  type="password"
+                  label="Unlock password"
+                  placeholder="Your password"
+                  value={unlockPassword}
+                  onChange={(e) => setUnlockPassword(e.target.value)}
+                  autoComplete="current-password"
+                  aria-invalid={unlockError ? true : undefined}
+                  aria-describedby={unlockError ? 'unlock-password-error' : undefined}
+                  className="aria-[invalid=true]:border-status-critical"
+                />
+                {unlockError && (
+                  <p
+                    id="unlock-password-error"
+                    role="alert"
+                    data-t0=""
+                    className="text-sm text-status-critical"
+                  >
+                    {unlockError}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="w-full"
+                  disabled={login.isPending}
+                >
+                  Unlock
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
         {profilesPending ? null : (
