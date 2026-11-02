@@ -64,8 +64,8 @@ BIOMARKER_DATA = [
         "description": "Total cholesterol measures the total amount of cholesterol in your blood, including LDL (bad) cholesterol, HDL (good) cholesterol, and triglycerides.",
         "clinical_significance": "Cholesterol is essential for building cells and making vitamins and hormones. However, too much cholesterol can build up in your arteries and increase your risk of heart disease and stroke.",
         "normal_interpretation": "Your total cholesterol is in a healthy range. This suggests a lower risk of heart disease, though other factors like LDL and HDL levels are also important.",
-        "high_interpretation": "Elevated total cholesterol may increase your risk of heart disease. Your healthcare provider will consider this alongside your LDL, HDL, and other risk factors to assess your cardiovascular health.",
-        "low_interpretation": "Very low cholesterol is uncommon but may be associated with certain conditions. Your healthcare provider can help determine if further evaluation is needed.",
+        "high_interpretation": "Elevated total cholesterol may increase your risk of heart disease. Consult your healthcare provider, who will consider this alongside your LDL, HDL, and other risk factors to assess your cardiovascular health.",
+        "low_interpretation": "Very low cholesterol is uncommon but may be associated with some conditions. Consult your healthcare provider, who can help determine if further evaluation is needed.",
         "ref_range_adult_json": json.dumps({
             "default": {"desirable": [0, 200], "borderline_high": [200, 240], "high": [240, None]},
             "unit": "mg/dL"
@@ -102,7 +102,7 @@ BIOMARKER_DATA = [
         "description": "LDL (low-density lipoprotein) cholesterol is often called 'bad' cholesterol because it can build up in the walls of your arteries, forming plaques that narrow and harden them.",
         "clinical_significance": "LDL is a primary target for cholesterol-lowering treatment. High LDL increases the risk of atherosclerosis, heart attack, and stroke.",
         "normal_interpretation": "Your LDL cholesterol is at a healthy level. This is associated with lower cardiovascular risk.",
-        "high_interpretation": "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. Your healthcare provider can explain what this result means for you.",
+        "high_interpretation": "Elevated LDL cholesterol increases your risk of plaque buildup in arteries. Consult your healthcare provider, who can explain what this result means for you.",
         "low_interpretation": "Low LDL is generally favorable for heart health. Very low levels are uncommon and usually not concerning unless associated with other conditions.",
         "ref_range_adult_json": json.dumps({
             "default": {"optimal": [0, 100], "near_optimal": [100, 130], "borderline_high": [130, 160], "high": [160, 190], "very_high": [190, None]},
@@ -219,8 +219,8 @@ BIOMARKER_DATA = [
         "description": "Fasting blood glucose measures the amount of sugar (glucose) in your blood after not eating for at least 8 hours. It's a primary screening test for diabetes.",
         "clinical_significance": "Blood glucose is the body's main source of energy. Abnormal levels can indicate diabetes, prediabetes, or other metabolic conditions.",
         "normal_interpretation": "Your fasting glucose is in the normal range, suggesting healthy blood sugar regulation.",
-        "high_interpretation": "Elevated fasting glucose may indicate prediabetes or diabetes. Your healthcare provider can explain whether further testing is needed.",
-        "low_interpretation": "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, confusion, and fatigue. Causes include certain medications, missed meals, or underlying conditions.",
+        "high_interpretation": "Elevated fasting glucose may indicate prediabetes or diabetes. Consult your healthcare provider, who can explain whether further testing is needed.",
+        "low_interpretation": "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, confusion, and fatigue. Causes include some medications, missed meals, or underlying conditions.",
         "ref_range_adult_json": json.dumps({
             "default": {"normal": [70, 100], "prediabetes": [100, 126], "diabetes": [126, None]},
             "unit": "mg/dL"
@@ -297,8 +297,8 @@ BIOMARKER_DATA = [
         "description": "Hemoglobin is a protein in red blood cells that carries oxygen from your lungs to the rest of your body and returns carbon dioxide to your lungs to be exhaled.",
         "clinical_significance": "Hemoglobin levels help diagnose anemia, polycythemia, and assess overall oxygen-carrying capacity of blood.",
         "normal_interpretation": "Your hemoglobin is in the normal range, indicating healthy oxygen-carrying capacity.",
-        "high_interpretation": "Elevated hemoglobin may indicate dehydration, lung disease, heart disease, or polycythemia. Your healthcare provider may recommend further evaluation.",
-        "low_interpretation": "Low hemoglobin indicates anemia, which can cause fatigue, weakness, and shortness of breath. There are many potential causes including iron deficiency, vitamin deficiencies, or chronic diseases.",
+        "high_interpretation": "Elevated hemoglobin may indicate dehydration, lung disease, heart disease, or polycythemia. Consult your healthcare provider, who may recommend further evaluation.",
+        "low_interpretation": "Low hemoglobin can be a sign of anemia, which can cause fatigue, weakness, and shortness of breath. There are many potential causes including iron deficiency, vitamin deficiencies, or chronic diseases.",
         "ref_range_adult_json": json.dumps({
             "male": {"low": [0, 13.5], "normal": [13.5, 17.5], "high": [17.5, None]},
             "female": {"low": [0, 12.0], "normal": [12.0, 16.0], "high": [16.0, None]},
@@ -338,7 +338,7 @@ BIOMARKER_DATA = [
         "clinical_significance": "WBC count helps detect infections, immune disorders, blood cancers, and monitor response to treatments.",
         "normal_interpretation": "Your white blood cell count is in the normal range, suggesting your immune system is functioning normally.",
         "high_interpretation": "Elevated WBC (leukocytosis) often indicates your body is fighting an infection. Other causes include inflammation, stress, medications, or rarely blood cancers.",
-        "low_interpretation": "Low WBC (leukopenia) can increase infection risk. Causes include viral infections, bone marrow problems, autoimmune conditions, or certain medications.",
+        "low_interpretation": "Low WBC (leukopenia) can increase infection risk. Causes include viral infections, bone marrow problems, autoimmune conditions, or some medications.",
         "ref_range_adult_json": json.dumps({
             "default": {"low": [0, 4.5], "normal": [4.5, 11.0], "high": [11.0, None]},
             "unit": "10^3/uL"
@@ -372,11 +372,11 @@ BIOMARKER_DATA = [
         "analyte_canonical": "platelets",
         "display_name": "Platelet Count",
         "loinc_codes_json": json.dumps(["777-3"]),
-        "description": "Platelets (thrombocytes) are blood cells that help your blood clot. They stick together to form clots that stop bleeding when you have a cut or injury.",
+        "description": "Platelets (thrombocytes) are blood cells that help your blood clot. They stick together to form clots that stop bleeding after a cut or injury.",
         "clinical_significance": "Platelet count helps diagnose bleeding disorders, clotting problems, bone marrow diseases, and monitor effects of certain treatments.",
         "normal_interpretation": "Your platelet count is in the normal range, indicating normal blood clotting ability.",
         "high_interpretation": "Elevated platelets (thrombocytosis) can increase clotting risk. Causes include inflammation, infection, iron deficiency, or bone marrow disorders.",
-        "low_interpretation": "Low platelets (thrombocytopenia) can increase bleeding risk. Causes include viral infections, certain medications, autoimmune conditions, or bone marrow problems.",
+        "low_interpretation": "Low platelets (thrombocytopenia) can increase bleeding risk. Causes include viral infections, some medications, autoimmune conditions, or bone marrow problems.",
         "ref_range_adult_json": json.dumps({
             "default": {"low": [0, 150], "normal": [150, 400], "high": [400, None]},
             "unit": "10^3/uL"
@@ -455,7 +455,7 @@ BIOMARKER_DATA = [
         "description": "Creatinine is a waste product from normal muscle metabolism. Healthy kidneys filter creatinine from the blood and excrete it in urine.",
         "clinical_significance": "Creatinine is a key marker of kidney function. Elevated levels may indicate reduced kidney function. It's used to calculate eGFR (estimated glomerular filtration rate).",
         "normal_interpretation": "Your creatinine level is normal, suggesting your kidneys are filtering waste effectively.",
-        "high_interpretation": "Elevated creatinine may indicate reduced kidney function. However, levels can also be affected by muscle mass, diet, and hydration. Your healthcare provider will interpret this in context.",
+        "high_interpretation": "Elevated creatinine may indicate reduced kidney function. However, levels can also be affected by muscle mass, diet, and hydration. Consult your healthcare provider, who will interpret this in context.",
         "low_interpretation": "Low creatinine is usually not concerning and may reflect decreased muscle mass or other factors.",
         "ref_range_adult_json": json.dumps({
             "male": {"normal": [0.7, 1.3]},
@@ -492,7 +492,7 @@ BIOMARKER_DATA = [
         "analyte_canonical": "vitamin_d",
         "display_name": "Vitamin D (25-Hydroxy)",
         "loinc_codes_json": json.dumps(["1989-3", "62292-8"]),
-        "description": "Vitamin D is essential for calcium absorption and bone health. Your body makes it when skin is exposed to sunlight, and you can get it from certain foods and supplements.",
+        "description": "Vitamin D is essential for calcium absorption and bone health. Your body makes it when skin is exposed to sunlight, and you can get it from some foods and supplements.",
         "clinical_significance": "Vitamin D deficiency is common and can lead to bone disorders, muscle weakness, and has been linked to various health conditions including immune function.",
         "normal_interpretation": "Your vitamin D level is adequate for bone and overall health.",
         "high_interpretation": "Very high vitamin D (usually from excessive supplementation) can cause calcium buildup and adverse effects. This is uncommon with typical supplementation.",
@@ -815,6 +815,128 @@ _TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...] = (
         "Further testing and lifestyle modifications may be recommended.",
         "Elevated fasting glucose may indicate prediabetes or diabetes. "
         "Your healthcare provider can explain whether further testing is needed.",
+    ),
+    (
+        "total_cholesterol",
+        "high_interpretation",
+        "Elevated total cholesterol may increase your risk of heart disease. "
+        "Your healthcare provider will consider this alongside your LDL, "
+        "HDL, and other risk factors to assess your cardiovascular health.",
+        "Elevated total cholesterol may increase your risk of heart disease. "
+        "Consult your healthcare provider, who will consider this alongside "
+        "your LDL, HDL, and other risk factors to assess your cardiovascular "
+        "health.",
+    ),
+    (
+        "total_cholesterol",
+        "low_interpretation",
+        "Very low cholesterol is uncommon but may be associated with certain "
+        "conditions. Your healthcare provider can help determine if further "
+        "evaluation is needed.",
+        "Very low cholesterol is uncommon but may be associated with some "
+        "conditions. Consult your healthcare provider, who can help "
+        "determine if further evaluation is needed.",
+    ),
+    (
+        "ldl_cholesterol",
+        "high_interpretation",
+        "Elevated LDL cholesterol increases your risk of plaque buildup in "
+        "arteries. Your healthcare provider can explain what this result "
+        "means for you.",
+        "Elevated LDL cholesterol increases your risk of plaque buildup in "
+        "arteries. Consult your healthcare provider, who can explain what "
+        "this result means for you.",
+    ),
+    (
+        "glucose_fasting",
+        "high_interpretation",
+        "Elevated fasting glucose may indicate prediabetes or diabetes. Your "
+        "healthcare provider can explain whether further testing is needed.",
+        "Elevated fasting glucose may indicate prediabetes or diabetes. "
+        "Consult your healthcare provider, who can explain whether further "
+        "testing is needed.",
+    ),
+    (
+        "glucose_fasting",
+        "low_interpretation",
+        "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, "
+        "confusion, and fatigue. Causes include certain medications, missed "
+        "meals, or underlying conditions.",
+        "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, "
+        "confusion, and fatigue. Causes include some medications, missed "
+        "meals, or underlying conditions.",
+    ),
+    (
+        "hemoglobin",
+        "high_interpretation",
+        "Elevated hemoglobin may indicate dehydration, lung disease, heart "
+        "disease, or polycythemia. Your healthcare provider may recommend "
+        "further evaluation.",
+        "Elevated hemoglobin may indicate dehydration, lung disease, heart "
+        "disease, or polycythemia. Consult your healthcare provider, who may "
+        "recommend further evaluation.",
+    ),
+    (
+        "hemoglobin",
+        "low_interpretation",
+        "Low hemoglobin indicates anemia, which can cause fatigue, weakness, "
+        "and shortness of breath. There are many potential causes including "
+        "iron deficiency, vitamin deficiencies, or chronic diseases.",
+        "Low hemoglobin can be a sign of anemia, which can cause fatigue, "
+        "weakness, and shortness of breath. There are many potential causes "
+        "including iron deficiency, vitamin deficiencies, or chronic "
+        "diseases.",
+    ),
+    (
+        "wbc",
+        "low_interpretation",
+        "Low WBC (leukopenia) can increase infection risk. Causes include "
+        "viral infections, bone marrow problems, autoimmune conditions, or "
+        "certain medications.",
+        "Low WBC (leukopenia) can increase infection risk. Causes include "
+        "viral infections, bone marrow problems, autoimmune conditions, or "
+        "some medications.",
+    ),
+    (
+        "platelets",
+        "low_interpretation",
+        "Low platelets (thrombocytopenia) can increase bleeding risk. Causes "
+        "include viral infections, certain medications, autoimmune "
+        "conditions, or bone marrow problems.",
+        "Low platelets (thrombocytopenia) can increase bleeding risk. Causes "
+        "include viral infections, some medications, autoimmune conditions, "
+        "or bone marrow problems.",
+    ),
+    (
+        "platelets",
+        "description",
+        "Platelets (thrombocytes) are blood cells that help your blood clot. "
+        "They stick together to form clots that stop bleeding when you have "
+        "a cut or injury.",
+        "Platelets (thrombocytes) are blood cells that help your blood clot. "
+        "They stick together to form clots that stop bleeding after a cut or "
+        "injury.",
+    ),
+    (
+        "creatinine",
+        "high_interpretation",
+        "Elevated creatinine may indicate reduced kidney function. However, "
+        "levels can also be affected by muscle mass, diet, and hydration. "
+        "Your healthcare provider will interpret this in context.",
+        "Elevated creatinine may indicate reduced kidney function. However, "
+        "levels can also be affected by muscle mass, diet, and hydration. "
+        "Consult your healthcare provider, who will interpret this in "
+        "context.",
+    ),
+    (
+        "vitamin_d",
+        "description",
+        "Vitamin D is essential for calcium absorption and bone health. Your "
+        "body makes it when skin is exposed to sunlight, and you can get it "
+        "from certain foods and supplements.",
+        "Vitamin D is essential for calcium absorption and bone health. Your "
+        "body makes it when skin is exposed to sunlight, and you can get it "
+        "from some foods and supplements.",
     ),
 )
 

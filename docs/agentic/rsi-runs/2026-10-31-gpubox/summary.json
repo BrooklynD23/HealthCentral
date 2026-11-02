@@ -1,0 +1,285 @@
+{
+  "run_id": "2026-10-31-gpubox",
+  "workflow_run": "wf_e5b0ec9e-d37",
+  "clusters": [
+    {
+      "tool": "Bash",
+      "error_class": "no-such-file",
+      "count": 39,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (41)"
+      ],
+      "evidence": "rsi 39 rows, edit_test_fail 1; hint present on all 39; matches rule no-such-file-path (hint only, no deny)"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "other",
+      "count": 26,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ],
+      "evidence": "unclassified; no hint; no session-log equivalent; no rule; rows on 10-26, 10-27, 10-28 only"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-1",
+      "count": 15,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (26)"
+      ],
+      "evidence": "no hint; no rule"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "timeout",
+      "count": 12,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (19)",
+        "pr-review #382"
+      ],
+      "evidence": "edit_test_fail 1; median about 5 s, max about 16 s; no rule; #382 review noted a WSL /mnt stall (same environment category, not shown to be the same run)"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-144-self-kill",
+      "count": 10,
+      "denied": 8,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (12)"
+      ],
+      "evidence": "pkill-self guard denied 8 (10-26: 2, 10-28: 6); 2 undenied rows on 10-28 have no guard; rule pkill-self covers the denials"
+    },
+    {
+      "tool": "Read",
+      "error_class": "other",
+      "count": 10,
+      "denied": 0,
+      "retries": 1,
+      "sources": [
+        "rsi-log"
+      ],
+      "evidence": "only retry=true row in the window; unclassified; no rule"
+    },
+    {
+      "tool": "StructuredOutput",
+      "error_class": "other",
+      "count": 8,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ],
+      "evidence": "unclassified; no rule; no PR mention"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-2",
+      "count": 8,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (10)"
+      ],
+      "evidence": "no hint; no rule"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "git-fatal",
+      "count": 6,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (6)"
+      ],
+      "evidence": "longest about 89 s; no rule"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "tests-failed",
+      "count": 2,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (3)",
+        "pr-review #396",
+        "pr-review #384"
+      ],
+      "evidence": "no rule; #396 and #384 reviews describe time-zone and timing-sensitive test failures (category match only)"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "module-not-found",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (1)"
+      ],
+      "evidence": "no hint; no rule matched"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-137",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "session-log (1)"
+      ],
+      "evidence": "longest row in window, about 9.7 min; no rule"
+    },
+    {
+      "tool": "ExitPlanMode",
+      "error_class": "other",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ],
+      "evidence": "single call, so the 1.0 rate is not meaningful"
+    },
+    {
+      "tool": "Bash",
+      "error_class": "embedding-bundle-missing",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "pr-review #397"
+      ],
+      "evidence": "rule embedding-bundle-missing matched (hint present); about 7.2 min; #397 review called the same embedding-bundle test failure environmental"
+    },
+    {
+      "tool": "TaskStop",
+      "error_class": "other",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ],
+      "evidence": "single call; unclassified"
+    }
+  ],
+  "candidates": 0,
+  "accepted_prs": [],
+  "rejected": [],
+  "metrics": {
+    "tool_calls": 7499,
+    "failure_rate_by_tool": {
+      "Bash": 0.0188,
+      "StructuredOutput": 0.0332,
+      "Read": 0.0578,
+      "TaskStop": 0.1,
+      "ExitPlanMode": 1,
+      "Edit": 0,
+      "Write": 0,
+      "Monitor": 0,
+      "Agent": 0,
+      "SubagentHandback": 0,
+      "Workflow": 0,
+      "SendMessage": 0,
+      "ToolSearch": 0,
+      "AskUserQuestion": 0,
+      "Skill": 0,
+      "mcp__serena__initial_instructions": 0
+    },
+    "retries": 1,
+    "items": 0,
+    "tokens_per_item": null,
+    "previous_failure_rate_by_tool": {
+      "Bash": 0.0261,
+      "StructuredOutput": 0,
+      "Read": 0.0278,
+      "Monitor": 0.0455,
+      "Write": 0.0127,
+      "Workflow": 0.0149,
+      "SubagentHandback": 0,
+      "Agent": 0,
+      "ToolSearch": 0,
+      "SendMessage": 0,
+      "WebFetch": 0,
+      "AskUserQuestion": 0.0667,
+      "Skill": 0.1429,
+      "WebSearch": 0,
+      "Artifact": 0,
+      "Edit": 0.1111,
+      "TaskStop": 0.1429,
+      "ArtifactData": 0
+    },
+    "previous_summary": "/mnt/e/Programming/Github Repo/HealthCentral/.claude/logs/rsi/summary-2026-10-24-gpubox.json"
+  },
+  "reflections": [
+    {
+      "cluster": "Bash/no-such-file",
+      "went_wrong": "39 Bash calls failed with no-such-file. The existing hint fired on all 39 and none were retried, so the hint is doing its job. The failures are mostly path typos or paths that do not exist yet.",
+      "smallest_change": "None. Rule no-such-file-path already covers this cluster. Turning that hint into a deny would block legitimate existence probes such as `test -f` and `ls`.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "already_covered_by": "no-such-file-path",
+      "worth_proposing": false
+    },
+    {
+      "cluster": "Bash/other",
+      "went_wrong": "26 rows were never classified. They have no hint, no matching session-log entries, and all fall on 10-26 to 10-28. Nothing in the metadata says what the actual error was, and no rows appear after 10-28.",
+      "smallest_change": "None proposed. Without error text, any rule 'match' would be a guess and could fire on the wrong commands. If it shows up again after 10-28, improve the classifier rather than add a rule.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "already_covered_by": "",
+      "worth_proposing": false
+    },
+    {
+      "cluster": "Bash/exit-1",
+      "went_wrong": "15 Bash calls exited 1 with no hint and no retries. Exit 1 is the generic failure code: grep finding no match, test failures, gh errors and so on. Nothing in the metadata points to one shared cause.",
+      "smallest_change": "None. A rule matching exit 1 would fire on normal non-match results, such as grep returning 1. The fix would also likely land on test or gate output, which is out of scope. No existing recurring-failures mode fits without the underlying error text.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "already_covered_by": "",
+      "worth_proposing": false
+    }
+  ],
+  "codex_reflections": [
+    {
+      "cluster": "Bash/no-such-file",
+      "went_wrong": "Commands repeatedly referenced paths that did not exist.",
+      "smallest_change": "No change; the existing rule already provides the appropriate path-verification hint.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "worth_proposing": false,
+      "already_covered_by": "no-such-file-path"
+    },
+    {
+      "cluster": "Bash/other",
+      "went_wrong": "The failures are unclassified and contain no actionable shared signature or session-log corroboration.",
+      "smallest_change": "No change until evidence identifies a specific recurring failure mode that can be matched safely.",
+      "target_file": "docs/agentic/recurring-failures.md",
+      "worth_proposing": false,
+      "already_covered_by": ""
+    },
+    {
+      "cluster": "Bash/exit-1",
+      "went_wrong": "Exit status 1 is generic and the cluster provides no command or error-text signature establishing a common cause.",
+      "smallest_change": "No change; a generic exit-1 rule would create unsafe or noisy guidance without cause-specific evidence.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "worth_proposing": false,
+      "already_covered_by": ""
+    }
+  ],
+  "note": "nothing worth proposing"
+}

@@ -79,7 +79,7 @@ STRING_DETAIL_KEYS: frozenset[str] = frozenset({
 # Keys holding short lists of opaque identifiers.
 ID_LIST_DETAIL_KEYS: frozenset[str] = frozenset({
     "entity_ids", "observation_ids", "chunk_ids", "task_ids", "event_ids",
-    "changed_fields",
+    "changed_fields", "checks_failed",
 })
 
 # Keys holding {str: int} count maps.

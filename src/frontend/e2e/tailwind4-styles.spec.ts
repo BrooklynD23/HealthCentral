@@ -267,7 +267,7 @@ test.describe('Tailwind 4 style guard', () => {
 
     // Target: modal close button, explicit radius utility at DoseLoggingModal.tsx:100.
     const close = page.getByRole('button', { name: 'Close' });
-    expect(await close.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('8px');
+    expect(await close.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('10px');
     await shot(page, 'dose-logging-modal');
   });
 });

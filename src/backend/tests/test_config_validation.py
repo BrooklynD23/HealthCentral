@@ -52,7 +52,8 @@ class TestValidateStartup:
         assert isinstance(warnings, list)
 
     @patch("shutil.which", return_value=None)
-    def test_ocr_enabled_no_tesseract_warns_and_disables(self, mock_which):
+    @patch("modules.extract.rapidocr_ready", return_value=False)
+    def test_ocr_enabled_no_tesseract_warns_and_disables(self, mock_rapid, mock_which):
         """OCR enabled without tesseract should warn and disable OCR."""
         s = _make_settings(ocr_enabled=True)
         warnings = s.validate_startup()
@@ -110,7 +111,8 @@ class TestIsOcrAvailable:
     """Tests for the is_ocr_available() standalone function."""
 
     @patch("shutil.which", return_value=None)
-    def test_returns_false_when_no_tesseract(self, mock_which):
+    @patch("modules.extract.rapidocr_ready", return_value=False)
+    def test_returns_false_when_no_tesseract(self, mock_rapid, mock_which):
         """is_ocr_available() returns False when tesseract is missing."""
         from core.config import is_ocr_available, settings
 
@@ -162,6 +164,7 @@ class TestComputeOcrEffective:
 
         monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
         monkeypatch.setattr(cfg, "is_tesseract_on_path", lambda: False)
+        monkeypatch.setattr("modules.extract.rapidocr_ready", lambda: False)
         effective, blockers = cfg.compute_ocr_effective(True)
         assert effective is False
         assert "tesseract_missing" in blockers

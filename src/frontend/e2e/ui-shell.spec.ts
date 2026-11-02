@@ -293,7 +293,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
   test.describe.configure({ retries: 0 });
   test.use({ viewport: DESKTOP });
 
-  for (const route of AUTH_ROUTES) {
+  // /notifications is a planned redirect with no route container of its own (HC-UIMED-004): left out of this loop.
+  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/notifications')) {
     test(`HC-UISH-003: opacity-only route fade on ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator('[data-route-container]')).toBeVisible({ timeout: 15_000 });
@@ -787,6 +788,11 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
   test.use({ viewport: PHONE });
 
   test('HC-UISH-007: with a toast visible, opening More leaves no toast over the sheet', async ({ page }) => {
+    // The toast module is imported from a /src path, which only the dev server serves (no such path on a preview or deployed build).
+    test.skip(
+      !!process.env.HC_E2E_BASE_URL,
+      'HC_E2E_BASE_URL is set: the /src/components/ui/toast.tsx import path exists only on the dev server'
+    );
     await openRoute(page, '/inbox');
     await expect(page.getByRole('navigation', { name: 'Tab bar' })).toBeVisible({ timeout: 15_000 });
     await page.evaluate(async () => {
@@ -846,6 +852,126 @@ test.describe('HC-UISH-007 and HC-UISH-008 More sheet', () => {
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIOV-010 (POPOVER-OPEN-COST): react-remove-scroll-bar writes --removed-body-scroll-bar-size on body while a modal
+// overlay is open. As an inherited custom property it restyles the whole document, so it is registered as
+// non-inheriting. Nothing reads it below body.
+// HC-UIOV-011 (guard): the scroll lock itself is unchanged. Registering the variable must not lose the lock, and
+// the cost of the open must not be cut by dropping Radix's modal mode.
+// ---------------------------------------------------------------------------
+test.describe('HC-UIOV-010 and HC-UIOV-011 scroll-lock variable and guard', () => {
+  test.describe.configure({ retries: 0 });
+  const VAR = '--removed-body-scroll-bar-size';
+
+  test('HC-UIOV-010: the scroll-bar variable is registered non-inheriting, so a descendant does not inherit body', async ({
+    page,
+  }) => {
+    await page.setViewportSize(DESKTOP);
+    await openRoute(page, '/inbox');
+    await expect(page.locator(ROUTE_CONTAINER_SELECTOR)).toBeVisible({ timeout: 15_000 });
+    await settleRoute(page);
+
+    const registered = await page.evaluate((name) => {
+      const found: Array<{ name: string; inherits: boolean; syntax: string }> = [];
+      for (const sheet of Array.from(document.styleSheets)) {
+        let rules: CSSRuleList;
+        try {
+          rules = sheet.cssRules;
+        } catch {
+          continue;
+        }
+        for (const rule of Array.from(rules)) {
+          if (rule instanceof CSSPropertyRule && rule.name === name) {
+            found.push({ name: rule.name, inherits: rule.inherits, syntax: rule.syntax });
+          }
+        }
+      }
+      return found;
+    }, VAR);
+    expect(registered, `a CSSPropertyRule named ${VAR} in the stylesheets`).toHaveLength(1);
+    expect(registered[0].inherits, `${VAR} must not inherit`).toBe(false);
+
+    const values = await page.evaluate(
+      ({ name, container }) => {
+        document.body.style.setProperty(name, '17px');
+        try {
+          const descendant = document.querySelector(container);
+          return {
+            body: getComputedStyle(document.body).getPropertyValue(name).trim(),
+            descendant: descendant ? getComputedStyle(descendant).getPropertyValue(name).trim() : null,
+          };
+        } finally {
+          document.body.style.removeProperty(name);
+        }
+      },
+      { name: VAR, container: ROUTE_CONTAINER_SELECTOR }
+    );
+    expect(values.body, 'the value on body is unchanged').toBe('17px');
+    expect(values.descendant, 'a descendant of body does not inherit the value').toBe('0px');
+  });
+
+  test('HC-UIOV-011: the More sheet still locks body scroll, and Escape releases it', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await openRoute(page, '/inbox');
+    const tabBar = page.getByRole('navigation', { name: 'Tab bar' });
+    await expect(tabBar).toBeVisible({ timeout: 15_000 });
+    await settleRoute(page);
+
+    // Make the document scrollable, scroll it, and record where it is and how wide the scroll bar gap is.
+    const before = await page.evaluate(() => {
+      const filler = document.createElement('div');
+      filler.setAttribute('data-uiov-011-filler', '');
+      filler.style.cssText = 'height:4000px;width:1px;pointer-events:none';
+      document.body.appendChild(filler);
+      // html has scroll-behavior: smooth, so the jump must be asked to be instant.
+      window.scrollTo({ top: 100, behavior: 'instant' });
+      return {
+        scrollY: window.scrollY,
+        gap: Math.max(0, window.innerWidth - document.documentElement.clientWidth),
+        overflow: getComputedStyle(document.body).overflow,
+        marginRight: getComputedStyle(document.body).marginRight,
+        locked: document.body.hasAttribute('data-scroll-locked'),
+      };
+    });
+    expect(before.scrollY, 'the page is scrollable and scrolled').toBe(100);
+    expect(before.locked, 'no scroll lock before the sheet opens').toBe(false);
+    // Headless Chromium hides scroll bars (--hide-scrollbars), so the gap is 0 here and the margin check below is
+    // 0 = 0. It records the value. The guard that can fail is the lock attribute, overflow and the wheel.
+    console.log(`HC-UIOV-011: gap before open = ${before.gap}px, body margin-right = ${before.marginRight}`);
+
+    await tabBar.getByRole('button', { name: 'More' }).click();
+    const sheet = page.getByRole('dialog');
+    await expect(sheet).toBeVisible();
+
+    const locked = await page.evaluate(() => ({
+      attribute: document.body.hasAttribute('data-scroll-locked'),
+      overflow: getComputedStyle(document.body).overflow,
+      marginRight: getComputedStyle(document.body).marginRight,
+    }));
+    expect(locked.attribute, 'body has data-scroll-locked while the sheet is open').toBe(true);
+    expect(locked.overflow, 'body overflow is hidden while the sheet is open').toBe('hidden');
+    expect(locked.marginRight, 'body margin-right equals the gap measured before the open').toBe(`${before.gap}px`);
+
+    await page.mouse.move(PHONE.width / 2, 40);
+    await page.mouse.wheel(0, 300);
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => window.scrollY), 'a wheel over the scrim does not scroll the page').toBe(100);
+
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect
+      .poll(() => page.evaluate(() => document.body.hasAttribute('data-scroll-locked')), {
+        message: 'the lock attribute is gone after Escape',
+      })
+      .toBe(false);
+    await page.mouse.move(PHONE.width / 2, 40);
+    await page.mouse.wheel(0, 300);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY), { message: 'a wheel scrolls the page after Escape' })
+      .toBeGreaterThan(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIOV-007 (stillness of a still overlay, from the opening click),
 // HC-UIFB-006 (a still toast keeps its text and rect from the trigger),
 // HC-UIPC-007 (a focus ring is visible 16 ms after Tab on a Button).
@@ -860,6 +986,7 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
     const info = page.getByRole('button', { name: /stricter safety mode/i });
     await expect(info).toBeVisible();
     const report = await stillnessProbe(page, {
+      kind: 'overlay',
       trigger: () => info.click(),
       expected: [TOGGLE_POPOVER],
     });
@@ -966,7 +1093,6 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
  */
 const PAGE_OVERFLOW: Record<string, { selector: string; fixBy: string }> = {
   '/inbox': { selector: 'div.flex.items-center.gap-1', fixBy: 'UI-PG-DOCUMENTS' },
-  '/medications/med-fixture-1': { selector: 'div.flex.items-center.gap-2', fixBy: 'UI-PG-MEDS' },
   '/explain': { selector: 'div.w-80.space-y-4', fixBy: 'UI-PG-ASK' },
   '/export': { selector: 'div.flex.items-center.gap-3', fixBy: 'UI-PG-EXPORT' },
 };

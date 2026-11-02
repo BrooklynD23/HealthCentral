@@ -129,7 +129,10 @@ export function useGenerateGroundedInterpretation() {
       forceRegenerate?: boolean;
     }) => generateGroundedInterpretation(observationId, forceRegenerate),
     onSuccess: (data, variables) => {
-      queryClient.setQueryData([QUERY_KEY, variables.observationId], data.interpretation);
+      // A withheld answer has no card: do not overwrite a stored card with null.
+      if (data.interpretation !== null) {
+        queryClient.setQueryData([QUERY_KEY, variables.observationId], data.interpretation);
+      }
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, 'recent'] });
     },
   });

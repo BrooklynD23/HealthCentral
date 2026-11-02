@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Pill,
   Plus,
@@ -11,17 +12,18 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  StaggerGroup,
-  StaggerItem,
   ListSkeleton,
   EmptyState,
+  Skeleton,
 } from '@/components/ui';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   MedicationCard,
   MedicationForm,
   DoseLoggingModal,
   BadgeToast,
   AchievementsWidget,
+  RemindersPanel,
 } from '@/components/medication-coach';
 import {
   useMedications,
@@ -32,7 +34,6 @@ import {
 import { useDocuments, useMedReconciliation } from '@/services';
 import type { MedReconcileSuggestion } from '@/services';
 import { useAuthStore } from '@/stores/authStore';
-import { useNavigate } from 'react-router-dom';
 import type { MedicationCreate, Medication, BadgeInfo } from '@/services/types';
 
 /**
@@ -148,7 +149,7 @@ function MedReconcilePanel({
         </label>
         <select
           id="med-reconcile-doc-select"
-          className="w-full max-w-md px-3 py-2 rounded-xl border border-black/10 bg-white text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
+          className="w-full max-w-md px-3 py-2 rounded-xl border border-black/10 bg-surface-elevated text-sm text-ink focus-visible:ring-2 focus-visible:ring-accent"
           value={selectedDocId}
           onChange={(event) => setSelectedDocId(event.target.value)}
         >
@@ -185,10 +186,26 @@ function MedReconcilePanel({
 }
 
 export function MedicationCoach() {
-  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [prefillName, setPrefillName] = useState<string | null>(null);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
+  // The tab lives in the URL (?tab=reminders), so the Reminders page and its links open the right tab.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'reminders' ? 'reminders' : 'medications';
+  const handleTabChange = (value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === 'medications') next.delete('tab');
+      else next.set('tab', value);
+      return next;
+    });
+  };
+  // The form renders in the Medications tab, and Radix unmounts an inactive tab's content, so opening the form
+  // from the Reminders tab must switch tabs too. Switching only when needed keeps history clean on the Medications tab.
+  const openAddForm = () => {
+    if (activeTab !== 'medications') handleTabChange('medications');
+    setShowForm(true);
+  };
   const [loggingMed, setLoggingMed] = useState<Medication | null>(null);
   const [badgeQueue, setBadgeQueue] = useState<BadgeInfo[]>([]);
   const dismissBadge = useCallback(() => setBadgeQueue((q) => q.slice(1)), []);
@@ -243,20 +260,16 @@ export function MedicationCoach() {
     if (med) setLoggingMed(med);
   };
 
-  const handleViewDetail = (medicationId: string) => {
-    navigate(`/medications/${medicationId}`);
-  };
-
   // Loading
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <div className="h-8 w-48 bg-black/5 animate-pulse rounded-lg" />
-            <div className="h-4 w-64 bg-black/5 animate-pulse rounded-lg" />
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64" />
           </div>
-          <div className="h-10 w-32 bg-black/5 animate-pulse rounded-xl" />
+          <Skeleton className="h-10 w-32" />
         </div>
         <ListSkeleton count={4} />
       </div>
@@ -287,12 +300,19 @@ export function MedicationCoach() {
             Track medications, log doses, and monitor adherence
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="gap-2">
+        <Button onClick={openAddForm} className="gap-2">
           <Plus className="w-4 h-4" />
           Add Medication
         </Button>
       </div>
 
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList>
+          <TabsTrigger value="medications">Medications</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="medications" className="space-y-6">
       {/* Add Medication Form (optionally pre-filled from a suggestion) */}
       {(showForm || prefillName !== null) && !editingMed && (
         <MedicationForm
@@ -336,18 +356,11 @@ export function MedicationCoach() {
           }
         />
       ) : (
-        <StaggerGroup className="space-y-3">
-          {medications.map((med, index) => (
-            <StaggerItem key={med.id}>
-              <MedicationCard
-                medication={med}
-                onQuickLog={handleQuickLog}
-                onViewDetail={handleViewDetail}
-                index={index}
-              />
-            </StaggerItem>
+        <div className="space-y-3">
+          {medications.map((med) => (
+            <MedicationCard key={med.id} medication={med} onQuickLog={handleQuickLog} />
           ))}
-        </StaggerGroup>
+        </div>
       )}
 
       {/* Reconciliation panel (HC-M19): read-only comparison against a
@@ -360,6 +373,13 @@ export function MedicationCoach() {
 
       {/* Achievements */}
       <AchievementsWidget />
+
+        </TabsContent>
+
+        <TabsContent value="reminders">
+          <RemindersPanel onAddMedication={openAddForm} />
+        </TabsContent>
+      </Tabs>
 
       {/* Badge Toast */}
       <BadgeToast badge={badgeQueue[0] ?? null} onDismiss={dismissBadge} />
