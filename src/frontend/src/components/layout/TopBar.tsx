@@ -1,25 +1,19 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { BrandMark } from './BrandMark';
+import { openPalette, usePaletteShortcuts } from './paletteEvents';
 import { ProfileMenu } from './ProfileMenu';
 import { SafetyModeToggle } from './SafetyModeToggle';
 
 /**
- * The top bar (plan §3.2). On desktop it is one 64 px row: the search form, the safety toggle and the profile
- * menu. On phones the brand mark sits at the start and a search icon link stands in for the form. Row 1 holds the
- * brand, the search link and the profile menu; row 2 holds the safety toggle with its full label (L0 ruling
- * 10:24:24Z). Row 2 is part of the header, so the route container starts below it.
+ * The top bar (plan §3.2). On desktop it is one 64 px row: the search button that opens the command palette (plan
+ * §3.3), the safety toggle and the profile menu. On phones the brand mark sits at the start and a search icon link
+ * stands in for the button. Row 1 holds the brand, the search link and the profile menu; row 2 holds the safety
+ * toggle with its full label (L0 ruling 10:24:24Z). Row 2 is part of the header, so the route container starts
+ * below it.
  */
 export function TopBar() {
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const submitSearch = (event: FormEvent) => {
-    event.preventDefault();
-    const q = searchQuery.trim();
-    if (q) navigate(`/search?${new URLSearchParams({ q }).toString()}`);
-  };
+  usePaletteShortcuts();
 
   return (
     <header className="sticky top-0 z-40 flex flex-wrap items-center gap-x-2 border-b border-border bg-surface px-3 py-1 lg:h-16 lg:flex-nowrap lg:gap-6 lg:px-8 lg:py-0">
@@ -27,22 +21,20 @@ export function TopBar() {
         <BrandMark wordmark={false} />
       </span>
 
-      <form className="hidden min-w-0 flex-1 lg:block lg:max-w-md" role="search" onSubmit={submitSearch}>
-        <div className="relative">
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary"
-          />
-          <input
-            type="search"
-            placeholder="Search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-10 w-full min-w-0 rounded-xl border border-border bg-surface-elevated pl-10 pr-3 text-sm text-ink placeholder:text-ink-tertiary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
-            aria-label="Search health records"
-          />
-        </div>
-      </form>
+      <button
+        type="button"
+        data-palette-trigger=""
+        onClick={openPalette}
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Control+K Meta+K /"
+        className="relative hidden h-10 min-w-0 flex-1 items-center rounded-xl border border-border bg-surface-elevated pl-10 pr-3 text-left text-sm text-ink-secondary hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden lg:flex lg:max-w-md"
+      >
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-secondary"
+        />
+        Search health records
+      </button>
 
       <Link
         to="/search"
