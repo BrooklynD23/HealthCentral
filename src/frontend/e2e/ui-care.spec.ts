@@ -174,6 +174,25 @@ function statusLabel(page: Page, title: string): Locator {
   return cardFor(page, title).locator('[data-care-status]');
 }
 
+/** The button on the "Marked as done." toast. */
+function undoButton(page: Page): Locator {
+  return page.getByRole('button', { name: 'Undo', exact: true });
+}
+
+/** Clicks Done on the Repeat CBC card and waits for the toast that offers Undo. */
+async function markDone(page: Page): Promise<void> {
+  await cardFor(page, TITLE_OPEN).getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Marked as done.' })).toBeVisible();
+  await expect(undoButton(page)).toBeVisible();
+}
+
+/**
+ * Interactions the gates below measure: Done, and Undo on its toast (a toast action, the toast's exit and a
+ * reverse PATCH). Ignore and Reopen are not measured on their own: they run through the same changeStatus
+ * path as Done and Undo (one optimistic write, one PATCH, the same label morph), and add only a different
+ * button on the same card.
+ */
+
 /** Opens /care-tasks with the fixtures, and waits until it is ready to interact with. */
 async function openCareTasks(page: Page): Promise<void> {
   await page.goto('/care-tasks');
@@ -269,43 +288,57 @@ test.describe('Gate G on /care-tasks', () => {
     expect(dark.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`), 'dark').toEqual([]);
   });
 
-  test('Gate G2 /care-tasks: CLS stays under 0.1 over the load and the Done click', async ({ page }) => {
-    // Would not notice: a layout shift when the status label changes, or a label row that grows or shrinks.
+  test('Gate G2 /care-tasks: CLS stays under 0.1 over the load, the Done click and Undo', async ({ page }) => {
+    // Would not notice: a layout shift when the status label changes, a label row that grows or shrinks, or a
+    // card that moves when Undo puts the status back.
     // RED today: the Done button is not labelled from a card, so the sequence fails before the shift is measured.
     await setup(page);
     const cls = await measureCls(page, async () => {
       await page.goto('/care-tasks');
       await expect(page.getByText(TITLE_OPEN, { exact: true })).toBeVisible();
-      await cardFor(page, TITLE_OPEN).getByRole('button', { name: 'Done', exact: true }).click();
-      await expect(page.getByRole('status').filter({ hasText: 'Marked as done.' })).toBeVisible();
+      await markDone(page);
+      await undoButton(page).click();
+      await expect(statusLabel(page, TITLE_OPEN)).toHaveAttribute('data-care-status', 'open');
     });
     expect(cls).toBeLessThan(0.1);
   });
 
-  test('Gate G3 /care-tasks: the Done click stays under 200 ms with CPU throttled x4', async ({ page }) => {
-    // Would not notice: a Done that re-renders the whole list on the main thread (an INP over 200 ms at CPU x4).
+  test('Gate G3 /care-tasks: the Done click and the Undo click each stay under 200 ms with CPU throttled x4', async ({
+    page,
+  }) => {
+    // Would not notice: a Done that re-renders the whole list on the main thread (an INP over 200 ms at CPU x4), or
+    // an Undo that does the same through the toast action.
     // Returns 0 when no event reaches 16 ms, so a dead observer also passes; the bound is the gate's, unchanged.
     // RED today: the Done button of the Repeat CBC card is found only with the new card markup.
     await setup(page);
     await openCareTasks(page);
-    const slowest = await maxEventDuration(page, () =>
+    const done = await maxEventDuration(page, () =>
       cardFor(page, TITLE_OPEN).getByRole('button', { name: 'Done', exact: true }).click()
     );
-    expect(slowest).toBeLessThan(200);
+    expect(done, 'Done click').toBeLessThan(200);
+
+    await expect(undoButton(page)).toBeVisible();
+    const undo = await maxEventDuration(page, () => undoButton(page).click());
+    expect(undo, 'Undo click').toBeLessThan(200);
   });
 
-  test('Gate G5 /care-tasks: no element has a transform 50 ms after the Done click under reduced motion', async ({
+  test('Gate G5 /care-tasks: no element has a transform 50 ms after the Done click or the Undo click under reduced motion', async ({
     page,
   }) => {
     // Would not notice: a morph or a toast that moves with a transform for users who asked for reduced motion (the
-    // morph must fade opacity only). The check is page-wide, so the toast is included.
+    // morph must fade opacity only; the toast must not slide in, and must not slide out when Undo dismisses it).
+    // The check is page-wide, so the toast is included.
     // RED today: the card is not marked data-care-task, so the Done click cannot be made on the card.
     await setup(page);
     await openCareTasks(page);
-    const offenders = await reducedMotionSnapshot(page, () =>
+    const afterDone = await reducedMotionSnapshot(page, () =>
       cardFor(page, TITLE_OPEN).getByRole('button', { name: 'Done', exact: true }).click()
     );
-    expect(offenders, 'elements with a non-identity transform 50 ms after Done').toEqual([]);
+    expect(afterDone, 'elements with a non-identity transform 50 ms after Done').toEqual([]);
+
+    await expect(undoButton(page)).toBeVisible();
+    const afterUndo = await reducedMotionSnapshot(page, () => undoButton(page).click());
+    expect(afterUndo, 'elements with a non-identity transform 50 ms after Undo').toEqual([]);
   });
 
   for (const viewport of [
@@ -316,6 +349,7 @@ test.describe('Gate G on /care-tasks', () => {
       page,
     }) => {
       // Would not notice: a card whose buttons push the page wider than the phone viewport.
+      // RED today: passes on the old page too (it had no wide row); it guards the new card layout and the toast.
       await page.setViewportSize(viewport);
       await setup(page);
       await openCareTasks(page);
@@ -338,7 +372,7 @@ test.describe('Gate G on /care-tasks', () => {
     guard.assertClean();
   });
 
-  test('Gate G9 /care-tasks: the Safety Rail is in the viewport at full opacity at first paint and after Done', async ({
+  test('Gate G9 /care-tasks: the Safety Rail is in the viewport at full opacity at first paint, after Done and after Undo', async ({
     page,
   }) => {
     // Would not notice: a rail that fades or moves off-screen when the page changes state.
@@ -351,10 +385,16 @@ test.describe('Gate G on /care-tasks', () => {
     expect(first.inViewport, 'safety rail in viewport at first paint').toBe(true);
     expect(Math.abs(first.effectiveOpacity - 1)).toBeLessThan(0.01);
 
-    await cardFor(page, TITLE_OPEN).getByRole('button', { name: 'Done', exact: true }).click();
+    await markDone(page);
     const after = await safetyVisible(page, SAFETY_RAIL);
     expect(after.inViewport, 'safety rail in viewport after Done').toBe(true);
     expect(Math.abs(after.effectiveOpacity - 1)).toBeLessThan(0.01);
+
+    await undoButton(page).click();
+    await expect(statusLabel(page, TITLE_OPEN)).toHaveAttribute('data-care-status', 'open');
+    const afterUndo = await safetyVisible(page, SAFETY_RAIL);
+    expect(afterUndo.inViewport, 'safety rail in viewport after Undo').toBe(true);
+    expect(Math.abs(afterUndo.effectiveOpacity - 1)).toBeLessThan(0.01);
   });
 
   test('Gate G10 /care-tasks: the navigation to the page is still for the follow-up dates (stillnessProbe, navigation)', async ({
@@ -400,5 +440,25 @@ test.describe('Gate G on /care-tasks', () => {
     });
     expect(report.nodes).toBeGreaterThan(0);
     expect(report.postTriggerSamples).toBeGreaterThan(0);
+  });
+
+  test('Gate G10 /care-tasks: the Undo click is still for the follow-up dates (stillnessProbe, interaction)', async ({
+    page,
+  }) => {
+    // Would not notice: an Undo that regroups the card under "Open" again, so every date below it moves; or a date
+    // that fades or changes colour when its status goes back. Kind and bound are the Done click's: interaction, 40 ms.
+    // RED today: no date carries data-t0, so the probe fails with "zero [data-t0] nodes".
+    await setup(page);
+    await openCareTasks(page);
+    await markDone(page);
+    await waitForEffectiveOpacity(page, 'h1');
+
+    const report = await stillnessProbe(page, {
+      trigger: () => undoButton(page).click(),
+      expected: [DATE_SELECTOR],
+    });
+    expect(report.nodes).toBeGreaterThan(0);
+    expect(report.postTriggerSamples).toBeGreaterThan(0);
+    await expect(statusLabel(page, TITLE_OPEN)).toHaveAttribute('data-care-status', 'open');
   });
 });
