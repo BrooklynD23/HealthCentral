@@ -208,10 +208,17 @@ test.describe('UI-PALETTE', () => {
     test(`HC-UIPAL-003 (G1): the open, filtered palette has no serious or critical axe violation in ${theme}`, async ({ page }) => {
       await openApp(page);
       const box = await openWithKeys(page);
+      // Unfiltered first: the long, scrolling list is where scrollable-region-focusable would show.
+      await expect(dialog(page).getByRole('option').nth(8)).toBeVisible();
+      // The scrim fades in over 200 ms (Modal's SCRIM); axe reads colours under it, so measure once it has settled.
+      await page.waitForFunction(() =>
+        Array.from(document.querySelectorAll('div.fixed.inset-0')).every((el) => getComputedStyle(el).opacity === '1')
+      );
+      expect((await axeGate(page, { theme })).blocking.map(describeViolation), `axe in ${theme}, unfiltered`).toEqual([]);
       await box.pressSequentially('chol');
       await expect(dialog(page).getByRole('option', { name: /LDL Cholesterol/ })).toBeVisible();
       const result = await axeGate(page, { theme });
-      expect(result.blocking.map(describeViolation), `axe in ${theme}`).toEqual([]);
+      expect(result.blocking.map(describeViolation), `axe in ${theme}, filtered`).toEqual([]);
     });
   }
 

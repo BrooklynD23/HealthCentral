@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/layout/CommandPalette';
 import { closePalette } from '@/components/layout/paletteEvents';
 import { TopBar } from '@/components/layout/TopBar';
@@ -102,19 +102,6 @@ function renderShell() {
 
 const trigger = () => screen.getByRole('button', { name: /search/i });
 const dialog = () => screen.getByRole('dialog', { name: 'Command palette' });
-
-// cmdk's list measures itself with a ResizeObserver, which jsdom does not provide.
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-beforeAll(() => {
-  vi.stubGlobal('ResizeObserver', ResizeObserverStub);
-});
-afterAll(() => {
-  vi.unstubAllGlobals();
-});
 
 beforeEach(() => {
   vi.mocked(useObservations).mockReturnValue({ data: OBSERVATIONS } as unknown as ReturnType<typeof useObservations>);

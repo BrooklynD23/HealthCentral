@@ -64,15 +64,6 @@ describe('SearchPage', () => {
   });
 
   it('FE-SRCH-UI-003 submits the header search, opened as the palette, to the search route', async () => {
-    // cmdk's list measures itself with a ResizeObserver, which jsdom does not provide.
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    );
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -100,6 +91,5 @@ describe('SearchPage', () => {
     expect(screen.getByTestId('location')).toHaveTextContent(
       '/search?q=migraine+aura'
     );
-    vi.unstubAllGlobals();
   });
 });

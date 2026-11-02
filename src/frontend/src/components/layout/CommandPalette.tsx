@@ -1,6 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Command, defaultFilter } from 'cmdk';
 import { FileText, FlaskConical, Pill, Search, Tags, Upload, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/ui/Dialog';
 import { useObservations } from '@/services/observations';
@@ -18,9 +17,10 @@ import { closePalette, PALETTE_TRIGGER_SELECTOR, usePaletteOpen } from './palett
  * Records (the existing /search service, debounced 150 ms). Enter on free text with nothing else to select goes to
  * /search?q= (the "Search records for" item is the default selection then).
  *
- * DF-5: cmdk's `aria-activedescendant` can name an option that the filter has removed. The palette filters the
- * items itself, controls cmdk's `value`, and re-selects the first visible item whenever the query or the visible
- * set changes, so the id always names a rendered option.
+ * DF-5: cmdk 1.1.1 left `aria-activedescendant` naming an option the filter had removed, even with a controlled `value`
+ * (L0 ruling 6573186885). So this is a WAI-ARIA combobox and listbox on the Radix Dialog. The active option is derived
+ * on every render from the visible options (the stored choice if it is still visible, else the first), and the input's
+ * `aria-activedescendant` is that option's id, so it can only name a rendered option and is absent when there are none.
  */
 
 const DEBOUNCE_MS = 150;
@@ -28,7 +28,7 @@ const MAX_RESULTS = 8;
 const MAX_RECORDS = 5;
 
 interface Entry {
-  /** Unique across the palette; cmdk's `value` and the key of the controlled selection. */
+  /** Unique across the palette; the key of the selection. */
   value: string;
   label: string;
   keywords: string[];
@@ -75,22 +75,13 @@ function useDebounced<T>(value: T, ms: number): T {
   return debounced;
 }
 
-const ITEM_CLASS =
-  'flex min-h-target cursor-default items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink data-[selected=true]:bg-accent-subtle';
+const OPTION_CLASS =
+  'flex min-h-target cursor-default items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink aria-selected:bg-accent-subtle';
 
-function PaletteItem({ entry, onRun }: { entry: Entry; onRun: (entry: Entry) => void }) {
-  const Icon = entry.icon;
-  return (
-    <Command.Item value={entry.value} keywords={entry.keywords} onSelect={() => onRun(entry)} className={ITEM_CLASS}>
-      <Icon className="h-4 w-4 shrink-0 text-ink-secondary" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-      {entry.detail ? (
-        <span data-t0="" className="shrink-0 tabular-nums text-ink-secondary">
-          {entry.detail}
-        </span>
-      ) : null}
-    </Command.Item>
-  );
+/** Every word of the query appears in the label or a keyword. An empty query matches everything. */
+function matchesQuery(entry: Entry, words: string[]): boolean {
+  const text = [entry.label, ...entry.keywords].join(' ').toLowerCase();
+  return words.every((word) => text.includes(word));
 }
 
 export default function CommandPalette() {
@@ -100,13 +91,15 @@ export default function CommandPalette() {
   const { data: observations } = useObservations({ profile_id: profileId || '' });
 
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState('');
+  const [chosen, setChosen] = useState('');
+  const listId = useId();
   const trimmed = query.trim();
   const debounced = useDebounced(trimmed, DEBOUNCE_MS);
   const { data: found } = useSearch({ q: debounced, limit: MAX_RECORDS });
 
   const groups = useMemo<Group[]>(() => {
-    const matches = (entry: Entry) => defaultFilter(entry.label, trimmed, entry.keywords) > 0;
+    const words = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
+    const matches = (entry: Entry) => matchesQuery(entry, words);
 
     const results: Entry[] = latestByAnalyte(observations)
       .map((obs) => ({
@@ -181,12 +174,18 @@ export default function CommandPalette() {
   }, [observations, trimmed, debounced, found]);
 
   const visible = useMemo(() => groups.flatMap((group) => group.entries), [groups]);
-  const firstVisible = visible[0]?.value ?? '';
+  // DF-5: the active option is always one of the visible ones. A choice the filter removed falls back to the first.
+  const activeIndex = Math.max(
+    0,
+    visible.findIndex((entry) => entry.value === chosen)
+  );
+  const active = visible[activeIndex];
+  const optionId = (index: number) => `${listId}-option-${index}`;
+  const activeId = active ? optionId(activeIndex) : undefined;
 
-  // DF-5: whenever the selection names something that is not on screen, select the first visible item.
   useEffect(() => {
-    if (!visible.some((entry) => entry.value === selected)) setSelected(firstVisible);
-  }, [visible, selected, firstVisible]);
+    if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeId]);
 
   // Focus returns to where the palette was opened from (the header trigger when it was opened from the page body).
   const opener = useRef<HTMLElement | null>(null);
@@ -196,6 +195,7 @@ export default function CommandPalette() {
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
       setQuery('');
+      setChosen('');
     }
     if (!open && wasOpen.current) {
       const target = opener.current?.isConnected
@@ -214,8 +214,23 @@ export default function CommandPalette() {
 
   const changeQuery = (next: string) => {
     setQuery(next);
-    // Select the first item of the new filter now, not after the next render, so the two never disagree.
-    setSelected('');
+    setChosen(''); // a new filter starts on its first option
+  };
+
+  const move = (to: number) => setChosen(visible[(to + visible.length) % visible.length]?.value ?? '');
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing || visible.length === 0) return;
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => move(activeIndex + 1),
+      ArrowUp: () => move(activeIndex - 1),
+      Home: () => move(0),
+      End: () => move(visible.length - 1),
+      Enter: () => run(active),
+    };
+    if (!(event.key in keys)) return;
+    event.preventDefault();
+    keys[event.key]();
   };
 
   return (
@@ -232,33 +247,64 @@ export default function CommandPalette() {
       description={<span className="sr-only">Type to find a result, a page or an action. Enter on text searches your records.</span>}
       className="top-[12vh] max-w-xl translate-y-0 overflow-hidden p-0"
     >
-      <Command
-        label="Command palette"
-        shouldFilter={false}
-        loop
-        value={selected}
-        onValueChange={setSelected}
+      <input
+        role="combobox"
+        aria-label="Search results, pages and records"
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-expanded={visible.length > 0}
+        aria-activedescendant={activeId}
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
+        value={query}
+        onChange={(event) => changeQuery(event.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Search results, pages and records"
+        className="h-12 w-full border-b border-border bg-transparent px-4 text-sm text-ink placeholder:text-ink-secondary focus:outline-hidden"
+      />
+      <div
+        role="listbox"
+        id={listId}
+        aria-label="Suggestions"
+        tabIndex={-1}
+        onMouseDown={(event) => event.preventDefault()}
+        className="max-h-[min(24rem,60dvh)] overflow-y-auto p-2"
       >
-        <Command.Input
-          value={query}
-          onValueChange={changeQuery}
-          placeholder="Search results, pages and records"
-          className="h-12 w-full border-b border-border bg-transparent px-4 text-sm text-ink placeholder:text-ink-secondary focus:outline-hidden"
-        />
-        <Command.List label="Suggestions" className="max-h-[min(24rem,60dvh)] overflow-y-auto p-2">
-          {groups.map((group) => (
-            <Command.Group
-              key={group.id}
-              heading={group.heading}
-              className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:text-ink-secondary"
+        {groups.map((group) => (
+          <div key={group.id} role="group" aria-labelledby={`${listId}-${group.id}`}>
+            <div
+              id={`${listId}-${group.id}`}
+              className="px-3 py-2 text-xs font-medium uppercase text-ink-secondary"
             >
-              {group.entries.map((entry) => (
-                <PaletteItem key={entry.value} entry={entry} onRun={run} />
-              ))}
-            </Command.Group>
-          ))}
-        </Command.List>
-      </Command>
+              {group.heading}
+            </div>
+            {group.entries.map((entry) => {
+              const index = visible.indexOf(entry);
+              const Icon = entry.icon;
+              return (
+                <div
+                  key={entry.value}
+                  id={optionId(index)}
+                  role="option"
+                  aria-selected={index === activeIndex}
+                  onClick={() => run(entry)}
+                  onMouseMove={() => index !== activeIndex && setChosen(entry.value)}
+                  className={OPTION_CLASS}
+                >
+                  <Icon className="h-4 w-4 shrink-0 text-ink-secondary" aria-hidden="true" />
+                  <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                  {entry.detail ? (
+                    <span data-t0="" className="shrink-0 tabular-nums text-ink-secondary">
+                      {entry.detail}
+                    </span>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </Modal>
   );
 }
