@@ -85,8 +85,72 @@ function describeViolation(v: AxeViolation): string {
   return `${v.id}:${v.impact} at ${nodes}`;
 }
 
+/**
+ * /trends fixtures for this spec's observations. mockApi.ts has trend fixtures for glucose, ldl and hba1c, but this
+ * spec's lipid observations are ldl_cholesterol and hdl_cholesterol, which it does not know (an unmocked request is a
+ * 599 and trips the G7 guard). Each analyte has its own chart title and latest value, so "the chart on screen" can be
+ * read off the page. Glucose is answered by mockApi.ts: title "Glucose", latest 101.
+ */
+const LIPID_TRENDS: Record<string, { title: string; latest: number }> = {
+  ldl_cholesterol: { title: 'LDL chart', latest: 143 },
+  hdl_cholesterol: { title: 'HDL chart', latest: 52 },
+};
+
+async function mockLipidTrends(page: Page): Promise<void> {
+  await page.route(/\/api\/v1\/observations\/trends\/[^/?]+\/?(\?.*)?$/, (route) => {
+    const analyte = new URL(route.request().url()).pathname.replace(/\/+$/, '').split('/').pop() ?? '';
+    const fixture = LIPID_TRENDS[analyte];
+    if (route.request().method() !== 'GET' || !fixture) return route.fallback();
+    const point = (date: string, value: number) => ({
+      date: `${date}T00:00:00`,
+      value,
+      unit: 'mg/dL',
+      is_abnormal: false,
+      flag: null,
+      user_verified: true,
+      doc_id: 'doc-1',
+    });
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        analyte_canonical: analyte,
+        analyte_display_name: fixture.title,
+        unit: 'mg/dL',
+        ref_low: null,
+        ref_high: null,
+        summary: '',
+        data_points: [point('2026-01-10', fixture.latest - 5), point('2026-04-10', fixture.latest)],
+      }),
+    });
+  });
+}
+
+/** The analytes whose /observations/trends/<analyte> the page has asked for since this call. */
+function trendRequests(page: Page): string[] {
+  const asked: string[] = [];
+  page.on('request', (request) => {
+    const match = /\/api\/v1\/observations\/trends\/([^/?]+)/.exec(request.url());
+    if (match) asked.push(match[1]);
+  });
+  return asked;
+}
+
+const chartTitle = (page: Page, name: string) => page.locator('h3 span').getByText(name, { exact: true });
+
+/** The chart on screen is this one: its title and its latest value are up. */
+async function expectChart(page: Page, title: string, latest: number) {
+  await expect(chartTitle(page, title)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(`Latest value: ${latest} mg/dL`)).toBeVisible();
+}
+
 /** Opens the app with the mock API, the observations and the search answer the palette reads. */
-async function openApp(page: Page, route = '/inbox', observations: Observation[] = OBSERVATIONS) {
+async function openApp(
+  page: Page,
+  route = '/inbox',
+  observations: Observation[] = OBSERVATIONS,
+  prepare?: (page: Page) => Promise<void>
+) {
   const mock = await installMockApi(page);
   await page.route(/\/api\/v1\/observations\/?(\?.*)?$/, (route) =>
     route.request().method() === 'GET'
@@ -98,6 +162,7 @@ async function openApp(page: Page, route = '/inbox', observations: Observation[]
       ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SEARCH_RESPONSE) })
       : route.fallback()
   );
+  await prepare?.(page);
   await seedMockSession(page);
   const guard = consoleAndNetworkGuard(page, { mock });
   await page.goto(route);
@@ -276,7 +341,8 @@ test.describe('UI-PALETTE', () => {
   });
 
   test('HC-UIPAL-004: a Results row goes to its analyte, and an unverified value or hit is marked', async ({ page }) => {
-    await openApp(page);
+    await openApp(page, '/inbox', OBSERVATIONS, mockLipidTrends);
+    const asked = trendRequests(page);
     const box = await openWithKeys(page);
     await box.pressSequentially('chol');
     const ldl = dialog(page).getByRole('option', { name: /LDL Cholesterol/ });
@@ -284,7 +350,72 @@ test.describe('UI-PALETTE', () => {
     await expect(dialog(page).getByRole('option', { name: /Lipid panel: cholesterol \(unverified\)/ })).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    // L0 ruling 6586583230: the chart is LDL's, not the first analyte's (glucose).
+    await expectChart(page, 'LDL chart', 143);
+    await expect(chartTitle(page, 'Glucose')).toHaveCount(0);
+    expect(asked, 'no /observations/trends/glucose request, only LDL').toEqual(['ldl_cholesterol']);
   });
+
+  test('HC-UIPAL-004: on /trends a row clicked earlier does not outlast a palette pick (the page is not remounted)', async ({ page }) => {
+    await openApp(page, '/trends', OBSERVATIONS, mockLipidTrends);
+    await expectChart(page, 'Glucose', 101);
+    await page.getByRole('main').getByRole('button', { name: /HDL Cholesterol/ }).click();
+    await expectChart(page, 'HDL chart', 52);
+
+    const box = await openWithKeys(page);
+    await box.pressSequentially('chol');
+    await dialog(page).getByRole('option', { name: /LDL Cholesterol/ }).click();
+    await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    await expectChart(page, 'LDL chart', 143);
+    await expect(chartTitle(page, 'HDL chart')).toHaveCount(0);
+  });
+
+  test('HC-UIPAL-004: /trends?analyte=nope shows the first analyte, asks for nothing named nope, and logs nothing', async ({ page }) => {
+    let asked: string[] = [];
+    const { guard } = await openApp(page, '/trends?analyte=nope', OBSERVATIONS, async (p) => {
+      await mockLipidTrends(p);
+      asked = trendRequests(p);
+    });
+    await expectChart(page, 'Glucose', 101);
+    expect(asked, 'one trend request, for the first analyte').toEqual(['glucose']);
+    await expect(page.getByText('No trend data available for this analyte')).toHaveCount(0);
+    await expect(page.getByText('Failed to load observations')).toHaveCount(0);
+    guard.assertClean();
+  });
+
+  test('HC-UIPAL-004: /trends?analyte=ldl_cholesterol is a clean page (G7), its Safety Rail is up (G9), and it asks for LDL only', async ({ page }) => {
+    let asked: string[] = [];
+    const { guard } = await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, async (p) => {
+      await mockLipidTrends(p);
+      asked = trendRequests(p);
+    });
+    await expectChart(page, 'LDL chart', 143);
+    expect(await safetyVisible(page)).toEqual({ found: true, inViewport: true, effectiveOpacity: 1 });
+    guard.assertClean();
+    expect(asked, 'the first and only trend request is LDL, never glucose').toEqual(['ldl_cholesterol']);
+  });
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`G6: /trends?analyte=ldl_cholesterol has no horizontal scroll at ${viewport.width}`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
+      await expectChart(page, 'LDL chart', 143);
+      const scroll = await noHorizontalScroll(page);
+      expect(scroll.ok, `scrollWidth ${scroll.scrollWidth} > innerWidth ${scroll.innerWidth}`).toBe(true);
+    });
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`G1: /trends?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}`, async ({ page }) => {
+      await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
+      await expectChart(page, 'LDL chart', 143);
+      // The summary rows fade in one after another; axe reads colours, so measure once they have all settled.
+      await page.waitForFunction(() =>
+        Array.from(document.querySelectorAll('main button')).every((el) => getComputedStyle(el).opacity === '1')
+      );
+      expect((await axeGate(page, { theme })).blocking.map(describeViolation), `axe in ${theme}`).toEqual([]);
+    });
+  }
 
   test('the input sits at the top edge of the dialog and its focus ring stays inside it', async ({ page }) => {
     await openApp(page);

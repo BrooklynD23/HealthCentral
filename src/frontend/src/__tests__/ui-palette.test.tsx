@@ -11,11 +11,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/layout/CommandPalette';
 import { closePalette, PaletteMount } from '@/components/layout/paletteEvents';
 import { TopBar } from '@/components/layout/TopBar';
+import { TrendsDashboard } from '@/pages/TrendsDashboard';
 import { apiGet } from '@/services/api';
 import { useObservations } from '@/services/observations';
 import { useSearch } from '@/services/search';
@@ -24,7 +25,21 @@ import { useAuthStore } from '@/stores/authStore';
 
 // The two hooks are mocked by default; the tests that need the real hook (its query, its refetch on focus) call
 // vi.importActual and put the real one back, with only the network (apiGet) mocked.
-vi.mock('@/services/observations', () => ({ useObservations: vi.fn() }));
+// The /trends tests below render the real page, which also needs the real useTrend and usePanel.
+vi.mock('@/services/observations', async (importActual) => ({
+  ...(await importActual<typeof import('@/services/observations')>()),
+  useObservations: vi.fn(),
+}));
+// jsdom has no layout, so ResponsiveContainer would render nothing (same mock as TrendsDashboard.test.tsx).
+vi.mock('recharts', async () => {
+  const actual = await vi.importActual<typeof import('recharts')>('recharts');
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="responsive-container">{children}</div>
+    ),
+  };
+});
 vi.mock('@/services/search', () => ({ useSearch: vi.fn() }));
 vi.mock('@/services/api', async (importActual) => ({
   ...(await importActual<typeof import('@/services/api')>()),
@@ -599,5 +614,170 @@ describe('a closed palette makes no API call (the real hooks, only the network m
     expect(await screen.findByRole('combobox')).toHaveValue('');
     await settle(400); // past the 150 ms debounce
     expect(calls('/search/'), 'q=chol is not asked again on reopen').toBe(1);
+  });
+});
+
+describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through the real page and only the network mocked', () => {
+  // Every analyte has its own chart title and latest value, so "the chart shown" is read off the page, not the URL.
+  const TRENDS: Record<string, { title: string; latest: number }> = {
+    glucose: { title: 'GLUCOSE CHART', latest: 117 },
+    ldl_cholesterol: { title: 'LDL CHART', latest: 143 },
+    hdl_cholesterol: { title: 'HDL CHART', latest: 52 },
+  };
+  const trendFor = (analyte: string) => ({
+    analyte_canonical: analyte,
+    analyte_display_name: TRENDS[analyte].title,
+    unit: 'mg/dL',
+    ref_low: null,
+    ref_high: null,
+    summary: '',
+    data_points: [
+      { date: '2026-01-10T00:00:00', value: TRENDS[analyte].latest - 5, unit: 'mg/dL', is_abnormal: false, flag: null, user_verified: true, doc_id: 'doc-1' },
+      { date: '2026-04-10T00:00:00', value: TRENDS[analyte].latest, unit: 'mg/dL', is_abnormal: false, flag: null, user_verified: true, doc_id: 'doc-1' },
+    ],
+  });
+
+  const calls = (path: string) => vi.mocked(apiGet).mock.calls.filter(([called]) => called === path).length;
+  const trendCalls = () =>
+    vi
+      .mocked(apiGet)
+      .mock.calls.map(([path]) => String(path))
+      .filter((path) => path.startsWith('/observations/trends/'));
+  const settle = (ms: number) => act(() => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+
+  let navigate: ReturnType<typeof useNavigate>;
+  function NavHandle() {
+    navigate = useNavigate();
+    return null;
+  }
+
+  /** Holds the observations answer until the test lets it go (for the "still loading" case). */
+  let releaseObservations: (() => void) | null = null;
+
+  function renderTrends(initialPath: string, holdObservations = false) {
+    const gate = new Promise<void>((resolve) => {
+      releaseObservations = resolve;
+    });
+    vi.mocked(apiGet).mockImplementation((async (path: string) => {
+      if (path === '/observations/') {
+        if (holdObservations) await gate;
+        return OBSERVATIONS;
+      }
+      const trend = /^\/observations\/trends\/(.+)$/.exec(path);
+      if (trend && TRENDS[trend[1]]) return trendFor(trend[1]);
+      if (path.startsWith('/observations/panels/')) {
+        return { panel_id: 'cbc', panel_name: 'CBC', observations: [], collection_date: null };
+      }
+      if (path === '/medications/') return [];
+      throw new Error(`unmocked API call ${path}`);
+    }) as never);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  <TrendsDashboard />
+                  <NavHandle />
+                  <LocationProbe />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  /** The chart on screen is this analyte's: its title is up, its latest value is up, and no other chart's title is. */
+  async function expectChartOf(analyte: string) {
+    expect(await screen.findByText(TRENDS[analyte].title)).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(`Latest value: ${TRENDS[analyte].latest} mg/dL`))).toBeInTheDocument();
+    for (const [other, { title }] of Object.entries(TRENDS)) {
+      if (other !== analyte) expect(screen.queryByText(title), `${other} chart must not be shown`).toBeNull();
+    }
+  }
+
+  const clickRow = async (name: RegExp) => userEvent.setup().click(await screen.findByRole('button', { name }));
+
+  beforeEach(async () => {
+    const observations = await vi.importActual<typeof import('@/services/observations')>('@/services/observations');
+    vi.mocked(useObservations).mockImplementation(observations.useObservations);
+    useAuthStore.setState({ profileId: 'p1' });
+  });
+
+  afterEach(() => {
+    releaseObservations?.();
+    releaseObservations = null;
+    useAuthStore.setState({ profileId: null });
+  });
+
+  it('a) ?analyte=ldl_cholesterol, glucose first: LDL title and value, one trend request (LDL), no extra observations fetch', async () => {
+    renderTrends('/trends?analyte=ldl_cholesterol');
+    await expectChartOf('ldl_cholesterol');
+    await settle(50);
+    expect(trendCalls(), 'only the named analyte was asked for, never glucose first').toEqual([
+      '/observations/trends/ldl_cholesterol',
+    ]);
+    expect(calls('/observations/'), 'the reader does not re-fetch observations').toBe(1);
+  });
+
+  it('b) an unknown ?analyte=nope falls back to the first analyte, with no error and no request for nope', async () => {
+    renderTrends('/trends?analyte=nope');
+    await expectChartOf('glucose');
+    await settle(50);
+    expect(screen.queryByText('Failed to load observations')).toBeNull();
+    expect(screen.queryByText('No trend data available for this analyte')).toBeNull();
+    expect(trendCalls()).toEqual(['/observations/trends/glucose']);
+  });
+
+  it('c) observations still pending on ?analyte=ldl_cholesterol: no trend request; once loaded the first one is LDL', async () => {
+    renderTrends('/trends?analyte=ldl_cholesterol', true);
+    await settle(100);
+    expect(trendCalls(), 'nothing is asked while the analyte list is unknown').toEqual([]);
+    await act(async () => releaseObservations?.());
+    await expectChartOf('ldl_cholesterol');
+    await settle(50);
+    expect(trendCalls(), 'the first trend request is already the right analyte').toEqual([
+      '/observations/trends/ldl_cholesterol',
+    ]);
+  });
+
+  it('d) plain /trends is unchanged: the first analyte, one observations fetch', async () => {
+    renderTrends('/trends');
+    await expectChartOf('glucose');
+    await settle(50);
+    expect(trendCalls()).toEqual(['/observations/trends/glucose']);
+    expect(calls('/observations/')).toBe(1);
+  });
+
+  it('e) arriving on ?analyte=ldl_cholesterol and then clicking the HDL row shows HDL, and it stays', async () => {
+    renderTrends('/trends?analyte=ldl_cholesterol');
+    await expectChartOf('ldl_cholesterol');
+    await clickRow(/HDL Cholesterol/);
+    await expectChartOf('hdl_cholesterol');
+    await settle(100);
+    await expectChartOf('hdl_cholesterol');
+  });
+
+  it('f) a mounted page, HDL clicked on /trends, then a navigation to ?analyte=ldl_cholesterol: LDL', async () => {
+    renderTrends('/trends');
+    await expectChartOf('glucose');
+    await clickRow(/HDL Cholesterol/);
+    await expectChartOf('hdl_cholesterol');
+    act(() => void navigate('/trends?analyte=ldl_cholesterol'));
+    await expectChartOf('ldl_cholesterol');
+  });
+
+  it('g) a mounted page on ?analyte=ldl_cholesterol, HDL clicked, then the same URL again: LDL', async () => {
+    renderTrends('/trends?analyte=ldl_cholesterol');
+    await expectChartOf('ldl_cholesterol');
+    await clickRow(/HDL Cholesterol/);
+    await expectChartOf('hdl_cholesterol');
+    act(() => void navigate('/trends?analyte=ldl_cholesterol'));
+    await expectChartOf('ldl_cholesterol');
   });
 });
