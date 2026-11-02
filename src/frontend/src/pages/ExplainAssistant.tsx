@@ -99,8 +99,9 @@ function quoteOf(snippet: string | null): string | null {
 /** What the record itself says, for a citation that has no quote of its own: the analyte and its result. */
 function recordText(observation: Observation): string {
   const name = observation.analyte_raw || observation.analyte_canonical;
+  // `||`, as SourceTrace's result line has it: an empty value_text falls through to the number in both places.
   const result =
-    observation.value_text ??
+    observation.value_text ||
     (observation.value !== null ? `${observation.value}${observation.unit ? ` ${observation.unit}` : ''}` : null);
   return result ? `${name}: ${result}` : name;
 }
@@ -133,7 +134,7 @@ function AskCitation({
 
   if (observation || (!target && quote)) {
     return (
-      <span className="inline-flex items-center gap-1">
+      <span className="inline-flex max-w-full items-center gap-1">
         <CitationTooltip
           index={index}
           citation={{
@@ -143,7 +144,7 @@ function AskCitation({
           }}
           source={observation ? { observation } : undefined}
         />
-        <span data-t0="" className="text-xs text-ink-secondary">
+        <span data-t0="" className="min-w-0 text-xs text-ink-secondary [overflow-wrap:anywhere]">
           {label}
         </span>
       </span>
@@ -158,20 +159,23 @@ function AskCitation({
         onClick={() => navigate(target)}
         title="Show this result in the source document"
         className={cn(
-          'inline-flex min-h-target items-center gap-1 rounded-lg px-2 text-xs transition-colors',
+          'inline-flex min-h-target max-w-full items-center gap-1 rounded-lg px-2 text-left text-xs transition-colors [overflow-wrap:anywhere]',
           'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
           tone
         )}
       >
-        <FileText className="w-3 h-3" aria-hidden="true" />[{index + 1}] {label}
-        <ExternalLink className="w-3 h-3" aria-hidden="true" />
+        <FileText className="w-3 h-3 shrink-0" aria-hidden="true" />[{index + 1}] {label}
+        <ExternalLink className="w-3 h-3 shrink-0" aria-hidden="true" />
       </button>
     );
   }
 
   return (
-    <span data-t0="" className={cn('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs', tone)}>
-      <FileText className="w-3 h-3" aria-hidden="true" />[{index + 1}] {label}
+    <span
+      data-t0=""
+      className={cn('inline-flex max-w-full items-center gap-1 rounded-lg px-2 py-1 text-xs [overflow-wrap:anywhere]', tone)}
+    >
+      <FileText className="w-3 h-3 shrink-0" aria-hidden="true" />[{index + 1}] {label}
     </span>
   );
 }
@@ -293,6 +297,7 @@ export function ExplainAssistant() {
     () => new Map((observationPool ?? []).map((observation) => [observation.id, observation])),
     [observationPool]
   );
+  const hasUnverified = observationPool?.some((obs) => !obs.user_verified) ?? false;
   const sendMessage = useSendMessage();
   const submitFeedback = useSubmitFeedback();
 
@@ -422,9 +427,13 @@ export function ExplainAssistant() {
   // Keep the newest message in view by scrolling the list itself. scrollIntoView on a sentinel also scrolls every
   // ancestor, which moved the whole page on each send (and on load). Set before paint and without easing, so a
   // T0 answer is at its final position in the first frame it exists.
+  // With no message and nothing pending there is nothing to follow: the list sits at its top, so the banners and the
+  // empty state are in view (a list emptied by "New" is put back there, the browser only clamps it).
   useLayoutEffect(() => {
     const list = messageListRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (!list) return;
+    const nothingToFollow = messages.length === 0 && !sendMessage.isPending;
+    list.scrollTop = nothingToFollow ? 0 : list.scrollHeight;
   }, [messages, sendMessage.isPending]);
 
   const handleSend = async (overrideQuestion?: string) => {
@@ -805,7 +814,9 @@ export function ExplainAssistant() {
 
           <div className="relative min-h-48 flex-1">
             {/* The banners that are not privacy warnings live in the list, so they scroll away instead of taking height
-                from the composer on a short screen. The break-glass warning above stays pinned (W-6 Q3, D12). */}
+                from the composer on a short screen. The break-glass warning above stays pinned (W-6 Q3, D12). From lg up
+                the list has the room to keep these two pinned as well, so a value that is missing is never explained
+                by a banner that has scrolled out of view. Below lg they scroll with the list. */}
             <div
               ref={messageListRef}
               role="log"
@@ -813,33 +824,37 @@ export function ExplainAssistant() {
               tabIndex={0}
               className="absolute inset-0 flex flex-col gap-6 overflow-y-auto p-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent lg:p-6"
             >
-              {modelUnavailable && (
-                <div className="flex shrink-0 items-center gap-3 rounded-xl border border-status-caution/20 bg-status-caution-subtle px-4 py-3">
-                  <Settings className="w-5 h-5 text-status-caution shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-ink">No AI model configured</p>
-                    <p className="text-xs text-ink-secondary">
-                      Responses are limited to the knowledge base. Configure a model for full functionality.
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => navigate('/settings')}
-                    className="gap-1.5 shrink-0"
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                    Settings
-                  </Button>
-                </div>
-              )}
+              {(modelUnavailable || hasUnverified) && (
+                <div className="flex shrink-0 flex-col gap-3 lg:sticky lg:top-0 lg:z-10 lg:-mx-6 lg:-mt-6 lg:bg-surface-elevated lg:px-6 lg:pb-3 lg:pt-6">
+                  {modelUnavailable && (
+                    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-status-caution/20 bg-status-caution-subtle px-4 py-3">
+                      <Settings className="w-5 h-5 text-status-caution shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-ink">No AI model configured</p>
+                        <p className="text-xs text-ink-secondary">
+                          Responses are limited to the knowledge base. Configure a model for full functionality.
+                        </p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => navigate('/settings')}
+                        className="gap-1.5 shrink-0"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        Settings
+                      </Button>
+                    </div>
+                  )}
 
-              {(observationPool?.some((obs) => !obs.user_verified) ?? false) && (
-                <div className="flex shrink-0 items-center gap-3 rounded-xl border border-status-caution/20 bg-status-caution-subtle px-4 py-3">
-                  <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
-                  <p className="text-xs text-ink-secondary">
-                    Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
-                  </p>
+                  {hasUnverified && (
+                    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-status-caution/20 bg-status-caution-subtle px-4 py-3">
+                      <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
+                      <p className="text-xs text-ink-secondary">
+                        Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
