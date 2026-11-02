@@ -18,8 +18,9 @@ import { Sheet } from '@/components/ui/Sheet';
 import { notify } from '@/components/ui/toast';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ease } from '@/motion/tokens';
+import { useDocument, useDocumentPages } from '@/services/documents';
 import { useVerifyObservation } from '@/services/observations';
-import type { Observation } from '@/services/types';
+import type { DocumentPage, Observation } from '@/services/types';
 import { cn } from '@/utils/cn';
 
 const DRAW_MS = 420;
@@ -247,5 +248,79 @@ export function SourceTrace({
         )}
       </div>
     </Sheet>
+  );
+}
+
+const EXCERPT_CONTEXT_LINES = 2;
+const NO_EXCERPT = { excerptLines: [] as string[], matchIndex: null as number | null };
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The lines of the report around a value, or nothing. The sheet says "This is what your
+ * report states.", so a wrong highlighted line would be a false provenance claim: a line
+ * matches only when it names the analyte (case-insensitive) AND holds the value as a
+ * whole whitespace-delimited token ("96" is not in "196", "96.5", "-96" or "70-99").
+ * Exactly one matching line on the observation's source page gives that line and up to
+ * 2 lines either side; zero or several, no source page, or no such page give nothing.
+ * An empty analyte or value never matches (`includes('')` would match every line).
+ */
+export function excerptFromPage(
+  pages: readonly DocumentPage[] | undefined,
+  observation: Observation
+): { excerptLines: string[]; matchIndex: number | null } {
+  const { source_page: sourcePage, analyte_raw: analyteRaw, value, value_text: valueText } = observation;
+  if (sourcePage === null || !pages) return NO_EXCERPT;
+  const page = pages.find((candidate) => candidate.page_number === sourcePage);
+  if (!page) return NO_EXCERPT;
+
+  const analyte = (analyteRaw ?? '').trim().toLowerCase();
+  const valueToken = (value !== null ? String(value) : (valueText ?? '')).trim();
+  if (analyte === '' || valueToken === '') return NO_EXCERPT;
+
+  const valuePattern = new RegExp(`(^|\\s)${escapeRegExp(valueToken)}(\\s|$)`);
+  const lines = page.text.split(/\r?\n/);
+  const matches: number[] = [];
+  lines.forEach((line, index) => {
+    if (line.toLowerCase().includes(analyte) && valuePattern.test(line)) matches.push(index);
+  });
+  if (matches.length !== 1) return NO_EXCERPT;
+
+  const start = Math.max(0, matches[0] - EXCERPT_CONTEXT_LINES);
+  const end = Math.min(lines.length, matches[0] + EXCERPT_CONTEXT_LINES + 1);
+  return { excerptLines: lines.slice(start, end), matchIndex: matches[0] - start };
+}
+
+/**
+ * The Source Trace sheet for an observation, opened from `trigger` (SOURCE-TRACE-WIRE).
+ * The document and its pages are fetched only once the sheet has been opened, so a page
+ * that only offers the trigger makes no request. The sheet is read-only here: the file
+ * name and the excerpt come from the stored document, nothing is written.
+ */
+export function ObservationSourceTrace({
+  observation,
+  trigger,
+}: {
+  observation: Observation;
+  trigger: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const documentId = open ? observation.doc_id : undefined;
+  const { data: document } = useDocument(documentId);
+  const { data: pages } = useDocumentPages(documentId);
+  const { excerptLines, matchIndex } = excerptFromPage(pages, observation);
+
+  return (
+    <SourceTrace
+      open={open}
+      onOpenChange={setOpen}
+      trigger={trigger}
+      observation={observation}
+      sourceFile={document?.source ?? null}
+      excerptLines={excerptLines}
+      matchIndex={matchIndex}
+    />
   );
 }
