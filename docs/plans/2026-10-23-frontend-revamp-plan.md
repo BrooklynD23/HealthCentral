@@ -1,6 +1,6 @@
 # Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient
 
-**Last Updated:** 2026-10-28 (owner answers STILLNESS-GAP-BOUND "Fix first, frame waits" and STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing": §7.11 rows GATES-NAV-BOUND (L0) and STILLNESS-NAV-LATE planned on `6b3dd27`; UI-SHELL depends on GATES-NAV-BOUND; §11 answered line); 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
+**Last Updated:** 2026-11-01 (Opus planner on `6fe336dd`, owner answer STILLNESS-OVERLAY-OPEN "70 ms for overlay opens (Recommended)": [§7.12](#712-planned-2026-11-01-owner-answer-stillness-overlay-open) row STILLNESS-OVERLAY-70; POPOVER-OPEN-COST closed after Task 1 (#393); HC-UIOV-007's readiness fix moves to STILLNESS-NAV-LATE Task 3; UI-PG-MEDS depends on STILLNESS-OVERLAY-70; the G10 row names the gap bounds); 2026-10-30 (Opus planner, FOLLOWUPS-1030: pointers to SOURCE-TRACE-WIRE in UI-PG-RESULTS and UI-PG-REVIEW, NAV70-CI-MISS folded into STILLNESS-NAV-LATE, box rules point to the RUNBOOK §10.1 quiet-box precheck); 2026-10-29 (POPOVER-OPEN-COST widened to dialog opens after the UI-PG-MEDS #398 stop: [delta](#delta-2026-10-29-popover-open-cost-widened-to-dialog-opens-ui-pg-meds-398-stop), planned on `41fa382`; earlier 2026-10-28: owner answers STILLNESS-GAP-BOUND "Fix first, frame waits" and STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing": §7.11 rows GATES-NAV-BOUND (L0) and STILLNESS-NAV-LATE planned on `6b3dd27`; UI-SHELL depends on GATES-NAV-BOUND; §11 answered line); 2026-10-26 (post-merge batch on `0e8b2b2`: GATES-SAMPLE-TIME done (#374), with its review MINOR 3 noted; §7.10 follow-ups planned: POPOVER-OPEN-COST, SETTINGS-DETECT-BLOCKING, GATES-SAMPLE-TIME-MINORS, ALERTDIALOG-CANCEL-FOCUS; SAFETY-LABEL-WORDING answered "Keep plan default (Recommended)" and closed in §11; UI-PHONE-TOGGLE answered "Second row on phones (Recommended)"); 2026-10-24 (SAFETY-MODE build rows planned on `29dca22` from owner prompt 51: SAFETY-MODE-SETTING, -STRICT, -VERIFIED, -TOGGLE, -CITATIONS, -VERIFIED-FE); 2026-10-24 (owner prompt 48: UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now"); 2026-10-23 (review round 2 of #311: e2e contract-change appendix, `data-t0` owners and M0 route default, overlay rule, fixture screenshot, wave order, base `257e072`); 2026-10-23 (review round 1 of #311: framer-motion 10 kept (owner UI-DEPS), fixture name (owner UI-FIXTURE-NAME), stillness probe G10, UI-AUTH-SCREENS relabelled, test-file ownership, 11 minors)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md); the owner direction and prompt 44's four answers are recorded there as rows UI-DIRECTION, UI-SAAS-MEANING, UI-SCOPE-1031, UI-DARK-MODE and UI-SAFETY-TOGGLE, prompt 45's two answers as rows UI-DEPS and UI-FIXTURE-NAME, and prompt 48's three answers as rows UI-ROUTE-MOTION, UI-AUTH-SCREENS and SESSION-LOCK-NOW (same PR).
 **Base measured:** `origin/main` @ `257e072` (2026-10-23; merged since the first draft's `15fe095`: #321 MVP-REAUTH-401, #315 CPU-DEFAULT-PHI4, #318 OLLAMA-NUM-CTX, #314 FE-EXPLAIN-ERR, #319 GAUGE-ZERO-WIDTH, #320 INTERP-REGEN-500). The designers and the UI review read `7749744`; since then `src/frontend` changed only through #321 (`services/api.ts`, `profiles.ts`, `backup.ts`), #314 (`ExplainAssistant.tsx`) and #319 (`ReferenceRangeComparison.tsx`) with their tests, and both prototype patches still pass `git apply --check` on `257e072`. Every e2e line cited in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) was read on `257e072` and re-read after #323 (docs) and #312 SESSION-REENTRY Task 1 (`7667439`), which this branch has merged.
@@ -342,7 +342,7 @@ Versions, licences and React peers re-read with `npm view` by the L0 planner on 
 | G7 | zero console errors; no request to a non-localhost origin (local-first) | `consoleAndNetworkGuard()` |
 | G8 | `npx tsc --noEmit`, `npm run build`, `npx vitest run` (count and delta; from Windows or CI per RUNBOOK §6.5), the row's Playwright spec | — |
 | G9 (from UI-SHELL on) | the Safety Rail is in the viewport at effective opacity 1 at first paint and after each interaction; contextual disclaimers and citations visible without hover | `safetyVisible()` |
-| G10 | stillness: `stillnessProbe(page, { trigger, expected })` runs `trigger` and samples every 16-40 ms. **Window:** 800 ms from the trigger; on the first visit to a lazy route it is extended until network idle, then 800 ms more. **Per `[data-t0]` node, from the first sample in which it exists:** `textContent`, computed `color`, `background-color`, `clip-path`, `filter` and `transform` stay constant, and `getBoundingClientRect()` stays constant (±0.5 px); this catches a count-up even at fixed width (tabular-nums), a colour pulse, a clip-path or filter reveal and any translate. **Effective opacity** (the product of its own and every ancestor's computed opacity) must be 1, with one exception: when `trigger` is a **navigation**, during the route-fade window each T0 node's effective opacity must equal the route container's own computed opacity (no nested fade). The route container is the element marked `data-route-container`, keyed by pathname; the **240 ms clock starts at the first sample in which the new keyed container exists**, and the probe fails if that container has any transform, or has not reached opacity 1 within 240 ms, or changes opacity again after reaching 1 (UI-ROUTE-MOTION's exception, and only it). For an **interaction** (including opening an overlay) there is no fade window. The probe **fails** when it finds zero `[data-t0]` nodes, or when any selector in `expected` (the route's components from [§2.7](#27-t0-marking-which-components-carry-data-t0-and-which-row-adds-it)) matches no `[data-t0]` node | `stillnessProbe()` |
+| G10 | stillness: `stillnessProbe(page, { trigger, expected })` runs `trigger` and samples every 16-40 ms. **Window:** 800 ms from the trigger; on the first visit to a lazy route it is extended until network idle, then 800 ms more. **Per `[data-t0]` node, from the first sample in which it exists:** `textContent`, computed `color`, `background-color`, `clip-path`, `filter` and `transform` stay constant, and `getBoundingClientRect()` stays constant (±0.5 px); this catches a count-up even at fixed width (tabular-nums), a colour pulse, a clip-path or filter reveal and any translate. **Effective opacity** (the product of its own and every ancestor's computed opacity) must be 1, with one exception: when `trigger` is a **navigation**, during the route-fade window each T0 node's effective opacity must equal the route container's own computed opacity (no nested fade). The route container is the element marked `data-route-container`, keyed by pathname; the **240 ms clock starts at the first sample in which the new keyed container exists**, and the probe fails if that container has any transform, or has not reached opacity 1 within 240 ms, or changes opacity again after reaching 1 (UI-ROUTE-MOTION's exception, and only it). For an **interaction** (including opening an overlay) there is no fade window. **Sampling gap bound:** 40 ms; 70 ms for a navigation (owner STILLNESS-NAV-70) and for an overlay open, `kind: 'overlay'` (owner STILLNESS-OVERLAY-OPEN, 2026-11-01: a trigger that opens a Popover or a `Modal`, that is a Dialog, AlertDialog or Sheet; row [STILLNESS-OVERLAY-70](#stillness-overlay-70--overlay-open-stillness-probes-allow-70-ms-sampling-gaps)). The probe **fails** when it finds zero `[data-t0]` nodes, or when any selector in `expected` (the route's components from [§2.7](#27-t0-marking-which-components-carry-data-t0-and-which-row-adds-it)) matches no `[data-t0]` node | `stillnessProbe()` |
 
 Frontend e2e uses `page.route` mocks typed from `fe/services/types.ts` (`e2e/support/mockApi.ts`). Anything that asserts auth, session or status-code behaviour runs against the real backend through HTTP (`e2e/support/start-backend.mjs`), as CLAUDE.md §4 requires. Existing tests may have selectors or labels updated when markup changes; no assertion is removed or loosened (CLAUDE.md §3). Every e2e assertion a row changes is listed, old value → new value, in [Appendix A](#appendix-a-e2e-assertions-and-the-row-that-changes-each) and in that row's Files; CI runs every spec (`ci.yml` e2e job), so an unlisted break is a failed row. Before claiming done, each row re-reads [recurring-failures.md](../agentic/recurring-failures.md); #1 (a test that could not fail) is why every new check below names its RED state, and #12 (a gate merged beside PRs built before it) is why L0 runs UI-BUDGET's check and UI-TOKENS' contrast test on `origin/main` before merging the next group.
 
@@ -682,6 +682,8 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Acceptance:** G; Results route total ≤ 205 kB gz. **Est:** 5 h. **MVP:** P1.
 
+**Delta 2026-10-30 (SOURCE-TRACE-WIRE):** keep HC-STW-001…005 green, and carry `InterpretedResultCard`'s `observation` prop into `ResultsPage.tsx` when `LabInterpreter.tsx` is folded in. See [SOURCE-TRACE-WIRE](2026-10-30-followups-plan.md#source-trace-wire--give-the-source-trace-sheet-a-real-caller-on-the-interpreted-result).
+
 #### UI-PG-DOCUMENTS — Documents page and the import and processing showcase
 
 **Files:** `fe/pages/DocumentInbox.tsx`, `fe/components/documents/CategoryBadge.tsx` (delete; no importer), `ExtractionConfidenceBadge.tsx` (words first, shown only below the threshold), `HighlightChips.tsx` (Tags, max 2 + "+N"), `fe/__tests__/DocumentInbox.test.tsx` (selectors only), `fe/__tests__/ui-documents.test.tsx` (new), `e2e/ui-documents.spec.ts` (new). `EntityDetailView.tsx` belongs to UI-PG-REVIEW.
@@ -714,6 +716,8 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 
 **Acceptance:** G. **Est:** 4 h. **MVP:** P1.
 
+**Delta 2026-10-30 (SOURCE-TRACE-WIRE):** add HC-UIREV-006: on `/verify`, "Show source" on a row opens the Source Trace sheet for that row (e2e), reusing `ObservationSourceTrace`. See [SOURCE-TRACE-WIRE](2026-10-30-followups-plan.md#source-trace-wire--give-the-source-trace-sheet-a-real-caller-on-the-interpreted-result).
+
 #### UI-PG-ASK — Ask: the chat owns its scroll, citations open on tap
 
 **Files:** `fe/pages/ExplainAssistant.tsx`, `fe/__tests__/ExplainAssistant.test.tsx` and `ExplainAssistantHistoryRestore.test.tsx` (selectors only), `fe/__tests__/ui-ask.test.tsx` (new), `e2e/ui-ask.spec.ts` (new), `e2e/assistant.spec.ts` (`:61`, `:85`, `:162`, `:220`, `:236`, `:249`, `:261` send-button selector "last button with an svg" → `getByRole('button', { name: 'Send question' })` (the name FE-EXPLAIN-ERR added); `:223` `/searching documents|generating response/i` → `/reading your verified results/i`), `e2e/ui-full-verification.spec.ts` (`:110` the same send-button selector change). Kept: the h1 "Explain Assistant" (UI-MICRO renames it), the placeholder "Ask about your results...", both disclaimer sentences, the native `Document Category` select (so `toHaveValue` still works), the suggested questions.
@@ -741,6 +745,8 @@ Every page row: rebuild the page on the primitives; replace its hand-built overl
 | HC-UIMED-002 | the dose sheet: Escape closes, focus is trapped and returns; it opens and closes with M0 (`still`), and its dose text passes `stillnessProbe` from the Log click | yes |
 | HC-UIMED-003 | no `animate-ping` anywhere under `medication-coach/` | yes |
 | HC-UIMED-004 | `/notifications` lands on the reminders tab with the same settings | yes |
+
+**Delta 2026-11-01 (owner STILLNESS-OVERLAY-OPEN).** The row depends on [STILLNESS-OVERLAY-70](#stillness-overlay-70--overlay-open-stillness-probes-allow-70-ms-sampling-gaps) instead of POPOVER-OPEN-COST (done as Task 1 only, #393). HC-UIMED-002's stillness case (`e2e/ui-meds.spec.ts` on #398, "the dose text passes the stillness probe from the Log click") passes `kind: 'overlay'` and is judged at 70 ms. The Reminders tab click keeps `kind: 'interaction'` (40 ms), and the route entries keep `'navigation'`. #393's stop measured the dose-sheet open at 4 of 10 runs over 40 ms on dev (maximum 56 ms) and 2 of 10 on preview (maximum 46 ms; both about 720 ms after the click). G3 `/medications` dark is still re-measured after the rebase. CI E2E must pass HC-UIMED-002 with no flaky entry.
 
 **Acceptance:** G. **Est:** 4 h. **MVP:** P2.
 
@@ -908,6 +914,173 @@ Planned 2026-10-26 on `0e8b2b2` from the L0 rulings on #370 (UI-SHELL, still in 
 
 **Acceptance:** the case above; HC-UIOV-001…007 (vitest) green; HC-UISH-009's popover M0 case green; `STILLNESS_MAX_GAP_MS`, the 20 ms interval and the 800 ms window unchanged (`git diff origin/main...HEAD -- e2e/support/gates.ts` empty). **Est:** 3 h. **MVP:** P1.
 
+#### Delta 2026-10-29: POPOVER-OPEN-COST widened to dialog opens (UI-PG-MEDS #398 stop)
+
+Planned 2026-10-29 on `41fa382` (Opus planner) from the UI-PG-MEDS stop on #398 (L2 comment "review round 1 fixes, stopped on BLOCKER 1", and the `blocked: tell L0` comment after it). **The row keeps its id, POPOVER-OPEN-COST.** It is not renamed to OVERLAY-OPEN-COST: draft #393, its branch `fix/popover-open-cost-popover-open`, and SAFETY-MODE-TOGGLE's never-beside clause (which reads #393's title) all name it. Its scope is now **overlay open cost: Popover, and Dialog, AlertDialog and Sheet (`Modal`)**. #393 has no commits (stopped only on quiet-box load), so the row resumes on it: `build-item {"id":"POPOVER-OPEN-COST","resume_pr":393}`. The section above still applies; this delta adds to it. Where they differ, this delta wins.
+
+**L0 decisions this delta keeps (2026-10-29, not owner rows):**
+- No `modal={false}`. It drops the focus trap and the modal semantics, which is an accessibility regression.
+- No bound change. The owner answered STILLNESS-GAP-BOUND "Fix first, frame waits", and STILLNESS-NAV-70 raised the bound for page changes only. A dialog open is an interaction, so the 40 ms bound applies.
+
+**Why (#398).** HC-UIMED-002's stillness probe on the dose "Log" click (`kind: 'interaction'`, 40 ms) misses:
+- CI run 40820611795: all 3 attempts failed, at 45, 53 and 59 ms.
+- Locally, after the row's own fixes: 41-55 ms.
+
+#398's CDP profile at 4x CPU throttle:
+- The React flush takes about 150 ms (about 37 ms unthrottled). Style recalc is 77 ms of that.
+- Forced restyles come from Radix `Presence` `getAnimationName` and `FocusScope` `focusFirst`.
+- The largest comes from react-remove-scroll-bar's `body[data-scroll-locked] { --removed-body-scroll-bar-size: <gap>px }`. That is an inherited custom property, so the whole document restyles. It cost 28.6 ms as a forced restyle, against 0.5 ms for the same rule without the property.
+- The lock is on because `Modal` (`fe/components/ui/Dialog.tsx`) runs Radix in modal mode.
+
+**What the library does with the variable** (react-remove-scroll-bar 2.3.8, through react-remove-scroll 2.7.2 and `@radix-ui/react-dialog` 1.3.1; read in `node_modules/react-remove-scroll-bar/dist/es2015/component.js` and `constants.js`):
+- It only **writes** the variable, in the last `body[data-scroll-locked]` block of its injected style. It never reads it.
+- The rest of its injected style uses literal pixel values, not the variable. With `gapMode` 'margin' (the default) and `!important` on, `body[data-scroll-locked]` gets:
+  - `overflow: hidden !important` and `overscroll-behavior: contain`;
+  - `position: relative !important`, unless `noRelative` is set;
+  - `padding-left: <left>px`, `padding-top: <top>px` and `padding-right: <right>px`, which are body's own margins moved into padding;
+  - `margin-left: 0`, `margin-top: 0` and `margin-right: <gap>px !important`.
+- The classes get literal values too: `.with-scroll-bars-hidden { overflow: hidden; padding-right: <gap>px }`, `.right-scroll-bar-position { right: <gap>px }` and `.width-before-scroll-bar { margin-right: <gap>px }`.
+- The gap is `max(0, innerWidth - documentElement.clientWidth + marginRight - marginLeft)`, read from `body`'s computed margins (`utils.js` `getGapWidth`). Tailwind's preflight sets body margins to 0, so `<left>`, `<top>` and `<right>` are 0 here and the gap is the scrollbar width.
+- The constant's own comment calls the variable an opt-in hook for consumers ("might be undefined! use will fallback!").
+- On `41fa382`, grep finds no use of `--removed-body-scroll-bar-size`, `width-before-scroll-bar`, `right-scroll-bar-position`, `with-scroll-bars-hidden` or `data-scroll-locked` in `src/frontend/src` or `src/frontend/e2e`. In `node_modules`, the only other file that names the variable is Vite's prebundled copy of the same library (`.vite/deps`).
+
+**So the candidate fix is sound.** Register the variable as non-inheriting. The value on `body` is unchanged, and descendants get `0px` instead of inheriting it. Nothing in the repo or its dependencies reads the variable below `body`. The lock (`overflow: hidden` on `body`) and the gap compensation do not use it, so both are unchanged. A future reader must take the value from `body` (`getComputedStyle(document.body)`), and the rule's comment says so.
+
+**Browser support.** `@property` is supported in Chrome and Edge 85+, Safari 16.4+ and Firefox 128+.
+- Playwright 1.58.1's Chromium is 143.0.7499.4. Measured: the rule registers, and a `CSSPropertyRule` with `inherits: false` is present on both dev and a `vite preview` build.
+- The build has no `build.target` or browserslist, so Vite 7's default target applies (baseline widely available: Chrome and Edge 107, Firefox 104, Safari 16). Firefox 104-127 and Safari 16.0-16.3 ignore the rule and behave exactly as today: inherited and slower. They lose no function, because nothing reads the variable.
+- Prior art: `fe/components/ui/showcase.css:7` registers `@property --beam-angle`.
+- The Tailwind 4 / Lightning CSS build keeps the rule. The scratch preview build emitted `@property --removed-body-scroll-bar-size{syntax:"<length>";inherits:false;initial-value:0}`. `0` is a valid `<length>` initial value.
+
+**Measurements (planner, 2026-10-29; evidence only).** Scratch worktree at #398's head `1d209068`, with `node_modules` linked. Nothing was committed, and the worktree was removed afterwards. **None of these ran on a quiet box**: the 1-minute load was 1.6-4.3 and nothing was run under `hold_slots.sh`. So only the in-page timings below are robust. The stillness tallies are noise-bound and are not a RED or GREEN for this row.
+
+| What | Without `@property` | With `@property` |
+|---|---|---|
+| In-page, on `/medications` (292-303 elements): set `data-scroll-locked` on `body`, then force a restyle (`focus()` plus `offsetHeight`), median of 11, 3 runs; dev | 3.3, 4.0, 5.9 ms | 0.1, 0.1, 0.1 ms |
+| The same on a `vite preview` build | 3.8-4.7 ms (8 runs) | 0.1 ms (8 runs) |
+| Inserting the library's `<style>` alone, then a forced restyle | 0.1-0.2 ms | 0.1 ms |
+| Synthetic page (6,000 elements, token-style variables), lock and forced restyle, median of 15; unthrottled / 4x throttle | 8.2 / 48.7 ms | 2.4 / 12.3 ms |
+| HC-UIMED-002 stillness, dev, 8 runs (load 1.8-2.6) | 6 of 8 over 40 ms (35-97) | 7 of 8 over 40 ms (38-61) |
+| HC-UIMED-002 stillness, preview, 8 runs | 4 of 8 over 40 ms (38-79; load 2.1-2.6) | 6 of 8 (28-114; load rose to 4.3: discarded) |
+| CPU profile of the Log click on dev, `FocusScope` `focusFirst` → `focus` self time | 10.7-10.9 ms | 11.4 ms |
+| Lower bound, not a candidate: `modal={false}` in scratch, dev, 6 runs | — | 3 of 6 over 40 ms (31-82); `focus` 4.9-10.1 ms |
+
+**Reading:**
+1. The fix removes the lock's restyle cost: about 4 ms per forced restyle unthrottled (about 16 ms at 4x, the G3 throttle), every time the lock attribute changes.
+2. On dev, StrictMode runs mount effects twice (`commitDoubleInvokeEffectsInDEV` appears in the profile). The lock is set, removed and set again, so dev pays that restyle more than once per open.
+3. It is **not sufficient on its own**. With the lock removed entirely (`modal={false}`, measured only as a floor), the dialog open still missed 40 ms in 3 of 6 runs on a loaded box. The rest is the React render and commit of the opened content, Radix (Presence, FocusScope, DismissableLayer, `hideOthers`), and framer. That is the cost the section above already planned to trace for the Popover.
+
+**Radix `Presence` `getAnimationName`** (`@radix-ui/react-presence` 1.1.11, read in `dist/index.mjs`):
+- The ref callback reads `getComputedStyle(node).animationName` when the node mounts. That forces the new subtree's style early, but the frame needs that style anyway, so it is not extra work unless the DOM is dirtied again before paint.
+- The passive effect reads it again only when no mount-time value is cached. The profile shows that read only under `commitDoubleInvokeEffectsInDEV` (4-6 ms on dev): a dev StrictMode cost, absent from preview and production builds.
+- `forceMount` does not bypass `Presence`: Portal, Overlay and Content each wrap their child in `Presence` whatever its value.
+- **No safe in-repo fix exists without patching Radix** (patch-package or a fork), and the row does not do that. The row reuses the section above's lead instead: a `still` overlay may not need `AnimatePresence` or framer at all. This now applies to `Modal` too: under `still`, `Modal` still wraps in `AnimatePresence`, renders `m.div`, and fades the scrim. Trace first, and remove only what the trace charges.
+
+**Files (the narrowest set; replaces the Files line above):**
+- `fe/styles/globals.css`: one top-level `@property --removed-body-scroll-bar-size { syntax: '<length>'; inherits: false; initial-value: 0px; }` after `@import 'tailwindcss'`, with a two-line comment naming react-remove-scroll-bar and "read it from body".
+- `fe/components/ui/Popover.tsx`: as above.
+- `fe/components/ui/Dialog.tsx`, **only if Task 2's trace charges it**: the `still` render path of `Modal`, for example no `AnimatePresence` or `m.div` wrapper when `still`. `DialogPrimitive.Root` stays modal. `role`, `aria-modal`, `onOpenAutoFocus`, `onPointerDownOutside`, `onInteractOutside`, Close and the title guard are unchanged.
+- `e2e/ui-shell.spec.ts`:
+  - the HC-UIOV-007 browser case: remove its `test.fixme` only;
+  - new HC-UIOV-010 and HC-UIOV-011, appended in one new `test.describe` after the HC-UISH-007 and HC-UISH-008 block. They use that file's `openRoute`, `PHONE` and Tab bar locators, and change no existing case.
+
+The Source Trace sheet cannot host these checks. `CitationTooltip` renders "Open source" only when it gets a `source` prop, and neither call site passes one (`InterpretedResultCard.tsx:122`, `PanelInterpretationDashboard.tsx:110`). The `/interpret` e2e mock also has only a `knowledge_base` citation. So on main the sheet cannot be reached in the browser (queue bullet SOURCE-TRACE-UNWIRED). On main, the only `Modal` reachable in the browser is the More sheet. It is not `still`, so it is used for the lock guard and not for the stillness timing.
+- `fe/__tests__/ui-overlays.test.tsx`: selectors only, if needed.
+
+Unchanged: `e2e/support/gates.ts`, every bound, the 20 ms interval and the 800 ms window.
+
+**Tasks.**
+1. **Task 1 (the `@property` rule).** RED: HC-UIOV-010. GREEN: add the rule, then rerun HC-UIOV-010 on dev and on preview.
+2. **Task 2 (trace the rest; systematic-debugging).** On a quiet box:
+   - Profile the HC-UIOV-007 Popover open on main-plus-branch, and the HC-UIMED-002 Log click on #398's head plus this diff in scratch, each on dev and on preview.
+   - Before calling any miss load or flake, time the same click with a bare 20 ms timer, as recheck 14 of `docs/agentic/recurring-failures.md` requires. The #370 traces put about 13 ms of Playwright hit-testing (`elementsFromPoint`) before the click.
+   - Cut only what the trace charges to `ui/Popover.tsx` or `ui/Dialog.tsx`'s `still` path.
+   - If the remaining gap is the harness's own work (the trigger's actionability checks), that is not this row's fix. Stop and tell L0, which routes it to STILLNESS-NAV-LATE. `gates.ts` stays unchanged here.
+3. **Stop rule.** If, after Task 2, HC-UIOV-007 or the HC-UIMED-002 check (see Acceptance) still misses 40 ms on a quiet box, and no cut remains in this row's files, stop and tell L0 with the trace. Do not mark anything `fixme`, `skip` or `fail`.
+4. **Task 1 may merge alone.** If the stop rule fires, Task 1 (the `@property` rule, a measured gain) may merge alone as its own PR, with these conditions:
+   - HC-UIOV-010 and HC-UIOV-011 are green;
+   - the vitest proofs and the HC-UISH-008 proof in Acceptance are green;
+   - no bound or `gates.ts` change.
+
+   HC-UIOV-007's `fixme` removal and any Popover or `Modal` change wait for L0.
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIOV-010 (new) | No overlay. On `/inbox` at 1440 × 900, after the route settles: (a) the stylesheets hold a `CSSPropertyRule` named `--removed-body-scroll-bar-size` with `inherits` false; (b) after `document.body.style.setProperty('--removed-body-scroll-bar-size', '17px')`, the computed value is `17px` on `body` and `0px` on `[data-route-container]` (a descendant). Runs on dev and on preview | yes (no rule; the descendant inherits `17px`) |
+| HC-UIOV-011 (new; guard) | The More sheet at 390 × 844 (HC-UISH-008's path: `/inbox`, Tab bar, More; `MoreSheet.tsx:15`, a `Sheet` and so a `Modal` in Radix modal mode). The page is made scrollable first, and `scrollY` is recorded. With the sheet open: `body` has `data-scroll-locked`; `body`'s computed `overflow` is `hidden`; `body`'s `margin-right` equals the gap measured before the open (`innerWidth - documentElement.clientWidth`); and `mouse.wheel` over the scrim leaves `scrollY` unchanged. After Escape, the attribute is gone and the wheel scrolls the page. **In headless runs the gap is 0**, because Playwright launches Chromium with `--hide-scrollbars` (`playwright-core/lib/server/chromium/chromium.js:284`). So the margin assertion checks 0 = 0, and the case records the value without proving compensation. **The real guard is the mutant:** with `modal={false}` on `DialogPrimitive.Root`, the case fails (no attribute, and the wheel scrolls). Paste that output, then restore | no (a guard; the mutant shows it can fail) |
+| HC-UIOV-007 (browser half) | As in the section above, unchanged. This is the Popover open's timing RED | yes |
+| HC-UIMED-002 stillness case (scratch, not committed) | The dialog open's timing RED and GREEN, run on #398's head (see Acceptance). It replaces a committed `Modal` timing probe, because on main no `still` `Modal` can be reached in the browser | yes (#398: CI 45, 53 and 59 ms; locally 41-55 ms) |
+
+**Acceptance (replaces the Acceptance line above):**
+- **HC-UIOV-007:** 10 of 10 runs at 40 ms on a quiet box on main-plus-branch's dev server, and 10 of 10 on a `vite preview` build of the same head. CI E2E passes it on the final head with no flaky entry. Its describe runs with `retries: 0`, so a retry cannot hide a miss. HC-UIOV-010 and HC-UIOV-011 are green in CI.
+- **The HC-UIMED-002 check** (an HC-UIMED-002-like dialog open):
+  - In a scratch worktree (nothing committed), apply this row's diff to #398's head.
+  - Run HC-UIMED-002's stillness case 10 times on dev and 10 times on preview, on a quiet box. Paste the per-run maximum gap.
+  - Every run is at or below 40 ms.
+  - This is evidence for UI-PG-MEDS, which still owns HC-UIMED-002's CI pass after it rebases.
+- **`Modal` semantics unchanged** (the focus trap, `aria-modal`, Escape and focus return), proved green on the branch by:
+  - vitest HC-UIOV-001 (Escape closes each overlay; focus returns to the trigger);
+  - vitest HC-UIOV-002 (focus stays inside a Dialog or Sheet over 25 Tab presses, with a focusable element outside);
+  - vitest HC-UIOV-003 (`aria-modal`, and the title guard);
+  - vitest HC-UIOV-008 (AlertDialog opens on Cancel);
+  - e2e HC-UISH-008 (the More sheet, a real `Modal`: Escape closes it, it is hidden, and focus returns to the More tab);
+  - e2e HC-UIOV-011 (above: the lock is still on).
+
+  HC-UIPV-001 is a Popover check (Escape and focus return on the citation popover). It stays green as part of the overlay suite, but it is not a `Modal` proof.
+- **No bound or constant changed:** `git diff origin/main...HEAD -- src/frontend/e2e/support/gates.ts` is empty, and no `STILLNESS_*` constant, interval or window changes anywhere.
+- **Every existing overlay test green:**
+  - `fe/__tests__/ui-overlays.test.tsx` (HC-UIOV-001…008);
+  - `e2e/ui-provenance.spec.ts` in full (HC-UIPV-001 and HC-UIPV-006 among them);
+  - `e2e/ui-shell.spec.ts` in full (including HC-UISH-009's popover M0 case);
+  - full `npx vitest run`, `npx tsc --noEmit`, `npm run build`;
+  - CI E2E on the final head.
+
+**Quiet-box rule (every Playwright timing run in this row).** These are the STILLNESS-NAV-LATE box rules:
+- L0 holds `/tmp/claude-1000/quiet-box.lock`, and no model-host row runs meanwhile.
+- Wrap each Playwright command in `/tmp/claude-1000/hold_slots.sh`.
+- Just before each wrapped run, paste `uptime` and the quiet-box `pgrep` and `ss` checks (RUNBOOK §10.1). The 1-minute load must be below 1.5, and no process that is not yours may appear. Otherwise wait up to 30 minutes (`wait_quiet.sh`), then report the processes and stop.
+- Never run pytest inside the wrapped command.
+- Every run counts: no re-run to get a pass.
+- HC-UIOV-010 and HC-UIOV-011 are not timing checks and may run on any box.
+- The HC-UIMED-002 scratch runs follow the same rules.
+
+**Depends on:** UI-SHELL merged (done, #370).
+
+**Never beside:**
+- any open PR that edits `fe/styles/globals.css`, `fe/components/ui/Popover.tsx` or `fe/components/ui/Dialog.tsx`;
+- any open PR that edits `e2e/ui-shell.spec.ts` (this row edits HC-UIOV-007 and appends a describe after HC-UISH-008).
+
+Checked 2026-10-29 with `gh pr diff N --name-only` on every open PR (#239, #264, #316, #393, #398, #399, #400, #401). Only #398 touches one of the row's files, `e2e/ui-shell.spec.ts`. Its hunks start at `:293` (the HC-UISH-003 route filter), `:787` (the HC-UISH-007 preview skip, inside the More-sheet describe this row appends after) and `:966` (the `PAGE_OVERFLOW` entry). #398 is a `[blocked:claude]` draft that now waits for this row and rebases onto it, so the two never build at once. UI-PALETTE (#399, planned `:165` and `:635-636`) and SAFETY-MODE-TOGGLE (#401) are blocked drafts that also hold `ui-shell.spec.ts`. SAFETY-MODE-TOGGLE's existing clause applies, and this row is not built beside either while it is `[claim:` or non-draft.
+
+**Blocks:** UI-PG-MEDS (#398), added to its depends_on in this delta. UI-PG-MEDS's G3 `/medications` dark at exactly 200 ms on dev (bound `< 200`) may share the cause. G3 runs at 4x CPU throttle, where the lock's restyle is about 16 ms per forced restyle, paid more than once per open on dev. UI-PG-MEDS re-measures G3 after it rebases; this row does not claim it.
+
+**Owner question:** none expected. If the stop rule fires, L0 decides the next step. A neutral draft, for L0 only, not asked:
+
+> **STILLNESS-OVERLAY-OPEN** (draft, not asked). After the scroll-lock and `still`-path fixes, opening a modal dialog or sheet still delays the next frame by about N ms (traces attached), against the 40 ms bound for interactions. Which do you want?
+> - (a) Keep 40 ms for overlay opens. The dose sheet's stillness check stays failing until a deeper fix (patching or replacing Radix parts) is planned and built. Until then, UI-PG-MEDS, and the rows that wait for it (UI-PALETTE, SAFETY-MODE-TOGGLE, UI-PG-SETTINGS and UI-PG-AUTH), keep waiting.
+> - (b) Allow overlay opens 70 ms, the bound page changes already use. Those rows can proceed. Cost: a jump in T0 content of under 70 ms during an overlay open would no longer be caught.
+> - (c) Something else.
+>
+> No recommendation.
+
+Asked 2026-11-01 in a revised form, with a recommendation, as STILLNESS-OVERLAY-OPEN (delta below).
+
+**Est:** 5 h (was 3). **MVP:** P1.
+
+#### Delta 2026-11-01: POPOVER-OPEN-COST closed after Task 1 (#393 build stop; owner STILLNESS-OVERLAY-OPEN)
+
+Planned 2026-11-01 on `6fe336dd` (Opus planner) from the #393 build stop (run `wf_aa946dc3-9e6`) and the owner's answer STILLNESS-OVERLAY-OPEN, "70 ms for overlay opens (Recommended)" (owner-decisions row STILLNESS-OVERLAY-OPEN).
+
+- **Task 1 is done (#393).** The `@property --removed-body-scroll-bar-size` rule, with HC-UIOV-010 and HC-UIOV-011, merged alone under the stop rule (Tasks, item 4). The post-merge batch records the sha.
+- **The rest of the row is closed.** The trace puts the remaining cost outside `Popover.tsx` and outside `Modal`'s `still` path:
+  - HC-UIOV-007 misses because its probe starts before the route-entrance fade and the font settle. The stall is page startup: the maximum gap starts 54-92 ms before the click, and a no-click control on the same page also gaps 41-57 ms. On a `vite preview` build, with the route settled and `document.fonts.ready` awaited first, the case passes 10 of 10 (maximum 33 ms) with `Popover.tsx` unchanged.
+  - HC-UIMED-002's dose-sheet click task is 24-27 ms. About 10 ms of it is Radix FocusScope `focusFirst` → `focus()`, a forced layout. Moving keyboard focus into the dialog is an accessibility requirement, so it stays. A stripped-down `still` `Modal` gained only about 3 ms and is not merged.
+- **Routing.**
+  - HC-UIOV-007's readiness fix and its `fixme` removal move to [STILLNESS-NAV-LATE](#stillness-nav-late--find-and-fix-why-page-changes-run-late-under-the-stillness-probe) as Task 3.
+  - The overlay bound is the new row [STILLNESS-OVERLAY-70](#stillness-overlay-70--overlay-open-stillness-probes-allow-70-ms-sampling-gaps).
+  - UI-PG-MEDS (#398) depends on STILLNESS-OVERLAY-70 instead of this row.
+- The L0 decision "No bound change" in the 2026-10-29 delta is superseded for overlay opens only, by STILLNESS-OVERLAY-OPEN. "No `modal={false}`" stands.
+
 #### SETTINGS-DETECT-BLOCKING — hardware detection blocks the event loop in three settings routes
 
 **Kind:** PRODUCT (backend routes; code slot). **Files:** `be/api/model_settings.py` (only the blocking calls: `selector.detect_hardware_tier()` in `get_model_settings` `:398` and `list_tiers` `:598`; `_diagnostics_list_response()` in `get_environment_diagnostics` `:1200` and `recheck_environment_diagnostics` `:1211`), `be/tests/test_settings_detect_nonblocking.py` (new). **Depends on:** none; never beside another `be/api/model_settings.py` PR. **Gate:** none. Not ask-first (no auth, encryption or safety module); `modules/hardware_detection.py` and `modules/environment_diagnostics.py` are unchanged.
@@ -1032,9 +1205,27 @@ Do not copy `node_modules`, `pw-out*`, `test-results`, `out` or `dist-branch`.
 **Box rules (every Playwright run in this row).**
 - L0 holds `/tmp/claude-1000/quiet-box.lock`, and no model-host row runs meanwhile.
 - Wrap every Playwright command in `/tmp/claude-1000/hold_slots.sh`.
-- Just before each wrapped run, paste `uptime` and `pgrep -fa "playwright|vitest|pytest"`. The 1-minute load must be below 1.5, and nothing that is not yours may appear. Otherwise wait up to 30 minutes, then report the processes.
+- Just before each wrapped run, paste `uptime` and the quiet-box `pgrep` and `ss` checks (RUNBOOK §10.1). The 1-minute load must be below 1.5, and nothing that is not yours may appear. Otherwise wait up to 30 minutes, then report the processes.
 - Never run pytest inside the wrapped command. `wait_quiet.sh` is the waiting pattern.
 - Every run counts: no re-run to get a pass.
+
+**Delta 2026-10-30 (NAV70-CI-MISS folded in):** CI misses of HC-UISH-009 on `/search` (4 of 79 E2E attempts, 71-77 ms, one on `main`) are added to Task 1's report, and an after-merge count of 60 E2E attempts closes the item. See [NAV70-CI-MISS](2026-10-30-followups-plan.md#nav70-ci-miss--folded-into-stillness-nav-late-as-ci-evidence-and-an-after-merge-count). The bounds are unchanged.
+
+**Delta 2026-11-01 (L0 ruling: HC-UIOV-007's readiness fix folded in as Task 3).** Source: the POPOVER-OPEN-COST stop (#393, run `wf_aa946dc3-9e6`). HC-UIOV-007 misses because its probe starts before the route-entrance fade and the font settle. The stall is page startup: the maximum gap starts 54-92 ms before the click, and a no-click control also gaps 41-57 ms. On a `vite preview` build, with the route settled and `document.fonts.ready` awaited, it passes 10 of 10 (maximum 33 ms) with `Popover.tsx` unchanged. This is the harness timing the page's own startup, the case POPOVER-OPEN-COST's Task 2 routes to this row. The existing scope, Tasks 1 and 2, their bounds and their acceptance are unchanged.
+
+- **Task 3 (test only; independent of Task 1).** In `e2e/ui-shell.spec.ts`, HC-UIOV-007 only (`:975-987` on `6fe336dd`):
+  - before the probe, `await settleRoute(page)` (the file's own helper, `:141`) and `await page.evaluate(() => document.fonts.ready)` (the HC-UISH-009 pattern, `:322`);
+  - then remove its `test.fixme` (`:976`).
+
+  No other line in the file changes. The case keeps `retries: 0` from its describe (`:974`).
+- **Order.** Task 3 builds after [STILLNESS-OVERLAY-70](#stillness-overlay-70--overlay-open-stillness-probes-allow-70-ms-sampling-gaps) merges, because that row sets this case's `kind: 'overlay'` in the same block. Task 3 needs no Task 1 result and no Task 1 ruling. It may ship before Task 1, as its own PR or commit.
+- **It does not make the probe see less** (Task 2 step 2's rule). The probe still starts before the click and samples the whole open. Only the page's startup moves out of the window, as HC-UIFB-006 in the same describe (`settleRoute`) and HC-UIPV-006 (`waitForSettled`) already do.
+- **Acceptance (Task 3).**
+  - Box rules above, every run counted. On the dev server and on a `vite preview` build of the branch head, run the case 10 times each, and paste each run's maximum gap.
+  - Every run passes the effective bound, 70 ms for `kind: 'overlay'` (owner STILLNESS-OVERLAY-OPEN). The report also says how many runs are at or below 40 ms. #393 measured 10 of 10 on preview, maximum 33 ms.
+  - Control: the same 10 + 10 runs without the readiness wait, pasted, with where each maximum gap starts relative to the click.
+  - CI E2E passes the case on the final head with no flaky entry.
+  - For this task, the fixme grep reads added lines only, because removing the `fixme` shows as a `-` line: `git diff origin/main...HEAD | grep -E '^\+.*test\.(fixme|skip|fail)\('` prints nothing.
 
 **Task 1: diagnosis (MEASURE; no product or harness change).** Use systematic-debugging.
 1. **Copy the evidence.** Copy the files above into `docs/reviews/<run date>/stillness-nav-evidence/l0-2026-10-27/` and paste `sha256sum` against the table.
@@ -1097,12 +1288,100 @@ Do not copy `node_modules`, `pw-out*`, `test-results`, `out` or `dist-branch`.
 - The evidence directory is committed.
 - If 15 of 15 is reached, the PR body includes a draft owner question on returning navigation to 40 ms. L0 asks it; the row does not change the bound.
 
-**Est:** 6 h (Task 1 about 4 h, Task 2 about 2 h). **MVP:** P1. It blocks no row since STILLNESS-NAV-70; the owner asked to "keep diagnosing".
+**Est:** 7 h (Task 1 about 4 h, Task 2 about 2 h, Task 3 about 1 h). **MVP:** P1. It blocks no row since STILLNESS-NAV-70; the owner asked to "keep diagnosing".
 
 **#370 (UI-SHELL)** resumes after GATES-NAV-BOUND merges, not after this row, with a new `L0 ruling:`:
 - UI-SHELL merges `origin/main` and adds `test.describe.configure({ retries: 0 })` as the first line of every describe in `e2e/ui-shell.spec.ts` that holds an HC-UISH-009 test (on #370 `2148b54e`: `:292` "HC-UISH-003 route fade and HC-UISH-009 rail stillness", which pins HC-UISH-003 too; `:335` "HC-UISH-009 phone toggle label stays still"; and `:851` "Inherited stillness and focus halves", or the `:870` test moved into its own describe). The global `retries` and `ci.yml` are unchanged.
 - HC-UISH-009 must pass at the effective bounds (70 ms on navigation, 40 ms elsewhere) on dev and on a `vite preview` build, on a quiet box, with every run counted.
 - It must also pass in CI E2E on the final head, with no retry counted as a pass.
+
+### 7.12 Planned 2026-11-01 (owner answer STILLNESS-OVERLAY-OPEN)
+
+Planned 2026-11-01 on `6fe336dd` (Opus planner) from the POPOVER-OPEN-COST build stop (PR #393, run `wf_aa946dc3-9e6`) and the owner's answer, recorded in owner-decisions row STILLNESS-OVERLAY-OPEN:
+- **STILLNESS-OVERLAY-OPEN** (L0 AskUserQuestion, 2026-11-01): **"70 ms for overlay opens (Recommended)"**. Option text: "Same bound page changes already use (STILLNESS-NAV-70). The 5 blocked rows proceed. Cost: a content jump under 70 ms during an overlay open is no longer caught. Interactions other than overlay opens keep 40 ms."
+
+Queue row: [Planned 2026-10-26, post-merge batch](2026-10-15-build-program/queue.md#planned-2026-10-26-post-merge-batch), next to POPOVER-OPEN-COST.
+
+**The effective rule** (L0 reading of STILLNESS-OVERLAY-OPEN, not the owner's words):
+- a `stillnessProbe` of kind `'overlay'` allows sampling gaps up to 70 ms;
+- an overlay open is a trigger that opens a Popover (`fe/components/ui/Popover.tsx`) or a `Modal` (`fe/components/ui/Dialog.tsx`: Dialog, AlertDialog, Sheet). A toast, a tab switch, an in-page state change and a close are not overlay opens, so they keep 40 ms;
+- page changes keep 70 ms (STILLNESS-NAV-70), and every other interaction keeps 40 ms;
+- an overlay open has no fade window: every `[data-t0]` node keeps effective opacity 1, as for any interaction;
+- the 20 ms sampling interval, the 800 ms window, the minimum-sample rule (`windowMs / 40`) and how a gap is measured are unchanged.
+
+#### STILLNESS-OVERLAY-70 — overlay-open stillness probes allow 70 ms sampling gaps
+
+**Kind:** PRODUCT (e2e harness). **Depends on:** POPOVER-OPEN-COST (done as Task 1 only, #393). **Gate:** STILLNESS-OVERLAY-OPEN, answered 2026-11-01. This row edits a gate file (`e2e/support/gates.ts`), but the owner approved exactly this change, so it needs no merge-only diff gate. A diff that goes beyond the overlay bound (the hunks listed below) is a new owner question: stop and tell L0. **Ask-first files:** none. **Blocks:** UI-PG-MEDS (#398), and behind it UI-PALETTE, SAFETY-MODE-TOGGLE, UI-PG-SETTINGS and UI-PG-AUTH.
+
+**Why a separate kind and constant, not the navigation one.**
+- STILLNESS-NAV-LATE may end in an owner question about returning page changes to 40 ms. A separate constant keeps the two bounds independent.
+- `checkSampling` picks its failure text by the bound's value (`maxGapMs === STILLNESS_NAV_MAX_GAP_MS` gives "for a page change, owner STILLNESS-NAV-70"), and its comment says an interaction probe must never pass 70. If overlays reused that path, an overlay miss would print the page-change text.
+
+**Files and hunks** (lines verified on `6fe336dd`):
+- `e2e/support/gates.ts`:
+  - after `:30` (`STILLNESS_NAV_MAX_GAP_MS = 70`): new `export const STILLNESS_OVERLAY_MAX_GAP_MS = 70;`, with the doc comment "G10 overlay opens (kind 'overlay', a trigger that opens a Popover or a Modal): owner STILLNESS-OVERLAY-OPEN, 2026-11-01." The `:29` comment's "Every other stillness check keeps 40 ms" becomes "Interactions keep 40 ms; overlay opens have their own bound below."
+  - `StillnessOptions.kind` (`:417`): the union gains `'overlay'`. Its doc comment (`:411-416`) says an overlay open follows the interaction rules (no fade window, effective opacity 1) with a 70 ms gap bound. The default stays `'interaction'` (`:816`).
+  - `StillnessReport.maxGapMs` doc (`:433`): "(must be <= 40, or 70 for a navigation or an overlay open)".
+  - `analyse` (`:602`): the `kind` parameter's type gains `'overlay'`, and nothing else changes. Its two uses (`:658`, `:692`) test `kind === 'navigation'`, so an overlay gets today's interaction rules.
+  - `checkSampling` (`:740-746`): a new optional sixth parameter, `overlayOpen = false`. When it is true, the gap failure (`:762-768`) reads `must be <= ${maxGapMs} ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms`. When it is false, the text is unchanged byte for byte, including the value-keyed page-change text. The doc comment (`:733-739`) and the `:763` comment are updated. The gap arithmetic (`:749-753`), the minimum (`:755`, `windowMs / STILLNESS_MAX_GAP_MS`) and the `>` comparison (`:762`) are unchanged.
+  - `stillnessProbe` (`:859-865`): the bound is `STILLNESS_NAV_MAX_GAP_MS` for `'navigation'`, `STILLNESS_OVERLAY_MAX_GAP_MS` for `'overlay'`, and `STILLNESS_MAX_GAP_MS` otherwise. It passes `kind === 'overlay'` as the sixth argument.
+  - Unchanged: `STILLNESS_WINDOW_MS` (`:24`, 800), `STILLNESS_SAMPLE_MS` (`:26`, 20), `STILLNESS_MAX_GAP_MS` (`:28`, 40), `STILLNESS_NAV_MAX_GAP_MS` (`:30`, 70), `NETWORK_IDLE_MS`, the sampler (`startSampler`, `snapshot`, the `Math.round` on each stamp) and every rule in `analyse`.
+- `e2e/README.md`:
+  - `:61`, the `stillnessProbe` row: "through an interaction, an overlay open or a navigation";
+  - `:62`, the `checkSampling` signature: `checkSampling(sampleTimes, triggeredAt, windowMs, lastError, maxGapMs?, overlayOpen?)`;
+  - `:67`, the `kind` bullet: `kind: 'overlay'` is for a trigger that opens a Popover or a `Modal`; it follows the interaction rules with a 70 ms gap bound (owner STILLNESS-OVERLAY-OPEN);
+  - `:69`, the gap sentence: "over 40 ms (70 ms for `kind: 'navigation'`, owner STILLNESS-NAV-70, and for `kind: 'overlay'`, owner STILLNESS-OVERLAY-OPEN)".
+- `e2e/ui-gates.spec.ts`: new HC-UIG-009, appended after HC-UIG-008 (`:680-711`). The import list (`:20-25`) gains `STILLNESS_OVERLAY_MAX_GAP_MS`, and the header (`:2`) names HC-UIG-009. No existing case changes.
+- `e2e/ui-gates-sampler.spec.ts`: new HC-UIG-007 (e), (f) and (g), appended after (d) (`:140-157`). They reuse `BODY`, `blockOnceAfterStart` and `startFixture`. The header comment (`:9-10`) gains one sentence. Cases (a)-(d) are unchanged.
+- Call sites on main, one line each (`kind: 'overlay'`):
+  - `e2e/ui-shell.spec.ts:982`, HC-UIOV-007 (the safety-toggle Popover). Its `test.fixme` (`:976`) stays: STILLNESS-NAV-LATE Task 3 removes it.
+  - `e2e/ui-provenance.spec.ts:529`, HC-UIPV-006 (the citation Popover, from the chip click). It passes today at 40 ms. Under the owner's rule it is an overlay open, so it is judged at 70 ms. That is the answer's stated cost, applied to every overlay open and not only to the ones that fail.
+
+**Call sites that stay at 40 ms** (not overlay opens): HC-UIFB-006 (`e2e/ui-shell.spec.ts:1051`, a toast), the HC-UISH-009 probes (`:323`, `:348`; navigation, 70 ms) and every self-test in `ui-gates.spec.ts` and `ui-gates-sampler.spec.ts` other than the new cases.
+
+**Overlay opens on other branches** (each row sets the kind on its own branch; this row edits no open PR):
+- UI-PG-MEDS (#398), `e2e/ui-meds.spec.ts`: HC-UIMED-002's "the dose text passes the stillness probe from the Log click" changes `kind: 'interaction'` to `kind: 'overlay'`. Its Reminders tab click (`'interaction'`) and route entries (`'navigation'`) are unchanged.
+- #400 (UI-PG-CARE): the Done click is not an overlay open, so it is unchanged.
+- Planned cases that pass `kind: 'overlay'` when their rows build: HC-UIPAL-005 (Ctrl+K opens the palette Dialog), HC-UIREV-005 (the Edit dialog), the preview-Sheet half of HC-UIDOC-006, and the Source Trace sheet half of HC-UIPV-006 (SOURCE-TRACE-WIRE). The G10 row now names the kind, so those rows need no text change.
+
+**Tests.**
+
+| Id | Check | RED today? |
+|---|---|---|
+| HC-UIG-009 (new; pure, deterministic) | `checkSampling` on synthetic 20 ms cadences with one gap from the trigger (HC-UIG-008's `withGap`): (a) a 55 ms gap with `STILLNESS_OVERLAY_MAX_GAP_MS` and `overlayOpen` true passes, with `maxGapMs` 55; (b) the same 55 ms gap with the defaults (an interaction) fails with `sampling gap of 55 ms (must be <= 40 ms; G10`; (c) a 75 ms gap as an overlay fails with `sampling gap of 75 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)`; (d) as an overlay, 70 ms passes and 71 ms fails; (e) a 70 ms cadence as an overlay still fails the 40 ms minimum (`only 12 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms`) | yes: `tsc` finds no such export; at run time the bound is `undefined`, so the default 40 applies and (a) and (c) fail. Planner run on `6fe336dd`, main's `checkSampling` copied into a scratch script: (a) `{"failures":["sampling gap of 55 ms (must be <= 40 ms; G10 samples every 16-40 ms)"],"maxGapMs":55,"postTriggerSamples":39}` FAIL; (b) PASS; (c) `["sampling gap of 75 ms (must be <= 40 ms; G10 samples every 16-40 ms)"]` FAIL |
+| HC-UIG-007 (e) (new; page fixture) | `kind: 'overlay'`, `BODY` with `blockOnceAfterStart(55)`: the probe resolves, with `maxGapMs` above 40 and at most 70 | yes (today an unknown kind gets the 40 ms bound, so the probe rejects) |
+| HC-UIG-007 (f) (new; guard) | the same fixture with no `kind` (an interaction): the probe rejects, naming a gap above 40 ms and `must be <= 40 ms` | no (a guard: it shows the overlay bound has not leaked into interactions; mutant 3 shows it can fail) |
+| HC-UIG-007 (g) (new) | `kind: 'overlay'` with `blockOnceAfterStart(75)`: the probe rejects, the named gap is above 70 ms, and the text names `must be <= 70 ms for an overlay open` | yes (today's text names 40 ms) |
+
+(e) has the same load margin as (c), a 55 ms block against a 70 ms bound, and runs in CI beside it.
+
+**Mutant controls.** Run each one, paste its output, then restore. `git diff` must be clean afterwards (recurring failure 13: run them in the foreground or in a scratch worktree).
+1. `stillnessProbe` maps `'overlay'` to `STILLNESS_MAX_GAP_MS`: (e) fails. HC-UIG-009 still passes, since it calls `checkSampling` directly; that is why (e) exists.
+2. `STILLNESS_OVERLAY_MAX_GAP_MS = 80`: HC-UIG-009 (c) and (d) fail, and so does (g).
+3. `stillnessProbe` gives `'interaction'` the overlay bound: (f) fails, and so does HC-UIG-007 (b).
+4. `checkSampling` ignores `overlayOpen` (value-keyed text only): HC-UIG-009 (c) and (g) fail.
+
+**Guard and parity tests over the touched files** (RUNBOOK §10.1 planner checklist). Grep on `6fe336dd` over `src/backend/tests`, `src/frontend/src`, `src/frontend/e2e`, `scripts/`, `.github/`, `.claude/mods/` and `.claude/workflows/` for `gates.ts`, `STILLNESS_`, `checkSampling` and `stillnessProbe`:
+- No backend test, script, CI file, mod or workflow reads `gates.ts` or a `STILLNESS_*` constant. There is no real-repo reader and no parity test.
+- `src/frontend/src/__tests__/ui-feedback.test.tsx`, `ui-provenance.test.tsx` and `ui-overlays.test.tsx` name `stillnessProbe` in comments only. They are unchanged.
+- **Must stay unedited, and green:** HC-UIG-006 (every fixture, pass-2 and the sampling case), HC-UIG-007 (a)-(d) and HC-UIG-008. HC-UIG-008's 71 ms regex pins the value-keyed page-change text, so `overlayOpen`'s default must keep that text byte for byte. In `ui-gates.spec.ts` and `ui-gates-sampler.spec.ts`, the only edits are the import, the header comments and the appended cases. `ui-gates.spec.ts:305` and `:553` declare local fixture types (`kind: 'interaction' | 'navigation'`). They stay as they are, because HC-UIG-006 gains no overlay fixture.
+- Isolation checks, pasted in the PR:
+  - `git diff --name-only origin/main...HEAD` lists exactly the six files above;
+  - `git diff origin/main...HEAD -- src/frontend/e2e/support/gates.ts | grep -E '^[-+].*(STILLNESS_(MAX_GAP|NAV_MAX_GAP|SAMPLE|WINDOW)_MS|NETWORK_IDLE_MS) *='` prints nothing;
+  - `git diff origin/main...HEAD | grep -E '^\+.*test\.(fixme|skip|fail)\('` prints nothing.
+
+**Box.** No quiet box. HC-UIG-009 is pure. HC-UIG-007 (e)-(g) are page fixtures with no app, like (a)-(d), and functional e2e runs under normal load (L0 ruling on #402). No app timing run is part of this row: HC-UIOV-007 stays `fixme`, and HC-UIMED-002 is UI-PG-MEDS's.
+
+**Acceptance:**
+- HC-UIG-009 and HC-UIG-007 (e)-(g): RED, then GREEN, with output;
+- the four mutants, pasted and restored;
+- `npx playwright test e2e/ui-gates.spec.ts e2e/ui-gates-sampler.spec.ts` green, with HC-UIG-006, HC-UIG-007 (a)-(d) and HC-UIG-008 unedited;
+- HC-UIPV-006 (`e2e/ui-provenance.spec.ts`) green at `kind: 'overlay'`;
+- `npx tsc --noEmit` clean;
+- the isolation checks above;
+- CI E2E green on the final head, with no stillness test (HC-UIG-00x, HC-UIPV-006) listed as flaky in the job log summary.
+
+**Est:** 1.5 h. **MVP:** P1 (five rows wait on it). Not fast-lane eligible: six files and 1.5 h.
 
 ---
 
@@ -1169,6 +1448,8 @@ The gates and questions listed under "Execution gates" and "Open questions" belo
 **Answered (prompt 48, L0 evidence comment 6380025171 on PR #311):** UI-ROUTE-MOTION "Whole-page fade", UI-AUTH-SCREENS "Layout, motion and Lift", SESSION-LOCK-NOW "Add Lock now" (§1).
 
 **Answered 2026-10-28 (L0 AskUserQuestion; owner-decisions row STILLNESS-GAP-BOUND):** STILLNESS-GAP-BOUND "Fix first, frame waits", then, the same day in chat, STILLNESS-NAV-70 "Raise it to 70 ms for page changes and keep diagnosing" (owner-decisions row STILLNESS-NAV-70). Effective rule: navigation probes allow sampling gaps up to 70 ms (row [GATES-NAV-BOUND](#gates-nav-bound--navigation-stillness-probes-allow-70-ms-sampling-gaps)), every other stillness check keeps 40 ms, and the minimum-sample rule is unchanged. UI-SHELL waits for GATES-NAV-BOUND. [STILLNESS-NAV-LATE](#stillness-nav-late--find-and-fix-why-page-changes-run-late-under-the-stillness-probe) keeps diagnosing at a 40 ms target and changes no bound.
+
+**Answered 2026-11-01 (L0 AskUserQuestion; owner-decisions row STILLNESS-OVERLAY-OPEN):** "70 ms for overlay opens (Recommended)". Effective rule: overlay-open probes (`kind: 'overlay'`) allow sampling gaps up to 70 ms (row [STILLNESS-OVERLAY-70](#stillness-overlay-70--overlay-open-stillness-probes-allow-70-ms-sampling-gaps)); page changes keep 70 ms and every other interaction keeps 40 ms. UI-PG-MEDS and the four rows behind it proceed once STILLNESS-OVERLAY-70 merges.
 
 **Execution gates (a row waits for the answer):**
 

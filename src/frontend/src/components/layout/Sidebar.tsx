@@ -16,7 +16,6 @@ const ITEM =
  */
 export function Sidebar() {
   const { pathname } = useLocation();
-  const navRef = useRef<HTMLElement>(null);
   const activeRef = useRef<HTMLAnchorElement | null>(null);
   const placedRef = useRef(false);
   const keyboardRef = useRef(false);
@@ -60,7 +59,7 @@ export function Sidebar() {
         <BrandMark showTagline />
       </div>
 
-      <nav aria-label="Main navigation" ref={navRef} className="relative flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Main navigation" className="relative flex-1 overflow-y-auto px-3 py-4">
         <span
           aria-hidden="true"
           className={cn(

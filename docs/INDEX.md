@@ -132,7 +132,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`
 
 **Workflow Orchestration — Execution Program**
 
-**Model policy.** Implementation runs on the `haiku` alias at effort `xhigh` (owner, 2026-10-24: never use Sonnet 5.5; Haiku 5.5 at effort `xhigh` replaces it); reviews and orchestration run on…
+**Model policy.** Implementation runs on the `sonnet` alias; reviews and orchestration run on `opus`. The owner set this on 2026-09-28 for this program, and it overrides the user-level "Opus for…
 
 Links to: `AGENT.md`, `CLAUDE.md`, `audit/2026-09-25/README.md`, `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audit/2026-09-25/handoff-2026-10-02-wave3.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/reviews/2026-09-27-swarm/W04-r1-prompt.md`
 
@@ -150,6 +150,8 @@ Links to: `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/b
 
 Mistakes this codebase has actually produced, with the evidence that exposed each one. Not hypothetical risks — every entry below shipped, or nearly shipped, and was caught late.
 
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
 ## `docs/agentic/roadmap.md`
 
 **Agentic Project Roadmap**
@@ -164,7 +166,7 @@ Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-
 
 rsi-loop reads two logs that are git-ignored, so they stay on the machine that wrote them: - `.claude/logs/rsi/<date>.jsonl`, written by the `asclexis-rsi` mod when the session starts with…
 
-Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`, `docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json`
+Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`, `docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -704,7 +706,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -760,7 +762,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation
 
 Capstone report section. Status labels are strict: nothing here is described as merged unless the source says so. The research package it cites is in PR #122…
 
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`
 
 ## `docs/capstone-report/specs-compliance-matrix.md`
 
@@ -1324,7 +1326,7 @@ Links to: `docs/plans/2026-10-13-wearables-00-program.md`, `docs/plans/2026-10-1
 
 One item loop that **Claude Code, Codex CLI and Devin** run against the same queue, with GitHub as the only lock. It extends the tier model in orchestration.md §1–§5 and does not repeat it.…
 
-Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-program.js`, `.claude/workflows/build-wave.js`, `.claude/workflows/rsi-loop.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
+Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-program.js`, `.claude/workflows/build-wave.js`, `.claude/workflows/rsi-loop.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-26-session-handoff.md`, `docs/plans/2026-10-29-session-handoff.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/reviews/2026-10-15/build-program-codex.md`
 
 ## `docs/plans/2026-10-15-build-program/contracts.md`
 
@@ -1386,7 +1388,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1458,7 +1460,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21b-session-hando
 
 Queue rows: queue.md, "Planned 2026-10-22, MVP rows". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`.
 
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/plans/2026-10-26-session-handoff.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/plans/2026-10-26-session-handoff.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-rapidocr/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-22-session-handoff.md`
 
@@ -1474,7 +1476,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/arch
 
 Queue rows: queue.md, "Planned 2026-10-23, frontend revamp". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` =…
 
-Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
 
 ## `docs/plans/2026-10-24-safety-mode-build-plan.md`
 
@@ -1515,6 +1517,46 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/caps
 Queue rows: queue.md, "Planned 2026-10-28, follow-ups". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`, `e2e/` =…
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`
+
+## `docs/plans/2026-10-29-session-handoff.md`
+
+**Session handoff: 2026-10-28/29 GPU-box L0 → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-26 handoff. Main is at `144b5d4` (#411) when this was written. Treat everything below as a lead: verify it…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-26-session-handoff.md`
+
+## `docs/plans/2026-10-30-followups-plan.md`
+
+**Follow-ups 2026-10-30 — plans for SOURCE-TRACE-WIRE, SHELL-NAVREF-DEAD and UIG002-TITLE; NAV70-CI-MISS, FOREIGN-CHROMIUM-ON-BOX and GH-READY-REFUSED**
+
+Queue rows: queue.md, "Planned 2026-10-30, planner". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`.
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-28-followups-plan.md`
+
+## `docs/plans/2026-10-31-harness-improvements-plan.md`
+
+**Harness improvements 2026-10-31 — plans for RSI-REPLAY-STRICT, RSI-GATE-ADVERSARIAL, RSI-ARCHIVE-LINEAGE and RSI-METRICS-VERSIONED**
+
+Queue rows: queue.md, "Planned 2026-10-31, harness improvements". Research and the full transfer matrix: harness landscape. Rules: RUNBOOK, contracts §b-§d.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-10-31-harness-landscape/01-hermes.md`, `docs/research/2026-10-31-harness-landscape/02-openclaw.md`, `docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md`, `docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md`, `docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md`
+
+## `docs/plans/2026-10-31-rsi-harness-plan.md`
+
+**RSI harness 2026-10-31 — plans for RSI-ERRCLASS-NONBASH, RSI-RULE-TOOLFIELD, RSI-MINE-OUTCOMES and RSI-OWNER-NOTES**
+
+Queue rows: queue.md, "Planned 2026-10-31, RSI harness". Rules: RUNBOOK, contracts §b-§d. Prior art: lane E §2.27 RSI-LOG-STDERR (the same `classifyError` extension for Bash), §2.25a…
+
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-01-harness-speedup-plan.md`
+
+**Harness speedup 2026-11-01 — plan for HARNESS-SPEEDUP**
+
+Queue row: queue.md, "Planned 2026-11-01, harness speedup". Rules: RUNBOOK, contracts §b-§d. CI doc: ci-and-quality-gates.
+
+Links to: `docs/architecture/ci-and-quality-gates.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -2067,6 +2109,54 @@ Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
 Owner answer **UI-SAFETY-TOGGLE = "Make it real"** (owner-decisions-2026-09-27.md, line 410) keeps a toggle and wires it to real behaviour. The plan (frontend revamp plan section 7.2, row…
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`
+
+## `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+**Harness landscape (Hermes, OpenClaw, DeepMind, DeepSeek): research package (2026-10-31)**
+
+Owner instruction, 2026-10-31 (part of RSI-HARNESS-GO), verbatim: "Then plan out for more improvements over our own harness. Run research agents to find out how Hermes/OpenClaw/Google Deepmind RSI/…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`, `docs/research/2026-10-20-rrsi-harness2/00-README.md`, `docs/research/2026-10-31-harness-landscape/01-hermes.md`, `docs/research/2026-10-31-harness-landscape/02-openclaw.md`, `docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md`, `docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md`, `docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md`
+
+## `docs/research/2026-10-31-harness-landscape/01-hermes.md`
+
+**Hermes Agent (Nous Research): self-improvement and its gates**
+
+Hermes Agent is Nous Research's open-source agent (https://github.com/NousResearch/hermes-agent). Its README says it creates skills from experience and improves them during use. A separate repo,…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/02-openclaw.md`
+
+**OpenClaw: self-authored skills, loop detection and the skill-market incidents**
+
+From https://docs.openclaw.ai/tools/skill-workshop?full=true [V]: - Modes: `"auto"` (default: background review, unused-skill cleanup, "skill diet"), `"propose"` (background review saves drafts for…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md`
+
+**Google DeepMind and evaluator-driven self-improvement loops**
+
+- **Evaluator owned by the user.** "the user must provide a mechanism for automatically assessing generated solutions", a function `h`; an "Evaluation cascade" where "new solutions are evaluated on…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`, `docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md`
+
+**DeepSeek Harness (`dsh`) and DeepSeek's verifiable agent tasks**
+
+- `deepseek-ai/deepseek-harness`, created 2026-08-13T11:56:32Z, MIT (GitHub API) [V]. The README calls it "an open-source agent harness developed by DeepSeek AI", plugin-based, "developer preview",…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md`
+
+**Transfer matrix: each idea against our RSI loop**
+
+(no summary — see file)
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`
 
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 

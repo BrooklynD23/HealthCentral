@@ -45,6 +45,7 @@
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
       "docs/plans/2026-10-26-session-handoff.md",
+      "docs/plans/2026-10-29-session-handoff.md",
       "docs/research/2026-10-12/05-mvp-roadmap-tests.md",
       "README.md",
       "CLAUDE.md"
@@ -78,6 +79,7 @@
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
       "docs/plans/2026-10-26-session-handoff.md",
+      "docs/plans/2026-10-29-session-handoff.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
@@ -333,6 +335,7 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-30-followups-plan.md",
       "docs/research/2026-09-08/PLAN.md",
       "docs/research/2026-09-08/STATUS.md",
       "README.md",
@@ -353,6 +356,11 @@
     ],
     "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json": [
       "docs/agentic/rsi-runs/README.md"
+    ],
+    "docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json": [
+      "docs/agentic/rsi-runs/README.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md"
     ],
     "docs/agentic/rsi-runs/README.md": [
       "docs/archive/plans/2026-10-21c-session-handoff.md",
@@ -414,6 +422,8 @@
     "docs/architecture/ci-and-quality-gates.md": [
       "docs/00_architecture_plans_index.md",
       "docs/architecture/README.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
       "README.md"
     ],
     "docs/architecture/frontend.md": [
@@ -740,6 +750,10 @@
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-26-session-handoff.md",
       "docs/plans/2026-10-28-followups-plan.md",
+      "docs/plans/2026-10-30-followups-plan.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
       "docs/research/2026-10-20-rrsi-harness2/02-verdicts.md",
@@ -778,6 +792,7 @@
     ],
     "docs/capstone-report/rsi-in-development-and-application.md": [
       "docs/capstone-report/README.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
       "docs/research/2026-10-20-rrsi-harness2/00-README.md",
       "docs/research/2026-10-20-rrsi-harness2/05-report-angle.md"
     ],
@@ -1161,6 +1176,7 @@
       "docs/plans/2026-10-13-wearables-tickets.md"
     ],
     "docs/plans/2026-10-15-build-program/RUNBOOK.md": [
+      "docs/agentic/recurring-failures.md",
       "docs/architecture/overview.md",
       "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
@@ -1168,6 +1184,7 @@
       "docs/archive/plans/2026-10-20b-session-handoff.md",
       "docs/archive/plans/2026-10-21b-session-handoff.md",
       "docs/archive/plans/2026-10-21c-session-handoff.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-21-session-handoff.md",
@@ -1178,6 +1195,11 @@
       "docs/plans/2026-10-25-session-handoff.md",
       "docs/plans/2026-10-26-session-handoff.md",
       "docs/plans/2026-10-28-followups-plan.md",
+      "docs/plans/2026-10-29-session-handoff.md",
+      "docs/plans/2026-10-30-followups-plan.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "README.md"
     ],
@@ -1193,6 +1215,10 @@
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
       "docs/plans/2026-10-28-followups-plan.md",
+      "docs/plans/2026-10-30-followups-plan.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "README.md"
     ],
@@ -1203,6 +1229,7 @@
       "docs/reviews/2026-10-22/kv-prefix-measure.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/research/2026-10-22-judge-laya/00-README.md",
@@ -1220,7 +1247,8 @@
     "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md"
+      "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md": [
       "docs/plans/2026-10-15-build-program/contracts.md",
@@ -1242,6 +1270,10 @@
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/plans/2026-10-25-session-handoff.md",
       "docs/plans/2026-10-28-followups-plan.md",
+      "docs/plans/2026-10-30-followups-plan.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/reviews/2026-10-26/don-ner-measure.md",
@@ -1307,6 +1339,7 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/plans/2026-10-30-followups-plan.md",
       "docs/research/2026-10-23-frontend-revamp/00-README.md",
       "docs/research/2026-10-23-frontend-revamp/comparison.md",
       "docs/research/2026-10-23-safety-mode-real/00-README.md"
@@ -1329,9 +1362,39 @@
       "README.md"
     ],
     "docs/plans/2026-10-26-session-handoff.md": [
-      "docs/plans/2026-10-22-mvp-rows-plan.md"
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-22-mvp-rows-plan.md",
+      "docs/plans/2026-10-29-session-handoff.md"
     ],
     "docs/plans/2026-10-28-followups-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-30-followups-plan.md"
+    ],
+    "docs/plans/2026-10-29-session-handoff.md": [
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
+    "docs/plans/2026-10-30-followups-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md"
+    ],
+    "docs/plans/2026-10-31-harness-improvements-plan.md": [
+      "docs/capstone-report/rsi-in-development-and-application.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md",
+      "docs/research/2026-10-31-harness-landscape/01-hermes.md",
+      "docs/research/2026-10-31-harness-landscape/02-openclaw.md",
+      "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md",
+      "docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md",
+      "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md"
+    ],
+    "docs/plans/2026-10-31-rsi-harness-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md"
+    ],
+    "docs/plans/2026-11-01-harness-speedup-plan.md": [
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/plans/implementation-log": [
@@ -1498,12 +1561,14 @@
       "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md",
       "docs/research/2026-10-17-rsi-opt-in-data/03-small-model-citation-finetuning.md",
       "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md",
-      "docs/research/2026-10-20-rrsi-harness2/00-README.md"
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
     ],
     "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md": [
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
       "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md",
-      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md"
+      "docs/research/2026-10-20-rrsi-harness2/01-harness2.md",
+      "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md"
     ],
     "docs/research/2026-10-17-rsi-opt-in-data/02-private-synthetic-health-data.md": [
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
@@ -1512,7 +1577,11 @@
       "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
     ],
     "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md": [
-      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md"
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
+      "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md"
+    ],
+    "docs/research/2026-10-20-rrsi-harness2/00-README.md": [
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
     ],
     "docs/research/2026-10-20-rrsi-harness2/01-harness2.md": [
       "docs/agentic/harness2-sandbox.md",
@@ -1596,6 +1665,7 @@
       "docs/research/2026-10-22-mvp/06-testing-tools.md"
     ],
     "docs/research/2026-10-22-rapidocr/00-README.md": [
+      "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/research/2026-10-22-installer/00-README.md"
     ],
     "docs/research/2026-10-23-frontend-revamp/00-README.md": [
@@ -1694,6 +1764,34 @@
     "docs/research/2026-10-23-safety-mode-real/00-README.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/00-README.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/01-hermes.md",
+      "docs/research/2026-10-31-harness-landscape/02-openclaw.md",
+      "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md",
+      "docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/01-hermes.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/02-openclaw.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
     ],
     "docs/reviews/2026-09-25/DDI-diff-codex.txt": [
       "docs/reviews/README.md"
@@ -2833,6 +2931,9 @@
       "docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md",
       "feature_list.json"
     ],
+    "docs/agentic/recurring-failures.md": [
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md"
+    ],
     "docs/agentic/roadmap.md": [
       "docs/agentic/harness.md",
       "docs/agentic/evals.md",
@@ -2858,7 +2959,8 @@
       "docs/agentic/rsi-runs/2026-10-21-laptop/summary.json",
       "docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json",
       "docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json",
-      "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json"
+      "docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json",
+      "docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json"
     ],
     "docs/agile/GROUNDING.md": [
       "docs/archive/agile/EXPLORATION_SUMMARY.md",
@@ -3219,6 +3321,8 @@
       "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/plans/2026-10-30-followups-plan.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
@@ -3262,7 +3366,8 @@
       "docs/capstone-report/README.md"
     ],
     "docs/capstone-report/rsi-in-development-and-application.md": [
-      "docs/capstone-report/owner-decisions-2026-09-27.md"
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md"
     ],
     "docs/capstone-report/specs-compliance-matrix.md": [
       "docs/capstone-report/architecture-engineering-contract.md",
@@ -3634,6 +3739,7 @@
       "docs/plans/2026-10-13-wearables-09-packet.md"
     ],
     "docs/plans/2026-10-15-build-program/RUNBOOK.md": [
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
@@ -3644,6 +3750,9 @@
       "docs/agentic/recurring-failures.md",
       ".claude/workflows/build-wave.js",
       ".claude/workflows/build-item.js",
+      "docs/architecture/ci-and-quality-gates.md",
+      "docs/plans/2026-10-26-session-handoff.md",
+      "docs/plans/2026-10-29-session-handoff.md",
       ".claude/workflows/build-program.js",
       ".claude/workflows/rsi-loop.js"
     ],
@@ -3727,6 +3836,7 @@
       "docs/agentic/recurring-failures.md"
     ],
     "docs/plans/2026-10-15-build-program/queue.md": [
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
@@ -3744,10 +3854,16 @@
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/research/2026-10-22-mvp/00-README.md",
-      "docs/plans/2026-10-23-frontend-revamp-plan.md",
       "docs/research/2026-10-23-frontend-revamp/00-README.md",
       "docs/research/2026-10-23-safety-mode-real/00-README.md",
       "docs/plans/2026-10-28-followups-plan.md",
+      "docs/plans/2026-10-30-followups-plan.md",
+      "docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md",
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/plans/2026-11-01-harness-speedup-plan.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
     ],
@@ -3809,6 +3925,7 @@
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/plans/2026-10-01-packaging-decision.md",
       "docs/research/2026-10-22-mvp/01-desktop-packaging.md",
+      "docs/research/2026-10-22-rapidocr/00-README.md",
       "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md",
       "docs/plans/2026-10-26-session-handoff.md"
     ],
@@ -3835,6 +3952,7 @@
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/research/2026-10-23-frontend-revamp/owner-direction.md",
       "docs/agentic/recurring-failures.md",
+      "docs/plans/2026-10-30-followups-plan.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md"
     ],
     "docs/plans/2026-10-24-safety-mode-build-plan.md": [
@@ -3876,6 +3994,50 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md"
+    ],
+    "docs/plans/2026-10-29-session-handoff.md": [
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-26-session-handoff.md"
+    ],
+    "docs/plans/2026-10-30-followups-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/agentic/recurring-failures.md",
+      "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-10-28-followups-plan.md"
+    ],
+    "docs/plans/2026-10-31-harness-improvements-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md",
+      "docs/research/2026-10-31-harness-landscape/02-openclaw.md",
+      "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md",
+      "docs/research/2026-10-31-harness-landscape/01-hermes.md"
+    ],
+    "docs/plans/2026-10-31-rsi-harness-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
+      "docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json",
+      "docs/capstone-report/rsi-in-development-and-application.md"
+    ],
+    "docs/plans/2026-11-01-harness-speedup-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/architecture/ci-and-quality-gates.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
@@ -4197,6 +4359,38 @@
     "docs/research/2026-10-23-safety-mode-real/00-README.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/00-README.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md",
+      "docs/research/2026-10-31-harness-landscape/01-hermes.md",
+      "docs/research/2026-10-31-harness-landscape/02-openclaw.md",
+      "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md",
+      "docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/00-README.md",
+      "docs/research/2026-10-20-rrsi-harness2/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/01-hermes.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/02-openclaw.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md",
+      "docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/research/2026-10-31-harness-landscape/00-README.md"
+    ],
+    "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md": [
+      "docs/plans/2026-10-31-harness-improvements-plan.md",
+      "docs/plans/2026-10-31-rsi-harness-plan.md"
     ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"

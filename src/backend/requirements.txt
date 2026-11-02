@@ -40,8 +40,14 @@ python-multipart>=0.0.6
 
 # =============================================================================
 # OCR (Phase 1+) — gated by ocr_enabled config flag
-# Requires system package: tesseract-ocr
+# RapidOCR bundled (models inside the wheel); Tesseract optional fallback
+# (system package tesseract-ocr; pdf2image also needs Poppler on that path).
+# Licences and the FFmpeg LGPL notice: ../../THIRD_PARTY_NOTICES.md
 # =============================================================================
+rapidocr==3.10.0
+onnxruntime==1.31.0; sys_platform != "darwin" or platform_machine == "arm64"
+opencv-python-headless==5.0.0.93
+pypdfium2>=5.14.0
 pillow>=10.2.0
 pytesseract>=0.3.10
 pdf2image>=1.17.0

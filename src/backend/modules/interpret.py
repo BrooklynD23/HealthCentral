@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import LabInterpretation, Observation, PanelInterpretation
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.normalize import (
     canonical_unit_for,
     convert_to_canonical,
@@ -86,6 +87,8 @@ class InterpretationResult:
     interpretation: Optional[LabInterpretation] = None
     error_message: Optional[str] = None
     safety_validation: Optional[SafetyValidationResult] = None
+    # INTERP-WITHHOLD-MSG: True only when the safety check withheld the card.
+    withheld: bool = False
 
 
 @dataclass
@@ -218,7 +221,8 @@ class InterpretModule:
             require_citations=True,
         )
 
-        # Check for critical values
+        # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
+        # before the withhold so a withheld card still carries the flag.
         if observation.value is not None:
             critical_result = self._safety_guard.check_critical_value(
                 analyte_canonical=observation.analyte_canonical,
@@ -229,6 +233,21 @@ class InterpretModule:
             if critical_result.requires_physician_review:
                 safety_result.requires_physician_review = True
                 safety_result.physician_review_reason = critical_result.physician_review_reason
+
+        # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
+        # Nothing is saved, deleted or committed before this return. The log
+        # names the observation and the check types only, never the text.
+        if not safety_result.passed:
+            logger.warning(
+                "Withholding interpretation for observation %s: safety checks failed: %s",
+                observation_id, safety_result.checks_failed,
+            )
+            return InterpretationResult(
+                success=False,
+                error_message=ESCALATE_TEMPLATE,
+                safety_validation=safety_result,
+                withheld=True,
+            )
 
         # Build context JSON
         context_json = self._build_context_json(context)
@@ -969,7 +988,8 @@ class InterpretModule:
             require_citations=True,
         )
 
-        # Check for critical values
+        # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
+        # before the withhold so a withheld card still carries the flag.
         if observation.value is not None:
             critical_result = self._safety_guard.check_critical_value(
                 analyte_canonical=observation.analyte_canonical,
@@ -980,6 +1000,21 @@ class InterpretModule:
             if critical_result.requires_physician_review:
                 safety_result.requires_physician_review = True
                 safety_result.physician_review_reason = critical_result.physician_review_reason
+
+        # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
+        # Nothing is saved, deleted or committed before this return. The log
+        # names the observation and the check types only, never the text.
+        if not safety_result.passed:
+            logger.warning(
+                "Withholding interpretation for observation %s: safety checks failed: %s",
+                observation_id, safety_result.checks_failed,
+            )
+            return InterpretationResult(
+                success=False,
+                error_message=ESCALATE_TEMPLATE,
+                safety_validation=safety_result,
+                withheld=True,
+            )
 
         # Build context JSON
         context_json = self._build_context_json(context)
