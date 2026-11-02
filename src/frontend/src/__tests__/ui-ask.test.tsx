@@ -197,7 +197,8 @@ describe('UI-PG-ASK', () => {
       const composer = screen.getByRole('textbox', { name: 'Your question' });
       const disclaimer = screen.getByText(/does not provide medical advice/i);
 
-      const card = list.parentElement as HTMLElement;
+      const card = list.closest('[data-testid="ask-card"]') as HTMLElement;
+      expect(card).not.toBeNull();
       expect(card.contains(composer)).toBe(true);
       expect(card.contains(disclaimer)).toBe(true);
       expect(composer.compareDocumentPosition(disclaimer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -283,7 +284,8 @@ describe('UI-PG-ASK', () => {
       const answer = await screen.findByText(/hemoglobin level is 14.2/);
 
       expect(answer.closest('[data-t0]'), 'the answer text').not.toBeNull();
-      const chips = screen.getAllByRole('button', { name: /^Citation \d/ });
+      // Citation 1's observation is not in the (empty) list, so it is the workbench link chip; citation 2 is a quote chip.
+      const chips = within(screen.getByText('Sources:').parentElement as HTMLElement).getAllByRole('button');
       expect(chips).toHaveLength(2);
       for (const chip of chips) expect(chip.querySelector('[data-t0]') ?? chip.closest('[data-t0]'), chip.textContent ?? '').not.toBeNull();
       expect(screen.getByText(/does not provide medical advice/i).closest('[data-t0]'), 'the disclaimer').not.toBeNull();
@@ -307,7 +309,7 @@ describe('UI-PG-ASK', () => {
       const list = screen.getByRole('log', { name: 'Conversation' });
 
       expect(inlineMotionOnPath(answer, list)).toEqual([]);
-      for (const chip of screen.getAllByRole('button', { name: /^Citation \d/ })) {
+      for (const chip of within(screen.getByText('Sources:').parentElement as HTMLElement).getAllByRole('button')) {
         expect(inlineMotionOnPath(chip, list)).toEqual([]);
       }
     });

@@ -20,16 +20,18 @@ import {
   ChevronDown,
   ChevronUp,
   Tag,
+  ExternalLink,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, IconButton } from '@/components/ui';
 import { Pending } from '@/components/ui/Pending';
-import { Popover } from '@/components/ui/Popover';
+import { CitationTooltip } from '@/components/lab-interpreter/CitationTooltip';
 import { duration, ease } from '@/motion/tokens';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
 import { useAnalyteList, useModelSettings, useExternalApiSettings, useProviderInfo, ApiError } from '@/services';
 import { useObservations } from '@/services/observations';
+import type { Observation } from '@/services/types';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import {
   DOCUMENT_CATEGORIES,
@@ -45,10 +47,12 @@ import { useSubmitFeedback, FEEDBACK_TAGS, type FeedbackTag } from '@/services/f
 /**
  * A citation as rendered in the chat (CITE-SRC-001).
  *
- * `observationId` / `entityId` are the deep-link target. When both are absent
- * the citation is a plain label — reference-corpus entries, care tasks and
- * timeline events have no page region to point at, and a button that navigates
- * nowhere is worse than plain text.
+ * `observationId` / `entityId` are the deep-link target. Which control a citation gets (AskCitation):
+ *  - its observation is in the loaded list: the UI-PROVENANCE CitationTooltip, with "Open source" (Source Trace);
+ *  - else it has a target: a button to the Verification Workbench;
+ *  - else it has a real quote: the CitationTooltip with the quote only;
+ *  - else (a care task, a timeline event, a bare locator) a plain label, because a button that opens nothing or
+ *    navigates nowhere is worse than plain text.
  */
 interface CitationChip {
   source: string;
@@ -56,7 +60,7 @@ interface CitationChip {
   docId: string | null;
   observationId: string | null;
   entityId: string | null;
-  /** The quoted passage the citation points at; null when the backend sent none. */
+  /** The backend's text_snippet. Not always a quote: see quoteOf. */
   snippet: string | null;
 }
 
@@ -82,66 +86,93 @@ function citationTarget(citation: CitationChip): string | null {
 }
 
 /**
- * A citation chip. Tap, click or Enter opens its quote in the UI-PROVENANCE popover; hover alone does not. The
- * popover holds T0 text, so it is `still`. The deep link to the source region (CITE-SRC-001) is inside the popover and
- * only when the citation has one: a quote with no link is honest, a control that goes nowhere is not.
+ * The quoted passage in a text_snippet, or null when it is not one. The legacy RAG path sends a sentence. The default
+ * agent path sends a row id: be/api/assistant.py `_to_api_citation` sets text_snippet = `c.locator or c.source_id`, and a
+ * locator is an observation, task, document or event id, or "docId:page". Those are never shown as a quote, and a
+ * passage of words always has whitespace where an id never does, so this does not depend on which id it is.
  */
-function CitationPopoverChip({ citation, index }: { citation: CitationChip; index: number }) {
+function quoteOf(snippet: string | null): string | null {
+  const text = snippet?.trim();
+  return text && /\s/.test(text) ? text : null;
+}
+
+/** What the record itself says, for a citation that has no quote of its own: the analyte and its result. */
+function recordText(observation: Observation): string {
+  const name = observation.analyte_raw || observation.analyte_canonical;
+  const result =
+    observation.value_text ??
+    (observation.value !== null ? `${observation.value}${observation.unit ? ` ${observation.unit}` : ''}` : null);
+  return result ? `${name}: ${result}` : name;
+}
+
+/**
+ * CitationTooltip's quote has no wrap rule, so one long unbroken token runs off the popover and the screen (DF-2,
+ * HC-UIPV-004). The popover is portaled out of this page, so a class here cannot reach it; this rule can. Remove it
+ * when CitationTooltip wraps its own quote.
+ */
+const CITATION_WRAP_CSS = '[role="dialog"][aria-label^="Citation "] p { overflow-wrap: anywhere; }';
+
+/**
+ * One citation under an answer. Chips are T0: the quote, the page and the source never move once they render.
+ */
+function AskCitation({
+  citation,
+  index,
+  observation,
+}: {
+  citation: CitationChip;
+  index: number;
+  observation: Observation | undefined;
+}) {
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
   const target = citationTarget(citation);
-  const base =
-    citation.source === 'Your Results'
-      ? 'bg-accent-subtle text-accent font-medium'
-      : 'bg-surface-muted text-ink-secondary';
+  const quote = quoteOf(citation.snippet);
+  const label = `${citation.source}${citation.page ? ` (p.${citation.page})` : ''}`;
+  const tone =
+    citation.source === 'Your Results' ? 'bg-accent-subtle text-accent font-medium' : 'bg-surface-muted text-ink-secondary';
+
+  if (observation || (!target && quote)) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <CitationTooltip
+          index={index}
+          citation={{
+            type: observation || citation.page == null ? citation.source : `${citation.source} \u00b7 page ${citation.page}`,
+            id: citation.observationId ?? citation.entityId ?? '',
+            text: quote ?? (observation ? recordText(observation) : ''),
+          }}
+          source={observation ? { observation } : undefined}
+        />
+        <span data-t0="" className="text-xs text-ink-secondary">
+          {label}
+        </span>
+      </span>
+    );
+  }
+
+  if (target) {
+    return (
+      <button
+        type="button"
+        data-t0=""
+        onClick={() => navigate(target)}
+        title="Show this result in the source document"
+        className={cn(
+          'inline-flex min-h-target items-center gap-1 rounded-lg px-2 text-xs transition-colors',
+          'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
+          tone
+        )}
+      >
+        <FileText className="w-3 h-3" aria-hidden="true" />[{index + 1}] {label}
+        <ExternalLink className="w-3 h-3" aria-hidden="true" />
+      </button>
+    );
+  }
 
   return (
-    <Popover
-      still
-      open={open}
-      onOpenChange={setOpen}
-      label={`Source ${index + 1}`}
-      className="w-72 max-w-[calc(100vw-1rem)] text-sm"
-      trigger={
-        <button
-          type="button"
-          data-t0=""
-          className={cn(
-            'inline-flex min-h-target items-center gap-1 rounded-lg px-2 text-xs',
-            'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
-            base
-          )}
-        >
-          <FileText className="w-3 h-3" aria-hidden="true" />
-          [{index + 1}] {citation.source}
-          {citation.page && ` (p.${citation.page})`}
-        </button>
-      }
-    >
-      <div className="min-w-0 space-y-2">
-        <p data-t0="" className="text-xs font-medium uppercase tracking-wider text-ink-secondary">
-          {citation.source}
-          {citation.page != null && ` \u00b7 page ${citation.page}`}
-        </p>
-        {citation.snippet ? (
-          <p data-t0="" className="leading-relaxed text-ink">
-            {citation.snippet}
-          </p>
-        ) : null}
-        {target ? (
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              navigate(target);
-            }}
-            className="min-h-target text-sm font-medium text-accent underline underline-offset-4"
-          >
-            Show in source document
-          </button>
-        ) : null}
-      </div>
-    </Popover>
+    <span data-t0="" className={cn('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs', tone)}>
+      <FileText className="w-3 h-3" aria-hidden="true" />[{index + 1}] {label}
+    </span>
   );
 }
 
@@ -258,6 +289,10 @@ export function ExplainAssistant() {
 
   const analyteList = useAnalyteList(profileId || undefined);
   const { data: observationPool } = useObservations({ profile_id: profileId || '' });
+  const observationsById = useMemo(
+    () => new Map((observationPool ?? []).map((observation) => [observation.id, observation])),
+    [observationPool]
+  );
   const sendMessage = useSendMessage();
   const submitFeedback = useSubmitFeedback();
 
@@ -558,7 +593,12 @@ export function ExplainAssistant() {
             <p className="text-xs text-ink-secondary mb-2">Sources:</p>
             <div className="flex flex-wrap gap-2">
               {message.citations.map((citation, i) => (
-                <CitationPopoverChip key={i} citation={citation} index={i} />
+                <AskCitation
+                  key={i}
+                  citation={citation}
+                  index={i}
+                  observation={citation.observationId ? observationsById.get(citation.observationId) : undefined}
+                />
               ))}
             </div>
           </div>
@@ -707,15 +747,21 @@ export function ExplainAssistant() {
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
+      <style>{CITATION_WRAP_CSS}</style>
       <div className="flex min-w-0 flex-1 flex-col">
         {/* The card is as tall as the space between the shell's header and its Safety Rail / tab bar (AppLayout writes
             --shell-top-h and --shell-bottom-h), so the composer and the disclaimer under it are in view without a page
             scroll and the message list is the only thing that scrolls. 2.5rem / 4rem: the main area's padding.
+            min-h-min is the floor: the card never gets shorter than its fixed parts plus the list's min-h-48, so on a
+            short screen, or with the privacy banner pinned, it grows and the window scrolls to the composer and the
+            disclaimer instead of an overflow clipping them. The list is absolutely positioned in its wrapper so its
+            messages add nothing to that floor.
             overflow-anchor: none keeps the browser from treating a node inside the list as the page's scroll anchor:
             when the list scrolls itself to the newest message, the anchor moved and the page was scrolled to follow. */}
         <Card
+          data-testid="ask-card"
           className={cn(
-            'flex flex-col overflow-hidden min-h-[28rem] [overflow-anchor:none]',
+            'flex flex-col min-h-min [overflow-anchor:none]',
             'h-[calc(100dvh-var(--shell-top-h,4rem)-var(--shell-bottom-h,3rem)-2.5rem)]',
             'lg:h-[calc(100dvh-var(--shell-top-h,4rem)-var(--shell-bottom-h,3rem)-4rem)]'
           )}
@@ -751,103 +797,108 @@ export function ExplainAssistant() {
             </div>
           </div>
 
-          {modelUnavailable && (
-            <div className="mx-4 mt-4 lg:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
-              <Settings className="w-5 h-5 text-status-caution shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-ink">No AI model configured</p>
-                <p className="text-xs text-ink-secondary">
-                  Responses are limited to the knowledge base. Configure a model for full functionality.
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => navigate('/settings')}
-                className="gap-1.5 shrink-0"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                Settings
-              </Button>
-            </div>
-          )}
-
           {(breakGlassActive || breakGlassUnknown) && (
-            <div className="mx-4 mt-4 lg:mx-6">
+            <div className="mx-4 mt-4 shrink-0 lg:mx-6">
               <ExternalApiBreakGlassWarning active={breakGlassActive} unknown={breakGlassUnknown} />
             </div>
           )}
 
-          {(observationPool?.some((obs) => !obs.user_verified) ?? false) && (
-            <div className="mx-4 mt-4 lg:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
-              <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
-              <p className="text-xs text-ink-secondary">
-                Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
-              </p>
-            </div>
-          )}
-
-
-          <div
-            ref={messageListRef}
-            role="log"
-            aria-label="Conversation"
-            tabIndex={0}
-            className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent lg:p-6"
-          >
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
-                  <Sparkles className="w-8 h-8 text-accent" />
+          <div className="relative min-h-48 flex-1">
+            {/* The banners that are not privacy warnings live in the list, so they scroll away instead of taking height
+                from the composer on a short screen. The break-glass warning above stays pinned (W-6 Q3, D12). */}
+            <div
+              ref={messageListRef}
+              role="log"
+              aria-label="Conversation"
+              tabIndex={0}
+              className="absolute inset-0 flex flex-col gap-6 overflow-y-auto p-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent lg:p-6"
+            >
+              {modelUnavailable && (
+                <div className="flex shrink-0 items-center gap-3 rounded-xl border border-status-caution/20 bg-status-caution-subtle px-4 py-3">
+                  <Settings className="w-5 h-5 text-status-caution shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-ink">No AI model configured</p>
+                    <p className="text-xs text-ink-secondary">
+                      Responses are limited to the knowledge base. Configure a model for full functionality.
+                    </p>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate('/settings')}
+                    className="gap-1.5 shrink-0"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    Settings
+                  </Button>
                 </div>
-                <h3 className="text-lg font-medium text-ink mb-2">Ask about your lab results</h3>
-                <p className="text-sm text-ink-secondary max-w-md">
-                  I can help you understand your medical test results using information from your uploaded documents and trusted medical references. All answers are grounded with citations.
-                </p>
-                {(sessionsData?.sessions?.length ?? 0) > 0 && !sessionLoaded && (
-                  <p className="text-xs text-ink-tertiary mt-2 flex items-center gap-1">
-                    <History className="w-3 h-3" />
-                    Loading previous conversation…
+              )}
+
+              {(observationPool?.some((obs) => !obs.user_verified) ?? false) && (
+                <div className="flex shrink-0 items-center gap-3 rounded-xl border border-status-caution/20 bg-status-caution-subtle px-4 py-3">
+                  <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
+                  <p className="text-xs text-ink-secondary">
+                    Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
                   </p>
-                )}
-              </div>
-            )}
-
-            {messages.map((message) => {
-              const rowClass = cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start');
-              // M6: the patient's own message rises 6 px and fades in from .35 (opacity only under reduced motion).
-              // An assistant message holds T0 values and citations, so it renders with no motion at all.
-              return message.role === 'user' ? (
-                <m.div
-                  key={message.id}
-                  data-testid="chat-message"
-                  data-role={message.role}
-                  initial={prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, y: 6 }}
-                  animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                  transition={{ duration: prefersReducedMotion ? 0.12 : duration.md, ease: EASE_OUT }}
-                  className={rowClass}
-                >
-                  {renderBubble(message)}
-                </m.div>
-              ) : (
-                <div key={message.id} data-testid="chat-message" data-role={message.role} className={rowClass}>
-                  {renderBubble(message)}
                 </div>
-              );
-            })}
+              )}
 
-            {sendMessage.isPending && (
-              <div className="flex justify-start">
-                <div className="bg-surface-muted rounded-2xl px-4 py-3">
-                  <Pending>Reading your verified results…</Pending>
+              {messages.length === 0 && (
+                <div className="flex flex-1 flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
+                    <Sparkles className="w-8 h-8 text-accent" />
+                  </div>
+                  <h3 className="text-lg font-medium text-ink mb-2">Ask about your lab results</h3>
+                  <p className="text-sm text-ink-secondary max-w-md">
+                    I can help you understand your medical test results using information from your uploaded documents and trusted medical references. All answers are grounded with citations.
+                  </p>
+                  {(sessionsData?.sessions?.length ?? 0) > 0 && !sessionLoaded && (
+                    <p className="text-xs text-ink-tertiary mt-2 flex items-center gap-1">
+                      <History className="w-3 h-3" />
+                      Loading previous conversation…
+                    </p>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+
+              {messages.map((message) => {
+                const rowClass = cn('flex shrink-0', message.role === 'user' ? 'justify-end' : 'justify-start');
+                // M6: the patient's own message rises 6 px and fades in from .35 (opacity only under reduced motion).
+                // An assistant message holds T0 values and citations, so it renders with no motion at all. A message
+                // restored from history is not new, so it does not replay M6 either.
+                const restored = message.id.startsWith('restored-');
+                return message.role === 'user' ? (
+                  <m.div
+                    key={message.id}
+                    data-testid="chat-message"
+                    data-role={message.role}
+                    initial={restored ? false : prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, y: 6 }}
+                    animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                    transition={{ duration: prefersReducedMotion ? 0.12 : duration.md, ease: EASE_OUT }}
+                    className={rowClass}
+                  >
+                    {renderBubble(message)}
+                  </m.div>
+                ) : (
+                  <div key={message.id} data-testid="chat-message" data-role={message.role} className={rowClass}>
+                    {renderBubble(message)}
+                  </div>
+                );
+              })}
+
+              {sendMessage.isPending && (
+                <div className="flex shrink-0 justify-start">
+                  <div className="bg-surface-muted rounded-2xl px-4 py-3">
+                    <Pending>Reading your verified results…</Pending>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="shrink-0 border-t border-black/4 p-4">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-              <span className="text-xs font-medium text-ink-tertiary flex items-center gap-1">
+            <div className="mb-3 flex items-center gap-2 max-lg:overflow-x-auto max-lg:pb-1 lg:flex-wrap">
+              <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-ink-tertiary max-lg:sr-only">
                 <History className="w-3 h-3" />
                 Ask about your records
               </span>
@@ -858,7 +909,7 @@ export function ExplainAssistant() {
                   onClick={() => handleSend(question)}
                   disabled={sendMessage.isPending}
                   className={cn(
-                    'px-3 py-1.5 rounded-full text-xs',
+                    'shrink-0 px-3 py-1.5 rounded-full text-xs',
                     'bg-surface-muted hover:bg-accent-subtle hover:text-accent',
                     'transition-colors duration-200',
                     'disabled:opacity-50 disabled:cursor-not-allowed'

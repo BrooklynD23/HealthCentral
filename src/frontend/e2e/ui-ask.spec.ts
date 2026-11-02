@@ -339,7 +339,7 @@ const LIST_MIN_PX = 120;
 interface CardLayout {
   listHeight: number;
   clipped: string[];
-  reach: { composerOk: boolean; disclaimerOk: boolean; composerBottom: number; disclaimerBottom: number; limit: number };
+  reach: { composerOk: boolean; disclaimerOk: boolean; composer: number[]; disclaimer: number[]; headerBottom: number; limit: number };
   breakGlass: { found: boolean; inList: boolean; top: number; bottom: number; cardTop: number };
 }
 
@@ -365,12 +365,20 @@ async function cardLayout(page: Page): Promise<CardLayout> {
     };
     const clipped = [...clippedBy(input).map((c) => `composer ${c}`), ...clippedBy(disclaimer).map((c) => `disclaimer ${c}`)];
 
-    // Reach it: scroll the window to its end, then both must sit above the Safety Rail / tab bar.
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' });
+    // Reach it: scroll each one into view (the shell's scroll-padding keeps it clear of the header and the Safety Rail),
+    // then it must sit between the header and the rail. The page goes on below the card (filters, suggestions), so
+    // scrolling to the end of the window would prove nothing.
     const rail = document.querySelector('[data-safety-rail]');
     const limit = Math.min(window.innerHeight, rail ? rail.getBoundingClientRect().top : window.innerHeight);
-    const bottomOf = (el: HTMLElement | null) => (el ? el.getBoundingClientRect().bottom : Infinity);
-    const topOf = (el: HTMLElement | null) => (el ? el.getBoundingClientRect().top : -Infinity);
+    const headerBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--shell-top-h')) || 0;
+    const reachable = (el: HTMLElement | null) => {
+      if (!el) return { ok: false, top: -Infinity, bottom: Infinity };
+      el.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+      const r = el.getBoundingClientRect();
+      return { ok: r.top >= headerBottom - 0.5 && r.bottom <= limit + 0.5, top: r.top, bottom: r.bottom };
+    };
+    const composerReach = reachable(input);
+    const disclaimerReach = reachable(disclaimer);
     const bg = Array.from(document.querySelectorAll('[role="alert"], [role="status"]')).find((n) =>
       /privacy protection override|Could not confirm this installation/i.test(n.textContent ?? '')
     ) as HTMLElement | undefined;
@@ -380,10 +388,11 @@ async function cardLayout(page: Page): Promise<CardLayout> {
       listHeight: list.clientHeight,
       clipped,
       reach: {
-        composerOk: topOf(input) >= 0 && bottomOf(input) <= limit + 0.5,
-        disclaimerOk: topOf(disclaimer) >= 0 && bottomOf(disclaimer) <= limit + 0.5,
-        composerBottom: bottomOf(input),
-        disclaimerBottom: bottomOf(disclaimer),
+        composerOk: composerReach.ok,
+        disclaimerOk: disclaimerReach.ok,
+        composer: [composerReach.top, composerReach.bottom],
+        disclaimer: [disclaimerReach.top, disclaimerReach.bottom],
+        headerBottom,
         limit,
       },
       breakGlass: {
@@ -583,7 +592,8 @@ for (const [name, viewport] of [
 ] as const) {
   test(`HC-UIPV-004: a long unbroken quote wraps inside the citation popover (${name})`, async ({ page }) => {
     const { ask: chat } = await openAsk(page, viewport);
-    chat.snippet({ kind: 'text', text: 'LDL'.repeat(61) + 'END' });
+    // A quote has words, so it is shown; one unbroken 184-character token inside it is what must wrap.
+    chat.snippet({ kind: 'text', text: `Report states ${'LDL'.repeat(61)}END here` });
     await ask(page, 'What is my LDL?', 1);
     await page.getByRole('button', { name: /^Citation 1:/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Citation 1' });
