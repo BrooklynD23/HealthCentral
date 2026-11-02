@@ -2,7 +2,8 @@
  * UI-PROVENANCE e2e (plan section 7.6): HC-UIPV-001 (popover opens on click and
  * Enter, not hover; Escape closes and returns focus), HC-UIPV-002 (a tap opens it
  * in a hasTouch context), HC-UIPV-006 (popover part: stillnessProbe from the
- * opening click), and Gate G on the three routes that show the citation popover
+ * opening click), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
+ * and Gate G on the three routes that show the citation popover
  * or PageImageOverlay: /interpret, /inbox and /verify.
  *
  * Every /api/v1 request is answered by the spec-local mock below, typed from
@@ -206,19 +207,26 @@ async function seedSession(page: Page): Promise<void> {
 /**
  * Waits until the element's effective opacity is 1 and its box has not moved for
  * six frames. Playwright's visibility check accepts opacity 0, so a route that is
- * still fading in would otherwise look ready.
+ * still fading in would otherwise look ready. Every call counts its own frames: the
+ * count is cleared when the call starts and whenever the element is absent.
  */
 async function waitForSettled(page: Page, selector: string): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as { __hcSettle?: unknown }).__hcSettle = undefined;
+  });
   await page.waitForFunction(
     (sel) => {
+      const w = window as unknown as { __hcSettle?: { x: number; y: number; frames: number } };
       const el = document.querySelector(sel);
-      if (!el) return false;
+      if (!el) {
+        w.__hcSettle = undefined;
+        return false;
+      }
       let opacity = 1;
       for (let node: Element | null = el; node; node = node.parentElement) {
         opacity *= Number(getComputedStyle(node).opacity);
       }
       const rect = el.getBoundingClientRect();
-      const w = window as unknown as { __hcSettle?: { x: number; y: number; frames: number } };
       const prev = w.__hcSettle;
       const stable = prev !== undefined && Math.abs(prev.x - rect.x) < 0.01 && Math.abs(prev.y - rect.y) < 0.01;
       const frames = stable ? prev.frames + 1 : 0;
@@ -438,7 +446,18 @@ const GATE_ROUTES: GateRoute[] = [
     interact: async (page) => {
       // Another page: PageImageOverlay refetches for page 1, its highlight unmounts and remounts,
       // and a fresh TraceMark mounts after reduced motion is emulated. Re-selecting the same row would not.
+      const preClickSrc = await page.locator(SOURCE_IMAGE).getAttribute('src');
       await page.getByText('Hemoglobin A1c', { exact: true }).first().click();
+      // For a frame after the click the old page-3 image already carries the "Page 1" alt, so PAGE_ONE_IMAGE
+      // matches it. Wait for a blob: src that is not the pre-click one, loaded, before settling it.
+      await page.waitForFunction(
+        ({ before, sel }) => {
+          const img = document.querySelector(sel) as HTMLImageElement | null;
+          return img !== null && img.src.startsWith('blob:') && img.src !== before && img.complete && img.naturalWidth > 0;
+        },
+        { before: preClickSrc, sel: PAGE_ONE_IMAGE },
+        { polling: 'raf', timeout: 10_000 }
+      );
       // toBeVisible accepts opacity 0, and the image is opacity 0 until onLoad. The highlight and its TraceMark
       // mount only after onLoad (PageImageOverlay.tsx), so wait for the settled page-1 image, then for its mark.
       await waitForSettled(page, PAGE_ONE_IMAGE);
@@ -533,6 +552,100 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
   });
   expect(report.postTriggerSamples).toBeGreaterThan(0);
   await expect(page.locator(POPOVER)).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIPV-007: waitForSettled counts six fresh frames on every call. Its state used to live on
+// window across calls, so a second call on a replaced element returned on its first frame, and
+// frames counted before the element vanished survived its absence.
+// ---------------------------------------------------------------------------
+type FrameWindow = {
+  __rafCount: number;
+  __rafRun: number;
+  __rafAtReadd?: number;
+};
+
+/**
+ * Starts an in-page requestAnimationFrame counter. Each run owns a token, so a stopped loop can never
+ * revive and the count rises by exactly one per real frame. With `vanish`, the `.target` element is
+ * removed once waitForSettled has counted `removeAtSettleFrames` stable frames, and put back
+ * `readdAfterFrames` real frames later.
+ */
+async function startFrameCounter(
+  page: Page,
+  vanish?: { removeAtSettleFrames: number; readdAfterFrames: number }
+): Promise<void> {
+  await page.evaluate((plan) => {
+    const w = window as unknown as FrameWindow & { __hcSettle?: { frames: number } };
+    w.__rafCount = 0;
+    w.__rafAtReadd = undefined;
+    const run = (w.__rafRun = (w.__rafRun ?? 0) + 1);
+    let removed: Element | null = null;
+    let removedAt = 0;
+    // A stale count from an earlier call must not trigger the removal: only a count seen below the
+    // threshold means the wait under test has started counting.
+    let waitStarted = false;
+    const tick = () => {
+      if (run !== w.__rafRun) return;
+      w.__rafCount += 1;
+      const settleFrames = w.__hcSettle?.frames ?? 0;
+      if (settleFrames < (plan?.removeAtSettleFrames ?? 0)) waitStarted = true;
+      if (plan && waitStarted && !removed && w.__rafAtReadd === undefined && settleFrames >= plan.removeAtSettleFrames) {
+        removed = document.querySelector('.target');
+        removed?.remove();
+        removedAt = w.__rafCount;
+      }
+      if (plan && removed && w.__rafAtReadd === undefined && w.__rafCount - removedAt >= plan.readdAfterFrames) {
+        document.body.append(removed);
+        w.__rafAtReadd = w.__rafCount;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, vanish);
+}
+
+async function stopFrameCounter(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const w = window as unknown as FrameWindow;
+    w.__rafRun += 1;
+    return w.__rafCount;
+  });
+}
+
+const SETTLE_BOX = '<div class="target" style="position:absolute;left:10px;top:10px;width:100px;height:40px">box</div>';
+
+test('HC-UIPV-007 waitForSettled needs six fresh frames on every call', async ({ page }) => {
+  await page.setContent(`<!doctype html><body style="margin:0">${SETTLE_BOX}</body>`);
+  await waitForSettled(page, '.target');
+
+  // Case 1: element A is settled; B replaces it at the same rect. The second call must still wait
+  // for six frames of its own, not inherit A's count.
+  await page.evaluate(() => {
+    const a = document.querySelector('.target')!;
+    const b = a.cloneNode(true) as HTMLElement;
+    b.id = 'b';
+    a.replaceWith(b);
+  });
+  await startFrameCounter(page);
+  await waitForSettled(page, '.target');
+  const framesAfterReplace = await stopFrameCounter(page);
+  expect.soft(framesAfterReplace, 'frames elapsed in a second waitForSettled on a replaced element').toBeGreaterThanOrEqual(6);
+  console.log(`HC-UIPV-007 case1 frames=${framesAfterReplace}`);
+
+  // Case 2: the element is removed for a few frames mid-wait and re-added at the same rect. The frames
+  // counted before it vanished must not count; six consecutive frames on the present element are needed.
+  await startFrameCounter(page, { removeAtSettleFrames: 3, readdAfterFrames: 3 });
+  await waitForSettled(page, '.target');
+  const result = await page.evaluate(() => {
+    const w = window as unknown as FrameWindow;
+    w.__rafRun += 1;
+    return { total: w.__rafCount, atReadd: w.__rafAtReadd };
+  });
+  expect(result.atReadd, 'waitForSettled returned before the element was re-added').toBeDefined();
+  const framesAfterReadd = result.total - (result.atReadd ?? result.total);
+  console.log(`HC-UIPV-007 case2 framesAfterReadd=${framesAfterReadd}`);
+  expect(framesAfterReadd, 'frames elapsed after the element came back').toBeGreaterThanOrEqual(6);
 });
 
 // ---------------------------------------------------------------------------
