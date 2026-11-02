@@ -35,6 +35,8 @@ interface Entry {
   icon: LucideIcon;
   /** Static text on the right (the Results group's latest value). Marked data-t0. */
   detail?: string;
+  /** A record hit the patient has not verified (owner D4: an unverified value is visibly marked). */
+  unverified?: boolean;
   run: (navigate: ReturnType<typeof useNavigate>) => void;
 }
 
@@ -60,10 +62,12 @@ function latestByAnalyte(observations: Observation[] | undefined): Observation[]
   return [...latest.values()].sort((a, b) => (b.collected_at ?? '').localeCompare(a.collected_at ?? ''));
 }
 
+/** The value, its unit and (owner D4) an unverified mark. A numeric 0 is a value, so test for null, not truthiness. */
 function formatLatest(obs: Observation): string | undefined {
   const value = obs.value ?? obs.value_text;
   if (value === null || value === undefined || value === '') return undefined;
-  return [value, obs.unit].filter(Boolean).join(' ');
+  const text = obs.unit ? `${value} ${obs.unit}` : String(value);
+  return obs.user_verified === true ? text : `${text} (unverified)`;
 }
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -95,7 +99,8 @@ export default function CommandPalette() {
   const listId = useId();
   const trimmed = query.trim();
   const debounced = useDebounced(trimmed, DEBOUNCE_MS);
-  const { data: found } = useSearch({ q: debounced, limit: MAX_RECORDS });
+  // A closed palette keeps no live query: a stale refetch would write a search.view audit row nobody asked for.
+  const { data: found } = useSearch({ q: open ? debounced : '', limit: MAX_RECORDS });
 
   const groups = useMemo<Group[]>(() => {
     const words = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
@@ -108,7 +113,7 @@ export default function CommandPalette() {
         keywords: [obs.analyte_canonical, 'result', 'lab'],
         icon: FlaskConical,
         detail: formatLatest(obs),
-        run: (go: typeof navigate) => go('/trends'),
+        run: (go: typeof navigate) => go(`/trends?${new URLSearchParams({ analyte: obs.analyte_canonical }).toString()}`),
       }))
       .filter(matches)
       .slice(0, MAX_RESULTS);
@@ -158,7 +163,7 @@ export default function CommandPalette() {
             label: hit.title,
             keywords: [],
             icon: meta.icon,
-            detail: undefined,
+            unverified: hit.verified_status === 'unverified',
             run: (go: typeof navigate) => go(meta.to),
           });
         }
@@ -247,6 +252,8 @@ export default function CommandPalette() {
       description={<span className="sr-only">Type to find a result, a page or an action. Enter on text searches your records.</span>}
       className="top-[12vh] max-w-xl translate-y-0 overflow-hidden p-0"
     >
+      {/* Modal puts mt-4 between its (screen-reader only) header and the content; cancel it so the input sits at the top. */}
+      <div className="-mt-4">
       <input
         role="combobox"
         aria-label="Search results, pages and records"
@@ -261,7 +268,7 @@ export default function CommandPalette() {
         onChange={(event) => changeQuery(event.target.value)}
         onKeyDown={onKeyDown}
         placeholder="Search results, pages and records"
-        className="h-12 w-full border-b border-border bg-transparent px-4 text-sm text-ink placeholder:text-ink-secondary focus:outline-hidden"
+        className="h-12 w-full border-b border-border bg-transparent px-4 text-sm text-ink placeholder:text-ink-secondary focus:outline-hidden focus-visible:ring-inset focus-visible:ring-offset-0"
       />
       <div
         role="listbox"
@@ -299,11 +306,18 @@ export default function CommandPalette() {
                       {entry.detail}
                     </span>
                   ) : null}
+                  {entry.unverified ? (
+                    <>
+                      {' '}
+                      <span className="shrink-0 text-xs text-ink-secondary">(unverified)</span>
+                    </>
+                  ) : null}
                 </div>
               );
             })}
           </div>
         ))}
+      </div>
       </div>
     </Modal>
   );

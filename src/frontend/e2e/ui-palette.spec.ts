@@ -57,7 +57,7 @@ function observation(overrides: Partial<Observation>): Observation {
 
 const OBSERVATIONS: Observation[] = [
   observation({ id: 'g1', value: 92, collected_at: '2026-01-10' }),
-  observation({ id: 'g2', value: 118, collected_at: '2026-04-10' }),
+  observation({ id: 'g2', value: 118, collected_at: '2026-04-10', user_verified: true }),
   observation({ id: 'g3', value: 101, collected_at: '2026-02-10' }),
   observation({ id: 'l1', analyte_canonical: 'ldl_cholesterol', analyte_raw: 'LDL Cholesterol', value: 142, collected_at: '2026-04-10' }),
   observation({ id: 'h1', analyte_canonical: 'hdl_cholesterol', analyte_raw: 'HDL Cholesterol', value: 51, collected_at: '2026-04-10' }),
@@ -230,7 +230,10 @@ test.describe('UI-PALETTE', () => {
     await expect(dialog(page)).toHaveCount(0);
     await expect(trigger(page)).toBeFocused();
 
-    // Opened from the page body, focus still ends on the header trigger.
+    // Opened with nothing focused (the opener is the page body, not <main>, which takes focus when clicked), focus
+    // still ends on the header trigger: the fallback in CommandPalette.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
     await page.keyboard.press('Control+K');
     await expect(dialog(page)).toBeVisible();
     await page.keyboard.press('Escape');
@@ -244,6 +247,8 @@ test.describe('UI-PALETTE', () => {
     const box = input(page);
     await expect(box).toBeFocused({ timeout: 15_000 });
     await box.pressSequentially('migraine aura');
+    // The hit renders only after the 150 ms debounce and the answer; Enter before then proves nothing about the order.
+    await expect(dialog(page).getByRole('option', { name: /Lipid panel: cholesterol/ })).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/search\?q=migraine\+aura$/, { timeout: 15_000 });
     await expect(dialog(page)).toHaveCount(0);
@@ -255,6 +260,44 @@ test.describe('UI-PALETTE', () => {
     await box.pressSequentially('timeline');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/timeline$/, { timeout: 15_000 });
+  });
+
+  test('HC-UIPAL-004: the record search is debounced 150 ms: typing chol quickly asks once', async ({ page }) => {
+    await openApp(page);
+    const asked: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (/\/api\/v1\/search\/?$/.test(url.pathname)) asked.push(url.searchParams.get('q') ?? '');
+    });
+    const box = await openWithKeys(page);
+    await box.pressSequentially('chol', { delay: 10 });
+    await expect(dialog(page).getByRole('option', { name: /Lipid panel: cholesterol/ })).toBeVisible();
+    expect(asked, 'one request, for the whole word').toEqual(['chol']);
+  });
+
+  test('HC-UIPAL-004: a Results row goes to its analyte, and an unverified value or hit is marked', async ({ page }) => {
+    await openApp(page);
+    const box = await openWithKeys(page);
+    await box.pressSequentially('chol');
+    const ldl = dialog(page).getByRole('option', { name: /LDL Cholesterol/ });
+    await expect(ldl.locator('[data-t0]')).toHaveText('142 mg/dL (unverified)');
+    await expect(dialog(page).getByRole('option', { name: /Lipid panel: cholesterol \(unverified\)/ })).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+  });
+
+  test('the input sits at the top edge of the dialog and its focus ring stays inside it', async ({ page }) => {
+    await openApp(page);
+    await openWithKeys(page);
+    const gap = await dialog(page).evaluate((root) => {
+      const field = root.querySelector('[role="combobox"]') as HTMLElement;
+      return {
+        band: field.getBoundingClientRect().top - root.getBoundingClientRect().top,
+        ring: getComputedStyle(field).boxShadow,
+      };
+    });
+    expect(gap.band, 'no blank band above the input').toBeLessThanOrEqual(1);
+    expect(gap.ring, 'the focus ring is inset (the dialog clips outside paint)').toContain('inset');
   });
 
   test('HC-UIPAL-005 (G10): the Results latest value is still from the Ctrl+K press (overlay)', async ({ page }) => {
@@ -273,6 +316,18 @@ test.describe('UI-PALETTE', () => {
     });
     expect(report.nodes).toBeGreaterThan(0);
     await expect(dialog(page).getByText('118 mg/dL')).toHaveAttribute('data-t0', '');
+  });
+
+  test('HC-UIPAL-005 (G10, cold): the first open, with the chunk and the data still to fetch, is still too', async ({ page }) => {
+    await openApp(page);
+    await page.locator('main').click({ position: { x: 5, y: 5 } });
+    const report = await stillnessProbe(page, {
+      kind: 'overlay',
+      lazyRoute: true,
+      trigger: () => page.keyboard.press('Control+K'),
+      expected: ['[role="dialog"] [role="option"] [data-t0]', RAIL],
+    });
+    expect(report.nodes).toBeGreaterThan(0);
   });
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
@@ -326,11 +381,14 @@ test.describe('UI-PALETTE', () => {
     expect(inp).toBeLessThan(200);
   });
 
-  test('G5 (quiet box): with reduced motion no element has a transform while the palette is open', async ({ page }) => {
+  test('G5 (quiet box): with reduced motion no element has a transform while the palette is open, typed in and moved through', async ({ page }) => {
     await openApp(page);
     const offenders = await reducedMotionSnapshot(page, async () => {
       await page.keyboard.press('Control+K');
       await expect(dialog(page)).toBeVisible({ timeout: 15_000 });
+      await input(page).pressSequentially('chol');
+      await expect(dialog(page).getByRole('option', { name: /LDL Cholesterol/ })).toBeVisible();
+      await page.keyboard.press('ArrowDown');
     });
     // The Dialog centres with a translate property, which is not a transform; anything listed here is motion.
     expect(offenders).toEqual([]);

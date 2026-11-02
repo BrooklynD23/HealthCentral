@@ -49,7 +49,7 @@ function observation(overrides: Partial<Observation>): Observation {
 
 const OBSERVATIONS: Observation[] = [
   observation({ id: 'g1', value: 92, collected_at: '2026-01-10' }),
-  observation({ id: 'g2', value: 118, collected_at: '2026-04-10' }),
+  observation({ id: 'g2', value: 118, collected_at: '2026-04-10', user_verified: true }),
   observation({ id: 'g3', value: 101, collected_at: '2026-02-10' }),
   observation({
     id: 'l1',
@@ -276,8 +276,22 @@ describe('HC-UIPAL-004: Escape returns focus to the trigger, and Enter on free t
     const user = userEvent.setup();
     renderShell();
     await user.click(trigger());
-    await user.type(await screen.findByRole('combobox'), 'migraine aura{Enter}');
+    await user.type(await screen.findByRole('combobox'), 'migraine aura');
+    // The hit renders only once the 150 ms debounce has passed; Enter before then proves nothing about the order.
+    await within(dialog()).findByRole('option', { name: /Diagnoses: migraine aura/ });
+    await user.keyboard('{Enter}');
     expect(screen.getByTestId('location')).toHaveTextContent('/search?q=migraine+aura');
+  });
+
+  it('Escape after the palette was opened from the page body returns focus to the header trigger', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    await screen.findByRole('dialog', { name: 'Command palette' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(trigger()).toHaveFocus());
   });
 
   it('Enter on a matching destination goes there instead of to /search', async () => {
@@ -298,5 +312,99 @@ describe('HC-UIPAL-005 (vitest half): the Results group shows the latest value a
     expect(latest).toHaveAttribute('data-t0');
     expect(within(root).queryByText('92 mg/dL')).toBeNull();
     expect(within(root).queryByText('101 mg/dL')).toBeNull();
+  });
+});
+
+const HIT = (overrides: Record<string, unknown>) => ({
+  type: 'entity',
+  id: 'e1',
+  doc_id: 'doc-1',
+  title: 'Diagnoses: migraine aura',
+  snippet: 'recorded',
+  date: null,
+  verified_status: 'verified',
+  category: null,
+  highlight_types: [],
+  ...overrides,
+});
+
+describe('HC-UIPAL-005 (D4): a value is never shown without its unit and mark', () => {
+  it('shows a zero value, with and without a unit', async () => {
+    vi.mocked(useObservations).mockReturnValue({
+      data: [
+        observation({ id: 'b1', analyte_canonical: 'basophils', analyte_raw: 'Basophils', value: 0, unit: '%', user_verified: true }),
+        observation({ id: 'n1', analyte_canonical: 'titre', analyte_raw: 'Titre', value: 0, unit: null, user_verified: true }),
+      ],
+    } as unknown as ReturnType<typeof useObservations>);
+    renderShell();
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    const root = await screen.findByRole('dialog', { name: 'Command palette' });
+    expect(await within(root).findByText('0 %')).toHaveAttribute('data-t0');
+    const titre = within(root).getByRole('option', { name: /Titre/ });
+    expect(within(titre).getByText('0')).toHaveAttribute('data-t0');
+  });
+
+  it('marks an unverified latest value inside the same data-t0 text, and leaves a verified one bare', async () => {
+    renderShell();
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    const root = await screen.findByRole('dialog', { name: 'Command palette' });
+    expect(await within(root).findByText('142 mg/dL (unverified)')).toHaveAttribute('data-t0');
+    expect(within(root).getByText('118 mg/dL')).toHaveAttribute('data-t0');
+    expect(within(root).queryByText('118 mg/dL (unverified)')).toBeNull();
+  });
+
+  it('marks an unverified record hit, and leaves a verified one bare', async () => {
+    vi.mocked(useSearch).mockReturnValue({
+      data: {
+        count: 2,
+        results: [
+          HIT({ id: 'e1', title: 'Diagnoses: migraine aura', verified_status: 'unverified' }),
+          HIT({ id: 'e2', title: 'Diagnoses: migraine without aura', verified_status: 'verified' }),
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useSearch>);
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(trigger());
+    await user.type(await screen.findByRole('combobox'), 'migraine');
+    expect(await within(dialog()).findByRole('option', { name: 'Diagnoses: migraine aura (unverified)' })).toBeInTheDocument();
+    expect(within(dialog()).getByRole('option', { name: 'Diagnoses: migraine without aura' })).toBeInTheDocument();
+  });
+});
+
+describe('HC-UIPAL-004: a Results row jumps to its analyte', () => {
+  it('Enter on an analyte goes to /trends?analyte=<canonical>', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(trigger());
+    await user.type(await screen.findByRole('combobox'), 'ldl{Enter}');
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=ldl_cholesterol$/);
+  });
+});
+
+describe('HC-UIPAL-004: the record search is debounced 150 ms and stops when the palette closes', () => {
+  const queries = () => vi.mocked(useSearch).mock.calls.map(([filters]) => filters.q);
+  const last = () => queries()[queries().length - 1];
+
+  it('asks for a query only after 150 ms without typing, and not at all once closed', async () => {
+    renderShell();
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    const input = await screen.findByRole('combobox');
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      fireEvent.change(input, { target: { value: 'chol' } });
+      act(() => void vi.advanceTimersByTime(149));
+      expect(queries()).not.toContain('chol');
+      act(() => void vi.advanceTimersByTime(1));
+      expect(queries()).toContain('chol');
+      expect(last()).toBe('chol');
+
+      act(() => closePalette());
+      expect(last(), 'a closed palette keeps no live query').toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
