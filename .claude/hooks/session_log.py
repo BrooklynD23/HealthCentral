@@ -28,6 +28,9 @@ _ERROR_CLASSES = (
     "exit-144-self-kill", "timeout", "edit-no-match", "permission-denied", "module-not-found",
     "command-not-found", "no-such-file", "tests-failed", "git-fatal", "syntax-error",
     "exit-", "other",
+    "input-validation", "no-such-tool", "edit-not-read", "read-not-found", "read-too-large",
+    "schema-mismatch", "user-rejected", "workflow-not-found", "workflow-bad-script", "skill-disabled",
+    "task-not-found", "task-not-running", "subagent-limit", "grep-pattern-rejected", "permission-denied-auto",
 )
 
 

@@ -4,9 +4,9 @@ export const meta = {
   whenToUse: 'L0 after merges or owner answers, to keep the queue moving without hand-starting each item. args {max_waves?: 4, max?: 12, plan_new?: true, auto_merge?: false, rsi?: true, run_id?: string}. auto_merge=true only with a current owner row that authorises agent merges. Nested build-items share THIS run\'s agent cap (min(16, CPUs - 2); about 4 seen on the 6-vCPU box, 2026-10-17): for more items at once, L0 runs build-wave and starts one top-level build-item Workflow per id instead.',
   phases: [
     { title: 'Select', detail: 'build-wave picks the eligible, file-disjoint set' },
-    { title: 'Build', detail: 'one build-item per id: haiku explore, opus Task 0, haiku-xhigh implement, haiku tests, opus review + verify' },
+    { title: 'Build', detail: 'one build-item per id: haiku (xhigh) explore, opus Task 0, sonnet implement, haiku (medium) tests, opus review + verify' },
     { title: 'Unblock', detail: 'opus sub-orchestrator turns a Task 0 plan gap (gates answered) into a plan delta, then the item re-runs once', model: 'opus' },
-    { title: 'Plan', detail: 'haiku search per unplanned row, then one opus planner writes plan sections + queue rows in one docs PR' },
+    { title: 'Plan', detail: 'haiku (xhigh) search per unplanned row, then one opus planner writes plan sections + queue rows in one docs PR' },
     { title: 'Merge', detail: 'only with auto_merge: opus merges green, approved, non-ask-first PRs and runs the post-merge batch', model: 'opus' },
     { title: 'RSI', detail: 'rsi-loop after every run (RSI-BUILD): mine, reflect, propose, gate, PR; its PRs are owner-merged' },
   ],
@@ -66,18 +66,55 @@ const MERGE_SCHEMA = {
   required: ['merged', 'skipped'],
 }
 
+// Pure and self-contained (extracted alone by the test fixture): no outer consts, no log/args references.
+// RSI-MINE-OUTCOMES: map a build-item result string to ONE fixed stop_class literal (the 18-value enum in rsi-loop.js).
+// The fixed prefixes come from build-item.js; the free-text tail of a Task 0 or block stop is only read in memory, by
+// phrase-family regex, to pick a literal. Nothing from the result is ever returned. Subclass precedence (first match
+// wins): resume-identity, file-list-gap, lock-or-slot, plan-gap, owner-gate; so a tail that says both "Plan gap" and
+// "a file outside the row's list" is file-list-gap. No match: task0-other (Task 0 tail) or stopped-after-claim (block tail).
+function outcomeClass(result) {
+  if (typeof result !== 'string') return 'unknown'
+  const s = result.replace(/^﻿/, '').trim()
+  const first = s.split('\n')[0]
+  const fin = /^https?:\/\/\S+\/pull\/\d+\s+(READY|DRAFT|FAILED|BLOCKED)\b/i.exec(first)
+  if (fin) return { READY: 'done-ready', DRAFT: 'done-draft', FAILED: 'failed', BLOCKED: 'blocked-after-verify' }[fin[1].toUpperCase()]
+  if (/^ERROR\s+[^\s:]+:/i.test(first)) return 'error'
+  if (/^ESCALATED\s+[^\s:]+\s+after\b/i.test(first)) return 'escalated'
+  const sub = (tail, fallback) => {
+    const FAMILIES = [
+      ['resume-identity', [/\bidentity checks?\b/i, /\bresume of PR #?\d+/i, /\bresume identity\b/i, /\btitle is not \[(?:blocked|escalated):/i]],
+      ['file-list-gap', [/\bfile[- ]list gap\b/i, /\bnot in (?:the |its |this )?(?:row|brief|plan)\b/i, /\bfiles? outside (?:of )?(?:the |its |this )?(?:row|brief|plan)\b/i, /\bout-of-row files?\b/i]],
+      ['lock-or-slot', [/\blocked by (?:open )?PR\b/i, /\bno free (?:code )?slot/i, /\blost (?:the )?claim race\b/i, /\b(?:lock|slot) check\b/i, /\bdenied by permission\b/i, /\bpermission classifier\b/i]],
+      ['plan-gap', [/\bplan[- ]gap\b/i]],
+      ['owner-gate', [/\bowner[- ]gate\b/i, /\bunanswered\b[^.\n]{0,40}\bgate\b/i, /\bgate\b[^.\n]{0,40}\bunanswered\b/i, /\bno owner[- ]decisions? (?:row|answer)/i, /\bwaiting (?:for|on) (?:the )?owner\b/i]],
+    ]
+    for (const [cls, res] of FAMILIES) if (res.some((re) => re.test(tail))) return cls
+    return fallback
+  }
+  if (/^STOPPED\s+[^\s:]+:\s+not found in\b/i.test(first)) return 'not-found'
+  if (/^STOPPED\s+[^\s:]+:.*\bis owner or model-machine work\b/i.test(first)) return 'owner-or-model-machine'
+  if (/^STOPPED\s+[^\s:]+:\s+runtime is\b/i.test(first)) return 'runtime-mismatch'
+  if (/^STOPPED\s+[^\s:]+:\s+unexpected worktree\b/i.test(first)) return 'bad-worktree-shape'
+  const t0 = /^STOPPED\s+[^\s:]+\s+at Task 0:([\s\S]*)$/i.exec(s)
+  if (t0) return sub(t0[1], 'task0-other')
+  const blk = /^STOPPED\s+[^\s:]+\s+\(PR #\d+, retitled \[blocked:[a-z]+\]\):([\s\S]*)$/i.exec(s)
+  if (blk) return sub(blk[1], 'stopped-after-claim')
+  return 'unknown'
+}
+
 const triage = (id, result) => agent(
   `Classify this build-item result for queue item ${id}. Read the PR and its latest comment with gh if a PR number appears.
 Result:\n${typeof result === 'string' ? result : JSON.stringify(result)}
 kind: done (PR opened, ready or draft-ready), plan_gap (Task 0 check 1 failed: the plan or a contract does not cover scope the owner already signed), owner_gate (an unanswered owner gate or an owner-only step blocks it), env (machine or tooling problem), review (escalated after review rounds), other.
 For owner_gate, write the exact question the owner must answer, with the options from the lane doc or plan. Never mark a gate answered unless ${DECISIONS} on origin/main has the row.
 ${STYLE}`,
-  { label: `triage ${id}`, phase: 'Unblock', model: 'haiku', effort: 'low', schema: TRIAGE_SCHEMA },
+  { label: `triage ${id}`, phase: 'Unblock', model: 'haiku', effort: 'xhigh', schema: TRIAGE_SCHEMA },
 )
 
 const unblock = (id, t) => agent(
   `You are an Opus sub-orchestrator unblocking queue item ${id} (PR #${t.pr_number || '?'}). Task 0 stopped on a plan gap: ${t.summary}
 Do what L0 did for ASSIST-AGENT-DATES (#119): in the PR's worktree and branch (git worktree list; create one if missing), commit a plan delta to the item's lane-doc section covering exactly the scope the owner signed, with new test ids and the expected collected delta; amend the contract in contracts.md only as far as that scope needs; set the queue row status to ready; regenerate docs (python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph); push. Use Haiku subagents for code search when you need facts from many files.
+Before setting ready, apply the RUNBOOK §10.1 planner checklist and say in the plan delta which parity, guard and isolation tests you found over the touched files.
 Stop (planned=false, stop_reason = the exact owner question) if the signed scope leaves a patient-visible choice open, if a gate is unanswered in ${DECISIONS}, or if the plan would touch ${ASK_FIRST}. Never write product code here; build-item does that next.
 ${STYLE}`,
   { label: `unblock ${id}`, phase: 'Unblock', model: 'opus', effort: 'high', schema: UNBLOCK_SCHEMA },
@@ -115,7 +152,7 @@ for (let wave = 1; wave <= MAX_WAVES; wave++) {
   )
   built.filter(Boolean).forEach((r) => {
     if (r.t && r.t.kind === 'owner_gate' && r.t.owner_question) ownerQuestions.push(`${r.id}: ${r.t.owner_question}`)
-    report.push({ wave, id: r.id, kind: r.t ? r.t.kind : 'unknown', summary: r.t ? r.t.summary : String(r.result), rerun: r.rerun || null })
+    report.push({ wave, id: r.id, kind: r.t ? r.t.kind : 'unknown', summary: r.t ? r.t.summary : String(r.result), rerun: r.rerun || null, stop_class: outcomeClass(r.result), rerun_stop_class: r.rerun ? outcomeClass(r.rerun) : null })
   })
 
   // Planning runs once per program run: it writes shared files (queue.md, lane docs) in one docs PR.
@@ -126,20 +163,21 @@ for (let wave = 1; wave <= MAX_WAVES; wave++) {
     const rows = await agent(
       `Read ${QUEUE} on origin/main (git fetch origin; git show origin/main:${QUEUE}). List every bullet under "New rows (not yet planned)" whose id has no queue table row and no open PR. ask_first = it names ${ASK_FIRST}. Copy only; judge nothing.
 ${STYLE}`,
-      { label: 'list unplanned rows', phase: 'Plan', model: 'haiku', effort: 'low', schema: ROWS_SCHEMA },
+      { label: 'list unplanned rows', phase: 'Plan', model: 'haiku', effort: 'xhigh', schema: ROWS_SCHEMA },
     )
     const unplanned = (rows && rows.rows) || []
     if (unplanned.length) {
       const facts = (await parallel(unplanned.map((r) => () => agent(
         `Read-only code search for unplanned queue row ${r.id}: "${r.summary}". Find the exact files and line ranges involved, existing tests that cover the behaviour, and the test file a fix would extend. Quote file:line for every claim. Edit nothing.
 ${STYLE}`,
-        { label: `search ${r.id}`, phase: 'Plan', model: 'haiku', effort: 'low', schema: FACTS_SCHEMA },
+        { label: `search ${r.id}`, phase: 'Plan', model: 'haiku', effort: 'xhigh', schema: FACTS_SCHEMA },
       )))).filter(Boolean)
       const plan = await agent(
         `You are an Opus planning sub-orchestrator. Turn these unplanned queue rows into planned ones in ONE docs-only PR (branch docs/plan-new-rows-<short main sha>, worktree outside the main checkout).
 Rows:\n${JSON.stringify(unplanned, null, 1)}\nCode facts from Haiku search (a lead, not a finding; spot-check the decisive ones):\n${JSON.stringify(facts, null, 1)}
 For each row: a plan section in the right lane doc (lane-A..F under docs/plans/2026-10-15-build-program/) with tasks, RED-first test ids and assertions that fail on today's main, acceptance commands, file list and expected collected delta; then a queue table row in the right wave with depends_on, owner gates, ask-first, files, est h, runtime claude, status.
 Rows with ask_first=true: plan them, set status "blocked: owner yes on the <file> diff", and list them in owner_questions. A row whose fix is a product choice (wording, what patients see): add a gate id, status blocked, and put the question with options and your recommendation in owner_questions. Never write product code.
+Before marking a row ready, apply the RUNBOOK §10.1 planner checklist and say in the row which parity, guard and isolation tests you found.
 Regenerate docs (python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py --link-graph), open the PR with a RUNBOOK §6 body, wait for CI green. Do not merge.
 ${STYLE}`,
         { label: 'plan new rows', phase: 'Plan', model: 'opus', effort: 'high', schema: PLAN_SCHEMA },
@@ -179,7 +217,16 @@ ${STYLE}`,
 let rsi = null
 if (RSI) {
   phase('RSI')
-  rsi = await workflow('rsi-loop', { run_id: (args && args.run_id) || 'build-program' })
+  // RSI-MINE-OUTCOMES: only fixed literals and the queue id go to rsi-loop (kind, stop_class); rsi-loop re-validates them.
+  // build-item's triage can fail, and the report then holds kind 'unknown', which is outside the triage enum: map it to 'other'.
+  const TRIAGE_KINDS = ['done', 'plan_gap', 'owner_gate', 'env', 'review', 'other']
+  const outcomes = report.filter((r) => r.kind !== 'plan' && r.kind !== 'merge').flatMap((r) => {
+    const kind = TRIAGE_KINDS.includes(r.kind) ? r.kind : 'other'
+    const rows = [{ id: r.id, kind, stop_class: r.stop_class }]
+    if (r.rerun_stop_class) rows.push({ id: r.id, kind, stop_class: r.rerun_stop_class })
+    return rows
+  })
+  rsi = await workflow('rsi-loop', { run_id: (args && args.run_id) || 'build-program', outcomes })
     .catch((e) => ({ error: `rsi-loop: ${e && e.message}` }))
 }
 

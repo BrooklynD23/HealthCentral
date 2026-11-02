@@ -18,7 +18,7 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
   - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
 - **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
 - **Generated repo map** [`openwiki/`](openwiki/README.md) — reserved home for a repo-navigation layer that OpenWiki would generate for coding agents (**not yet generated**; README-only stub). Advisory only once generated: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
-- **Agent model routing** (owner, 2026-10-24): never use Sonnet 5.5; Haiku 5.5 at effort `xhigh` replaces it for every Sonnet role. Opus and Haiku roles are unchanged. Workflow scripts in `.claude/workflows/` use `model: 'haiku', effort: 'xhigh'`. Full rule in [CLAUDE.md](CLAUDE.md) (Hard invariants).
+- **Agent model routing** (owner, 2026-10-29): Sonnet 5.5 implements; Haiku 5.5 at effort `medium` runs test scripts only and never edits; Haiku 5.5 at effort `xhigh` does exploration, web search, finding files and symbols, scanning/triage, summarization and other tasks that do not implement or write code; Opus reviews and orchestrates. Workflow scripts in `.claude/workflows/` use `model: 'sonnet', effort: 'high'` for implementers, `model: 'haiku', effort: 'medium'` for test runners and `model: 'haiku', effort: 'xhigh'` for exploration and scans. Full rule in [CLAUDE.md](CLAUDE.md) (Hard invariants).
 
 ## Skills
 
@@ -74,7 +74,7 @@ see [`.claude/skills/README.md`](.claude/skills/README.md) and
 
 ```powershell
 .\dev.ps1                                  # full stack, auto-selects free ports
-cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (2547 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
+cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (2577 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e
@@ -103,7 +103,11 @@ that proves each one**:
 
 - Tests written or updated, and the new ones observed failing before the fix.
 - `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` shows no new
-  failures against the baseline above.
+  failures against the baseline above. For a diff that `scripts/change_scope.py`
+  reports as `backend=false`, the PR's CI Backend Tests run is the full-suite
+  evidence, unless it also reports `docs_only=true`: then no tracked file under
+  `src/`, `scripts/`, `.github/`, `.claude/mods/` names the changed paths and CI
+  skips Backend Tests by design (owner SPEEDUP-1-3).
 - `cd src/frontend && npx tsc --noEmit` is clean and `npx vitest run` passes.
 - The app boots: `cd src/backend && python -c "from main import app"`.
 - Every hard invariant in [CLAUDE.md](CLAUDE.md) still holds.

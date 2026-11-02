@@ -91,6 +91,31 @@ async def _has_interpretation(profile_db: AsyncSession, observation_id: str) -> 
 UNVERIFIED_BATCH_ERROR = "Verify this result first"
 
 
+async def _audit_withheld(
+    master_db: AsyncSession,
+    profile_id: str,
+    observation_id: str,
+    interp_result,
+    started: bool,
+) -> None:
+    """INTERP-WITHHOLD-MSG: one audit row for a card the safety check withheld.
+
+    Ids and check type names only, never the text, the analyte or the value.
+    ``intent="completed"`` closes the ``started`` row of a regenerate.
+    """
+    checks = interp_result.safety_validation.checks_failed if interp_result.safety_validation else []
+    await _audit_interpretation(
+        master_db, "withheld", profile_id,
+        entity_type="observation", entity_id=observation_id,
+        details={
+            "reason": "safety_check_failed",
+            "decision": "escalate",
+            "checks_failed": list(checks),
+        },
+        intent="completed" if started else None,
+    )
+
+
 async def _audit_unverified_refusal(
     master_db: AsyncSession,
     profile_id: str,
@@ -244,7 +269,12 @@ class GroundedVerificationResponse(BaseModel):
 
 class GroundedInterpretationResponse(BaseModel):
     """Combined template interpretation + grounded RAG explanation."""
-    interpretation: InterpretationResponse
+    # None only for a withheld card (INTERP-WITHHOLD-MSG): no card is saved.
+    interpretation: Optional[InterpretationResponse] = None
+    withheld: bool = False
+    # INTERP-WITHHOLD-MSG: a withheld card still tells the patient to contact a
+    # clinician when the value is critical. The flag only: never the value or reason.
+    withheld_physician_review: bool = False
     grounded_segments: list[GroundedSegmentResponse]
     full_response: str
     insufficient_context: bool = False
@@ -478,6 +508,10 @@ async def generate_interpretation(
         force_regenerate=force_regenerate,
     )
 
+    # `is True`: a result object without the flag (test doubles) is not withheld.
+    if getattr(interp_result, "withheld", False) is True:
+        await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, started)
+
     if not interp_result.success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -542,6 +576,24 @@ async def generate_grounded_interpretation(
         master_db=master_db,
         force_regenerate=force_regenerate,
     )
+    if getattr(interp_result, "withheld", False) is True:
+        # INTERP-WITHHOLD-MSG: answer with the escalation message, no card and no
+        # rag.query. Keyed on the flag, never on the error_message string.
+        await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, started)
+        return GroundedInterpretationResponse(
+            interpretation=None,
+            withheld=True,
+            withheld_physician_review=bool(
+                interp_result.safety_validation
+                and interp_result.safety_validation.requires_physician_review
+            ),
+            grounded_segments=[
+                GroundedSegmentResponse(segment_type="uncertainty", content=ESCALATE_TEMPLATE, citations=[])
+            ],
+            full_response=ESCALATE_TEMPLATE,
+            verification=GroundedVerificationResponse(),
+            is_valid=False,
+        )
     if not interp_result.success or not interp_result.interpretation:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

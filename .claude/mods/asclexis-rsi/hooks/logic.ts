@@ -32,10 +32,41 @@ const cmdOf = (tool: string, input: unknown): string =>
     ? (input as { command: string }).command
     : ''
 
+const FIELD_MAX = 200
+
+/**
+ * The one fixed, non-free-text input field a rule may test, per tool; '' when none applies.
+ * Bash: command. Workflow: name, else a safe scriptPath basename. Skill: skill. Agent: subagent_type.
+ * mcp__<server>__<tool>: <server>, parsed from the tool name. Never prompt, args, description or content.
+ * Non-Bash values longer than FIELD_MAX give ''; Bash command is returned whole, as cmdOf does.
+ * Held in memory only; callers never log it.
+ */
+export function fieldOf(tool: string, input: unknown): string {
+  const o = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
+  const str = (k: string): string => (typeof o[k] === 'string' ? (o[k] as string) : '')
+  if (typeof tool !== 'string') return ''
+  // Bash is uncapped, exactly as cmdOf: a cap would silently skip every deny/hint rule on long commands.
+  if (tool === 'Bash') return str('command')
+  let v = ''
+  if (tool === 'Workflow') {
+    v = str('name')
+    if (!v) {
+      const base = (str('scriptPath').split('/').pop() ?? '').replace(/\.js$/, '')
+      v = /^[A-Za-z0-9._-]+$/.test(base) ? base : ''
+    }
+  } else if (tool === 'Skill') v = str('skill')
+  else if (tool === 'Agent') v = str('subagent_type')
+  else if (tool.startsWith('mcp__')) v = tool.split('__')[1] ?? ''
+  return v.length <= FIELD_MAX ? v : ''
+}
+
+const toolMatches = (ruleTool: string, tool: string): boolean =>
+  ruleTool === tool || (ruleTool === 'mcp__*' && typeof tool === 'string' && tool.startsWith('mcp__'))
+
 /** First `before`/deny rule that matches this call, if any. */
 export function checkBefore(tool: string, input: unknown, rules: readonly Rule[] = RULES): Rule | undefined {
-  const cmd = cmdOf(tool, input)
-  return rules.find(r => r.when === 'before' && r.action === 'deny' && r.tool === tool && new RegExp(r.match).test(cmd))
+  const field = fieldOf(tool, input)
+  return rules.find(r => r.when === 'before' && r.action === 'deny' && toolMatches(r.tool, tool) && new RegExp(r.match).test(field))
 }
 
 /** First `after` rule that matches the finished call, if any. */
@@ -46,13 +77,13 @@ export function checkAfter(
   failed: boolean,
   rules: readonly Rule[] = RULES,
 ): Rule | undefined {
-  const cmd = cmdOf(tool, input)
+  const field = fieldOf(tool, input)
   return rules.find(
     r =>
       r.when === 'after' &&
-      r.tool === tool &&
+      toolMatches(r.tool, tool) &&
       (failed || r.onSuccess === true) &&
-      (r.command === undefined || new RegExp(r.command).test(cmd)) &&
+      (r.command === undefined || new RegExp(r.command).test(field)) &&
       new RegExp(r.match).test(text) &&
       (r.absent === undefined || !new RegExp(r.absent).test(text)),
   )
@@ -60,11 +91,28 @@ export function checkAfter(
 
 /**
  * Fixed error category for a failure no rule claimed. Never raw text.
- * Order matters: the first four checks win, then common Bash failure shapes,
- * then a bounded `exit-<n>` (1-255) from the `Exit code` line, else 'other'.
+ * Order matters: tool-error envelopes (anchored with ^, some gated on `tool`) win first,
+ * so they can never fall through to a Bash shape; then the first four Bash checks,
+ * then common Bash failure shapes, then a bounded `exit-<n>` (1-255) from the
+ * `Exit code` line, else 'other'.
  * Returns only fixed literals or `exit-` plus captured digits, never input text.
  */
-export function classifyError(text: string): string {
+export function classifyError(text: string, tool = ''): string {
+  if (/^Permission for this action was denied by the Claude Code auto mode classifier\./.test(text)) return 'permission-denied-auto'
+  if (/^<tool_use_error>InputValidationError: /.test(text)) return 'input-validation'
+  if (/^<tool_use_error>Error: No such tool available: /.test(text)) return 'no-such-tool'
+  if (EDIT_TOOLS.includes(tool) && /^<tool_use_error>File has not been read yet\. /.test(text)) return 'edit-not-read'
+  if (tool === 'Read' && /^File does not exist\./.test(text)) return 'read-not-found'
+  if (tool === 'Read' && /^File content \(\d+ tokens\) exceeds maximum allowed tokens \(\d+\)/.test(text)) return 'read-too-large'
+  if (tool === 'StructuredOutput' && /^Output does not match required schema: /.test(text)) return 'schema-mismatch'
+  if (/^The user doesn't want to proceed with this tool use\./.test(text)) return 'user-rejected'
+  if (tool === 'Workflow' && /^<tool_use_error>Workflow "[^"\n]*" not found\./.test(text)) return 'workflow-not-found'
+  if (tool === 'Workflow' && /^<tool_use_error>scriptPath must be a script path/.test(text)) return 'workflow-bad-script'
+  if (tool === 'Skill' && /^<tool_use_error>Skill \S+ cannot be used with Skill tool/.test(text)) return 'skill-disabled'
+  if (tool === 'TaskStop' && /^<tool_use_error>No task found with ID: /.test(text)) return 'task-not-found'
+  if (tool === 'TaskStop' && /^<tool_use_error>Task \S+ is not running \(status: /.test(text)) return 'task-not-running'
+  if (tool === 'Agent' && /^Concurrent subagent limit reached\./.test(text)) return 'subagent-limit'
+  if (tool === 'Grep' && /^Search failed \u2014 ripgrep rejected/.test(text)) return 'grep-pattern-rejected'
   if (/Exit code 144\b/.test(text)) return 'exit-144-self-kill'
   if (/timed out|timeout/i.test(text)) return 'timeout'
   if (/did not match|not found in file|String to replace not found/i.test(text)) return 'edit-no-match'
