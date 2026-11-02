@@ -973,10 +973,12 @@ async def delete_profile(
     )
     purged = getattr(audit_result, "rowcount", 0) or 0
 
-    # `backup_schedules.profile_id` declares ON DELETE CASCADE, but SQLite
-    # ignores foreign keys unless `PRAGMA foreign_keys=ON` is set, and it is set
-    # nowhere in this codebase. Relying on the cascade orphans the row, so the
-    # delete is explicit.
+    # `backup_schedules.profile_id` declares ON DELETE CASCADE. The pragma is now
+    # ON for the master engine (core/database.py install_sqlite_foreign_keys) and
+    # the profile engines (core/profile_database.py, SQL-FK-001), so the cascade
+    # would fire too. The delete stays explicit anyway: the audit purge, schedule
+    # delete, profile delete and tombstone are ordered on purpose, and restore's
+    # raw sqlite3 path (scripts/backup.py) never sees the pragma.
     await db.execute(
         delete(BackupSchedule).where(BackupSchedule.profile_id == profile_id)
     )
