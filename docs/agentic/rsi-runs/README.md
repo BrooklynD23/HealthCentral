@@ -27,6 +27,8 @@ From the RSI-OWNER-NOTES row on, `summary.json` may also carry `owner_notes` (`{
 
 From the RSI-ARCHIVE-LINEAGE row on, `summary.json` also carries `archive_rows` (`{run_id, cand, cluster, target_file, source, stage}`, one per reflection, fixed fields only), `prior` (per top cluster: counts of earlier runs that declined, had a rejection or had an acceptance, plus `last_run` and `repeat_of`) and `saturation` (`{runs_without_promotion, saturated}`): a report for the owner, never a filter or a stop. Older summaries carry none of these. Give every committed run a dated `run_id` (`YYYY-MM-DD-<name>`): runs are ordered newest first by a plain string sort, so an undated id such as `manual` would sort above every dated one. The workflow result carries `run_id` on every path; only the paths that reach Reflect carry `archive_rows`, `prior` and `saturation`.
 
+From the RSI-METRICS-VERSIONED row on, summary `metrics` also carries `rule_hits` (rule id to count of rsi-log rows naming it in `guard` or `hint`), `never_fired` (rule ids with no hit; a report only: no code retires, deletes or disables a rule), `first_try_ready` (`{ready, items, rate}`, from build-item outcomes only, so a standalone run has `rate` null) and `harness` (`{workflows_tree, mod_tree}`, the git tree ids of `.claude/workflows` and the mod at `origin/main`); the Runs table's `harness` column holds short tree ids that L0 fills from the summary.
+
 The rsi-loop gate (`gateDiff`, `gateNumstat`, `parseCodexVerdict`) has an adversarial fixture, `.claude/workflows/tests/rsi-gate.fixture.mjs`: it pins the allow-list, every deny reason, path escapes, the rename pair, the additions-only rule for `rules.ts`, `cases.ts` and `docs/agentic/recurring-failures.md`, and the Codex verdict parser. Run it with `node .claude/workflows/tests/rsi-gate.fixture.mjs` (prints `gate ok (N)`); CI RSI Replay runs it.
 
 ## Windows
@@ -41,13 +43,13 @@ Exact cuts, in UTC. Each folder is cut once at archive time. The live session ke
 
 ## Runs
 
-| Folder | run_id | Tool calls | Clusters | Candidates | Note |
-|---|---|---|---|---|---|
-| [2026-10-21-laptop](2026-10-21-laptop/summary.json) | `2026-10-21-local` | 344 | 6 | 0 | First run with the mod loaded. The cloud run `2026-10-21-cloud` logged 0 calls because the mod was not loaded |
-| [2026-10-22-gpubox](2026-10-22-gpubox/summary.json) | `none` | 3167 | — | — | no rsi-loop; archive only |
-| [2026-10-24-gpubox](2026-10-24-gpubox/summary.json) | `2026-10-24-gpubox` | 8210 (mined by rsi-loop since 2026-10-21; this folder's rsi-log holds 2518 rows, 2026-10-23..24) | 33 | 1 | mod loaded; dry run first (0 candidates, Codex proposer validated, #303); real run opened RSI PR #341 (owner merges) |
-| [2026-10-26-gpubox](2026-10-26-gpubox/summary.json) | `2026-10-26-gpubox` | 2489 (mined since 2026-10-24T07:18Z, per the handoff) | not recorded | 0 | mod loaded; Claude and Codex both returned "nothing worth proposing". `summary.json` is reconstructed from the 2026-10-26 handoff §1, since the run wrote no summary file |
-| [2026-10-31-gpubox](2026-10-31-gpubox/summary.json) | `2026-10-31-gpubox` | 7499 (mined since 2026-10-26) | 15 | 0 | mod loaded; Opus and Codex reflections on the top 3 clusters (Bash no-such-file 39, already covered by rule no-such-file-path; Bash other 26, unclassified; Bash exit-1 15, generic) both returned nothing worth proposing; no PR |
+| Folder | run_id | Tool calls | Clusters | Candidates | harness | Note |
+|---|---|---|---|---|---|---|
+| [2026-10-21-laptop](2026-10-21-laptop/summary.json) | `2026-10-21-local` | 344 | 6 | 0 | — | First run with the mod loaded. The cloud run `2026-10-21-cloud` logged 0 calls because the mod was not loaded |
+| [2026-10-22-gpubox](2026-10-22-gpubox/summary.json) | `none` | 3167 | — | — | — | no rsi-loop; archive only |
+| [2026-10-24-gpubox](2026-10-24-gpubox/summary.json) | `2026-10-24-gpubox` | 8210 (mined by rsi-loop since 2026-10-21; this folder's rsi-log holds 2518 rows, 2026-10-23..24) | 33 | 1 | — | mod loaded; dry run first (0 candidates, Codex proposer validated, #303); real run opened RSI PR #341 (owner merges) |
+| [2026-10-26-gpubox](2026-10-26-gpubox/summary.json) | `2026-10-26-gpubox` | 2489 (mined since 2026-10-24T07:18Z, per the handoff) | not recorded | 0 | — | mod loaded; Claude and Codex both returned "nothing worth proposing". `summary.json` is reconstructed from the 2026-10-26 handoff §1, since the run wrote no summary file |
+| [2026-10-31-gpubox](2026-10-31-gpubox/summary.json) | `2026-10-31-gpubox` | 7499 (mined since 2026-10-26) | 15 | 0 | — | mod loaded; Opus and Codex reflections on the top 3 clusters (Bash no-such-file 39, already covered by rule no-such-file-path; Bash other 26, unclassified; Bash exit-1 15, generic) both returned nothing worth proposing; no PR |
 
 ## Adding a run (for example, from the GPU box)
 
