@@ -454,6 +454,44 @@ async def test_hc_med_http_015_learn_patterns_other_medications_schedule_rejecte
     assert unscoped.status_code == 200, unscoped.text
 
 
+@pytest.mark.asyncio
+async def test_hc_med_http_016_learn_patterns_unknown_schedule_404_fk_on(fk_profile_db):
+    # With PRAGMA foreign_keys ON (production), a schedule_id that resolves to no
+    # schedule used to reach save_patterns and fail adherence_patterns.schedule_id
+    # as an FK violation (500). It is a 404 now, before anything is written.
+    med_a, _, _, _ = await _seed_two_with_schedules(fk_profile_db)
+    unknown = str(uuid.uuid4())
+    # 14 recent doses tagged with a schedule that does not exist. FK enforcement
+    # would refuse them, so seed with the pragma OFF (a no-op inside an open
+    # transaction, hence commit first) and turn it back ON.
+    await fk_profile_db.commit()
+    await fk_profile_db.execute(text("PRAGMA foreign_keys=OFF"))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for day in range(1, 15):
+        taken = (now - timedelta(days=day)).replace(hour=8, minute=0, second=0, microsecond=0)
+        fk_profile_db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_a, schedule_id=unknown, taken_at=taken,
+            log_method="manual", was_skipped=False, logged_at=taken,
+        ))
+    await fk_profile_db.commit()
+    await fk_profile_db.execute(text("PRAGMA foreign_keys=ON"))
+    await _assert_fk_pragma_on(fk_profile_db)
+    ctx, client = _client(fk_profile_db)
+    try:
+        missing = client.post(f"/medications/{med_a}/learn-patterns", params={"schedule_id": unknown})
+        # Read before any other call: the no-schedule call below may write rows.
+        patterns_after_404 = (await fk_profile_db.execute(
+            select(func.count()).select_from(AdherencePattern)
+        )).scalar_one()
+        unscoped = client.post(f"/medications/{med_a}/learn-patterns")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert missing.status_code == 404, missing.text
+    assert missing.json()["detail"] == "Schedule not found"
+    assert patterns_after_404 == 0
+    assert unscoped.status_code == 200, unscoped.text
+
+
 # --- STREAK-TZ: streaks bucket by the profile's local date ------------------
 
 LA = "America/Los_Angeles"
