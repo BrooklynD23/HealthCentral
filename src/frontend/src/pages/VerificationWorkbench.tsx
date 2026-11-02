@@ -10,9 +10,9 @@ import {
   FileText,
   Info,
   Loader2,
-  X,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input } from '@/components/ui';
+import { Dialog } from '@/components/ui/Dialog';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { notify } from '@/components/ui/toast';
 import { cn } from '@/utils/cn';
@@ -184,6 +184,8 @@ export function VerificationWorkbench() {
   // re-runs on every `observations` refetch — and verifying a row invalidates
   // that query — so the user's selection snaps back to the cited row.
   const appliedCitationRef = useRef<string | null>(null);
+  // The Edit button that opened the dialog. Dialog has no trigger here, so focus goes back to it by hand.
+  const editOpenerRef = useRef<HTMLElement | null>(null);
 
   // Fetch observations that need verification
   // A cited observation is normally already *verified* — that is exactly why the
@@ -248,7 +250,8 @@ export function VerificationWorkbench() {
     }
   };
 
-  const handleEdit = (observation: Observation) => {
+  const handleEdit = (observation: Observation, opener: HTMLElement) => {
+    editOpenerRef.current = opener;
     setEditingObservation(observation);
     setEditValue(observation.value?.toString() || observation.value_text || '');
     setSaveError(null);
@@ -257,6 +260,14 @@ export function VerificationWorkbench() {
   const closeEdit = () => {
     setEditingObservation(null);
     setSaveError(null);
+    const opener = editOpenerRef.current;
+    editOpenerRef.current = null;
+    // After the focus trap lets go. A row that left the list with its verify has no opener to return to.
+    if (opener) {
+      window.setTimeout(() => {
+        if (opener.isConnected) opener.focus();
+      }, 0);
+    }
   };
 
   // Strict parse: never convert "7,5" or "7.5abc" into a number silently.
@@ -785,7 +796,7 @@ export function VerificationWorkbench() {
                               aria-label="Edit value"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleEdit(observation);
+                                handleEdit(observation, e.currentTarget);
                               }}
                             >
                               <Edit3 className="w-4 h-4" />
@@ -921,76 +932,66 @@ export function VerificationWorkbench() {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {editingObservation && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          role="dialog"
-          aria-modal="true"
-        >
-          <Card className="w-full max-w-md">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Edit Value</CardTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeEdit}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-ink mb-1 block">
-                  {editingObservation.analyte_raw}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => {
-                      setEditValue(e.target.value);
-                      setSaveError(null);
-                    }}
-                    aria-invalid={parsedEdit.kind === 'error'}
-                    className="flex-1 px-3 py-2 border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent"
-                    autoFocus
-                  />
-                  <span className="px-3 py-2 bg-surface-muted rounded-lg text-ink-secondary">
-                    {editingObservation.unit}
-                  </span>
-                </div>
-                {(parsedEdit.kind === 'error' || saveError) && (
-                  <p role="alert" className="mt-1 text-sm text-red-600">
-                    {parsedEdit.kind === 'error' ? parsedEdit.message : saveError}
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="secondary"
-                  onClick={closeEdit}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveEdit}
-                  disabled={
-                    verifyMutation.isPending ||
-                    parsedEdit.kind === 'empty' ||
-                    parsedEdit.kind === 'error'
+      {/* Edit value: still (M0), because it shows the current value (T0). Focus trap, Escape and the title come from Dialog. */}
+      <Dialog
+        open={editingObservation !== null}
+        onOpenChange={(open) => {
+          if (!open) closeEdit();
+        }}
+        title="Edit Value"
+        still
+      >
+        {editingObservation && (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-secondary">
+              Current value:{' '}
+              <span data-t0="" className="font-mono font-semibold text-ink">
+                {editingObservation.value ?? editingObservation.value_text ?? '-'}
+                {editingObservation.unit ? ` ${editingObservation.unit}` : ''}
+              </span>
+            </p>
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  type="text"
+                  label={`New value for ${editingObservation.analyte_raw}`}
+                  value={editValue}
+                  onChange={(e) => {
+                    setEditValue(e.target.value);
+                    setSaveError(null);
+                  }}
+                  error={
+                    parsedEdit.kind === 'error' ? parsedEdit.message : (saveError ?? undefined)
                   }
-                >
-                  {verifyMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : null}
-                  Save & Verify
-                </Button>
+                />
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              {editingObservation.unit ? (
+                <span className="mt-7 rounded-lg bg-surface-muted px-3 py-2.5 text-ink-secondary">
+                  {editingObservation.unit}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={closeEdit}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={
+                  verifyMutation.isPending ||
+                  parsedEdit.kind === 'empty' ||
+                  parsedEdit.kind === 'error'
+                }
+              >
+                {verifyMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                Save & Verify
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

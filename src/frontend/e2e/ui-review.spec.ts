@@ -136,6 +136,7 @@ async function mockReviewApi(page: Page): Promise<void> {
       }
       if (path === `/documents/${DOC_ID}/entities`) return json(entities);
       if (path === `/documents/${DOC_ID}/pages`) return json([]);
+      if (path === `/documents/${DOC_ID}/highlights`) return json([]);
     }
     const verify = /^\/observations\/([^/]+)\/verify$/.exec(path);
     if (request.method() === 'POST' && verify) {
