@@ -2,7 +2,7 @@
  * UI-PROVENANCE e2e (plan section 7.6): HC-UIPV-001 (popover opens on click and
  * Enter, not hover; Escape closes and returns focus), HC-UIPV-002 (a tap opens it
  * in a hasTouch context), HC-UIPV-006 (popover part: stillnessProbe from the
- * opening click), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
+ * opening click; Source Trace sheet part: the same from "Show source"), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
  * and Gate G on the three routes that show the citation popover
  * or PageImageOverlay: /interpret, /inbox and /verify.
  *
@@ -558,6 +558,39 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
   });
   expect(report.postTriggerSamples).toBeGreaterThan(0);
   await expect(page.locator(POPOVER)).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIPV-006 (Source Trace sheet part, SOURCE-TRACE-WIRE): stillnessProbe from the
+// "Show source" click on /interpret. The sheet's rows and the excerpt lines (which mount
+// once the document and its pages have been fetched) must be still from the opening click.
+// ---------------------------------------------------------------------------
+/** "Show source" has no aria-label, so it is picked out as the dialog trigger that is not a citation chip. */
+const SHOW_SOURCE_TRIGGER = 'button[aria-haspopup="dialog"]:not([aria-label^="Citation"])';
+const SOURCE_SHEET = '[role="dialog"]';
+test('HC-UIPV-006 the Source Trace sheet is still from its opening click (stillnessProbe)', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  await seedSession(page);
+  await page.goto('/interpret');
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  // Scroll the trigger into view before the probe starts, as the popover test does: the
+  // click would otherwise scroll the page and the probe would measure that scroll.
+  await showSource.scrollIntoViewIfNeeded();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  const report = await stillnessProbe(page, {
+    kind: 'overlay',
+    trigger: () => showSource.click(),
+    expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
 });
 
 // ---------------------------------------------------------------------------
