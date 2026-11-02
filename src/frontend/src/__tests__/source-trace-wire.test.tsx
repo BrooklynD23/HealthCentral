@@ -162,6 +162,8 @@ describe('HC-STW-001 the interpreted result card offers "Show source" only for a
     const { unmount } = renderCard({ observation });
     const chip = screen.getByRole('button', { name: /^Citation 1: / });
     expect(screen.getByRole('button', SHOW_SOURCE).parentElement).toBe(chip.parentElement);
+    // The row holds the button as well as up to 6 chips, so it wraps rather than shrinking the 44 px chips.
+    expect(chip.parentElement?.className).toContain('flex-wrap');
     unmount();
 
     renderCard({ observation, interpretation: { ...interpretation, citations: [] } });
@@ -259,6 +261,52 @@ describe('HC-STW-002 the document is fetched only after the click, and the sheet
     expect(await within(dialog).findByText('Excerpt not available.')).not.toBeNull();
     expect(within(dialog).queryByText(/Matching line:/)).toBeNull();
   });
+
+  // The file name comes from GET /documents/<id> and the excerpt from GET /documents/<id>/pages, so each
+  // failure removes only its own half: a failed document GET leaves the excerpt, a failed pages GET leaves the file.
+  it.each([
+    ['the document GET fails with 500', 500, 200, 'Source file not available', true],
+    ['the pages GET fails with 404', 200, 404, 'provenance-report.pdf', false],
+    ['both GETs fail', 404, 500, 'Source file not available', false],
+  ])(
+    'HC-STW-002 the sheet stays open and highlights nothing it cannot find when %s',
+    async (_label, documentStatus, pagesStatus, fileText, excerptShown) => {
+      const user = userEvent.setup();
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+        const path = pathOf(input);
+        if (path === `/documents/${DOC_ID}`) {
+          return jsonResponse(documentStatus === 200 ? documentBody : { detail: 'failed' }, documentStatus);
+        }
+        if (path === `/documents/${DOC_ID}/pages`) {
+          return jsonResponse(pagesStatus === 200 ? pagesBody(PAGE_THREE_TEXT) : { detail: 'failed' }, pagesStatus);
+        }
+        return jsonResponse({ detail: `not stubbed: ${path}` }, 500);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      renderCard({ observation });
+
+      await user.click(screen.getByRole('button', SHOW_SOURCE));
+      const dialog = await screen.findByRole('dialog', { name: 'Source for Glucose' });
+
+      // Both requests were answered before the settled sheet is read.
+      await waitFor(() => {
+        expect(requestsTo(fetchMock, `/documents/${DOC_ID}`)).toHaveLength(1);
+        expect(requestsTo(fetchMock, `/documents/${DOC_ID}/pages`)).toHaveLength(1);
+      });
+      expect(await within(dialog).findByText(fileText)).not.toBeNull();
+      expect(within(dialog).getByText('Page 3')).not.toBeNull();
+      if (excerptShown) {
+        expect((await within(dialog).findByText(MATCH_LINE)).closest('li')?.textContent).toContain('Matching line:');
+        expect(within(dialog).queryByText('Excerpt not available.')).toBeNull();
+      } else {
+        expect(await within(dialog).findByText('Excerpt not available.')).not.toBeNull();
+        expect(within(dialog).queryByText(/Matching line:/)).toBeNull();
+        expect(within(dialog).queryByText(MATCH_LINE)).toBeNull();
+      }
+      // Still open once the failures have settled.
+      expect(screen.getByRole('dialog', { name: 'Source for Glucose' })).toBe(dialog);
+    }
+  );
 });
 
 describe('HC-STW-003 excerptFromPage matches one whole-token line or nothing', () => {
