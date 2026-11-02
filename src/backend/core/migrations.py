@@ -194,13 +194,18 @@ async def run_master_migrations_async() -> None:
 def run_profile_migration(
     vault_path: Path,
     encryption_key: bytes,
-) -> None:
+) -> dict[str, int]:
     """
     Run migrations for a profile's encrypted SQLCipher database.
 
     Args:
         vault_path: Path to the SQLCipher database file
         encryption_key: Raw 32-byte encryption key
+
+    Returns:
+        Per-check orphan counts ({check id: n}) that migration 017 cleaned up
+        during this call, for the master audit row. Empty when nothing ran or
+        nothing was cleaned (P6-CLEANUP-AUDIT).
 
     Baseline logic:
     - If tables exist but no alembic_version → stamp head (don't migrate)
@@ -289,6 +294,7 @@ def run_profile_migration(
 
         cursor.close()
 
+    cleanup_counts: dict[str, int] = {}
     try:
         with engine.connect() as connection:
             has_tables, has_alembic_version = _check_baseline_needed(
@@ -321,7 +327,7 @@ def run_profile_migration(
                             vault_path,
                             current_revision,
                         )
-                        return
+                        return cleanup_counts
 
                 # Either empty DB or has pending migrations: upgrade
                 logger.info(
@@ -331,15 +337,19 @@ def run_profile_migration(
                 )
                 command.upgrade(config, "head")
                 logger.info("Profile database migrations completed.")
+                # Written by migration 017 (absent when it did not run).
+                cleanup_counts = dict(config.attributes.get("fk_cleanup_counts", {}))
 
     finally:
         engine.dispose()
+
+    return cleanup_counts
 
 
 async def run_profile_migration_async(
     vault_path: Path,
     encryption_key: bytes,
-) -> None:
+) -> dict[str, int]:
     """
     Async wrapper for profile migrations.
 
@@ -350,8 +360,11 @@ async def run_profile_migration_async(
     Args:
         vault_path: Path to the SQLCipher database file
         encryption_key: Raw 32-byte encryption key
+
+    Returns:
+        The orphan-cleanup counts from run_profile_migration.
     """
-    await asyncio.to_thread(run_profile_migration, vault_path, encryption_key)
+    return await asyncio.to_thread(run_profile_migration, vault_path, encryption_key)
 
 
 # =============================================================================

@@ -79,6 +79,37 @@ PROFILE_DELETE_CONFIRMATION = "DELETE MY HEALTH DATA"
 
 router = APIRouter()
 
+
+async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection) -> None:
+    """Write one master audit row when opening the vault ran the 017 orphan cleanup.
+
+    Counts only (``resource_counts`` per check id plus ``count``): no row ids,
+    values or names (P6-CLEANUP-AUDIT). The counts are one-shot. The manager
+    caches the connection, so a later login returns the same object, and
+    leaving the counts on it would re-announce one migration on every login.
+    """
+    counts = getattr(connection, "fk_cleanup_counts", None)
+    if not isinstance(counts, dict) or not counts:
+        return
+    total = sum(counts.values())
+    if total <= 0:
+        return
+    connection.fk_cleanup_counts = {}
+    try:
+        await create_audit_log(
+            db=db,
+            event_type="profile.fk_orphan_cleanup",
+            action="profile.fk_orphan_cleanup",
+            profile_id=profile_id,
+            entity_type="profile",
+            entity_id=profile_id,
+            details={"resource_counts": dict(counts), "count": total},
+        )
+        await db.commit()
+    except Exception:
+        connection.fk_cleanup_counts = counts  # not written: keep it for the next login
+        raise
+
 _SYNTHETIC_E2E_PROFILE_PREFIX = "Playwright E2E"
 
 
@@ -328,7 +359,8 @@ async def create_profile(
     logger.info(f"Created profile: {profile_id} ({profile_data.display_name})")
 
     # Phase 3: Open the per-profile encrypted database
-    await open_profile_database_on_login(profile_id, profile_data.password)
+    connection = await open_profile_database_on_login(profile_id, profile_data.password)
+    await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     # SEC-RECOV-001: seal a second copy of the same DEK under a one-time
     # recovery code, so a forgotten password is no longer permanent loss of the
@@ -403,7 +435,8 @@ async def login(
     logger.info(f"Profile logged in: {profile.id}")
 
     # Phase 3: Open the per-profile encrypted database
-    await open_profile_database_on_login(profile.id, login_data.password)
+    connection = await open_profile_database_on_login(profile.id, login_data.password)
+    await _audit_fk_orphan_cleanup(db, profile.id, connection)
 
     return create_session_token(profile)
 
@@ -754,7 +787,8 @@ async def recover_profile(
     )
     await db.commit()
 
-    await open_profile_database_on_login(profile_id, payload.new_password)
+    connection = await open_profile_database_on_login(profile_id, payload.new_password)
+    await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     logger.info("Profile access recovered with a recovery code")
 
@@ -1091,7 +1125,8 @@ async def unlock_profile(
     await db.commit()
 
     # Phase 3: Re-open the per-profile encrypted database
-    await open_profile_database_on_login(profile_id, unlock_data.password)
+    connection = await open_profile_database_on_login(profile_id, unlock_data.password)
+    await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     logger.info(f"Profile unlocked: {profile_id}")
 

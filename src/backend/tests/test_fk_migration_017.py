@@ -17,6 +17,7 @@ import ast
 import logging
 import logging.config
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -44,18 +45,18 @@ SENTINEL = "SENTINEL-PHI-7f3a"
 # --------------------------------------------------------------------------
 
 
-def _alembic_cfg(vault: Path):
+def _alembic_cfg(vault: Path, key: bytes = KEY):
     cfg = migrations._get_alembic_config("profile")
     cfg.attributes["vault_path"] = vault
-    cfg.attributes["encryption_key"] = KEY
+    cfg.attributes["encryption_key"] = key
     return cfg
 
 
-def _connect(vault: Path):
+def _connect(vault: Path, key: bytes = KEY):
     """Raw DBAPI connection with the vault key set and the FK pragma OFF."""
     if is_sqlcipher_available():
         conn = get_sqlcipher_module().connect(str(vault))
-        conn.execute(f"PRAGMA key = \"x'{KEY.hex()}'\"")
+        conn.execute(f"PRAGMA key = \"x'{migrations._key_to_hex(key)}'\"")
     else:
         import sqlite3
 
@@ -220,8 +221,8 @@ def _plant(conn, check_id: str) -> tuple[str, str]:
     return table, f"O-{check_id}"
 
 
-def _seed(path: Path, check_ids) -> dict[str, tuple[str, str]]:
-    conn = _connect(path)
+def _seed(path: Path, check_ids, key: bytes = KEY) -> dict[str, tuple[str, str]]:
+    conn = _connect(path, key)
     try:
         _seed_base(conn)
         planted = {cid: _plant(conn, cid) for cid in check_ids}
@@ -561,3 +562,116 @@ def test_hc_fkc_007_frozen_list_matches_fk_audit(vault016):
     }
     app_roots = {"core", "models", "api", "modules"}
     assert not {m for m in imported if m.split(".")[0] in app_roots}, imported
+
+
+# --------------------------------------------------------------------------
+# HC-FKC-009: counts-only master audit row (P6-CLEANUP-AUDIT)
+# --------------------------------------------------------------------------
+
+_PASSWORD = "Fkc-Audit-Pass-9!"
+
+
+async def _unlock_with_planted_vault(tmp_path, monkeypatch, check_ids, *, path, payload_for):
+    """Real master DB + real sealed vault at 016 holding ``check_ids`` orphans.
+
+    Drives ``path`` over HTTP with a real master session and returns
+    (master AuditLog rows for the cleanup event, the HTTP responses).
+    """
+    import json
+    from datetime import datetime
+
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    import models  # noqa: F401  registers every master model
+    from api.profiles import router as profiles_router
+    from core.database import Base
+    from core.profile_database import get_profile_db_manager
+    from core.security import generate_encryption_key, hash_password, seal_key_with_dpapi
+    from models.audit import AuditLog
+    from models.profile import Profile
+    from tests.support.db import fk_profile_engine
+    from tests.support.routes import route_client
+
+    monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: tmp_path))
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    pid = str(uuid.uuid4())
+
+    key = generate_encryption_key()
+    vault_dir = tmp_path / "vaults" / pid
+    vault_dir.mkdir(parents=True)
+    sealed, method = seal_key_with_dpapi(key, fallback_password=_PASSWORD, force_password=True)
+    (vault_dir / "key.bin").write_bytes(sealed)
+    (vault_dir / "key.method").write_text(method)
+    vault = vault_dir / "vault.db"
+    command.upgrade(_alembic_cfg(vault, key), REV_016)
+    if check_ids:
+        _seed(vault, check_ids, key)
+
+    engine = fk_profile_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    master = AsyncSession(engine, expire_on_commit=False)
+    master.add(Profile(
+        id=pid, display_name="Fkc Nine", encryption_key_id="k1",
+        password_hash=hash_password(_PASSWORD), password_salt="s",
+        is_locked=True, created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+    ))
+    await master.commit()
+
+    manager = get_profile_db_manager()
+    try:
+        responses = []
+        with route_client(profiles_router, "/profiles", master_db=master) as client:
+            for _ in range(2):  # the second call reuses the cached connection
+                responses.append(client.post(path.format(pid=pid), json=payload_for(pid)))
+        rows = (await master.execute(
+            select(AuditLog).where(AuditLog.event_type == "profile.fk_orphan_cleanup")
+        )).scalars().all()
+        details = [json.loads(r.details_json) if r.details_json else None for r in rows]
+        return rows, details, responses
+    finally:
+        await manager.close_profile_database(pid)
+        await master.close()
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,payload_for",
+    [
+        ("/profiles/{pid}/unlock", lambda pid: {"password": _PASSWORD}),
+        ("/profiles/login", lambda pid: {"profile_id": pid, "password": _PASSWORD}),
+    ],
+    ids=["unlock", "login"],
+)
+async def test_hc_fkc_009_cleanup_writes_one_counts_only_audit_row(
+    tmp_path, monkeypatch, path, payload_for
+):
+    from core.audit import _scrub_details
+
+    rows, details, responses = await _unlock_with_planted_vault(
+        tmp_path, monkeypatch, ["P2", "P3", "P16"], path=path, payload_for=payload_for
+    )
+
+    assert [r.status_code for r in responses] == [200, 200], [r.text for r in responses]
+    # one row for one migration, not one per login (the second call reused the
+    # cached connection and must not re-announce the same cleanup)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.action == "profile.fk_orphan_cleanup"
+    assert details[0] == {"resource_counts": {"P2": 1, "P3": 1, "P16": 1}, "count": 3}
+    assert _scrub_details(details[0]) == details[0], "scrubbing changed the details"
+    blob = " ".join(str(getattr(row, c.name)) for c in row.__table__.columns)
+    for planted_id in ("O-P2", "O-P3", "O-P16"):
+        assert planted_id not in blob
+
+
+@pytest.mark.asyncio
+async def test_hc_fkc_009b_clean_vault_writes_no_cleanup_row(tmp_path, monkeypatch):
+    rows, _details, responses = await _unlock_with_planted_vault(
+        tmp_path, monkeypatch, [], path="/profiles/{pid}/unlock",
+        payload_for=lambda pid: {"password": _PASSWORD},
+    )
+    assert [r.status_code for r in responses] == [200, 200]
+    assert rows == []
