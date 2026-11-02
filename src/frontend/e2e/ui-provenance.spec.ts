@@ -527,6 +527,7 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
   await waitForSettled(page, CHIP);
 
   const report = await stillnessProbe(page, {
+    kind: 'overlay',
     trigger: () => chip.click(),
     expected: [`${CHIP} [data-t0]`, `${POPOVER} [data-t0]`],
   });

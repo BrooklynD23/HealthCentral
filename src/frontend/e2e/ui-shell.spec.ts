@@ -980,6 +980,7 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
     const info = page.getByRole('button', { name: /stricter safety mode/i });
     await expect(info).toBeVisible();
     const report = await stillnessProbe(page, {
+      kind: 'overlay',
       trigger: () => info.click(),
       expected: [TOGGLE_POPOVER],
     });
