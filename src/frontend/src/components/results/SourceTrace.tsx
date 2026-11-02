@@ -4,13 +4,16 @@
  * Shows where a value came from: the source file, the page, the excerpt with the
  * matching line highlighted, the collected date, the reference range and the read
  * confidence in words. For an unchecked value it offers "It matches, mark as
- * checked" (useVerifyObservation) and a link to Review values.
+ * checked" (useVerifyObservation) and a link to Review values. The button is enabled
+ * only while an excerpt is on screen and the source has loaded (sourceStatus), so a
+ * value is never marked as checked with nothing to compare it with; otherwise it is
+ * disabled and a short reason is shown beside it.
  *
  * The content holds T0 values, so the sheet is `still` (M0). The only moving
  * element is the TraceMark, a separate background with no data-t0. The text never
  * moves.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
@@ -27,6 +30,9 @@ const DRAW_MS = 420;
 const DRAW_DELAY_MS = 160;
 const FADE_MS = 150;
 const DRAW_EASE: [number, number, number, number] = [...ease.out];
+
+const REASON_LOADING = 'Loading the source to compare.';
+const REASON_UNAVAILABLE = 'The source is not available to compare, so this cannot be marked here.';
 
 /**
  * The trace mark: a background that draws across its positioned parent once
@@ -69,6 +75,11 @@ export interface TraceSource {
 }
 
 export interface SourceTraceProps extends TraceSource {
+  /**
+   * Whether the source behind `excerptLines` is still being fetched, could not be fetched, or is
+   * ready. Default 'ready': a caller that passes the excerpt itself has nothing to load.
+   */
+  sourceStatus?: 'loading' | 'failed' | 'ready';
   /** Controlled open state. Omit it and use a `trigger` for uncontrolled use. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -120,6 +131,7 @@ export function SourceTrace({
   sourceFile = null,
   excerptLines = [],
   matchIndex = null,
+  sourceStatus = 'ready',
   open,
   onOpenChange,
   trigger,
@@ -136,6 +148,9 @@ export function SourceTrace({
   // The row verified here is kept by id, so a sheet reused for another row does not show it as checked.
   const [checkedId, setCheckedId] = useState<string | null>(null);
   const isChecked = observation.user_verified || checkedId === observation.id;
+  // "Mark as checked" says the value matches the report, so there must be a report line to compare.
+  const canCompare = sourceStatus === 'ready' && excerptLines.length > 0;
+  const reasonId = useId();
 
   // A different row starts with no verify state: no stale error, no in-flight flag.
   useEffect(() => {
@@ -221,16 +236,28 @@ export function SourceTrace({
           ) : (
             <p className="text-sm text-ink-secondary">Excerpt not available.</p>
           )}
-          <p className="text-sm font-medium text-ink">This is what your report states.</p>
+          {excerptLines.length > 0 ? (
+            <p className="text-sm font-medium text-ink">This is what your report states.</p>
+          ) : null}
         </section>
 
         {isChecked ? (
           <p className="text-sm text-ink-secondary">You have marked this value as checked.</p>
         ) : (
           <div className="space-y-3">
-            <Button type="button" onClick={markChecked} disabled={verify.isPending}>
+            <Button
+              type="button"
+              onClick={markChecked}
+              disabled={verify.isPending || !canCompare}
+              aria-describedby={canCompare ? undefined : reasonId}
+            >
               It matches, mark as checked
             </Button>
+            {canCompare ? null : (
+              <p id={reasonId} className="text-sm text-ink-secondary">
+                {sourceStatus === 'loading' ? REASON_LOADING : REASON_UNAVAILABLE}
+              </p>
+            )}
             {verify.isError ? (
               <p role="alert" className="text-sm text-status-attention">
                 It could not be marked as checked. Try again.
@@ -298,7 +325,10 @@ export function excerptFromPage(
  * The document and its pages are fetched only once the sheet has been opened, so a page
  * that only offers the trigger makes no request. Opening the sheet writes nothing: the
  * file name and the excerpt come from the stored document. The sheet's own "It matches,
- * mark as checked" button still sends a verify POST when the patient clicks it.
+ * mark as checked" button still sends a verify POST when the patient clicks it, but only
+ * while both requests have succeeded and an excerpt is on screen: it is disabled, with a
+ * reason, while either is loading or failed, when the document has no file name, and when
+ * no single line matches.
  */
 export function ObservationSourceTrace({
   observation,
@@ -309,9 +339,15 @@ export function ObservationSourceTrace({
 }) {
   const [open, setOpen] = useState(false);
   const documentId = open ? observation.doc_id : undefined;
-  const { data: document } = useDocument(documentId);
-  const { data: pages } = useDocumentPages(documentId);
-  const { excerptLines, matchIndex } = excerptFromPage(pages, observation);
+  const documentQuery = useDocument(documentId);
+  const pagesQuery = useDocumentPages(documentId);
+  const document = documentQuery.data;
+  const { excerptLines, matchIndex } = excerptFromPage(pagesQuery.data, observation);
+  // isSuccess/isError, not data: react-query keeps the old data after a failed refetch.
+  let sourceStatus: 'loading' | 'failed' | 'ready' = 'ready';
+  if (documentQuery.isError || pagesQuery.isError) sourceStatus = 'failed';
+  else if (!documentQuery.isSuccess || !pagesQuery.isSuccess) sourceStatus = 'loading';
+  else if (!documentQuery.data.source) sourceStatus = 'failed';
 
   return (
     <SourceTrace
@@ -322,6 +358,7 @@ export function ObservationSourceTrace({
       sourceFile={document?.source ?? null}
       excerptLines={excerptLines}
       matchIndex={matchIndex}
+      sourceStatus={sourceStatus}
     />
   );
 }
