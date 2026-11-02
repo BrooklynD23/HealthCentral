@@ -2,7 +2,8 @@
  * UI-PROVENANCE e2e (plan section 7.6): HC-UIPV-001 (popover opens on click and
  * Enter, not hover; Escape closes and returns focus), HC-UIPV-002 (a tap opens it
  * in a hasTouch context), HC-UIPV-006 (popover part: stillnessProbe from the
- * opening click), and Gate G on the three routes that show the citation popover
+ * opening click), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
+ * and Gate G on the three routes that show the citation popover
  * or PageImageOverlay: /interpret, /inbox and /verify.
  *
  * Every /api/v1 request is answered by the spec-local mock below, typed from
@@ -533,6 +534,88 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
   });
   expect(report.postTriggerSamples).toBeGreaterThan(0);
   await expect(page.locator(POPOVER)).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIPV-007: waitForSettled counts six fresh frames on every call. Its state used to live on
+// window across calls, so a second call on a replaced element returned on its first frame, and
+// frames counted before the element vanished survived its absence.
+// ---------------------------------------------------------------------------
+type FrameWindow = {
+  __rafCount: number;
+  __rafStop: boolean;
+  __rafAtReadd?: number;
+};
+
+/**
+ * Starts an in-page requestAnimationFrame counter. With `vanish`, the `.target` element is removed on
+ * frame `removeAt` and put back on frame `readdAt`, both counted from the start.
+ */
+async function startFrameCounter(page: Page, vanish?: { removeAt: number; readdAt: number }): Promise<void> {
+  await page.evaluate((plan) => {
+    const w = window as unknown as FrameWindow;
+    w.__rafCount = 0;
+    w.__rafStop = false;
+    w.__rafAtReadd = undefined;
+    let removed: Element | null = null;
+    const tick = () => {
+      if (w.__rafStop) return;
+      w.__rafCount += 1;
+      if (plan && w.__rafCount === plan.removeAt) {
+        removed = document.querySelector('.target');
+        removed?.remove();
+      }
+      if (plan && w.__rafCount === plan.readdAt && removed) {
+        document.body.append(removed);
+        w.__rafAtReadd = w.__rafCount;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, vanish);
+}
+
+async function stopFrameCounter(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const w = window as unknown as FrameWindow;
+    w.__rafStop = true;
+    return w.__rafCount;
+  });
+}
+
+const SETTLE_BOX = '<div class="target" style="position:absolute;left:10px;top:10px;width:100px;height:40px">box</div>';
+
+test('HC-UIPV-007 waitForSettled needs six fresh frames on every call', async ({ page }) => {
+  await page.setContent(`<!doctype html><body style="margin:0">${SETTLE_BOX}</body>`);
+  await waitForSettled(page, '.target');
+
+  // Case 1: element A is settled; B replaces it at the same rect. The second call must still wait
+  // for six frames of its own, not inherit A's count.
+  await page.evaluate(() => {
+    const a = document.querySelector('.target')!;
+    const b = a.cloneNode(true) as HTMLElement;
+    b.id = 'b';
+    a.replaceWith(b);
+  });
+  await startFrameCounter(page);
+  await waitForSettled(page, '.target');
+  const framesAfterReplace = await stopFrameCounter(page);
+  expect.soft(framesAfterReplace, 'frames elapsed in a second waitForSettled on a replaced element').toBeGreaterThanOrEqual(6);
+  console.log(`HC-UIPV-007 case1 frames=${framesAfterReplace}`);
+
+  // Case 2: the element is removed for a few frames mid-wait and re-added at the same rect. The frames
+  // counted before it vanished must not count; six consecutive frames on the present element are needed.
+  await startFrameCounter(page, { removeAt: 4, readdAt: 8 });
+  await waitForSettled(page, '.target');
+  const result = await page.evaluate(() => {
+    const w = window as unknown as FrameWindow;
+    w.__rafStop = true;
+    return { total: w.__rafCount, atReadd: w.__rafAtReadd };
+  });
+  expect(result.atReadd, 'waitForSettled returned before the element was re-added').toBeDefined();
+  const framesAfterReadd = result.total - (result.atReadd ?? result.total);
+  console.log(`HC-UIPV-007 case2 framesAfterReadd=${framesAfterReadd}`);
+  expect(framesAfterReadd, 'frames elapsed after the element came back').toBeGreaterThanOrEqual(6);
 });
 
 // ---------------------------------------------------------------------------
