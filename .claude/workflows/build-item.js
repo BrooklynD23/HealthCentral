@@ -323,7 +323,7 @@ const buildMeasureCmds = (asked) => (asked || []).map((c) => {
 const measure = (cmds, n) => agent(
   `Measurement runner ${n}/${MAX_ROUNDS} for build-program item ${ID}: ${where}. Read-only: never edit, create, commit or push any file. Run each command below exactly as written, nothing else:
 ${cmds.map((c) => `- ${c}`).join('\n')}
-Return each command, its exit code and the last 30 lines of output verbatim.
+WAIT FOR EVERY COMMAND. A pytest or Playwright command can queue behind machine-wide slots for over an hour (a quiet-box run may hold them), so a long command runs in the background with its output in a file ending in EXIT=$? , and you keep checking until that line exists. Never return while a command you started is still running or still queued, never report exit_code -1, and never list a command as NOT RUN or not finished because slots are busy. If a command has not finished after 3 hours, stop waiting and put it in failures prefixed \"RUNNER-TIMEOUT:\". Return each command, its exit code and the last 30 lines of output verbatim.
 ${STYLE}`,
   { label: `measure ${ID} ${n}`, phase: 'Test', model: 'haiku', effort: 'medium', schema: TEST_SCHEMA },
 )
@@ -385,7 +385,7 @@ ${frontend
     ? 'Frontend vitest stalls under WSL on /mnt/c: there, record it as skipped with that reason, never retry; on a native Linux checkout (not under /mnt/), run \`npx vitest run <the vitest files listed in step 1>\` from src/frontend, then \`npx tsc --noEmit\` from src/frontend (same /mnt/ skip rule).'
     : 'Frontend: SKIPPED-SCOPE (change_scope: frontend=false); run no vitest and no tsc.'}
 Without the fetched embedding bundle exactly these 5 tests fail as environmental (CLAUDE.md §4): \`test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline\` and, in \`test_rag_pipeline.py\`, \`test_api_rag_index_002\`, \`test_api_rag_index_002b\`, \`test_api_rag_index_002c\`, \`test_search_vectors_async_calculates_similarity\`. Only if \`src/backend/models/embeddings/all-MiniLM-L6-v2\` is absent in the worktree (check with ls and paste it), list each in failures prefixed "ENV:" and do not count them against all_passed; with the bundle present they count. Any other failure counts. Run python scripts that import backend code (e.g. legacy_eval_gate.py) with ~/venvs/asclexis-311/bin/python, not system python3.
-Return each command, its exit code and the last 30 lines of output verbatim. failures = one line per failing test id or command.
+WAIT FOR EVERY COMMAND. A pytest or Playwright command can queue behind machine-wide slots for over an hour (a quiet-box run may hold them), so a long command runs in the background with its output in a file ending in EXIT=$? , and you keep checking until that line exists. Never return while a command you started is still running or still queued, never report exit_code -1, and never list a command as NOT RUN or not finished because slots are busy. If a command has not finished after 3 hours, stop waiting and put it in failures prefixed \"RUNNER-TIMEOUT:\". Return each command, its exit code and the last 30 lines of output verbatim. failures = one line per failing test id or command.
 ${STYLE}`,
   { label: `test ${ID} r${round}`, phase: 'Test', model: 'haiku', effort: 'medium', schema: TEST_SCHEMA },
   )
