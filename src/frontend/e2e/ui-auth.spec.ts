@@ -231,11 +231,12 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     expect(cls, 'G2 /setup').toBeLessThan(0.1);
   });
 
-  test('G3 INP proxy on opening the create form, CPU x4 (timing)', async ({ page }) => {
+  test('G3 INP proxy on opening the create form, CPU x4 (timing)', async ({ page, request }) => {
+    // A profile on file puts the create form behind a button; seed one so the click is always measured.
+    await ensureE2EProfile(request);
     await page.goto('/setup');
     const createNew = page.getByRole('button', { name: 'Create a new profile' });
-    await expect(createNew.or(page.getByLabel('Profile Name'))).toBeVisible({ timeout: 15000 });
-    test.skip(!(await createNew.isVisible()), 'no profile on file: the form is already open');
+    await expect(createNew).toBeVisible({ timeout: 15000 });
     const inp = await maxEventDuration(page, () => createNew.click(), { cpuRate: 4 });
     expect(inp, 'G3 /setup').toBeLessThan(200);
   });
