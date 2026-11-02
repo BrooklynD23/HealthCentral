@@ -68,6 +68,42 @@ async function createProfileUi(page: Page): Promise<string> {
   return (await code.textContent()) ?? '';
 }
 
+/** Fills the create form with a throwaway name and a valid password (does not submit). */
+async function fillCreateForm(page: Page): Promise<void> {
+  await page.getByLabel('Profile Name').fill(`Playwright UIAuth ${Date.now()}`);
+  await page.getByPlaceholder('Create a secure password').fill(NEW_PASSWORD);
+}
+
+/** Submits the filled create form and waits for the one-time recovery code (30 s, as createProfileUi does). */
+async function submitCreateUntilRecoveryCode(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /create your profile/i }).click();
+  await expect(page.getByTestId('recovery-code')).toBeVisible({ timeout: 30000 });
+}
+
+/** Answers POST /profiles/ with a 500 (the same mock as the G2 failed-create case); other requests pass through. */
+async function failProfileCreate(page: Page): Promise<void> {
+  await page.route('**/profiles/', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) })
+      : route.fallback()
+  );
+}
+
+/** Opens /setup and fills the unlock card for the E2E profile (does not submit). */
+async function fillUnlockForm(page: Page): Promise<void> {
+  await page.goto('/setup');
+  await expect(page.getByText('Unlock your profile')).toBeVisible({ timeout: 15000 });
+  await page.getByLabel('Profile', { exact: true }).selectOption({ label: E2E_PROFILE_NAME });
+  await page.getByLabel('Unlock password').fill(E2E_PROFILE_PASSWORD);
+}
+
+/** Submits the unlock card and waits for the real login to land on /inbox. */
+async function submitUnlock(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Unlock', exact: true }).click();
+  await expect(page).toHaveURL(/\/inbox/, { timeout: 30000 });
+  await expect(page.getByRole('heading', { name: 'Document Inbox' })).toBeVisible({ timeout: 30000 });
+}
+
 /** Lowest opacity on the name field and its ancestors: below 1 while S1 is still running. -1 if there is no field. */
 async function minGroupOpacity(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -327,6 +363,124 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
       if (await createNew.isVisible()) await createNew.click();
     });
     expect(offenders, 'G5 /setup').toEqual([]);
+  });
+
+  // ---- Unlock submit (the Lift): real backend, real login ----
+
+  test('G2 CLS on opening /setup and submitting the unlock form through the Lift (timing)', async ({ page, request }) => {
+    await ensureE2EProfile(request);
+    const cls = await measureCls(page, async () => {
+      await fillUnlockForm(page);
+      await submitUnlock(page);
+    });
+    expect(cls, 'G2 unlock submit').toBeLessThan(0.1);
+  });
+
+  test('G3 INP proxy on submitting the unlock form, CPU x4 (timing)', async ({ page, request }) => {
+    await ensureE2EProfile(request);
+    await fillUnlockForm(page);
+    const inp = await maxEventDuration(page, () => submitUnlock(page), { cpuRate: 4 });
+    expect(inp, 'G3 unlock submit').toBeLessThan(200);
+  });
+
+  test('G5 reduced motion: no transform 50 ms after the unlock submit lands on /inbox (timing)', async ({
+    page,
+    request,
+  }) => {
+    await ensureE2EProfile(request);
+    // Reduced motion before the page loads, so the Lift reads it at mount. Its contract is an opacity fade only
+    // (HC-UIAUTH-003), so no element may carry a transform while it runs.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await fillUnlockForm(page);
+    const offenders = await reducedMotionSnapshot(page, () => submitUnlock(page));
+    expect(offenders, 'G5 unlock submit').toEqual([]);
+  });
+
+  // ---- Create success, up to the one-time recovery code ----
+
+  test('G2 CLS on creating a profile up to the recovery-code step (timing)', async ({ page }) => {
+    const cls = await measureCls(page, async () => {
+      await openCreateForm(page);
+      await fillCreateForm(page);
+      await submitCreateUntilRecoveryCode(page);
+    });
+    expect(cls, 'G2 create success').toBeLessThan(0.1);
+  });
+
+  test('G3 INP proxy on submitting the create form to the recovery-code step, CPU x4 (timing)', async ({ page }) => {
+    await openCreateForm(page);
+    await settleReveal(page);
+    await fillCreateForm(page);
+    const inp = await maxEventDuration(page, () => submitCreateUntilRecoveryCode(page), { cpuRate: 4 });
+    expect(inp, 'G3 create success').toBeLessThan(200);
+  });
+
+  test('G5 reduced motion: no transform 50 ms after the recovery-code step shows (timing)', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openCreateForm(page);
+    await fillCreateForm(page);
+    const offenders = await reducedMotionSnapshot(page, () => submitCreateUntilRecoveryCode(page));
+    expect(offenders, 'G5 create success').toEqual([]);
+  });
+
+  // ---- Failed create (mocked POST /profiles/ 500; G2 for it is above) ----
+
+  test('G3 INP proxy on a failed create, CPU x4 (timing)', async ({ page }) => {
+    await failProfileCreate(page);
+    await openCreateForm(page);
+    await settleReveal(page);
+    await fillCreateForm(page);
+    const inp = await maxEventDuration(
+      page,
+      async () => {
+        await page.getByRole('button', { name: /create your profile/i }).click();
+        await page.getByText('Failed to create profile').waitFor();
+      },
+      { cpuRate: 4 }
+    );
+    expect(inp, 'G3 failed create').toBeLessThan(200);
+  });
+
+  test('G5 reduced motion: no transform 50 ms after a failed create shows its error (timing)', async ({ page }) => {
+    await failProfileCreate(page);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openCreateForm(page);
+    await fillCreateForm(page);
+    const offenders = await reducedMotionSnapshot(page, async () => {
+      await page.getByRole('button', { name: /create your profile/i }).click();
+      await page.getByText('Failed to create profile').waitFor();
+    });
+    expect(offenders, 'G5 failed create').toEqual([]);
+  });
+
+  // ---- G5 screenshots: one per touched screen, under reduced motion ----
+
+  test('G5 reduced motion screenshots: /setup unlock, /setup create, recovery-code step, /recover (timing)', async ({
+    page,
+  }) => {
+    await page.setViewportSize(DESKTOP);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const shoot = async (name: string) => {
+      const path = test.info().outputPath(`g5-${name}.png`);
+      await page.screenshot({ path });
+      await test.info().attach(`g5-${name}`, { path, contentType: 'image/png' });
+    };
+
+    await page.goto('/setup');
+    await expect(page.getByText('Unlock your profile')).toBeVisible({ timeout: 15000 });
+    await shoot('setup-unlock');
+
+    await openCreateForm(page);
+    await settleReveal(page);
+    await shoot('setup-create');
+
+    await fillCreateForm(page);
+    await submitCreateUntilRecoveryCode(page);
+    await shoot('recovery-code');
+
+    await page.goto('/recover');
+    await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
+    await shoot('recover');
   });
 });
 
