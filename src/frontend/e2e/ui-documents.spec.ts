@@ -3,7 +3,9 @@
  * away and reachable by Tab), HC-UIDOC-002 (at most two tag chips, no raw identifier), HC-UIDOC-003 (the beam card
  * and the orb while an import is in flight, static under reduced motion), HC-UIDOC-004 (an alert stays outside the
  * beam), HC-UIDOC-005 (delete through the AlertDialog, with the real Radix focus and pointer-events checks),
- * HC-UIDOC-006 (stillnessProbe across an import into an empty list and across the preview Sheet), and Gate G on
+ * HC-UIDOC-006 (stillnessProbe across an import into an empty list with a scanned-page warning, across a failed
+ * import, and across the preview Sheet; an import into a non-empty list is an expected failure, see the test), and
+ * Gate G on
  * /inbox: G1 axe in light and dark, G2 CLS, G3 INP with CPU x4, G5 reduced motion, G6 phone and small phone widths,
  * G7 console and network, G9 the Safety Rail, G10 stillness.
  *
@@ -236,6 +238,8 @@ const DATE = '[data-inbox-date]';
 const STATUS = '[data-inbox-status]';
 const CONFIDENCE = '[data-confidence-words]';
 const HANDOFF = '[data-inbox-handoff]';
+const ERROR_ALERT = '[data-inbox-error]';
+const SCANNED_WARNING = '[data-inbox-scanned]';
 const BEAM = '.beam-border[data-active="true"]';
 const SAFETY_RAIL = '[data-safety-rail]';
 /** The T0 marks the §2.7 table lists for /inbox. */
@@ -285,11 +289,11 @@ async function openInbox(page: Page, options: { empty?: boolean } = {}): Promise
 }
 
 /** Starts an import with the request held, and waits until the beam card is on screen. Returns the release. */
-async function startHeldImport(page: Page, docs: DocsControl): Promise<() => void> {
+async function startHeldImport(page: Page, docs: DocsControl, file: typeof NEW_FILE = NEW_FILE): Promise<() => void> {
   const release = docs.hold();
-  await fileInput(page).setInputFiles(NEW_FILE);
+  await fileInput(page).setInputFiles(file);
   await expect(page.locator(BEAM)).toBeVisible();
-  await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
+  await expect(page.getByText(`Reading ${file.name}`)).toBeVisible();
   return release;
 }
 
@@ -387,7 +391,7 @@ test.describe('HC-UIDOC end to end', () => {
     await expect(page.locator(BEAM).getByRole('status')).toHaveText(`Reading ${NEW_NAME}`);
     await expect(page.locator(`${BEAM} canvas`)).toBeAttached();
     release();
-    await expect(page.locator('.beam-border')).toHaveCount(0);
+    await expect(page.locator(BEAM)).toHaveCount(0);
   });
 
   test('HC-UIDOC-003: under reduced motion the border is a static frame and the text stays', async ({ page }) => {
@@ -472,12 +476,13 @@ test.describe('HC-UIDOC end to end', () => {
     await expect.poll(() => docs.deletes).toEqual(['doc-third-0003']);
     await expect(rowByName(page, THIRD_NAME)).toHaveCount(0);
     expect(await page.evaluate(() => document.body.style.pointerEvents)).not.toBe('none');
+    // Asserted straight after Remove, before any other menu opens: the removed row was the last one, so focus is
+    // on the previous row's More options button.
+    await expect(rowByName(page, SECOND_NAME).getByRole('button', { name: 'More options' })).toBeFocused();
     // The page is still live: the menu of a remaining row opens.
     await rowByName(page, SECOND_NAME).getByRole('button', { name: 'More options' }).click();
     await expect(page.getByRole('menuitem', { name: /review extracted values/i })).toBeVisible();
     await page.keyboard.press('Escape');
-    // Focus is on something in the page, not lost to <body>.
-    await expect.poll(() => page.evaluate(() => document.activeElement === document.body)).toBe(false);
   });
 
   test('thinking-orbs is requested when an orb mounts on /inbox, and not on /inbox idle or on another route', async ({
@@ -513,11 +518,11 @@ test.describe('HC-UIDOC end to end', () => {
 test.describe('Gate G on /inbox', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('GATE G1 /inbox has no serious or critical axe violation in light or dark: the list, an import in flight, the delete dialog', async ({
+  test('GATE G1 /inbox has no serious or critical axe violation in light or dark: the list, an import in flight, the delete dialog, the empty library', async ({
     page,
   }) => {
-    // Would not notice: a violation that only the delete dialog or the processing card has, so three states are
-    // scanned. The theme is applied after load by the harness.
+    // Would not notice: a violation that only the delete dialog, the processing state or the empty library has, so
+    // four states are scanned. The theme is applied after load by the harness.
     // RED today: not known; the old page passes axe (HC-UIG-002). The new states are the new surface.
     const { docs } = await setup(page);
     await openInbox(page);
@@ -530,13 +535,21 @@ test.describe('Gate G on /inbox', () => {
       expect(blockingIds(await axeSettled(page, theme)), `import in flight, ${theme}`).toEqual([]);
     }
     release();
-    await expect(page.locator('.beam-border')).toHaveCount(0);
+    await expect(page.locator(BEAM)).toHaveCount(0);
     await setTheme(page, 'light');
     await rowByName(page, THIRD_NAME).getByRole('button', { name: 'More options' }).click();
     await page.getByRole('menuitem', { name: /delete/i }).click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     for (const theme of ['light', 'dark'] as const) {
       expect(blockingIds(await axeSettled(page, theme)), `delete dialog, ${theme}`).toEqual([]);
+    }
+
+    // The empty library (EmptyState with its action) is a fourth surface.
+    docs.rows = [];
+    await openInbox(page, { empty: true });
+    await expect(page.getByRole('button', { name: 'Choose a file' })).toBeVisible();
+    for (const theme of ['light', 'dark'] as const) {
+      expect(blockingIds(await axeSettled(page, theme)), `empty library, ${theme}`).toEqual([]);
     }
   });
 
@@ -587,6 +600,7 @@ test.describe('Gate G on /inbox', () => {
     page,
   }) => {
     // Would not notice: a transform on the Sheet or the dialog on a path the sequence skips. The check is page-wide.
+    // It covers View document, Delete, an import starting, and the empty library.
     const { docs } = await setup(page);
     await openInbox(page);
     const row = rowByName(page, THIRD_NAME);
@@ -607,6 +621,15 @@ test.describe('Gate G on /inbox', () => {
     });
     expect(afterImport, 'after an import starts').toEqual([]);
     release();
+    await expect(page.locator(HANDOFF)).toBeVisible();
+
+    // The empty library: the EmptyState mounts with the page, so the load is the action.
+    docs.rows = [];
+    const afterEmpty = await reducedMotionSnapshot(page, async () => {
+      await page.goto('/inbox');
+      await expect(page.getByRole('button', { name: 'Choose a file' })).toBeVisible();
+    });
+    expect(afterEmpty, 'the empty library').toEqual([]);
   });
 
   test('GATE G5 /inbox: per-recipe reduced-motion screenshots for S2, S3 and the empty state (attached)', async ({
@@ -645,9 +668,10 @@ test.describe('Gate G on /inbox', () => {
     test(`GATE G6 /inbox: no horizontal scroll at ${viewport.width}x${viewport.height}, with a long name, five tags and low confidence, before, during and after an import and after a failure`, async ({
       page,
     }) => {
-      // Would not notice: an overflow that appears only in a state the sequence skips. The known offender is the
-      // actions div; every row's actions are also checked against the viewport edge, because a clipped overflow would
-      // not move scrollWidth.
+      // Would not notice: an overflow that appears only in a state the sequence skips. The known offenders are the
+      // actions div and, during an import, the status line of the orb (813 px wide with this name before it was
+      // given [overflow-wrap:anywhere]); every row's actions are also checked against the viewport edge, because a
+      // clipped overflow would not move scrollWidth.
       // RED today: the actions div pushes the page wider than 390 px.
       await page.setViewportSize(viewport);
       const { docs } = await setup(page);
@@ -655,6 +679,14 @@ test.describe('Gate G on /inbox', () => {
         pages_without_text: [2, 3],
         duplicate_warning: { match_type: 'content_hash', document_id: 'old', title: 'a-very-long-prior-document-name.pdf' },
       };
+      // The empty library first: EmptyState and its action must fit the width too.
+      const rowsBefore = docs.rows;
+      docs.rows = [];
+      await openInbox(page, { empty: true });
+      expect((await noHorizontalScroll(page)).ok, 'empty library: scrollWidth').toBe(true);
+      const choose = await page.getByRole('button', { name: 'Choose a file' }).boundingBox();
+      expect(choose!.x + choose!.width, 'empty library: action inside the viewport').toBeLessThanOrEqual(viewport.width);
+      docs.rows = rowsBefore;
       await openInbox(page);
       const checkRows = async (label: string) => {
         expect((await noHorizontalScroll(page)).ok, `${label}: scrollWidth`).toBe(true);
@@ -667,8 +699,9 @@ test.describe('Gate G on /inbox', () => {
         expect(past, `${label}: buttons past the right edge`).toEqual([]);
       };
       await checkRows('before');
-      const release = await startHeldImport(page, docs);
-      expect((await noHorizontalScroll(page)).ok, 'during the import').toBe(true);
+      // The 127-character name has no space: the status line "Reading <name>" has to wrap inside the card.
+      const release = await startHeldImport(page, docs, { ...NEW_FILE, name: LONG_NAME });
+      expect((await noHorizontalScroll(page)).ok, 'during the import with the long name').toBe(true);
       release();
       await expect(page.locator(HANDOFF)).toBeVisible();
       await expect(page.getByText(/possible duplicate upload/i)).toBeVisible();
@@ -733,25 +766,50 @@ test.describe('Gate G on /inbox', () => {
 test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('HC-UIDOC-006 (a): an import into an empty list is still for the dates, status words, confidence words and the handoff (stillnessProbe, interaction)', async ({
+  test('HC-UIDOC-006 (a): an import into an empty list is still for the dates, status words, confidence words, the scanned-page warning and the handoff (stillnessProbe, interaction)', async ({
     page,
   }) => {
     // Would not notice: a new row that fades or slides in (M0 is the rule), a handoff that counts up, or a card that
     // shifts a row after it appeared. Rows that were already on screen cannot exist in this state: the list starts
     // empty, so the case in (b) below is measured separately.
+    // The import reports two pages without text, so the scanned-page warning (section 2.7) is expected too.
     // RED today: no node carries data-t0 (the probe fails with "zero [data-t0] nodes").
     const { docs } = await setup(page, []);
+    docs.answer = { pages_without_text: [2, 3] };
     await openInbox(page, { empty: true });
     const release = docs.hold();
     const report = await stillnessProbe(page, {
       kind: 'interaction',
-      expected: [...EXPECTED, HANDOFF],
+      expected: [...EXPECTED, HANDOFF, SCANNED_WARNING],
       trigger: async () => {
         await fileInput(page).setInputFiles(NEW_FILE);
         await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
         release();
         await expect(page.locator(HANDOFF)).toBeVisible();
+        await expect(page.locator(SCANNED_WARNING)).toBeVisible();
         await expect(page.locator(ROW)).toHaveCount(1);
+      },
+    });
+    expect(report.nodes).toBeGreaterThan(0);
+    expect(report.postTriggerSamples).toBeGreaterThan(0);
+  });
+
+  test('HC-UIDOC-006 (c): a failed import is still for the import-failed alert (stillnessProbe, interaction)', async ({
+    page,
+  }) => {
+    // Would not notice: an alert that fades in or slides (M0 is the rule), or one that loses its data-t0 (the probe
+    // fails when the expected selector matches nothing). The list starts empty so that no row sits below the alert:
+    // the alert is inserted above the page body, and a row there would move, which case (a) already covers.
+    // RED today: the alert carries no data-t0.
+    const { docs } = await setup(page, []);
+    docs.answer = { fail: { status: 400, detail: 'Unsupported file type' } };
+    await openInbox(page, { empty: true });
+    const report = await stillnessProbe(page, {
+      kind: 'interaction',
+      expected: [ERROR_ALERT],
+      trigger: async () => {
+        await fileInput(page).setInputFiles({ ...NEW_FILE, name: 'bad.pdf' });
+        await expect(page.getByRole('alert')).toContainText('Unsupported file type');
       },
     });
     expect(report.nodes).toBeGreaterThan(0);
@@ -801,16 +859,25 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     expect(report.nodes).toBeGreaterThan(0);
   });
 
-  test('GATE G10 /inbox: an import into a NON-EMPTY list, MEASURED (no assertion on the result)', async ({ page }, testInfo) => {
-    // Recorded, not asserted. The list is newest first (api/documents.py:1093), so the new row and the cards above
-    // it push the existing rows down, and the probe has no exemption for that. The probe is not loosened and not
-    // special-cased: the result, pass or the failure text, is printed and attached for L0.
+  test('GATE G10 /inbox: an import into a NON-EMPTY list is still for the rows already on screen (stillnessProbe, interaction) - EXPECTED TO FAIL until L0 or the owner rules', async ({
+    page,
+  }, testInfo) => {
+    // test.fail, as PAGE_OVERFLOW does in ui-shell.spec.ts: the probe is the real one, not loosened and not
+    // special-cased, and the test passes only while the probe FAILS. The list is newest first
+    // (api/documents.py:1093), so when the import completes the handoff card and the new row appear above the rows
+    // already on screen and push every one of them down (84.4 px in CI). stillnessProbe allows no displacement.
+    // The running state does not add to it any more: it lives in the drop zone's slot, so the start of the import
+    // moves nothing. Which of the two has to give (a probe exemption for a row inserted above, or a list that
+    // does not insert at the top) is an L0 or owner ruling. When it is ruled, delete the test.fail line: this
+    // test then asserts the probe passes.
+    // Would not notice: a probe failure of another kind (a timeout, a missing selector). The failure text is
+    // attached so that L0 can read which one it was.
+    test.fail(true, 'HC-UIDOC-006 with rows on screen: a newest-first list displaces the rows on completion; needs an L0 or owner ruling');
     const { docs } = await setup(page);
     await openInbox(page);
     const release = docs.hold();
-    let outcome: string;
     try {
-      const report = await stillnessProbe(page, {
+      await stillnessProbe(page, {
         kind: 'interaction',
         expected: [...EXPECTED, HANDOFF],
         trigger: async () => {
@@ -821,13 +888,12 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
           await expect(rowByName(page, NEW_NAME)).toBeVisible();
         },
       });
-      outcome = `PASS ${JSON.stringify(report)}`;
     } catch (error) {
       release();
-      outcome = error instanceof StillnessError ? `FAIL ${error.message}` : `ERROR ${String(error)}`;
+      const text = error instanceof StillnessError ? `FAIL ${error.message}` : `ERROR ${String(error)}`;
+      await testInfo.attach('g10-non-empty-import', { body: text, contentType: 'text/plain' });
+      throw error;
     }
-    console.log(`G10 non-empty import: ${outcome}`);
-    await testInfo.attach('g10-non-empty-import', { body: outcome, contentType: 'text/plain' });
   });
 
   test('INBOX-DATA-RENDER: the longest task between the documents response and the first row, recorded (no assertion)', async ({

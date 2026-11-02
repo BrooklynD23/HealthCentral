@@ -73,6 +73,7 @@ export function DocumentInbox() {
   const [importError, setImportError] = useState<{ message: string; fileName: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
+  const importButton = useRef<HTMLButtonElement>(null);
 
   // Get active profile from auth store
   const profileId = useAuthStore((state) => state.profileId) || '';
@@ -168,8 +169,21 @@ export function DocumentInbox() {
   };
 
   const confirmDelete = () => {
-    if (deleteTarget) deleteDocument.mutate(deleteTarget.id);
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    // The row is about to disappear, and with it its More options button. Focus goes to the next row's button, else
+    // the previous row's, else the Import Document button, so a keyboard user is never dropped on <body>.
+    const at = documents.findIndex((d) => d.id === id);
+    const neighbour = documents[at + 1] ?? documents[at - 1];
+    deleteDocument.mutate(id, {
+      // A card that offers "N values ready to review" must not link to a document that no longer exists.
+      onSuccess: () => {
+        setLastImport((current) => (current?.document.id === id ? null : current));
+        setDuplicateWarnings((current) => current.filter((warning) => warning.document.id !== id));
+      },
+    });
     setDeleteTarget(null);
+    requestAnimationFrame(() => (neighbour ? moreButtons.current.get(neighbour.id) : importButton.current)?.focus());
   };
 
   return (
@@ -183,7 +197,7 @@ export function DocumentInbox() {
             Import and manage your medical documents
           </p>
         </div>
-        <Button className="gap-2" onClick={handleBrowseClick}>
+        <Button ref={importButton} className="gap-2" onClick={handleBrowseClick}>
           <Plus className="w-4 h-4" />
           Import Document
         </Button>
@@ -199,7 +213,7 @@ export function DocumentInbox() {
       </div>
 
       {importError && (
-        <Card className="border-status-critical/30 bg-status-critical/5" role="alert" data-t0>
+        <Card className="border-status-critical/30 bg-status-critical/5" role="alert" data-t0 data-inbox-error>
           <CardContent className="py-4 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
               <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
@@ -222,43 +236,65 @@ export function DocumentInbox() {
         </Card>
       )}
 
-      <Card
-        className={cn(
-          'border-2 border-dashed transition-all duration-200',
-          isDragging
-            ? 'border-accent bg-accent-subtle/50'
-            : 'border-black/8 hover:border-accent/50'
-        )}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <CardContent className="py-12">
-          <div className="text-center">
-            <div
-              className={cn(
-                'w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-colors',
-                isDragging ? 'bg-accent text-white' : 'bg-surface-muted text-ink-secondary'
-              )}
-            >
-              <Upload className="w-6 h-6" />
+      {/* The running state lives in the drop zone's own slot: the idle block stays in the grid cell (hidden) so the
+          cell keeps its height, and the page below never moves when an import starts or ends (HC-UIDOC-006). */}
+      <BeamBorder active={processingName !== null} className="rounded-2xl">
+        <Card
+          className={cn(
+            'border-2 border-dashed transition-all duration-200',
+            isDragging
+              ? 'border-accent bg-accent-subtle/50'
+              : 'border-black/8 hover:border-accent/50'
+          )}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <CardContent className="py-12">
+            <div className="text-center">
+              <div className="grid">
+                <div
+                  className={cn('col-start-1 row-start-1', processingName !== null && 'invisible')}
+                  aria-hidden={processingName !== null ? true : undefined}
+                >
+                  <div
+                    className={cn(
+                      'w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-colors',
+                      isDragging ? 'bg-accent text-white' : 'bg-surface-muted text-ink-secondary'
+                    )}
+                  >
+                    <Upload className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-medium text-ink mb-1">
+                    {isDragging ? 'Drop files here' : 'Drag and drop files'}
+                  </h3>
+                  <p className="text-sm text-ink-secondary">
+                    or click to browse • PDF, images supported
+                  </p>
+                </div>
+                {processingName !== null && (
+                  <div className="col-start-1 row-start-1 flex min-w-0 flex-col items-center justify-center gap-2">
+                    <h3 className="font-medium text-ink">
+                      {importDocument.isPending ? 'Importing document...' : 'Reprocessing document...'}
+                    </h3>
+                    <p className="max-w-full truncate text-sm text-ink-secondary" title={processingName}>
+                      {processingName}
+                    </p>
+                    <ThinkingOrb
+                      size={20}
+                      status={`Reading ${processingName}`}
+                      className="max-w-full min-w-0 [overflow-wrap:anywhere]"
+                    />
+                  </div>
+                )}
+              </div>
+              <Button variant="secondary" size="sm" className="mt-4" onClick={handleBrowseClick}>
+                Browse Files
+              </Button>
             </div>
-            <h3 className="font-medium text-ink mb-1">
-              {importDocument.isPending 
-                ? 'Importing document...' 
-                : isDragging 
-                  ? 'Drop files here' 
-                  : 'Drag and drop files'}
-            </h3>
-            <p className="text-sm text-ink-secondary mb-4">
-              or click to browse • PDF, images supported
-            </p>
-            <Button variant="secondary" size="sm" onClick={handleBrowseClick}>
-              Browse Files
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </BeamBorder>
 
       {error && (
         <Card className="border-status-critical/20 bg-status-critical/5">
@@ -317,7 +353,7 @@ export function DocumentInbox() {
                 </p>
               )}
               {(lastImport.pages_without_text?.length ?? 0) > 0 && (
-                <p role="status" data-t0 className="text-sm font-medium text-ink">
+                <p role="status" data-t0 data-inbox-scanned className="text-sm font-medium text-ink">
                   {pagesWithoutTextNotice(lastImport.pages_without_text ?? [])}
                 </p>
               )}
@@ -386,19 +422,6 @@ export function DocumentInbox() {
           </CardContent>
         </Card>
       ))}
-
-      {/* After the handoff, so removing the card when the request ends cannot move the handoff. The alerts and
-          warnings above are never inside it (HC-UIDOC-004). */}
-      {processingName !== null && (
-        <BeamBorder active className="rounded-2xl">
-          <Card>
-            <CardContent className="py-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <p className="min-w-0 break-words font-medium text-ink">{processingName}</p>
-              <ThinkingOrb size={20} status={`Reading ${processingName}`} />
-            </CardContent>
-          </Card>
-        </BeamBorder>
-      )}
 
       <Card>
         <CardHeader>

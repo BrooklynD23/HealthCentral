@@ -286,12 +286,12 @@ describe('HC-UIDOC-003 processing card', () => {
     holdUpload();
     const user = userEvent.setup();
     const { container } = await renderLoaded();
-    expect(container.querySelector('.beam-border')).toBeNull();
+    expect(container.querySelector('.beam-border[data-active="true"]')).toBeNull();
 
     await upload(user, 'big-scan.pdf');
     const reading = await screen.findByText('Reading big-scan.pdf');
     expect(reading).toHaveAttribute('role', 'status');
-    const beams = container.querySelectorAll('.beam-border');
+    const beams = container.querySelectorAll('.beam-border[data-active="true"]');
     expect(beams).toHaveLength(1);
     expect(beams[0]).toHaveAttribute('data-active', 'true');
     expect(beams[0]).toContainElement(reading);
@@ -300,7 +300,7 @@ describe('HC-UIDOC-003 processing card', () => {
     expect(orb.sizes).toContain(20);
 
     await act(async () => finishUpload(importResponse({ doc: { source: 'big-scan.pdf' } })));
-    await waitFor(() => expect(container.querySelector('.beam-border')).toBeNull());
+    await waitFor(() => expect(container.querySelector('.beam-border[data-active="true"]')).toBeNull());
     expect(screen.queryByText('Reading big-scan.pdf')).not.toBeInTheDocument();
   });
 
@@ -313,7 +313,7 @@ describe('HC-UIDOC-003 processing card', () => {
       makeDoc({ id: 'p2', source: 'scan.pdf', status: 'pending_ocr' }),
     ];
     const { container } = await renderLoaded('queued.pdf');
-    expect(container.querySelector('.beam-border')).toBeNull();
+    expect(container.querySelector('.beam-border[data-active="true"]')).toBeNull();
     expect(screen.queryByTestId('orb')).not.toBeInTheDocument();
     expect(screen.queryByText(/^Reading /)).not.toBeInTheDocument();
     expect(orb.mounts).toBe(0);
@@ -357,10 +357,10 @@ describe('HC-UIDOC-003 processing card', () => {
     expect(await screen.findByText('Reading second-scan.pdf')).toBeInTheDocument();
     expect(screen.queryByText('Reading first.pdf')).not.toBeInTheDocument();
     expect(apiPost).toHaveBeenCalledWith('/documents/d2/reprocess');
-    expect(container.querySelectorAll('.beam-border')).toHaveLength(1);
+    expect(container.querySelectorAll('.beam-border[data-active="true"]')).toHaveLength(1);
 
     await act(async () => finishReprocess(importResponse()));
-    await waitFor(() => expect(container.querySelector('.beam-border')).toBeNull());
+    await waitFor(() => expect(container.querySelector('.beam-border[data-active="true"]')).toBeNull());
   });
 
   it('HC-UIDOC-003: the drop zone has no pulse and no spinner while importing; its heading stays', async () => {
@@ -372,6 +372,46 @@ describe('HC-UIDOC-003 processing card', () => {
     await upload(user);
     expect(await screen.findByRole('heading', { name: 'Importing document...' })).toBeInTheDocument();
     expect(container.querySelector('.animate-pulse, .animate-spin')).toBeNull();
+    await act(async () => finishUpload(importResponse()));
+  });
+
+  it('HC-UIDOC-003: the running state is in the drop zone and the idle block keeps its place (hidden), so nothing below moves', async () => {
+    // Would not notice: a height change that CSS causes. jsdom has no layout, so this reads the structure that
+    // holds the height (the idle block stays in the same grid cell, hidden from sight and from the accessibility
+    // tree); the e2e probe measures the rects of the rows. A processing card put back between the drop zone and
+    // the list would fail the first two assertions.
+    // RED before this round: the card was a separate block above the list.
+    holdUpload();
+    const user = userEvent.setup();
+    const { container } = await renderLoaded();
+    await upload(user, 'big-scan.pdf');
+    const reading = await screen.findByText('Reading big-scan.pdf');
+    const beam = container.querySelector('.beam-border[data-active="true"]') as HTMLElement;
+    expect(within(beam).getByRole('button', { name: 'Browse Files' })).toBeInTheDocument();
+    expect(screen.getByText('Recent Documents').closest('.beam-border')).toBeNull();
+    expect(within(beam).getByRole('heading', { name: 'Importing document...' })).toBeInTheDocument();
+
+    const idle = within(beam).getByText('Drag and drop files', { selector: 'h3' }).parentElement as HTMLElement;
+    expect(idle).toHaveClass('invisible');
+    expect(idle).toHaveAttribute('aria-hidden', 'true');
+    expect(idle.parentElement).toBe((reading.closest('.col-start-1') as HTMLElement).parentElement);
+    await act(async () => finishUpload(importResponse()));
+    await waitFor(() => expect(idle).not.toHaveClass('invisible'));
+    expect(idle).not.toHaveAttribute('aria-hidden');
+  });
+
+  it('HC-UIDOC-003: the status text wraps inside the card, even for a name with no space', async () => {
+    // Would not notice: a width the test cannot measure (jsdom). It reads the wrapping classes the page passes to
+    // the orb; the e2e G6 test measures scrollWidth during an import with a 127-character name at 390 and 320.
+    // RED before this round: the status line could not wrap and pushed the page to 813 px wide.
+    holdUpload();
+    const user = userEvent.setup();
+    await renderLoaded();
+    await upload(user, 'a-very-long-name-without-any-space-in-it-at-all-for-the-wrap-check.pdf');
+    const status = await screen.findByText(/^Reading a-very-long-name/);
+    const orbRoot = status.parentElement as HTMLElement;
+    expect(orbRoot.className).toContain('min-w-0');
+    expect(orbRoot.className).toContain('[overflow-wrap:anywhere]');
     await act(async () => finishUpload(importResponse()));
   });
 });
@@ -403,7 +443,7 @@ describe('HC-UIDOC-004 alerts and warnings are static', () => {
     holdUpload();
     await upload(user, 'good.pdf');
     await screen.findByText('Reading good.pdf');
-    expect(document.body.querySelectorAll('.beam-border')).toHaveLength(1);
+    expect(document.body.querySelectorAll('.beam-border[data-active="true"]')).toHaveLength(1);
     expect(screen.getByRole('alert')).toBe(alert);
     expect(alert.closest('.beam-border')).toBeNull();
     expect(animates(alert)).toBe(false);
@@ -493,6 +533,56 @@ describe('HC-UIDOC-005 delete through AlertDialog', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(apiDelete).toHaveBeenCalledWith('/documents/d2'));
     expect(apiDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it('HC-UIDOC-005: after Remove, focus lands on a neighbouring row, not on <body>', async () => {
+    // Would not notice: a focus that Radix puts back on a trigger it does not have (the dialog opens from a menu
+    // item). Removing the LAST row sends focus to the previous row's More options; removing the first, to the next.
+    // RED before this round: Remove left the focus on <body>.
+    documents = [makeDoc({ id: 'd1', source: 'one.pdf' }), makeDoc({ id: 'd2', source: 'two.pdf' })];
+    apiDelete.mockImplementation((async (path: string) => {
+      documents = documents.filter((d) => `/documents/${d.id}` !== path);
+    }) as never);
+    const user = userEvent.setup();
+    await renderLoaded('one.pdf');
+    await openRowMenu(user, rowOf('two.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() =>
+      expect(within(rowOf('one.pdf')).getByRole('button', { name: 'More options' })).toHaveFocus()
+    );
+
+    await openRowMenu(user, rowOf('one.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    // Nothing left to focus in the list: the Import Document button.
+    await waitFor(() => expect(screen.getByRole('button', { name: /import document/i })).toHaveFocus());
+  });
+
+  it('HC-UIDOC-005: deleting the document that was just imported clears the "values ready to review" card', async () => {
+    // Would not notice: a stale card that is only hidden. It looks for the link and the line by role and text, so a
+    // card left in the DOM would be found. A failed DELETE must keep the card (the document still exists).
+    // RED before this round: the card kept offering a link to a deleted document.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockResolvedValueOnce(importResponse({ observations_extracted: 3, doc: { id: 'new-1', source: 'fresh.pdf' } }) as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    await upload(user, 'fresh.pdf');
+    await screen.findByRole('link', { name: '3 values ready to review' });
+
+    apiDelete.mockRejectedValueOnce(new api.ApiError(500, 'Server Error', 'nope'));
+    await openRowMenu(user, rowOf('fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('link', { name: '3 values ready to review' })).toBeInTheDocument();
+
+    documents = documents.filter((d) => d.id !== 'new-1');
+    await openRowMenu(user, rowOf('fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: /ready to review/i })).not.toBeInTheDocument());
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
   });
 });
 
