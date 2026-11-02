@@ -121,7 +121,7 @@ export function InterpretedResultCard({
               )}
             </div>
             {(interpretation.citations.length > 0 || observation?.doc_id) && (
-              <div className="flex items-center gap-1.5 mt-3">
+              <div className="flex flex-wrap items-center gap-1.5 mt-3">
                 {interpretation.citations.map((citation, i) => (
                   <CitationTooltip
                     key={`${citation.type}:${citation.id}:${i}`}

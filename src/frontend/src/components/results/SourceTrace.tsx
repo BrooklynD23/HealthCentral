@@ -296,8 +296,9 @@ export function excerptFromPage(
 /**
  * The Source Trace sheet for an observation, opened from `trigger` (SOURCE-TRACE-WIRE).
  * The document and its pages are fetched only once the sheet has been opened, so a page
- * that only offers the trigger makes no request. The sheet is read-only here: the file
- * name and the excerpt come from the stored document, nothing is written.
+ * that only offers the trigger makes no request. Opening the sheet writes nothing: the
+ * file name and the excerpt come from the stored document. The sheet's own "It matches,
+ * mark as checked" button still sends a verify POST when the patient clicks it.
  */
 export function ObservationSourceTrace({
   observation,
