@@ -14,7 +14,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/layout/CommandPalette';
-import { closePalette, PaletteMount } from '@/components/layout/paletteEvents';
+import { closePalette, openPalette, PaletteMount } from '@/components/layout/paletteEvents';
 import { TopBar } from '@/components/layout/TopBar';
 import { TrendsDashboard } from '@/pages/TrendsDashboard';
 import { apiGet } from '@/services/api';
@@ -654,7 +654,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
   /** Holds the observations answer until the test lets it go (for the "still loading" case). */
   let releaseObservations: (() => void) | null = null;
 
-  function renderTrends(initialPath: string, holdObservations = false) {
+  function renderTrends(initialPath: string, holdObservations = false, withPalette = false) {
     const gate = new Promise<void>((resolve) => {
       releaseObservations = resolve;
     });
@@ -681,6 +681,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
               element={
                 <>
                   <TrendsDashboard />
+                  {withPalette && <CommandPalette />}
                   <NavHandle />
                   <LocationProbe />
                 </>
@@ -779,5 +780,51 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
     await expectChartOf('hdl_cholesterol');
     act(() => void navigate('/trends?analyte=ldl_cholesterol'));
     await expectChartOf('ldl_cholesterol');
+  });
+
+  it('h) a mounted page, HDL clicked, then a navigation to plain /trends: HDL stays (only a named analyte replaces a click)', async () => {
+    renderTrends('/trends');
+    await expectChartOf('glucose');
+    await clickRow(/HDL Cholesterol/);
+    await expectChartOf('hdl_cholesterol');
+    act(() => void navigate('/trends'));
+    await settle(100);
+    await expectChartOf('hdl_cholesterol');
+  });
+
+  describe('a Records hit for an observation (review round 1: it must open that analyte, not the first)', () => {
+    const observationHit = (id: string) =>
+      vi.mocked(useSearch).mockReturnValue({
+        data: { count: 1, results: [HIT({ type: 'observation', id, title: 'LDL Cholesterol', verified_status: 'verified' })] },
+        isLoading: false,
+        isError: false,
+      } as unknown as ReturnType<typeof useSearch>);
+
+    async function pickHit() {
+      const user = userEvent.setup();
+      act(() => openPalette());
+      // Text no analyte or page matches, so the only options are "Search records for" and the hit.
+      await user.type(await screen.findByRole('combobox'), 'zzq');
+      await user.click(await within(screen.getByRole('dialog', { name: 'Command palette' })).findByRole('option', { name: /LDL Cholesterol/ }));
+    }
+
+    it('i) the hit\'s id is an observation of LDL: the URL names LDL and the chart is LDL\'s, not glucose\'s', async () => {
+      observationHit('l1');
+      renderTrends('/trends', false, true);
+      await expectChartOf('glucose');
+      await pickHit();
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=ldl_cholesterol$/));
+      await expectChartOf('ldl_cholesterol');
+    });
+
+    it('j) the hit\'s id matches no observation: plain /trends, the first analyte, no error', async () => {
+      observationHit('not-an-observation');
+      renderTrends('/trends', false, true);
+      await expectChartOf('glucose');
+      await pickHit();
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends$/);
+      await expectChartOf('glucose');
+    });
   });
 });

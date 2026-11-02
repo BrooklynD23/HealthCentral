@@ -18,6 +18,7 @@ import {
   noHorizontalScroll,
   reducedMotionSnapshot,
   safetyVisible,
+  setTheme,
   stillnessProbe,
   type AxeViolation,
 } from './support/gates';
@@ -83,6 +84,21 @@ const SEARCH_RESPONSE: SearchResponse = {
 function describeViolation(v: AxeViolation): string {
   const nodes = v.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(', ');
   return `${v.id}:${v.impact} at ${nodes}`;
+}
+
+/**
+ * axeGate flips the theme and runs axe at once, so axe can read colours in the middle of a 200 ms `transition-*` (the
+ * page under the scrim, the summary rows). Set the theme first, wait until no finite animation or transition is still
+ * running, then scan the whole page. gates.ts is not this row's file, so the wait lives here.
+ */
+async function axeAfterThemeSettles(page: Page, theme: 'light' | 'dark') {
+  await setTheme(page, theme);
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every((animation) => animation.playState === 'finished' || animation.effect?.getComputedTiming().iterations === Infinity)
+  );
+  return axeGate(page);
 }
 
 /**
@@ -279,10 +295,10 @@ test.describe('UI-PALETTE', () => {
       await page.waitForFunction(() =>
         Array.from(document.querySelectorAll('div.fixed.inset-0')).every((el) => getComputedStyle(el).opacity === '1')
       );
-      expect((await axeGate(page, { theme })).blocking.map(describeViolation), `axe in ${theme}, unfiltered`).toEqual([]);
+      expect((await axeAfterThemeSettles(page, theme)).blocking.map(describeViolation), `axe in ${theme}, unfiltered`).toEqual([]);
       await box.pressSequentially('chol');
       await expect(dialog(page).getByRole('option', { name: /LDL Cholesterol/ })).toBeVisible();
-      const result = await axeGate(page, { theme });
+      const result = await axeAfterThemeSettles(page, theme);
       expect(result.blocking.map(describeViolation), `axe in ${theme}, filtered`).toEqual([]);
     });
   }
@@ -356,6 +372,37 @@ test.describe('UI-PALETTE', () => {
     expect(asked, 'no /observations/trends/glucose request, only LDL').toEqual(['ldl_cholesterol']);
   });
 
+  test('HC-UIPAL-004: a Records hit for an observation goes to that analyte, and the chart is its chart', async ({ page }) => {
+    let asked: string[] = [];
+    await openApp(page, '/inbox', OBSERVATIONS, async (p) => {
+      await mockLipidTrends(p);
+      asked = trendRequests(p);
+      // Registered after openApp's own /search route, so it wins: one observation hit whose id is LDL's observation.
+      await p.route(/\/api\/v1\/search\/?(\?.*)?$/, (route) =>
+        route.request().method() === 'GET'
+          ? route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                count: 1,
+                results: [
+                  { type: 'observation', id: 'l1', doc_id: 'doc-1', title: 'LDL Cholesterol', snippet: '142 mg/dL', date: null, verified_status: 'verified', category: null, highlight_types: [] },
+                ],
+              }),
+            })
+          : route.fallback()
+      );
+    });
+    const box = await openWithKeys(page);
+    // Text no analyte or page matches, so the hit is the only record option and no Results row shares its name.
+    await box.pressSequentially('zzq');
+    await dialog(page).getByRole('option', { name: /LDL Cholesterol/ }).click();
+    await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    await expectChart(page, 'LDL chart', 143);
+    await expect(chartTitle(page, 'Glucose')).toHaveCount(0);
+    expect(asked, 'no /observations/trends/glucose request, only LDL').toEqual(['ldl_cholesterol']);
+  });
+
   test('HC-UIPAL-004: on /trends a row clicked earlier does not outlast a palette pick (the page is not remounted)', async ({ page }) => {
     await openApp(page, '/trends', OBSERVATIONS, mockLipidTrends);
     await expectChart(page, 'Glucose', 101);
@@ -396,15 +443,18 @@ test.describe('UI-PALETTE', () => {
   });
 
   // PRE-EXISTING, not from the ?analyte= reader: the unedited /trends page with a chart on it (plain /trends, the
-  // first analyte, at 70db0339) measures scrollWidth 474 at 390 and at 320, and has the same dark color-contrast
-  // violation on its active panel tab (.bg-accent.text-white). ui-shell's G6 and G1 do not see it because the shell
-  // mock answers /observations with [] (the empty state, no chart). The page is replaced by UI-PG-RESULTS, which is
-  // the row that fixes it. Each check below keeps its full strength and is pinned to today's known result, so it
-  // fails loudly when the page is fixed (delete the inversion then) and the chart assertion above it still gates.
+  // first analyte, at 70db0339) overflows at 390 and 320 and has a dark color-contrast violation on its active panel
+  // tab (.bg-accent.text-white). ui-shell's G6 and G1 do not see it because the shell mock answers /observations with
+  // [] (the empty state, no chart). UI-PG-RESULTS replaces the page.
+  // These tests PASS BY ASSERTING THE KNOWN FAILURE, so a green report here is a recorded gate failure, not a pass.
+  // What they do NOT catch: the G6 pin passes at any overflow size (the figure depends on the fixture: 474 with this
+  // spec's, 436 with one analyte), the dark pin compares rule ids only (a new contrast defect passes) and runs at 1440
+  // only (at 390 the blocking nodes differ). L0 decides whether this row may carry the debt, and in which form
+  // (test.fail with positive assertions, as ui-shell.spec.ts:1104 does). The chart assertion above each stays gating.
   const TRENDS_DEBT = 'PRE-EXISTING on /trends (UI-PG-RESULTS replaces the page): if this now fails the debt is paid, so delete the inversion';
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`G6: /trends?analyte=ldl_cholesterol has no horizontal scroll at ${viewport.width} (known: the page overflows by itself)`, async ({ page }) => {
+    test(`G6: /trends?analyte=ldl_cholesterol still overflows horizontally at ${viewport.width} (KNOWN FAILURE, pre-existing, pinned)`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
       await expectChart(page, 'LDL chart', 143);
@@ -414,14 +464,14 @@ test.describe('UI-PALETTE', () => {
   }
 
   for (const theme of ['light', 'dark'] as const) {
-    test(`G1: /trends?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}`, async ({ page }) => {
+    test(`G1: /trends?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}${theme === 'dark' ? ' (KNOWN FAILURE, pre-existing, pinned: color-contrast)' : ''}`, async ({ page }) => {
       await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
       await expectChart(page, 'LDL chart', 143);
       // The summary rows fade in one after another; axe reads colours, so measure once they have all settled.
       await page.waitForFunction(() =>
         Array.from(document.querySelectorAll('main button')).every((el) => getComputedStyle(el).opacity === '1')
       );
-      const blocking = (await axeGate(page, { theme })).blocking;
+      const blocking = (await axeAfterThemeSettles(page, theme)).blocking;
       if (theme === 'dark') {
         expect(blocking.map((v) => v.id), `${TRENDS_DEBT}: axe in dark`).toEqual(['color-contrast']);
       } else {
