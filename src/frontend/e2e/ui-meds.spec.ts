@@ -236,7 +236,9 @@ const GATE_ROUTES: GateRoute[] = [
     interact: async (page) => {
       await page.getByRole('button', { name: 'Refresh History' }).click();
     },
-    from: '/medications',
+    // Start off /medications: the redirect lands on /medications, so a start there gives the probe no new keyed container
+    // to find unless a 16 ms sample happens to catch the transient /notifications one (it failed so on a warm dev server).
+    from: '/settings',
     // The old route: the nav link opens it and the redirect lands on the Reminders tab (HC-UIMED-004).
     trigger: (page) => nav(page, 'Reminders').click(),
     kind: 'navigation',
