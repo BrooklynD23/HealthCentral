@@ -40,6 +40,14 @@ const SMALL_PHONE = { width: 320, height: 640 };
 const GLUCOSE_ID = 'obs-review-glucose';
 const A1C_ID = 'obs-review-a1c';
 const FERRITIN_ID = 'obs-review-ferritin';
+/** A value read from page 3 with a bounding box: selecting it mounts PageImageOverlay and its TraceMark. */
+const SOURCED_ID = 'obs-review-creatinine';
+
+/** A 400 x 100 PNG (the one ui-provenance.spec.ts serves), so the overlay has a real image to scale the box onto. */
+const PAGE_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAZAAAABkCAIAAAAnqfEgAAABDUlEQVR42u3UQREAAAzCMPyrRQI6tksk9NEU4IhIABgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYwF8DXxGNujLHPvkAAAAASUVORK5CYII=',
+  'base64'
+);
 
 function makeObservation(overrides: Partial<Observation> & Pick<Observation, 'id' | 'analyte_raw'>): Observation {
   return {
@@ -84,6 +92,17 @@ const initialObservations: Observation[] = [
     ref_high: 150,
     flag: 'L',
     is_abnormal: true,
+  }),
+  makeObservation({
+    id: SOURCED_ID,
+    analyte_raw: 'Creatinine',
+    value: 0.9,
+    unit: 'mg/dL',
+    ref_low: 0.6,
+    ref_high: 1.3,
+    source_page: 3,
+    // [x0,y0,x1,y1] in image pixels, the form parseBbox reads.
+    source_bbox_json: '[10,20,200,40]',
   }),
 ];
 
@@ -135,7 +154,12 @@ async function mockReviewApi(page: Page): Promise<void> {
         return json(needsVerification ? rows.filter((row) => !row.user_verified) : rows);
       }
       if (path === `/documents/${DOC_ID}/entities`) return json(entities);
-      if (path === `/documents/${DOC_ID}/pages`) return json([]);
+      if (path === `/documents/${DOC_ID}/pages`) {
+        return json([{ page_number: 3, text: 'Creatinine 0.9 mg/dL (0.6-1.3)', has_tables: false }]);
+      }
+      if (/^\/documents\/[^/]+\/pages\/\d+\/image$/.test(path)) {
+        return route.fulfill({ status: 200, contentType: 'image/png', body: PAGE_PNG });
+      }
       if (path === `/documents/${DOC_ID}/highlights`) return json([]);
     }
     const verify = /^\/observations\/([^/]+)\/verify$/.exec(path);
@@ -238,6 +262,30 @@ test('UI-PG-REVIEW Ink: the marker goes from pencil to ink with the chip, and a 
   await expect(toast).toContainText('Glucose, Apr 10, 2026 is now marked as checked');
   // The API has no unverify endpoint, so the toast has no action button.
   await expect(toast.getByRole('button')).toHaveCount(0);
+});
+
+// The default /verify asks for needs_verification=true, so the API drops a row once it is verified. The row
+// stays on screen as ink for the rest of the visit (the mock above filters the way the API does).
+test('UI-PG-REVIEW Ink on the default /verify: a verified row stays in place as ink, with the chip and the toast', async ({
+  page,
+}) => {
+  await prepare(page);
+  await openReview(page, '/verify');
+  const order = () => page.locator('tr[id^="observation-row-"]').evaluateAll((trs) => trs.map((tr) => tr.id));
+  const before = await order();
+  const glucose = row(page, GLUCOSE_ID);
+
+  const refetched = page.waitForResponse(
+    (response) => response.url().includes('/observations') && response.request().method() === 'GET' && response.url().includes('needs_verification')
+  );
+  await glucose.getByRole('button', { name: 'Verify observation' }).click();
+  await refetched;
+  await page.waitForLoadState('networkidle');
+
+  await expect(glucose.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(glucose.locator('[data-state="checked-by-you"]')).toHaveText('Checked by you');
+  expect(await order()).toEqual(before);
+  await expect(page.locator('[data-sonner-toast]')).toContainText('Glucose, Apr 10, 2026 is now marked as checked');
 });
 
 // ---------------------------------------------------------------------------
@@ -347,6 +395,52 @@ test('HC-UIREV-004 and Gate G6 with the Edit dialog open: no horizontal scroll a
   const save = page.getByRole('dialog', { name: 'Edit Value' }).getByRole('button', { name: /save & verify/i });
   await save.scrollIntoViewIfNeeded();
   await expect(save).toBeInViewport();
+});
+
+// L0 ruling (ui-provenance.spec.ts, 2026-10-25): G6 at 390 and 320 for /verify is asserted here, with a selected row
+// whose source preview shows PageImageOverlay and its TraceMark. Each size is its own load: PageImageOverlay measures
+// the image once, on load, so a resize after load is not a layout this page owns.
+for (const viewport of [PHONE, SMALL_PHONE]) {
+  const size = `${viewport.width}x${viewport.height}`;
+  test(`HC-UIREV-004 and Gate G6 at ${size} with a selected row: the page image and its mark stay inside the viewport`, async ({
+    page,
+  }) => {
+    await prepare(page, viewport);
+    await openReview(page, '/verify');
+    await row(page, SOURCED_ID).locator('td').first().click();
+
+    const overlay = page.locator('[data-page-image-overlay]');
+    const image = overlay.locator('img');
+    await expect(image).toBeVisible();
+    // The image fades in only after onLoad, and the mark mounts only after that.
+    await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    const mark = overlay.locator('[data-trace-mark]');
+    await expect(mark).toBeVisible();
+    await page.waitForLoadState('networkidle');
+
+    const scroll = await noHorizontalScroll(page);
+    expect(scroll.ok, `G6 ${size}: ${JSON.stringify(scroll)}`).toBe(true);
+    for (const [name, locator] of [
+      ['overlay card', overlay],
+      ['page image', image],
+      ['trace mark', mark],
+    ] as const) {
+      const box = await locator.boundingBox();
+      expect(box, `${name} has a box`).not.toBeNull();
+      expect(box!.x, `${name} left edge at ${size}`).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width, `${name} right edge at ${size}`).toBeLessThanOrEqual(viewport.width);
+    }
+  });
+}
+
+// The header row is hidden below sm, so the value cell names itself there and not on desktop.
+test('HC-UIREV-004: the value cell says "Value" on a phone only', async ({ page }) => {
+  await prepare(page, PHONE);
+  await openReview(page);
+  const label = row(page, GLUCOSE_ID).locator('td').nth(1).getByText('Value', { exact: true });
+  await expect(label).toBeVisible();
+  await page.setViewportSize(DESKTOP);
+  await expect(label).toBeHidden();
 });
 
 test('HC-UIREV-004: a row is one line on desktop and stacked on a phone', async ({ page }) => {

@@ -106,13 +106,38 @@ const ldlUnflagged = {
   flag: null,
 };
 
+// The extractor also emits A, ABNORMAL and CRITICAL (be/modules/extract.py), and sets is_abnormal. These three
+// have numbers inside the range, so a chip that trusts the numbers alone would say "In range" beside a value
+// the report itself flagged.
+const flaggedA = {
+  ...baseObservation,
+  id: 'obs-5',
+  analyte_canonical: 'sodium',
+  analyte_raw: 'Sodium',
+  value: 140,
+  unit: 'mmol/L',
+  ref_low: 135,
+  ref_high: 145,
+  flag: 'A',
+  is_abnormal: true,
+};
+const flaggedCritical = { ...flaggedA, id: 'obs-6', analyte_raw: 'Potassium', flag: 'CRITICAL' };
+const flaggedAbnormalWord = { ...flaggedA, id: 'obs-7', analyte_raw: 'Calcium', flag: 'ABNORMAL' };
+const abnormalNoFlag = { ...flaggedA, id: 'obs-8', analyte_raw: 'Chloride', flag: null };
+// A letter flag with numbers outside the range: the numbers still give the direction.
+const flaggedAHigh = { ...flaggedA, id: 'obs-9', analyte_raw: 'Magnesium', value: 3, ref_low: 1, ref_high: 2 };
+
 const state = { observations: [] as unknown[] };
 
+/** Like the API: the default /verify list asks for needs_verification=true and gets only unverified rows back. */
 function mockApi() {
-  vi.mocked(api.apiGet).mockImplementation((url: string) => {
+  vi.mocked(api.apiGet).mockImplementation((url: string, params?: Record<string, string>) => {
     if (url.startsWith('/documents') && url.includes('/pages')) return Promise.resolve([]);
     if (url.startsWith('/documents')) return Promise.resolve([]);
-    if (url.startsWith('/observations')) return Promise.resolve(state.observations);
+    if (url.startsWith('/observations')) {
+      const rows = state.observations as { user_verified: boolean }[];
+      return Promise.resolve(params?.needs_verification === 'true' ? rows.filter((row) => !row.user_verified) : rows);
+    }
     return Promise.resolve([]);
   });
 }
@@ -163,6 +188,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setReducedMotion(false);
+  window.history.pushState({}, '', '/');
 });
 
 describe('HC-UIREV-001: a value outside its range carries an icon and words, not colour alone', () => {
@@ -188,6 +214,32 @@ describe('HC-UIREV-001: a value outside its range carries an icon and words, not
     expect(rowOf('obs-4').querySelector('[data-state="above-range"]')).toHaveTextContent(
       "Above the report's range"
     );
+  });
+
+  // Blind spot: it covers the three flag words the extractor emits and is_abnormal. Any other unknown flag text
+  // takes the same branch. Without this a CRITICAL value inside its range reads "In range" (HC-UIREV-001 review).
+  it.each([
+    ['obs-5', 'flag A'],
+    ['obs-6', 'flag CRITICAL'],
+    ['obs-7', 'flag ABNORMAL'],
+    ['obs-8', 'is_abnormal with no flag'],
+  ])('%s (%s) with numbers inside the range never reads In range', async (id) => {
+    state.observations = [glucose, flaggedA, flaggedCritical, flaggedAbnormalWord, abnormalNoFlag];
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(rowOf(id)).not.toBeNull();
+    expect(rowOf(id).querySelector('[data-state="in-range"]')).toBeNull();
+    expect(rowOf(id).textContent).not.toMatch(/in range/i);
+    // The clean row beside them still says it.
+    expect(rowOf('obs-1').querySelector('[data-state="in-range"]')).not.toBeNull();
+  });
+
+  // Blind spot: one value. It pins that a letter flag does not switch the numbers off.
+  it('flag A with a value over ref_high still reads as above the range', async () => {
+    state.observations = [glucose, flaggedAHigh];
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(rowOf('obs-9').querySelector('[data-state="above-range"]')).toHaveTextContent("Above the report's range");
   });
 
   // Blind spot: only the words are checked. A row that says "Above" in the chip and shows no number is not caught here.
@@ -328,6 +380,81 @@ describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the ch
     renderWorkbench();
     await screen.findByText('Glucose');
     expect(markerOf(rowOf('obs-1'))).toHaveAttribute('data-motion', 'ink');
+  });
+
+  const rowIds = () =>
+    Array.from(document.querySelectorAll('tr[id^="observation-row-"]')).map((tr) => tr.id.replace('observation-row-', ''));
+
+  // Blind spot: the mock drops verified rows from a needs_verification list the way the API does, so this is the
+  // route a user actually lands on. The first version of this suite served every row to every filter and never saw
+  // the row leave (recurring-failures 1).
+  it('on the default list (needs_verification) a verified row stays, as ink, in the same place', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith(
+      '/observations/',
+      expect.objectContaining({ needs_verification: 'true' })
+    );
+    const before = rowIds();
+    await verifyGlucose(user);
+    await waitFor(() => expect(markerOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'ink'));
+    // Let the refetch (which no longer contains obs-1) land.
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(rowIds()).toEqual(before);
+    expect(checkChipOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'checked-by-you');
+    expect(markerOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'ink');
+    // The rows that were not verified are untouched.
+    expect(markerOf(rowOf('obs-2'))).toHaveAttribute('data-state', 'pencil');
+  });
+
+  // Blind spot: document mode serves every row, so the row never left; it pins that the hold does not duplicate it.
+  it('in document review mode a verified row is shown once, as ink', async () => {
+    window.history.pushState({}, '', '/verify?doc=doc-1&mode=all');
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await verifyGlucose(user);
+    await waitFor(() => expect(markerOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'ink'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(document.querySelectorAll('#observation-row-obs-1')).toHaveLength(1);
+    expect(checkChipOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'checked-by-you');
+  });
+
+  // Blind spot: it reads the DOM from inside the mocked notify. The toast text itself is pinned above.
+  it('the toast fires after the row reads Checked by you, not while it still reads Not yet checked', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    let chipAtToast: string | undefined;
+    vi.mocked(notify).mockImplementation(() => {
+      chipAtToast = checkChipOf(rowOf('obs-1'))?.dataset.state;
+      return 'toast-id';
+    });
+    await verifyGlucose(user);
+    await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+    expect(chipAtToast).toBe('checked-by-you');
+  });
+
+  // Blind spot: the held row comes from the mutation's answer. It does not check the Edit dialog's own closing.
+  it('Save & Verify from the Edit dialog also leaves the row as ink with the saved value', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    vi.mocked(api.apiPost).mockImplementation(async () => {
+      state.observations = [{ ...glucose, value: 99, user_verified: true }, hba1c, ferritin, ldlUnflagged];
+      return { ...glucose, value: 99, user_verified: true };
+    });
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Edit value' }));
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('textbox');
+    await user.clear(input);
+    await user.type(input, '99');
+    await user.click(within(dialog).getByRole('button', { name: /save & verify/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(markerOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'ink'));
+    expect(rowOf('obs-1')).toHaveTextContent('99');
   });
 });
 
@@ -503,11 +630,106 @@ describe('HC-UIREV-004: below sm the observation rows stack', () => {
     }
   });
 
+  // Blind spot: roles are read from attributes. A screen reader's table mode is not run here. display:block on a
+  // table part drops its table semantics in some readers, so each part names its role.
+  it('table parts keep their roles when they are laid out as blocks', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const table = rowOf('obs-1').closest('table')!;
+    expect(table).toHaveAttribute('role', 'table');
+    expect(table.querySelector('thead')).toHaveAttribute('role', 'rowgroup');
+    expect(table.querySelector('tbody')).toHaveAttribute('role', 'rowgroup');
+    expect(table.querySelector('thead tr')).toHaveAttribute('role', 'row');
+    for (const th of Array.from(table.querySelectorAll('th'))) expect(th).toHaveAttribute('role', 'columnheader');
+    for (const id of ['obs-1', 'obs-2']) {
+      expect(rowOf(id)).toHaveAttribute('role', 'row');
+      for (const td of Array.from(rowOf(id).querySelectorAll(':scope > td'))) expect(td).toHaveAttribute('role', 'cell');
+    }
+  });
+
+  // Blind spot: the label is found by its sm:hidden class. That it is shown below sm and hidden from sm is the e2e check.
+  it('the value cell has a phone-only "Value" label, since the header row is hidden there', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const valueCell = rowOf('obs-1').querySelectorAll(':scope > td')[1] as HTMLElement;
+    const label = within(valueCell).getByText('Value');
+    expect(label.className).toMatch(/\bsm:hidden\b/);
+    // The label is not the T0 node: the value node keeps its text.
+    expect(label.hasAttribute('data-t0')).toBe(false);
+  });
+
   // Blind spot: it keeps UI-SHELL's classes by name. L0 ruling on #370: grid-cols-1 lg:grid-cols-3 and lg:col-span-2 stay.
   it('keeps the page grid from UI-SHELL', async () => {
     renderWorkbench();
     await screen.findByText('Glucose');
     expect(document.querySelector('.grid.grid-cols-1.lg\\:grid-cols-3')).not.toBeNull();
     expect(document.querySelector('.lg\\:col-span-2')).not.toBeNull();
+  });
+});
+
+describe('EntityDetailView rows say it in words and show the marker too', () => {
+  const entity = (id: string, verified: boolean | null) => ({
+    id,
+    doc_id: 'doc-1',
+    category: 'radiology',
+    entity_type: 'finding',
+    entity_value: `Finding ${id}`,
+    confidence: 0.9,
+    source_page: null,
+    source_bbox_json: null,
+    char_start: null,
+    char_end: null,
+    quote: null,
+    verified_by_user: verified,
+    extraction_version: null,
+  });
+
+  function renderEntities() {
+    return render(
+      <QueryClientProvider client={new QueryClient()}>
+        <EntityDetailView
+          entities={[entity('e-yes', true), entity('e-no', false), entity('e-none', null)]}
+          onSetVerification={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+  }
+  const entityRow = (id: string) => document.getElementById(`entity-row-${id}`) as HTMLElement;
+
+  // Blind spot: static props. That the marker animates when the prop flips is the observation row's test above.
+  it('a verified entity shows Checked by you and an ink marker; an unchecked one shows a pencil marker', () => {
+    renderEntities();
+    const yes = entityRow('e-yes');
+    expect(yes.querySelector('[data-state="checked-by-you"]')).toHaveTextContent('Checked by you');
+    expect(yes.querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+    expect(yes.textContent).not.toMatch(/\bVerified\b/);
+    const none = entityRow('e-none');
+    expect(none.querySelector('[data-state="checked-by-you"]')).toBeNull();
+    expect(none.querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'pencil');
+  });
+
+  // Blind spot: a rejected entity keeps its Rejected badge; the plan gives no Ink for a rejection.
+  it('a rejected entity keeps its Rejected badge and gets no ink', () => {
+    renderEntities();
+    const no = entityRow('e-no');
+    expect(no).toHaveTextContent('Rejected');
+    expect(no.querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'pencil');
+  });
+
+  // Blind spot: aria-hidden is read from the attribute.
+  it('the entity marker is decoration: aria-hidden, no data-t0', () => {
+    renderEntities();
+    const marker = entityRow('e-yes').querySelector('[data-ink-marker]')!;
+    expect(marker).toHaveAttribute('aria-hidden', 'true');
+    expect(marker.hasAttribute('data-t0')).toBe(false);
+  });
+
+  // Blind spot: roles from attributes only.
+  it('the entity table keeps table roles', () => {
+    renderEntities();
+    const table = entityRow('e-yes').closest('table')!;
+    expect(table).toHaveAttribute('role', 'table');
+    expect(entityRow('e-yes')).toHaveAttribute('role', 'row');
+    expect(entityRow('e-yes').querySelector('td')).toHaveAttribute('role', 'cell');
   });
 });
