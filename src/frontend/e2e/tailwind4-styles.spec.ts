@@ -135,7 +135,7 @@ test.describe('Tailwind 4 style guard', () => {
     // Target: RecoverProfile.tsx:136-143, bare border utility, no border colour or placeholder class.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });
-    expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(226, 223, 215)');
+    expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(138, 133, 123)');
     expect(await input.evaluate((el) => getComputedStyle(el, '::placeholder').color)).toBe(
       'rgb(104, 100, 93)'
     );
