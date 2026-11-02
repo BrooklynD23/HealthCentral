@@ -74,7 +74,7 @@ function observationRow(verified: boolean) {
 type SnippetShape = { kind: 'quote' } | { kind: 'agent' } | { kind: 'text'; text: string };
 
 /** An answer with an observation-backed citation (it has a deep link) and a reference one (it has none). */
-function chatAnswer(n: number, snippet: SnippetShape = { kind: 'quote' }) {
+function chatAnswer(n: number, snippet: SnippetShape = { kind: 'quote' }, docTitle = 'Lab report, March') {
   const firstSnippet =
     snippet.kind === 'agent'
       ? 'obs-fixture-0001'
@@ -90,7 +90,7 @@ function chatAnswer(n: number, snippet: SnippetShape = { kind: 'quote' }) {
           {
             source_type: 'user_observation',
             doc_id: 'doc-fixture-0001',
-            doc_title: 'Lab report, March',
+            doc_title: docTitle,
             page: 2,
             text_snippet: firstSnippet,
             observation_id: 'obs-fixture-0001',
@@ -132,6 +132,8 @@ interface AskMock {
   failChat(status?: number): void;
   /** From now on the first citation's text_snippet has this shape. */
   snippet(shape: SnippetShape): void;
+  /** From now on the first citation's doc_title (the name the chip shows) is this. */
+  docTitle(title: string): void;
 }
 
 /** Chat and feedback answers. Anything else falls through to installMockApi's shell fixtures. */
@@ -139,6 +141,7 @@ async function mockAskApi(page: Page): Promise<AskMock> {
   let count = 0;
   let failing = 0;
   let shape: SnippetShape = { kind: 'quote' };
+  let title = 'Lab report, March';
   let gate: Promise<void> | null = null;
   let open: () => void = () => {};
   await page.route(/\/api\/v1\/(assistant\/chat|feedback\/turns\/[^/]+)\/?$/, async (route: Route, request) => {
@@ -161,7 +164,7 @@ async function mockAskApi(page: Page): Promise<AskMock> {
       return route.fulfill({ status: failing, contentType: 'application/json', body: JSON.stringify({ detail: 'fixture failure' }) });
     }
     count += 1;
-    return json(chatAnswer(count, shape));
+    return json(chatAnswer(count, shape, title));
   });
   return {
     answered: () => count,
@@ -177,6 +180,9 @@ async function mockAskApi(page: Page): Promise<AskMock> {
     },
     snippet(next) {
       shape = next;
+    },
+    docTitle(next) {
+      title = next;
     },
   };
 }
@@ -207,13 +213,40 @@ interface OpenOptions {
   observation?: 'verified' | 'unverified' | 'none';
   /** The privacy override is on: the page pins its break-glass warning (W-6 Q3, D12). */
   breakGlass?: boolean;
+  /** A saved conversation of this many turns comes back on load (ASSIST-HIST-001), long enough to overflow the list. */
+  restoredTurns?: number;
 }
 
 async function openAsk(page: Page, viewport = DESKTOP, options: OpenOptions = {}) {
   await page.setViewportSize(viewport);
   const mock = await installMockApi(page);
   const ask = await mockAskApi(page);
-  const { observation = 'verified', breakGlass = false } = options;
+  const { observation = 'verified', breakGlass = false, restoredTurns = 0 } = options;
+  if (restoredTurns > 0) {
+    await page.route(/\/api\/v1\/assistant\/sessions\/?$/, (route, request) => {
+      if (request.method() !== 'GET') return route.fallback();
+      const sessions = [
+        { session_id: 'session-ask-1', title: null, turn_count: restoredTurns, created_at: '2026-11-01T10:00:00', updated_at: '2026-11-01T10:00:00' },
+      ];
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sessions }) });
+    });
+    await page.route(/\/api\/v1\/assistant\/sessions\/session-ask-1\/?$/, (route, request) => {
+      if (request.method() !== 'GET') return route.fallback();
+      const turns = Array.from({ length: restoredTurns }, (_, i) => ({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content:
+          i % 2 === 0
+            ? `Restored question ${i / 2 + 1} about my cholesterol`
+            : `Restored answer ${(i - 1) / 2 + 1}: your LDL cholesterol was 142 mg/dL on the report, above the 100 mg/dL limit.`,
+        turn_id: `restored-turn-${i}`,
+      }));
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ session_id: 'session-ask-1', title: null, turns }),
+      });
+    });
+  }
   await page.route(/\/api\/v1\/observations\/?(\?.*)?$/, (route, request) => {
     if (request.method() !== 'GET') return route.fallback();
     const rows = observation === 'none' ? [] : [observationRow(observation === 'verified')];
@@ -340,7 +373,7 @@ interface CardLayout {
   listHeight: number;
   clipped: string[];
   reach: { composerOk: boolean; disclaimerOk: boolean; composer: number[]; disclaimer: number[]; headerBottom: number; limit: number };
-  breakGlass: { found: boolean; inList: boolean; top: number; bottom: number; cardTop: number };
+  breakGlass: { found: boolean; inList: boolean };
 }
 
 async function cardLayout(page: Page): Promise<CardLayout> {
@@ -382,7 +415,6 @@ async function cardLayout(page: Page): Promise<CardLayout> {
     const bg = Array.from(document.querySelectorAll('[role="alert"], [role="status"]')).find((n) =>
       /privacy protection override|Could not confirm this installation/i.test(n.textContent ?? '')
     ) as HTMLElement | undefined;
-    const card = list.parentElement as HTMLElement;
     window.scrollTo({ top: 0, behavior: 'instant' });
     return {
       listHeight: list.clientHeight,
@@ -398,9 +430,6 @@ async function cardLayout(page: Page): Promise<CardLayout> {
       breakGlass: {
         found: Boolean(bg),
         inList: bg ? list.contains(bg) : false,
-        top: bg ? bg.getBoundingClientRect().top : 0,
-        bottom: bg ? bg.getBoundingClientRect().bottom : 0,
-        cardTop: card.getBoundingClientRect().top,
       },
     };
   });
@@ -441,6 +470,99 @@ for (const state of STATES) {
       await expect(page.getByRole('alert').filter({ hasText: 'Privacy protection override is on' })).toBeInViewport();
     }
   });
+}
+
+// The banners that explain why a value is missing or where to confirm it must be in view of the list, not scrolled out
+// of it. toBeVisible cannot see that: it passes for an element scrolled out of its scroll container.
+interface BannerView {
+  found: boolean;
+  top: number;
+  bottom: number;
+  listTop: number;
+  listBottom: number;
+  scrollTop: number;
+  scrollEnd: boolean;
+}
+
+async function bannerView(page: Page, text: string): Promise<BannerView> {
+  return page.evaluate((wanted) => {
+    const list = document.querySelector('[role="log"]') as HTMLElement;
+    const p = Array.from(list.querySelectorAll('p')).find((node) => (node.textContent ?? '').includes(wanted));
+    const banner = p?.closest('.rounded-xl') ?? null;
+    const box = banner?.getBoundingClientRect();
+    const listBox = list.getBoundingClientRect();
+    return {
+      found: Boolean(banner),
+      top: box?.top ?? 0,
+      bottom: box?.bottom ?? 0,
+      listTop: listBox.top,
+      listBottom: listBox.bottom,
+      scrollTop: list.scrollTop,
+      scrollEnd: list.scrollTop + list.clientHeight >= list.scrollHeight - 2,
+    };
+  }, text);
+}
+
+function expectInView(view: BannerView, what: string): void {
+  expect(view.found, `${what}: the banner is on the page`).toBe(true);
+  expect(view.top, `${what}: the banner starts inside the list ${JSON.stringify(view)}`).toBeGreaterThanOrEqual(view.listTop - 0.5);
+  expect(view.bottom, `${what}: the banner ends inside the list ${JSON.stringify(view)}`).toBeLessThanOrEqual(view.listBottom + 0.5);
+}
+
+const UNVERIFIED = 'Some values are still unverified';
+
+test('HC-UIASK-002: at 390 the unverified banner is in view at first paint, and the empty list is not scrolled', async ({ page }) => {
+  await openAsk(page, PHONE, { observation: 'unverified' });
+  const view = await bannerView(page, UNVERIFIED);
+  expectInView(view, '390 first paint');
+  expect(view.scrollTop, 'an empty list stays at its top').toBe(0);
+});
+
+// Starting a new conversation empties the list while the banner is still there. The list used to stay scrolled to
+// where the old conversation ended (the browser only clamps it), so the banner sat above the list's edge.
+test('HC-UIASK-002: at 390 a new conversation shows the banner again, with the list back at its top', async ({ page }) => {
+  await openAsk(page, PHONE, { observation: 'unverified', restoredTurns: 16 });
+  await expect(page.locator('[data-testid="chat-message"]')).toHaveCount(16);
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await expect(page.locator('[data-testid="chat-message"]')).toHaveCount(0);
+  const view = await bannerView(page, UNVERIFIED);
+  expectInView(view, '390 after New');
+  expect(view.scrollTop, 'an emptied list is back at its top').toBe(0);
+});
+
+test('HC-UIASK-002: at 1440 both banners stay in view after a restore and after sends', async ({ page }) => {
+  const { ask: chat } = await openAsk(page, DESKTOP, { observation: 'unverified', restoredTurns: 16 });
+  await expect(page.locator('[data-testid="chat-message"]')).toHaveCount(16);
+  const restored = await bannerView(page, UNVERIFIED);
+  expectInView(restored, '1440 after a restore');
+  expect(restored.scrollEnd, 'a restored conversation shows its newest message').toBe(true);
+
+  // A send that fails with "no model" adds the second banner.
+  chat.failChat(501);
+  await page.getByPlaceholder('Ask about your results...').fill('Is a model set up?');
+  await page.getByRole('button', { name: 'Send question' }).click();
+  await expect(page.getByText('No AI model configured')).toBeVisible();
+  const afterSend = await bannerView(page, UNVERIFIED);
+  expectInView(afterSend, '1440 after a send, unverified');
+  expect(afterSend.scrollEnd, 'the list is at its end after a send').toBe(true);
+  expectInView(await bannerView(page, 'No AI model configured'), '1440 after a send, no model');
+});
+
+// A long file name in a citation must wrap inside the bubble, not widen the list. G6 reads only the document, so it
+// cannot see the list scrolling sideways.
+for (const [name, viewport] of [
+  ['390', PHONE],
+  ['320', SMALL_PHONE],
+] as const) {
+  for (const observation of ['verified', 'none'] as const) {
+    test(`UI-PG-ASK: a long file name in a citation wraps, the list does not scroll sideways (${name}, ${observation === 'verified' ? 'popover chip' : 'link chip'})`, async ({ page }) => {
+      const { ask: chat } = await openAsk(page, viewport, { observation });
+      chat.docTitle('Quest_Diagnostics_Comprehensive_Metabolic_Panel_Lab_Report_Mar2026.pdf');
+      await ask(page, 'What is my LDL?', 1);
+      const list = await MESSAGE_LIST(page).evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+      expect(list.scroll, `the list scrolls sideways ${JSON.stringify(list)}`).toBeLessThanOrEqual(list.client);
+    });
+  }
 }
 
 // HC-UIASK-003: axe on the three rules, with the page in the state that shows them.
@@ -585,12 +707,14 @@ test('UI-PG-ASK: an agent-shaped citation shows the record, never its row id', a
   await expect(page.locator('body')).not.toContainText('obs-fixture-0001');
 });
 
-// HC-UIPV-004 (DF-2) runs here too (queue SHOWCASE-PROVENANCE-MOVES): every line of the popover wraps.
+// DF-2, popover half: every line of the citation popover wraps. This is NOT HC-UIPV-004. That id is excerpt lines in
+// Source Trace (plan :643), and /explain has no excerpt lines today (the sheet opens with "Excerpt not available"), so
+// HC-UIPV-004 did not run on this page.
 for (const [name, viewport] of [
   ['1440', DESKTOP],
   ['390', PHONE],
 ] as const) {
-  test(`HC-UIPV-004: a long unbroken quote wraps inside the citation popover (${name})`, async ({ page }) => {
+  test(`UI-PG-ASK DF-2 popover: a long unbroken quote wraps inside the citation popover (${name})`, async ({ page }) => {
     const { ask: chat } = await openAsk(page, viewport);
     // A quote has words, so it is shown; one unbroken 184-character token inside it is what must wrap.
     chat.snippet({ kind: 'text', text: `Report states ${'LDL'.repeat(61)}END here` });

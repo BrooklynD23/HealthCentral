@@ -167,6 +167,45 @@ describe('UI-PG-ASK', () => {
       expect(list).toHaveAttribute('tabindex', '0');
     });
 
+    // Review round 2: the list used to scroll to its end on mount, which put the empty state's top and the banners
+    // above the list's edge. Nothing to follow means nothing to scroll to.
+    it('an empty list that is not waiting for an answer is not scrolled', () => {
+      const scrollHeight = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(480);
+      try {
+        renderAsk();
+        expect(screen.getByRole('log', { name: 'Conversation' }).scrollTop).toBe(0);
+      } finally {
+        scrollHeight.mockRestore();
+      }
+    });
+
+    it('a restored conversation is scrolled to its newest message', async () => {
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => {
+        if (url === '/assistant/sessions') {
+          return { sessions: [{ session_id: 's1', title: null, turn_count: 2, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' }] };
+        }
+        if (url === '/assistant/sessions/s1') {
+          return {
+            session_id: 's1',
+            title: null,
+            turns: [
+              { role: 'user', content: 'What was my A1C?', turn_id: 't1' },
+              { role: 'assistant', content: 'Your A1C restored answer', turn_id: 't2' },
+            ],
+          };
+        }
+        return [];
+      });
+      const scrollHeight = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(480);
+      try {
+        renderAsk();
+        await screen.findByText('Your A1C restored answer');
+        expect(screen.getByRole('log', { name: 'Conversation' }).scrollTop).toBe(480);
+      } finally {
+        scrollHeight.mockRestore();
+      }
+    });
+
     it('a send and its answer never call scrollIntoView, and the list scrolls itself to the end', async () => {
       const user = userEvent.setup();
       vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithCitations);
@@ -443,6 +482,22 @@ describe('UI-PG-ASK', () => {
       expect(within(dialog).getByText(/Hemoglobin: 14\.2 g\/dL/)).toBeInTheDocument();
       expect(within(dialog).getByRole('button', { name: 'Open source' })).toBeInTheDocument();
       expect(document.body).not.toHaveTextContent(OBS_ID);
+    });
+
+    // Same text as SourceTrace's result line: an empty value_text falls through to the number (review round 2, #9).
+    it('an empty value_text falls through to the number, as the Source Trace sheet does', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) =>
+        url === '/observations/' ? [{ ...traced, value_text: '' }] : []
+      );
+      vi.mocked(api.apiPost).mockResolvedValueOnce(agentAnswer([agentObservation]));
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/Your hemoglobin is 14.2/);
+
+      await user.click(await screen.findByRole('button', { name: /^Citation 1:/ }));
+      const dialog = await screen.findByRole('dialog', { name: 'Citation 1' });
+      expect(within(dialog).getByText(/Hemoglobin: 14\.2 g\/dL/)).toBeInTheDocument();
     });
 
     it('a care-task citation has no quote and no target, so it is a plain label, not a chip', async () => {
