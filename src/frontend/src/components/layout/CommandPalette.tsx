@@ -105,16 +105,21 @@ export default function CommandPalette() {
   // link stands in: take the trigger that is rendered.
   const opener = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
+  // A pick navigates, and the page the palette was opened from may still be mounted when this effect runs (the route
+  // change commits after it), so its button reads as connected and then goes. A pick returns to the trigger instead.
+  const picked = useRef(false);
   useLayoutEffect(() => {
     if (open && !wasOpen.current) {
       const focused = document.activeElement;
       opener.current = focused instanceof HTMLElement && focused !== document.body ? focused : null;
+      picked.current = false;
     }
     if (!open && wasOpen.current) {
       const triggers = Array.from(document.querySelectorAll<HTMLElement>(PALETTE_TRIGGER_SELECTOR));
-      const target = opener.current?.isConnected
-        ? opener.current
-        : (triggers.find((el) => el.getClientRects().length > 0) ?? triggers[0]);
+      const target =
+        !picked.current && opener.current?.isConnected
+          ? opener.current
+          : (triggers.find((el) => el.getClientRects().length > 0) ?? triggers[0]);
       // After Radix's own unmount work, which would otherwise win (DoseLoggingModal does the same).
       window.setTimeout(() => target?.focus(), 0);
     }
@@ -137,13 +142,13 @@ export default function CommandPalette() {
     >
       {/* Modal puts mt-4 between its (screen-reader only) header and the content; cancel it so the input sits at the top. */}
       <div className="-mt-4">
-        <PaletteBody key={session} />
+        <PaletteBody key={session} onPick={() => (picked.current = true)} />
       </div>
     </Modal>
   );
 }
 
-function PaletteBody() {
+function PaletteBody({ onPick }: { onPick: () => void }) {
   const open = usePaletteOpen();
   const navigate = useNavigate();
   const { profileId } = useAuthStore();
@@ -214,6 +219,8 @@ function PaletteBody() {
         for (const hit of found?.results ?? []) {
           const meta = RECORD_LINK[hit.type];
           // An observation hit's id is the observation's id: open that analyte's chart, or plain /trends if it is not in the list.
+          // Until the observations are known the hit could only open the first analyte's chart under this name, so it waits.
+          if (hit.type === 'observation' && !observations) continue;
           const analyte = hit.type === 'observation' ? observations?.find((obs) => obs.id === hit.id)?.analyte_canonical : undefined;
           records.push({
             value: `record:${hit.type}:${hit.id}`,
@@ -250,6 +257,7 @@ function PaletteBody() {
   }, [activeId]);
 
   const run = (entry: Entry) => {
+    onPick();
     entry.run(navigate);
     closePalette();
   };
