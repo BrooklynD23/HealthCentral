@@ -382,3 +382,6 @@ jobs:
 
       - name: Run the asclexis-rsi replay test
         run: claude plugin test .claude/mods/asclexis-rsi
+
+      - name: Run the rsi-loop gate fixture
+        run: node .claude/workflows/tests/rsi-gate.fixture.mjs
