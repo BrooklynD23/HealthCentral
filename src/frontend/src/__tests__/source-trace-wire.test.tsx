@@ -7,6 +7,8 @@
  * HC-STW-006 to 008 (review round 1, finding 2): "It matches, mark as checked" is enabled
  * only while an excerpt is on screen and both GETs have resolved; the reason is visible
  * when it is not; HC-STW-009 (the same on /interpret) is Playwright.
+ * HC-STW-014 (each "not available" sentence follows its own GET; loading says so) and HC-STW-015
+ * (the sheet's min-h-[85dvh] and scrollbar-gutter classes): the round 3 escalation, ruling 6591279713.
  *
  * Plan: docs/plans/2026-10-30-followups-plan.md, "SOURCE-TRACE-WIRE".
  *
@@ -646,7 +648,7 @@ describe('HC-STW-007 with the source on screen the button is enabled and one cli
     const fetchMock = stubSheetFetch({ document: 'fail', pages: 'fail' });
     const { dialog } = await openSheet();
     await bothGetsRequested(fetchMock);
-    // These texts also show while loading, so settle() lets the two failed GETs be answered (no dependence on the new reason).
+    // Both texts are the settled wording: they appear only once the failed GETs have been answered.
     await within(dialog).findByText('Source file not available');
     await within(dialog).findByText('Excerpt not available.');
     await settle();
@@ -690,13 +692,73 @@ describe('HC-STW-008 "This is what your report states." is shown only with an ex
     expect(within(dialog).queryByText(REPORT_STATES)).toBeNull();
   });
 
-  it('HC-STW-008 is absent while loading, which still says "Excerpt not available."', async () => {
+  it('HC-STW-008 is absent while loading, which says "Loading the excerpt…" and not "Excerpt not available."', async () => {
     const fetchMock = stubSheetFetch({ document: 'hold', pages: 'hold' });
     const { dialog } = await openSheet();
     await bothGetsRequested(fetchMock);
     await settle();
-    expect(within(dialog).getByText('Excerpt not available.')).not.toBeNull();
+    expect(within(dialog).getByText('Loading the excerpt…')).not.toBeNull();
+    expect(within(dialog).queryByText('Excerpt not available.')).toBeNull();
     expect(within(dialog).queryByText(REPORT_STATES)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-014 / 015: review round 3 escalation (ruling 6591279713).
+// ---------------------------------------------------------------------------
+describe('HC-STW-014 each of the two "not available" sentences follows its own GET, and loading says so', () => {
+  const FILE_LOADING = 'Loading the file name…';
+  const EXCERPT_LOADING = 'Loading the excerpt…';
+  const FILE_UNAVAILABLE = 'Source file not available';
+  const EXCERPT_UNAVAILABLE = 'Excerpt not available.';
+  const FILE_NAME = 'provenance-report.pdf';
+
+  // One status for both GETs cannot do this: a failed document GET with the pages GET still pending
+  // must read "Loading the excerpt…", not the false "Excerpt not available.".
+  it.each<[GetPlan, GetPlan, string, string]>([
+    ['hold', 'hold', FILE_LOADING, EXCERPT_LOADING],
+    ['ok', 'hold', FILE_NAME, EXCERPT_LOADING],
+    ['null-source', 'hold', FILE_UNAVAILABLE, EXCERPT_LOADING],
+    ['fail', 'hold', FILE_UNAVAILABLE, EXCERPT_LOADING],
+    ['hold', 'ok', FILE_LOADING, MATCH_LINE],
+    ['hold', 'no-match', FILE_LOADING, EXCERPT_UNAVAILABLE],
+    ['hold', 'fail', FILE_LOADING, EXCERPT_UNAVAILABLE],
+  ])(
+    'HC-STW-014 document %s, pages %s: File shows "%s", the excerpt area shows "%s"',
+    async (documentPlan, pagesPlan, fileShows, excerptShows) => {
+      const fetchMock = stubSheetFetch({ document: documentPlan, pages: pagesPlan });
+      const { dialog } = await openSheet();
+      await bothGetsRequested(fetchMock);
+
+      // The settled value is awaited first; the absences are read after it, and after settle() for a held GET.
+      expect(await within(dialog).findByText(fileShows)).not.toBeNull();
+      expect(await within(dialog).findByText(excerptShows)).not.toBeNull();
+      await settle();
+
+      const everyFileText = [FILE_LOADING, FILE_UNAVAILABLE, FILE_NAME];
+      for (const text of everyFileText) {
+        if (text !== fileShows) expect(within(dialog).queryByText(text)).toBeNull();
+      }
+      const everyExcerptText = [EXCERPT_LOADING, EXCERPT_UNAVAILABLE];
+      for (const text of everyExcerptText) {
+        if (text !== excerptShows) expect(within(dialog).queryByText(text)).toBeNull();
+      }
+      // The false sentences are never shown beside a pending GET of their own.
+      if (documentPlan === 'hold') expect(within(dialog).queryByText(FILE_UNAVAILABLE)).toBeNull();
+      if (pagesPlan === 'hold') expect(within(dialog).queryByText(EXCERPT_UNAVAILABLE)).toBeNull();
+    }
+  );
+});
+
+describe('HC-STW-015 the opened sheet keeps its full height and its scrollbar gutter', () => {
+  // This pins the classes only: Playwright launches Chromium with --hide-scrollbars, so no gate can see a classic scrollbar.
+  it('HC-STW-015 has min-h-[85dvh] and [scrollbar-gutter:stable], and no lg:min-h-0', async () => {
+    stubSheetFetch();
+    const { dialog } = await openSheet();
+    const classes = dialog.className.split(/\s+/);
+    expect(classes).toContain('min-h-[85dvh]');
+    expect(classes).toContain('[scrollbar-gutter:stable]');
+    expect(classes).not.toContain('lg:min-h-0');
   });
 });
 
