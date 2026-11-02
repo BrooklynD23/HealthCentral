@@ -271,7 +271,7 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     expect(last.opacity).toBe('0');
     expect(String(last.transform)).toContain('translateY(-8px)');
     expect(lift.shellAt, 'the shell mounted').toBeDefined();
-    expect(lift.shellAt! - lift.ghostAt!, 'shell within one frame of the Lift').toBeLessThanOrEqual(34);
+    expect(Math.abs(lift.shellAt! - lift.ghostAt!), 'shell within one frame of the Lift').toBeLessThanOrEqual(34);
   });
 
   test.describe('reduced motion', () => {
@@ -430,7 +430,9 @@ test.describe('HC-UIAUTH-005: stillness (timing)', () => {
     await page.goto('/recover');
     await expect(page.locator('#recover-code')).toBeVisible({ timeout: 15000 });
     await page.getByLabel('Profile', { exact: true }).selectOption({ label: E2E_PROFILE_NAME });
-    await page.locator('#recover-code').fill('AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH');
+    // A malformed code answers 400 "not valid". A well-formed wrong code answers 401, which services/api.ts treats
+    // as an expired session and answers with a redirect to /setup (reported to L0; not this row's file).
+    await page.locator('#recover-code').fill('AAAA-BBBB');
     await page.getByLabel('New password').fill(NEW_PASSWORD);
     await stillnessProbe(page, {
       trigger: () => page.getByRole('button', { name: /unlock my records/i }).click(),

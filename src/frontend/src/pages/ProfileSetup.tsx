@@ -81,41 +81,57 @@ function validatePassword(password: string): {
  * /setup sits outside the shell and navigate must stay immediate, so the panel cannot animate itself: it is
  * unmounted with the route. A detached ghost takes its place for the length of the animation: a fixed, inert,
  * aria-hidden empty card surface with the panel's rect, appended to <body> and removed when the animation ends.
- * It holds no form control and no text, so the password can never reach it. Presentation only: it never throws.
+ * It holds no form control and no text, so the password can never reach it. The ghost is added in the same
+ * commit that removes the page, so the shell is already there beneath it. (The panel itself goes earlier, when
+ * the cache clear empties the profile list, so the page root is what is watched.) Presentation only: it never
+ * throws and never delays navigate.
  */
 function startLift(panel: HTMLElement | null, reduced: boolean): void {
   try {
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
-    const ghost = document.createElement('div');
-    ghost.setAttribute('data-lift-ghost', '');
-    ghost.setAttribute('aria-hidden', 'true');
-    Object.assign(ghost.style, {
-      position: 'fixed',
-      top: `${rect.top}px`,
-      left: `${rect.left}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-      pointerEvents: 'none',
-      zIndex: '60',
-      borderRadius: '16px',
-      background: 'var(--surface-1)',
-      boxShadow: 'var(--shadow-card)',
+
+    const lift = () => {
+      const ghost = document.createElement('div');
+      ghost.setAttribute('data-lift-ghost', '');
+      ghost.setAttribute('aria-hidden', 'true');
+      Object.assign(ghost.style, {
+        position: 'fixed',
+        top: `${rect.top}px`,
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`,
+        pointerEvents: 'none',
+        zIndex: '60',
+        borderRadius: '16px',
+        background: 'var(--surface-1)',
+        boxShadow: 'var(--shadow-card)',
+      });
+      if (typeof ghost.animate !== 'function') return;
+      document.body.appendChild(ghost);
+      const animation = ghost.animate(
+        reduced
+          ? [{ opacity: '1' }, { opacity: '0' }]
+          : [
+              { opacity: '1', transform: 'translateY(0)' },
+              { opacity: '0', transform: 'translateY(-8px)' },
+            ],
+        { duration: reduced ? 150 : 240, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' }
+      );
+      const remove = () => ghost.remove();
+      animation.onfinish = remove;
+      animation.oncancel = remove;
+    };
+
+    // Start when the page leaves the document. If it never does (navigation did not happen), nothing is drawn.
+    const page = panel.closest('[data-setup-page]') ?? panel;
+    const watcher = new MutationObserver(() => {
+      if (page.isConnected) return;
+      watcher.disconnect();
+      lift();
     });
-    if (typeof ghost.animate !== 'function') return;
-    document.body.appendChild(ghost);
-    const animation = ghost.animate(
-      reduced
-        ? [{ opacity: '1' }, { opacity: '0' }]
-        : [
-            { opacity: '1', transform: 'translateY(0)' },
-            { opacity: '0', transform: 'translateY(-8px)' },
-          ],
-      { duration: reduced ? 150 : 240, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' }
-    );
-    const remove = () => ghost.remove();
-    animation.onfinish = remove;
-    animation.oncancel = remove;
+    watcher.observe(document.body, { childList: true, subtree: true });
+    window.setTimeout(() => watcher.disconnect(), 3000);
   } catch {
     // The Lift is decoration: a failure here must never reach the unlock flow.
   }
@@ -276,7 +292,7 @@ export function ProfileSetup() {
   }
 
   return (
-    <div className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16">
+    <div data-setup-page="" className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16">
       <div className="mx-auto w-full max-w-lg">
         {restoreNotice && (
           <div className="mb-6">

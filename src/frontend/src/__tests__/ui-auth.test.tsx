@@ -268,6 +268,10 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
     return ghostCalls;
   }
 
+  /**
+   * Unlocks with navigate mocked (the page stays mounted), then unmounts the page the way the route swap does (the cache clear removes the panel earlier, which must not start it):
+   * the Lift starts when the page leaves the document.
+   */
   async function unlock(user: ReturnType<typeof userEvent.setup>) {
     vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
     vi.mocked(api.apiPost).mockResolvedValueOnce({
@@ -277,24 +281,27 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
       profile_id: PROFILE.id,
       profile_name: PROFILE.display_name,
     });
-    renderPage(<ProfileSetup />);
+    const view = renderPage(<ProfileSetup />);
     await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
     await user.click(screen.getByRole('button', { name: /^unlock$/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
+    return view;
   }
 
-  it('starts the Lift right before navigate: 240 ms, 8 px up and a fade', async () => {
+  it('starts the Lift when the page leaves, with navigate unchanged: 240 ms, 8 px up and a fade', async () => {
     const user = userEvent.setup({ delay: null });
     const lifts = fakeAnimate();
-    await unlock(user);
-
-    expect(lifts).toHaveLength(1);
+    const view = await unlock(user);
+    // Navigate ran at once and the page is still there: the Lift waits for the page to leave.
+    expect(lifts).toHaveLength(0);
+    view.unmount();
+    await waitFor(() => expect(lifts).toHaveLength(1));
     const { keyframes, options } = lifts[0];
     expect(options.duration).toBe(240);
     const last = keyframes[keyframes.length - 1];
     expect(last.opacity).toBe('0');
     expect(last.transform).toBe('translateY(-8px)');
-    // Navigate is not delayed and runs once; the Lift was started by then.
+    // Navigate is not delayed and runs once.
     expect(mockNavigate).toHaveBeenCalledTimes(1);
   });
 
@@ -302,9 +309,9 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
     setReducedMotion(true);
     const user = userEvent.setup({ delay: null });
     const lifts = fakeAnimate();
-    await unlock(user);
-
-    expect(lifts).toHaveLength(1);
+    const view = await unlock(user);
+    view.unmount();
+    await waitFor(() => expect(lifts).toHaveLength(1));
     const { keyframes, options } = lifts[0];
     expect(options.duration).toBe(150);
     for (const frame of keyframes) expect(frame).not.toHaveProperty('transform');
@@ -314,7 +321,9 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
   it('the ghost is inert, has no form control, and no attribute or value in the document holds the password', async () => {
     const user = userEvent.setup({ delay: null });
     const lifts = fakeAnimate();
-    await unlock(user);
+    const view = await unlock(user);
+    view.unmount();
+    await waitFor(() => expect(lifts).toHaveLength(1));
 
     const ghost = document.querySelector('[data-lift-ghost]') as HTMLElement | null;
     expect(ghost, 'the ghost is in the document while the Lift runs').not.toBeNull();
