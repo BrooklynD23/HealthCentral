@@ -2,18 +2,21 @@
 """Check that the progress dashboard artifact matches the build-program queue.
 
 Usage:
-    python3 scripts/queue_drift.py <artifact.html> <ref> [--no-prs] [--json out.json]
+    python3 scripts/queue_drift.py <artifact.html> <ref> <queue-path> [--no-prs] [--json out.json]
 
 <artifact.html> is a saved copy of the dashboard page (L0 saves it with
 `Artifact read`). Its `const DATA=` line holds the rows the page shows. <ref>
 is a git ref (for example origin/main); the queue is read with
-`git show <ref>:docs/plans/2026-10-15-build-program/queue.md`.
+`git show <ref>:<queue-path>`. The queue path is a required argument with no
+default: scripts/change_scope.py treats a docs file as non-skippable when a
+tracked script names it, so naming the queue file here would stop every
+queue-only PR from taking the docs-only CI path. The RUNBOOK gives the path.
 
 Network: the only call is `gh pr list --state open` (to find rows with an open
 PR). `--no-prs` skips it. Nothing is fetched or written otherwise, except the
 optional `--json` output file. This is a dev tool, not product code.
 
-Exit codes: 0 no drift; 1 drift (a row missing from the artifact, a row only in
+Exit codes: 0 no drift; 2 bad usage; 1 drift (a row missing from the artifact, a row only in
 the artifact, or a changed bucket). Duplicate queue ids are reported but are
 not drift.
 
@@ -45,7 +48,6 @@ import subprocess
 import sys
 from collections import Counter
 
-QUEUE = "docs/plans/2026-10-15-build-program/queue.md"
 SEPARATOR = re.compile(r"^\|[\s:|-]+\|?$")
 DONE = re.compile(r"^(~~)?\*{0,2}(done|closed|superseded)\b", re.I)
 
@@ -145,8 +147,8 @@ def compare(queue_rows: list[dict], data: list[dict]) -> tuple[list, list, list]
     return missing, extra, changed
 
 
-def read_queue(ref: str) -> str:
-    return subprocess.check_output(["git", "show", f"{ref}:{QUEUE}"], text=True)
+def read_queue(ref: str, path: str) -> str:
+    return subprocess.check_output(["git", "show", f"{ref}:{path}"], text=True)
 
 
 def open_pr_list() -> list[dict]:
@@ -159,8 +161,11 @@ def open_pr_list() -> list[dict]:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    html, ref = argv[0], argv[1]
-    rows = parse(read_queue(ref))
+    if len(argv) < 3 or argv[2].startswith("--"):
+        print("usage: queue_drift.py <artifact.html> <ref> <queue-path> [--no-prs] [--json out.json]", file=sys.stderr)
+        return 2
+    html, ref, queue_path = argv[0], argv[1], argv[2]
+    rows = parse(read_queue(ref, queue_path))
     prs = [] if "--no-prs" in argv else open_pr_list()
     open_prs = match_open_prs({r["i"] for r in rows}, prs)
     for r in rows:

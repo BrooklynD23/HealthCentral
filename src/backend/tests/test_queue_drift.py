@@ -1,4 +1,4 @@
-"""scripts/queue_drift.py: dashboard-versus-queue.md drift check (dev tool).
+"""scripts/queue_drift.py: dashboard-versus-queue drift check (dev tool).
 
 HC-QDR-001  table parsing: the status column is found by header, per table
 HC-QDR-002  a table with no status column is skipped
@@ -11,6 +11,7 @@ HC-QDR-008  ready bucket
 HC-QDR-009  anything else falls back to blocked
 HC-QDR-010  compare reports missing, extra and bucket changes
 HC-QDR-011  main exits 0 with no drift and 1 with drift
+HC-QDR-012  the queue path is required: no path is a usage error (2)
 """
 
 from __future__ import annotations
@@ -133,10 +134,16 @@ def _run_main(tmp_path, monkeypatch, capsys, artifact_rows, extra_args=()):
     queue = "## W\n\n| ID | Status |\n|---|---|\n| A | ready |\n| B | done |\n"
     html = tmp_path / "dash.html"
     html.write_text("<script>\nconst DATA=" + json.dumps({"rows": artifact_rows}) + ";\n</script>\n")
-    monkeypatch.setattr(qd, "read_queue", lambda ref: queue)
+    monkeypatch.setattr(qd, "read_queue", lambda ref, path: queue)
     monkeypatch.setattr(qd, "open_pr_list", lambda: (_ for _ in ()).throw(AssertionError("gh called")))
-    code = qd.main([str(html), "origin/main", "--no-prs", *extra_args])
+    code = qd.main([str(html), "origin/main", "q.md", "--no-prs", *extra_args])
     return code, capsys.readouterr().out
+
+
+def test_hc_qdr_012_missing_queue_path_is_usage_error(capsys):
+    assert qd.main(["dash.html", "origin/main"]) == 2
+    assert qd.main(["dash.html", "origin/main", "--no-prs"]) == 2
+    assert "usage" in capsys.readouterr().err
 
 
 def test_hc_qdr_011_main_exit_codes(tmp_path, monkeypatch, capsys):
