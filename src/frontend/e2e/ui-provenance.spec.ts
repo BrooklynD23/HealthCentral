@@ -714,6 +714,53 @@ test('HC-STW-005 Show source on /interpret opens the Source Trace sheet with the
 });
 
 // ---------------------------------------------------------------------------
+// HC-STW-009 (SOURCE-TRACE-WIRE, review round 1 finding 2): on /interpret, with the matching line
+// on screen, "It matches, mark as checked" sends exactly one POST to the observation's verify
+// route, no interpretation route is written, and the card's interpreted text stays the same.
+// Functional, not timing.
+// ---------------------------------------------------------------------------
+test('HC-STW-009 verify on /interpret sends one verify POST and leaves the interpreted text alone', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  // Registered after mockApi, so it answers the verify POST first; mockApi is not edited.
+  await page.route(new RegExp(`/api/v1/observations/${OBSERVATION_ID}/verify$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...observation, user_verified: true }),
+    })
+  );
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'GET' && request.url().includes('/api/v1/')) {
+      writes.push(`${request.method()} ${new URL(request.url()).pathname.replace(/^.*\/api\/v1/, '')}`);
+    }
+  });
+  await seedSession(page);
+  await page.goto('/interpret');
+
+  const cardText = page.getByText(interpretation.interpretation_text).first();
+  await expect(cardText).toBeVisible();
+  const textBefore = await cardText.textContent();
+  expect(textBefore).toContain(interpretation.interpretation_text);
+
+  await page.getByRole('button', { name: 'Show source' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  // Opening the sheet wrote nothing.
+  expect(writes).toEqual([]);
+
+  const markChecked = sheet.getByRole('button', { name: 'It matches, mark as checked' });
+  await expect(markChecked).toBeEnabled();
+  await markChecked.click();
+  await expect(sheet).toContainText('You have marked this value as checked.');
+
+  expect(writes).toEqual([`POST /observations/${OBSERVATION_ID}/verify`]);
+  expect(writes.filter((write) => write.includes('/interpretations'))).toEqual([]);
+  expect(await cardText.textContent()).toBe(textBefore);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
 // Gate G on /interpret, /inbox and /verify.
 // G1 axe light and dark, G5 reduced motion and G6 viewport fit are judged on this row's
 // own nodes only (GATE_ROUTES[].own). The page-wide results are recorded, never asserted,
