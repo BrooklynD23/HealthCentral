@@ -4,8 +4,9 @@ POST /observations/{id}/verify used to recompute flag/is_abnormal from
 value vs ref_low/ref_high on every call. A report's own flag ("CRITICAL",
 or "H" with no printed range) was erased by a Verify click that changed
 nothing. The flag is recalculated only when this request changes value,
-ref_low or ref_high. Every case goes through HTTP and asserts the STORED
-columns, not only the response.
+ref_low or ref_high, or when the row has no extractor-vocabulary flag
+(none, or free text such as "N" / "Normal"; see 008). Every case goes
+through HTTP and asserts the STORED columns, not only the response.
 """
 
 import uuid
@@ -123,6 +124,16 @@ async def test_hc_vkf_004_resending_same_numbers_keeps_flag(profile_db):
     assert b.flag == "H"
     assert b.is_abnormal is True
 
+    # Case c: a non-number edit (unit, value_text, notes, collected_at) is not
+    # a change to value/ref_low/ref_high, so the printed flag stays.
+    for body in ({"unit": "mg/dL"}, {"value_text": "<0.5"}, {"notes": "n"},
+                 {"collected_at": "2026-03-02T08:00:00"}):
+        c_id = await _seed_obs(profile_db, flag="CRITICAL", is_abnormal=True,
+                               value=14.0, ref_low=12.0, ref_high=16.0)
+        c = await _verify_and_load(profile_db, c_id, body)
+        assert c.flag == "CRITICAL", body
+        assert c.is_abnormal is True, body
+
 
 @pytest.mark.asyncio
 async def test_hc_vkf_005_edited_value_out_of_range_is_flagged(profile_db):
@@ -194,3 +205,30 @@ async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(
     ok = await _verify_and_load(profile_db, ok_id, {})
     assert ok.is_abnormal is False
     assert ok.flag is None
+
+    # A row with no value is left alone (the value-is-None guard).
+    nv_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                            value=None, ref_low=12.0, ref_high=16.0)
+    nv = await _verify_and_load(profile_db, nv_id, {})
+    assert nv.is_abnormal is False
+    assert nv.flag is None
+
+    # Structured import stores free text as the flag and sets is_abnormal from
+    # "flag is not None". A normal-word flag is not an abnormal marker: it is
+    # recalculated from the range as before, never kept as abnormal.
+    for word, value, want_flag, want_abn in (
+        ("N", 14.0, None, False),
+        ("Normal", 14.0, None, False),
+        ("Normal", 18.0, "H", True),
+    ):
+        w_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                               value=value, ref_low=12.0, ref_high=16.0)
+        w = await _verify_and_load(profile_db, w_id, {})
+        assert (w.flag, w.is_abnormal) == (want_flag, want_abn), (word, value)
+
+    # A word in the extractor vocabulary is kept, whatever its case or padding.
+    hw_id = await _seed_obs(profile_db, flag=" High ", is_abnormal=True,
+                            value=14.0, ref_low=12.0, ref_high=16.0)
+    hw = await _verify_and_load(profile_db, hw_id, {})
+    assert hw.flag == " High "
+    assert hw.is_abnormal is True
