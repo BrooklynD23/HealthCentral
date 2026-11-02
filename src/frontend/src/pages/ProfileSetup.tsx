@@ -10,21 +10,18 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { m } from 'framer-motion';
 import {
   Heart,
   Lock,
   Shield,
   Database,
   ArrowRight,
-  Check,
   AlertCircle,
   Eye,
   EyeOff,
 } from 'lucide-react';
 import { Button, Card, CardContent, Input } from '@/components/ui';
-import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { ShowcaseReveal } from '@/components/ui/ShowcaseReveal';
 import { useCreateProfile, useLogin, useProfiles } from '@/services';
 import { ApiError } from '@/services/api';
 import { takeRestoreNotice } from '@/services/backup';
@@ -79,9 +76,7 @@ function validatePassword(password: string): {
 export function ProfileSetup() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const prefersReducedMotion = useReducedMotion();
   const [isCreating, setIsCreating] = useState(false);
-  const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   // SEC-RECOV-001: shown once, between creation and entering the app.
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
@@ -178,14 +173,8 @@ export function ProfileSetup() {
     }
 
     setIsCreating(true);
-    setStep(0);
 
     try {
-      // Step 1: Creating vault
-      await new Promise((r) => setTimeout(r, 500));
-      setStep(1);
-
-      // Step 2: Setting up encryption - actual API call
       const created = await createProfile.mutateAsync({
         display_name: displayName.trim() || 'My Health Profile',
         password,
@@ -197,9 +186,6 @@ export function ProfileSetup() {
       // Same rule as unlock: nothing cached under a previous session may be
       // shown to the new profile.
       queryClient.clear();
-
-      setStep(2);
-      await new Promise((r) => setTimeout(r, 500));
 
       // Show the one-time recovery code before entering the app. This is the
       // only time it exists in plaintext anywhere.
@@ -217,26 +203,12 @@ export function ProfileSetup() {
           : raw || 'Failed to create profile'
       );
       setIsCreating(false);
-      setStep(0);
     }
   };
 
   // Password strength indicator
   const passwordValidation = validatePassword(password);
   const showPasswordHints = password.length > 0 && !passwordValidation.isValid;
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: prefersReducedMotion ? 0 : 0.1 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
-  };
 
   if (recoveryCode) {
     return (
@@ -253,32 +225,22 @@ export function ProfileSetup() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-accent/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl" />
-      </div>
-
-      <m.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="w-full max-w-lg relative z-10"
-      >
+    <div className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16">
+      <div className="mx-auto w-full max-w-lg">
         {restoreNotice && (
-          <m.div variants={itemVariants} className="mb-6">
+          <div className="mb-6">
             <div
               role="status"
-              className="rounded-lg border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
+              className="rounded-xl border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
             >
               {restoreNotice}
             </div>
-          </m.div>
+          </div>
         )}
 
-        <m.div variants={itemVariants} className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-accent to-accent/80 shadow-card mb-6">
-            <Heart className="w-8 h-8 text-white" strokeWidth={2} />
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent text-[var(--on-accent)] mb-5">
+            <Heart className="w-7 h-7" strokeWidth={2} aria-hidden="true" />
           </div>
           <h1 className="font-display text-3xl font-semibold text-ink tracking-tight mb-3">
             Welcome to Asclexis
@@ -288,38 +250,30 @@ export function ProfileSetup() {
             <br />
             Private, offline-first, and always grounded.
           </p>
-        </m.div>
+        </div>
 
-        <m.div variants={itemVariants}>
-          <Card className="mb-6">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                {features.map((feature, index) => (
-                  <m.div
-                    key={feature.title}
-                    initial={prefersReducedMotion ? {} : { opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 + index * 0.1 }}
-                    className="flex items-start gap-4"
-                  >
-                    <div className="shrink-0 w-10 h-10 rounded-xl bg-accent-subtle flex items-center justify-center">
-                      <feature.icon className="w-5 h-5 text-accent" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-ink">{feature.title}</h3>
-                      <p className="text-sm text-ink-secondary">
-                        {feature.description}
-                      </p>
-                    </div>
-                  </m.div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </m.div>
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {features.map((feature) => (
+                <div key={feature.title} className="flex items-start gap-4">
+                  <div className="shrink-0 w-10 h-10 rounded-xl bg-accent-subtle flex items-center justify-center">
+                    <feature.icon className="w-5 h-5 text-accent" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-ink">{feature.title}</h3>
+                    <p className="text-sm text-ink-secondary">
+                      {feature.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {hasProfiles && !isCreating && (
-          <m.div variants={itemVariants} className="mb-6">
+          <div className="mb-6">
             <Card>
               <CardContent className="p-6 space-y-4">
                 <h2 className="font-display text-xl font-semibold text-ink">
@@ -376,11 +330,11 @@ export function ProfileSetup() {
                 </form>
               </CardContent>
             </Card>
-          </m.div>
+          </div>
         )}
 
-        <m.div variants={itemVariants}>
-          {profilesPending ? null : !isCreating ? (
+        {profilesPending ? null : (
+          <>
             <Card>
               <CardContent className="p-6 space-y-4">
                 {hasProfiles && !showCreate ? (
@@ -394,38 +348,101 @@ export function ProfileSetup() {
                   </Button>
                 ) : (
                   <>
-                    <Input
-                      label="Profile Name"
-                      placeholder="My Health Profile"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      error={formErrors.displayName}
-                      autoComplete="name"
-                    />
+                    <h2 className="font-display text-xl font-semibold text-ink">
+                      Set up your profile
+                    </h2>
 
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        label="Password"
-                        placeholder="Create a secure password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        error={formErrors.password}
-                        autoComplete="new-password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-[38px] text-ink-tertiary hover:text-ink transition-colors"
-                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
+                    {/* S1 (UI-AUTH-SCREENS): the label-and-input groups rise in. Errors and hints are NOT in
+                        here: a moving ancestor would move an error that has just appeared (HC-UIAUTH-005). */}
+                    <ShowcaseReveal id="setup-create">
+                      <div className="pb-4">
+                        <Input
+                          id="profile-name"
+                          label="Profile Name"
+                          placeholder="My Health Profile"
+                          value={displayName}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setDisplayName(value);
+                            // A fixed field stops showing its old error. Submit stays authoritative: nothing
+                            // is added here.
+                            if (value.trim()) {
+                              setFormErrors((prev) =>
+                                prev.displayName ? { ...prev, displayName: undefined } : prev
+                              );
+                            }
+                          }}
+                          autoComplete="name"
+                          aria-invalid={formErrors.displayName ? true : undefined}
+                          aria-describedby={
+                            formErrors.displayName ? 'profile-name-error' : undefined
+                          }
+                          className="aria-[invalid=true]:border-status-critical"
+                        />
+                      </div>
+
+                      <div className="relative pb-4">
+                        <Input
+                          id="profile-password"
+                          type={showPassword ? 'text' : 'password'}
+                          label="Password"
+                          placeholder="Create a secure password"
+                          value={password}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setPassword(value);
+                            if (validatePassword(value).isValid) {
+                              setFormErrors((prev) =>
+                                prev.password ? { ...prev, password: undefined } : prev
+                              );
+                            }
+                          }}
+                          autoComplete="new-password"
+                          aria-invalid={formErrors.password ? true : undefined}
+                          aria-describedby={
+                            formErrors.password ? 'profile-password-error' : undefined
+                          }
+                          className="aria-[invalid=true]:border-status-critical"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2 top-[32px] flex h-8 w-8 items-center justify-center rounded-lg text-ink-secondary hover:text-ink transition-colors"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="w-5 h-5" />
+                          ) : (
+                            <Eye className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                    </ShowcaseReveal>
+
+                    {(formErrors.displayName || formErrors.password) && (
+                      <div className="space-y-1.5">
+                        {formErrors.displayName && (
+                          <p
+                            id="profile-name-error"
+                            role="alert"
+                            data-t0=""
+                            className="text-sm text-status-critical"
+                          >
+                            {formErrors.displayName}
+                          </p>
                         )}
-                      </button>
-                    </div>
+                        {formErrors.password && (
+                          <p
+                            id="profile-password-error"
+                            role="alert"
+                            data-t0=""
+                            className="text-sm text-status-critical"
+                          >
+                            {formErrors.password}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {showPasswordHints && (
                       <div className="text-sm text-ink-secondary space-y-1">
@@ -445,9 +462,16 @@ export function ProfileSetup() {
                       size="lg"
                       className="w-full group"
                       disabled={createProfile.isPending}
+                      loading={isCreating}
                     >
-                      Create Your Profile
-                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                      {isCreating ? (
+                        'Creating your profile…'
+                      ) : (
+                        <>
+                          Create Your Profile
+                          <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                        </>
+                      )}
                     </Button>
                   </>
                 )}
@@ -456,76 +480,31 @@ export function ProfileSetup() {
                     whose password has been forgotten. */}
                 <p className="text-center text-sm text-ink-secondary">
                   Already have a profile and forgot the password?{' '}
-                  <Link to="/recover" className="underline">
+                  <Link to="/recover" className="text-ink underline underline-offset-4">
                     Use your recovery code
                   </Link>
                 </p>
               </CardContent>
             </Card>
-          ) : (
-            <Card>
-              <CardContent className="p-6">
-                <div className="space-y-3">
-                  {[
-                    'Creating secure vault...',
-                    'Setting up encryption...',
-                    'Profile ready!',
-                  ].map((label, index) => (
-                    <div
-                      key={label}
-                      className={cn(
-                        'flex items-center gap-3 text-sm transition-opacity duration-300',
-                        step >= index ? 'opacity-100' : 'opacity-40'
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          'w-5 h-5 rounded-full flex items-center justify-center transition-colors',
-                          step > index
-                            ? 'bg-status-verified text-white'
-                            : step === index
-                            ? 'bg-accent text-white animate-pulse'
-                            : 'bg-surface-muted'
-                        )}
-                      >
-                        {step > index && <Check className="w-3 h-3" />}
-                      </div>
-                      <span
-                        className={cn(
-                          step >= index ? 'text-ink' : 'text-ink-tertiary'
-                        )}
-                      >
-                        {label}
-                      </span>
-                    </div>
-                  ))}
+
+            {error && (
+              <div className="mt-4 p-4 bg-status-critical/10 border border-status-critical/20 rounded-xl flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-status-critical">
+                    Failed to create profile
+                  </p>
+                  <p className="text-sm text-ink-secondary mt-1">{error}</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {error && (
-            <div className="mt-4 p-4 bg-status-critical/10 border border-status-critical/20 rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-status-critical">
-                  Failed to create profile
-                </p>
-                <p className="text-sm text-ink-secondary mt-1">{error}</p>
               </div>
-            </div>
-          )}
-        </m.div>
+            )}
 
-        <m.p
-          variants={itemVariants}
-          className="text-center text-xs text-ink-tertiary mt-6"
-        >
-          By creating a profile, you agree to our Terms of Service.
-          <br />
-          Your data is stored locally and never uploaded.
-        </m.p>
-      </m.div>
+            <p className="text-center text-xs text-ink-tertiary mt-6">
+              Your data is stored locally and never uploaded.
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

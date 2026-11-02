@@ -41,7 +41,7 @@ test.describe('Authentication Flow', () => {
     await page.getByRole('button', { name: /create your profile/i }).click();
 
     // Should show progress steps
-    await expect(page.getByText('Creating secure vault...')).toBeVisible();
+    await expect(page.getByText('Creating your profile…')).toBeVisible();
 
     // SEC-RECOV-001: the one-time recovery code is shown before the app is
     // entered, and cannot be skipped — losing it plus the password means the

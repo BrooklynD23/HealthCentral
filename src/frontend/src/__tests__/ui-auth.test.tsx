@@ -180,7 +180,7 @@ describe('HC-UIAUTH-002: no progress that is not tied to the real request', () =
     await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
     await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
 
-    // Every setTimeout the flow makes, with the stack that made it.
+    // Every setTimeout the flow makes, with the frame that called it (React Query's own timers are not ours).
     const realSetTimeout = globalThis.setTimeout;
     const calls: { delay: unknown; stack: string }[] = [];
     const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
@@ -188,7 +188,13 @@ describe('HC-UIAUTH-002: no progress that is not tied to the real request', () =
       delay?: number,
       ...rest: unknown[]
     ) => {
-      calls.push({ delay, stack: new Error().stack ?? '' });
+      // The first frame that is not the spy machinery is whoever called setTimeout.
+      const caller =
+        (new Error().stack ?? '')
+          .split('\n')
+          .slice(1)
+          .find((line) => !/tinyspy|@vitest|ui-auth\.test/.test(line)) ?? '';
+      calls.push({ delay, stack: caller });
       return realSetTimeout(fn as () => void, delay, ...rest);
     }) as typeof setTimeout);
 
