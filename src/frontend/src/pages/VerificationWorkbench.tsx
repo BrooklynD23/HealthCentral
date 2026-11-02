@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { m } from 'framer-motion';
 import {
   CheckCircle,
   AlertTriangle,
@@ -13,7 +14,10 @@ import {
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { StatusChip } from '@/components/ui/StatusChip';
+import { notify } from '@/components/ui/toast';
 import { cn } from '@/utils/cn';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { duration, ease } from '@/motion/tokens';
 import { useObservations, useVerifyObservation } from '@/services/observations';
 import {
   useDocuments,
@@ -64,6 +68,82 @@ function rangeStateOf(observation: Observation): 'above-range' | 'below-range' |
   if (high !== null && value > high) return 'above-range';
   if (low !== null && value < low) return 'below-range';
   return low !== null || high !== null ? 'in-range' : null;
+}
+
+// Mutable copy of the readonly token: framer's Easing type does not accept readonly tuples.
+const EASE_OUT: [number, number, number, number] = [...ease.out];
+const INK_SHUT = 'circle(0% at 50% 50%)';
+const INK_OPEN = 'circle(75% at 50% 50%)';
+
+/**
+ * The Ink moment (plan section 4.1): the row marker goes from a dashed graphite ring (pencil) to a filled
+ * mark (ink) when the user verifies a value. The ink layer is revealed with a clip-path circle, 360 ms
+ * ease-out; nothing else moves. It is decoration (T3): aria-hidden and no data-t0, because the chip beside it
+ * says the same thing in words. Reduced motion swaps instantly.
+ */
+function InkMarker({ verified }: { verified: boolean }) {
+  const reduced = useReducedMotion();
+  return (
+    <span
+      data-ink-marker=""
+      data-state={verified ? 'ink' : 'pencil'}
+      data-motion={reduced ? 'instant' : 'ink'}
+      aria-hidden="true"
+      className="relative inline-block h-4 w-4 shrink-0"
+    >
+      <svg viewBox="0 0 16 16" className="absolute inset-0 h-4 w-4" fill="none">
+        <circle
+          cx="8"
+          cy="8"
+          r="6.5"
+          strokeWidth="1.5"
+          strokeDasharray="3 2.5"
+          style={{ stroke: 'var(--pencil)' }}
+        />
+      </svg>
+      <m.span
+        className="absolute inset-0"
+        initial={false}
+        animate={{ clipPath: verified ? INK_OPEN : INK_SHUT }}
+        transition={reduced ? { duration: 0 } : { duration: duration.ink, ease: EASE_OUT }}
+      >
+        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
+          <circle cx="8" cy="8" r="7" style={{ fill: 'var(--ink-1)' }} />
+          <path
+            d="M4.75 8.25l2.25 2.25 4.25-4.5"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ stroke: 'var(--surface-1)' }}
+          />
+        </svg>
+      </m.span>
+    </span>
+  );
+}
+
+/** "Apr 10, 2026" from the stored date, read as a calendar date so no time zone moves it. Null if there is none. */
+function formatCollectedDate(raw: string | null): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw ?? '');
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** The Ink confirmation. It names a value and a date (T0), so it is still. No Undo: the API cannot unverify. */
+function announceChecked(observation: Observation) {
+  const date = formatCollectedDate(observation.collected_at);
+  notify({
+    message: `${observation.analyte_raw}${date ? `, ${date}` : ''} is now marked as checked`,
+    still: true,
+  });
 }
 
 function documentAttentionHint(doc: Document): string {
@@ -149,6 +229,7 @@ export function VerificationWorkbench() {
       observationId: observation.id,
       data: {},
     });
+    announceChecked(observation);
   };
 
   const handleMarkAllVerifiedClick = async () => {
@@ -209,6 +290,7 @@ export function VerificationWorkbench() {
             ? { value: parsedEdit.value }
             : { value_text: parsedEdit.text },
       });
+      announceChecked(editingObservation);
       closeEdit();
     } catch (err) {
       setSaveError(
@@ -651,15 +733,10 @@ export function VerificationWorkbench() {
                       >
                         <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
                           <div className="flex flex-wrap items-center gap-2">
+                            <InkMarker verified={observation.user_verified} />
                             <span className="font-medium text-ink">
                               {observation.analyte_raw}
                             </span>
-                            {observation.user_verified && (
-                              <Badge variant="verified" className="text-xs gap-1">
-                                <CheckCircle className="w-3 h-3" />
-                                Verified
-                              </Badge>
-                            )}
                           </div>
                         </td>
                         <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
@@ -691,7 +768,14 @@ export function VerificationWorkbench() {
                           </span>
                         </td>
                         <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
-                          <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
+                          <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start">
+                            {/* Keyed by state: the old chip leaves and a new one arrives, so no T0 node changes its own text. */}
+                            <StatusChip
+                              key={observation.user_verified ? 'checked-by-you' : 'not-checked'}
+                              state={observation.user_verified ? 'checked-by-you' : 'not-checked'}
+                            />
+                            <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
+                          </div>
                         </td>
                         <td className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
                           <div className="flex items-center gap-1 sm:justify-end">
@@ -706,10 +790,14 @@ export function VerificationWorkbench() {
                             >
                               <Edit3 className="w-4 h-4" />
                             </Button>
-                            {!observation.user_verified && (
+                            {/* Verify keeps its width (and leaves an equal gap once checked), so the columns never reflow under a value. */}
+                            {observation.user_verified ? (
+                              <span aria-hidden="true" className="inline-block w-18 shrink-0" />
+                            ) : (
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="w-18 shrink-0"
                                 aria-label="Verify observation"
                                 onClick={(e) => {
                                   e.stopPropagation();
