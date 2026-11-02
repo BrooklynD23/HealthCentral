@@ -1,10 +1,16 @@
-"""Report-only FK orphan audit (SQL-FK-001). Never deletes, never opens a live vault.
+"""FK orphan audit (SQL-FK-001). Reads a COPY of a vault; never opens the live one.
 
   python scripts/fk_orphan_audit.py --master
   python scripts/fk_orphan_audit.py --profile <id> --source <data dir containing vaults/<id>> [--password PW]
 
 --source is a COPY SOURCE: it is copied to a tempdir and the copy is audited.
 Exit 0 clean, 1 on any enforced orphan, 2 on refused/invalid usage.
+
+Opening the copy runs the profile migrations, and migration 017 DELETES enforced
+orphans (children only; P16/P17 are nulled) before this tool can look. So on a
+vault older than 017 the orphans are gone by the time find_orphans runs. They are
+reported under "cleaned by 017 on the copy" (counts per check) and count as
+orphans for the exit code. The live vault is never touched; only the copy is.
 """
 import argparse
 import asyncio
@@ -39,6 +45,18 @@ def _report(findings, checks) -> int:
     return 1 if bad else 0
 
 
+def _report_cleaned(counts: dict[str, int]) -> int:
+    """Print what 017 removed from the copy; 1 if anything, else 0. Counts only."""
+    cleaned = {k: n for k, n in sorted(counts.items()) if n > 0}
+    if not cleaned:
+        return 0
+    print("cleaned by 017 on the copy (these were orphans in the source vault):")
+    for check_id, n in cleaned.items():
+        print(f"{check_id}: {n}")
+    print()
+    return 1
+
+
 def _master() -> int:
     from core.config import settings
     from core.fk_audit import MASTER_CHECKS, find_orphans_dbapi
@@ -62,8 +80,9 @@ async def _profile(profile_id: str, password: str) -> int:
     checks = PROFILE_CHECKS + LOGICAL_CHECKS
     try:
         connection = await manager.open_profile_database(profile_id, password)
+        cleaned = _report_cleaned(connection.fk_cleanup_counts)
         async with connection.get_session() as session:
-            return _report(await find_orphans(session, checks), checks)
+            return _report(await find_orphans(session, checks), checks) or cleaned
     finally:
         await manager.close_all()
 

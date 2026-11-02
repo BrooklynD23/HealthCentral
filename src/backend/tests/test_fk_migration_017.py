@@ -14,6 +14,7 @@ ran 004/010/011.
 from __future__ import annotations
 
 import ast
+import contextlib
 import logging
 import logging.config
 import sys
@@ -571,34 +572,15 @@ def test_hc_fkc_007_frozen_list_matches_fk_audit(vault016):
 _PASSWORD = "Fkc-Audit-Pass-9!"
 
 
-async def _unlock_with_planted_vault(tmp_path, monkeypatch, check_ids, *, path, payload_for):
-    """Real master DB + real sealed vault at 016 holding ``check_ids`` orphans.
+def _plant_sealed_vault(data_dir: Path, pid: str, check_ids) -> bytes:
+    """Sealed vault ``data_dir/vaults/<pid>`` at 016 holding ``check_ids`` orphans.
 
-    Drives ``path`` over HTTP with a real master session and returns
-    (master AuditLog rows for the cleanup event, the HTTP responses).
+    Returns the vault key. The pragma is OFF while seeding, as in every real vault.
     """
-    import json
-    from datetime import datetime
-
-    from sqlalchemy import select
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    import models  # noqa: F401  registers every master model
-    from api.profiles import router as profiles_router
-    from core.database import Base
-    from core.profile_database import get_profile_db_manager
-    from core.security import generate_encryption_key, hash_password, seal_key_with_dpapi
-    from models.audit import AuditLog
-    from models.profile import Profile
-    from tests.support.db import fk_profile_engine
-    from tests.support.routes import route_client
-
-    monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: tmp_path))
-    monkeypatch.setattr(settings, "database_encryption_required", False)
-    pid = str(uuid.uuid4())
+    from core.security import generate_encryption_key, seal_key_with_dpapi
 
     key = generate_encryption_key()
-    vault_dir = tmp_path / "vaults" / pid
+    vault_dir = data_dir / "vaults" / pid
     vault_dir.mkdir(parents=True)
     sealed, method = seal_key_with_dpapi(key, fallback_password=_PASSWORD, force_password=True)
     (vault_dir / "key.bin").write_bytes(sealed)
@@ -607,6 +589,37 @@ async def _unlock_with_planted_vault(tmp_path, monkeypatch, check_ids, *, path, 
     command.upgrade(_alembic_cfg(vault, key), REV_016)
     if check_ids:
         _seed(vault, check_ids, key)
+    return key
+
+
+@contextlib.asynccontextmanager
+async def _planted_vault_client(tmp_path, monkeypatch, check_ids):
+    """Real master DB + real sealed vault at 016 holding ``check_ids`` orphans.
+
+    Yields a namespace with an HTTP ``client`` on the profiles router (real
+    master session), the profile ``pid``, the vault ``key`` and ``rows()``, the
+    master cleanup audit rows read back.
+    """
+    from types import SimpleNamespace
+
+    from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    import models  # noqa: F401  registers every master model
+    from api.profiles import router as profiles_router
+    from core.database import Base
+    from core.profile_database import get_profile_db_manager
+    from core.security import hash_password
+    from core.time import utcnow
+    from models.audit import AuditLog
+    from models.profile import Profile
+    from tests.support.db import fk_profile_engine
+    from tests.support.routes import route_client
+
+    monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: tmp_path))
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    pid = str(uuid.uuid4())
+    key = _plant_sealed_vault(tmp_path, pid, check_ids)
 
     engine = fk_profile_engine()
     async with engine.begin() as conn:
@@ -615,25 +628,43 @@ async def _unlock_with_planted_vault(tmp_path, monkeypatch, check_ids, *, path, 
     master.add(Profile(
         id=pid, display_name="Fkc Nine", encryption_key_id="k1",
         password_hash=hash_password(_PASSWORD), password_salt="s",
-        is_locked=True, created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+        is_locked=True, created_at=utcnow(), updated_at=utcnow(),
     ))
     await master.commit()
 
-    manager = get_profile_db_manager()
-    try:
-        responses = []
-        with route_client(profiles_router, "/profiles", master_db=master) as client:
-            for _ in range(2):  # the second call reuses the cached connection
-                responses.append(client.post(path.format(pid=pid), json=payload_for(pid)))
-        rows = (await master.execute(
+    async def rows():
+        return (await master.execute(
             select(AuditLog).where(AuditLog.event_type == "profile.fk_orphan_cleanup")
         )).scalars().all()
-        details = [json.loads(r.details_json) if r.details_json else None for r in rows]
-        return rows, details, responses
+
+    manager = get_profile_db_manager()
+    try:
+        with route_client(
+            profiles_router, "/profiles", master_db=master, raise_server_exceptions=False
+        ) as client:
+            yield SimpleNamespace(client=client, pid=pid, key=key, rows=rows)
     finally:
         await manager.close_profile_database(pid)
         await master.close()
         await engine.dispose()
+
+
+def _details(rows) -> list:
+    import json
+
+    return [json.loads(r.details_json) if r.details_json else None for r in rows]
+
+
+async def _unlock_with_planted_vault(tmp_path, monkeypatch, check_ids, *, path, payload_for):
+    """Drive ``path`` twice over HTTP (the second call reuses the cached
+    connection); return (cleanup audit rows, their details, the responses)."""
+    async with _planted_vault_client(tmp_path, monkeypatch, check_ids) as ctx:
+        responses = [
+            ctx.client.post(path.format(pid=ctx.pid), json=payload_for(ctx.pid))
+            for _ in range(2)
+        ]
+        rows = await ctx.rows()
+        return rows, _details(rows), responses, ctx.pid
 
 
 @pytest.mark.asyncio
@@ -650,7 +681,7 @@ async def test_hc_fkc_009_cleanup_writes_one_counts_only_audit_row(
 ):
     from core.audit import _scrub_details
 
-    rows, details, responses = await _unlock_with_planted_vault(
+    rows, details, responses, pid = await _unlock_with_planted_vault(
         tmp_path, monkeypatch, ["P2", "P3", "P16"], path=path, payload_for=payload_for
     )
 
@@ -660,6 +691,10 @@ async def test_hc_fkc_009_cleanup_writes_one_counts_only_audit_row(
     assert len(rows) == 1
     row = rows[0]
     assert row.action == "profile.fk_orphan_cleanup"
+    # attached to the profile that was migrated: a row under None would outlive
+    # that profile's delete purge, a row under another id would be misfiled
+    assert row.profile_id == row.entity_id == pid
+    assert row.entity_type == "profile"
     assert details[0] == {"resource_counts": {"P2": 1, "P3": 1, "P16": 1}, "count": 3}
     assert _scrub_details(details[0]) == details[0], "scrubbing changed the details"
     blob = " ".join(str(getattr(row, c.name)) for c in row.__table__.columns)
@@ -669,9 +704,136 @@ async def test_hc_fkc_009_cleanup_writes_one_counts_only_audit_row(
 
 @pytest.mark.asyncio
 async def test_hc_fkc_009b_clean_vault_writes_no_cleanup_row(tmp_path, monkeypatch):
-    rows, _details, responses = await _unlock_with_planted_vault(
+    rows, _d, responses, _pid = await _unlock_with_planted_vault(
         tmp_path, monkeypatch, [], path="/profiles/{pid}/unlock",
         payload_for=lambda pid: {"password": _PASSWORD},
     )
     assert [r.status_code for r in responses] == [200, 200]
     assert rows == []
+
+
+# The create site (api/profiles.py create_profile) is not driven here: a vault
+# created a moment earlier has no orphans, so the cleanup counts are always
+# empty there and the call is unreachable in practice. login, unlock and
+# recovery open old vaults and are driven.
+
+
+@pytest.mark.asyncio
+async def test_hc_fkc_009c_recovery_site_writes_the_cleanup_row(tmp_path, monkeypatch):
+    """/profiles/{pid}/recover opens the vault too; dropping its audit call must
+    fail a test."""
+    import api.profiles as profiles_api
+
+    async with _planted_vault_client(tmp_path, monkeypatch, ["P2", "P16"]) as ctx:
+        code = profiles_api._issue_recovery_code(ctx.pid, ctx.key)
+        resp = ctx.client.post(
+            f"/profiles/{ctx.pid}/recover",
+            json={"recovery_code": code, "new_password": "Brand-New-Pass-7!"},
+        )
+        rows = await ctx.rows()
+
+    assert resp.status_code == 200, resp.text
+    assert len(rows) == 1
+    assert _details(rows) == [{"resource_counts": {"P2": 1, "P16": 1}, "count": 2}]
+    assert rows[0].profile_id == rows[0].entity_id == ctx.pid
+    assert rows[0].entity_type == "profile"
+
+
+@pytest.mark.asyncio
+async def test_hc_fkc_009d_failed_audit_write_is_retried_on_next_login(tmp_path, monkeypatch):
+    """The cleanup already deleted rows. If the audit write fails, the counts
+    must stay on the cached connection so the next login still records it."""
+    import api.profiles as profiles_api
+
+    real = profiles_api.create_audit_log
+    calls = {"cleanup": 0}
+
+    async def _flaky(*args, **kwargs):
+        if kwargs.get("event_type") == "profile.fk_orphan_cleanup":
+            calls["cleanup"] += 1
+            if calls["cleanup"] == 1:
+                raise RuntimeError("master audit write failed")
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(profiles_api, "create_audit_log", _flaky)
+
+    async with _planted_vault_client(tmp_path, monkeypatch, ["P3"]) as ctx:
+        login = {"profile_id": ctx.pid, "password": _PASSWORD}
+        first = ctx.client.post("/profiles/login", json=login)
+        after_failure = await ctx.rows()
+        second = ctx.client.post("/profiles/login", json=login)
+        after_retry = await ctx.rows()
+        third = ctx.client.post("/profiles/login", json=login)
+        after_third = await ctx.rows()
+
+    assert first.status_code == 500
+    assert after_failure == []
+    assert second.status_code == 200, second.text
+    assert len(after_retry) == 1
+    assert _details(after_retry) == [{"resource_counts": {"P3": 1}, "count": 1}]
+    assert third.status_code == 200
+    assert len(after_third) == 1, "written once, not on every later login"
+
+
+# --------------------------------------------------------------------------
+# scripts/fk_orphan_audit.py: opening the copy runs 017, which cleans it
+# --------------------------------------------------------------------------
+
+
+def _run_audit_script(monkeypatch, capsys, data_dir: Path, pid: str):
+    import importlib.util
+
+    script = Path(__file__).parent.parent / "scripts" / "fk_orphan_audit.py"
+    spec = importlib.util.spec_from_file_location("fk_orphan_audit_under_test", script)
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    # main() patches these two fields on the shared settings object; restore them
+    monkeypatch.setattr(settings, "app_mode", settings.app_mode)
+    monkeypatch.setattr(settings, "sqlite_database_path", settings.sqlite_database_path)
+    monkeypatch.setattr(
+        sys, "argv",
+        ["fk_orphan_audit.py", "--profile", pid, "--source", str(data_dir), "--password", _PASSWORD],
+    )
+    rc = audit.main()
+    return rc, capsys.readouterr().out
+
+
+def test_hc_fkc_010_audit_script_reports_orphans_017_cleaned_on_the_copy(
+    tmp_path, monkeypatch, capsys
+):
+    """On a pre-017 vault the tool must not print '0 orphans' and exit 0 just
+    because opening the copy ran the cleanup first."""
+    data_dir = tmp_path / "data"
+    pid = str(uuid.uuid4())
+    key = _plant_sealed_vault(data_dir, pid, ["P2", "P3", "P16"])
+    before = _snapshot_of(data_dir, pid, key)
+
+    rc, out = _run_audit_script(monkeypatch, capsys, data_dir, pid)
+
+    assert rc == 1, out
+    assert "cleaned by 017 on the copy" in out
+    for check_id in ("P2", "P3", "P16"):
+        assert f"{check_id}: 1" in out, out
+    assert "O-P2" not in out and "O-P16" not in out, "counts only, no row ids"
+    assert _snapshot_of(data_dir, pid, key) == before, "the source vault must stay untouched"
+
+
+def test_hc_fkc_010b_audit_script_clean_vault_exits_zero(tmp_path, monkeypatch, capsys):
+    data_dir = tmp_path / "data"
+    pid = str(uuid.uuid4())
+    _plant_sealed_vault(data_dir, pid, [])
+
+    rc, out = _run_audit_script(monkeypatch, capsys, data_dir, pid)
+
+    assert rc == 0, out
+    assert "cleaned by 017" not in out
+
+
+def _snapshot_of(data_dir: Path, pid: str, key: bytes):
+    conn = _connect(data_dir / "vaults" / pid / "vault.db", key)
+    try:
+        return _snapshot(conn)
+    finally:
+        conn.close()

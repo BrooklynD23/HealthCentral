@@ -110,6 +110,7 @@ async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection
         connection.fk_cleanup_counts = counts  # not written: keep it for the next login
         raise
 
+
 _SYNTHETIC_E2E_PROFILE_PREFIX = "Playwright E2E"
 
 

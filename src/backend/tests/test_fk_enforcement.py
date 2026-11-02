@@ -280,7 +280,7 @@ async def test_hc_fk_012_profile_delete_still_erases_with_master_pragma_on(tmp_p
     tombstone with ``profile_id=None``) must not be reordered or broken by FK
     enforcement. Master schema via ``Base.metadata`` on a pragma-ON engine; the
     other profile's rows must survive."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -288,13 +288,13 @@ async def test_hc_fk_012_profile_delete_still_erases_with_master_pragma_on(tmp_p
     from sqlalchemy.ext.asyncio import AsyncSession
 
     import api.profiles as profiles_api
-    from api.profiles import PROFILE_DELETE_CONFIRMATION, ProfileDeleteRequest
-    from core.auth import Session
+    from api.profiles import PROFILE_DELETE_CONFIRMATION
     from core.database import Base
     from models.audit import AuditLog
     from models.backup_schedule import BackupSchedule
     from models.profile import Profile
     from tests.support.db import fk_profile_engine
+    from tests.support.routes import route_client
 
     monkeypatch.setattr(type(profiles_api.settings), "app_data_path", property(lambda self: tmp_path))
     engine = fk_profile_engine()
@@ -315,23 +315,20 @@ async def test_hc_fk_012_profile_delete_still_erases_with_master_pragma_on(tmp_p
             (tmp_path / "vaults" / pid).mkdir(parents=True)
         await db.commit()
 
+        # over HTTP so Depends(require_profile_access(), get_db) really runs
         with patch.object(profiles_api, "authenticate_profile", AsyncMock(return_value=SimpleNamespace(id="profile-a"))), \
              patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()), \
-             patch.object(profiles_api, "revoke_jwt_token", MagicMock()):
-            await profiles_api.delete_profile(
-                profile_id="profile-a",
-                payload=ProfileDeleteRequest(
-                    password="CorrectHorse1",
-                    confirmation_phrase=PROFILE_DELETE_CONFIRMATION,
-                    export_acknowledged=True,
-                ),
-                request=SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"), headers={}),
-                session=Session(
-                    profile_id="profile-a", profile_name="A",
-                    expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc), token_jti="jti",
-                ),
-                db=db,
+             patch.object(profiles_api, "revoke_jwt_token", MagicMock()), \
+             route_client(profiles_api.router, "/profiles", profile_id="profile-a", master_db=db) as client:
+            resp = client.request(
+                "DELETE", "/profiles/profile-a",
+                json={
+                    "password": "CorrectHorse1",
+                    "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+                    "export_acknowledged": True,
+                },
             )
+        assert resp.status_code == 204, resp.text
 
         audit = (await db.execute(select(AuditLog))).scalars().all()
         assert [a.profile_id for a in audit if a.event_type == "profile.delete"] == [None], "one tombstone"
@@ -490,7 +487,11 @@ def _vault_with_care_task(tmp_path, monkeypatch, *, upgrade: bool, orphans: bool
     return vault
 
 
-async def _delete_document_over_http(vault: Path, tmp_path, monkeypatch, doc_id: str):
+async def _delete_document_over_http(
+    vault: Path, tmp_path, monkeypatch, doc_id: str, raised: list | None = None
+):
+    """DELETE /documents/{id}. With ``raised`` given, server exceptions propagate
+    out of the app; the one that did is appended to it and the response is None."""
     from unittest.mock import AsyncMock, MagicMock
 
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -510,13 +511,19 @@ async def _delete_document_over_http(vault: Path, tmp_path, monkeypatch, doc_id:
     try:
         with route_client(
             documents_router, "/documents", profile_id="profile-a",
-            master_db=master, raise_server_exceptions=False,
+            master_db=master, raise_server_exceptions=raised is not None,
         ) as client:
             async def _db():
                 return session
 
             client.app.dependency_overrides[get_profile_db_session] = _db
-            resp = client.delete(f"/documents/{doc_id}")
+            resp = None
+            try:
+                resp = client.delete(f"/documents/{doc_id}")
+            except Exception as exc:  # only reachable with ``raised``
+                if raised is None:
+                    raise
+                raised.append(exc)
         await session.close()
         async with engine.connect() as conn:
             state = {
@@ -550,10 +557,18 @@ async def test_hc_fkc_008b_same_delete_on_a_016_vault_is_a_500(tmp_path, monkeyp
     runs before the care-task update while ``care_plan_task.source_entity_id`` is
     still NO ACTION, so the delete fails. This is the failure 017 exists to prevent."""
     vault = _vault_with_care_task(tmp_path, monkeypatch, upgrade=False)
+    raised: list = []
 
-    resp, state = await _delete_document_over_http(vault, tmp_path, monkeypatch, DOC_ID)
+    resp, state = await _delete_document_over_http(
+        vault, tmp_path, monkeypatch, DOC_ID, raised=raised
+    )
 
-    assert resp.status_code == 500
+    # the cause, not just "some 500": a broken fixture would also give a 500
+    assert resp is None and len(raised) == 1
+    # SQLAlchemy's IntegrityError, or the driver's own (sqlcipher3 / sqlite3) when
+    # it surfaces unwrapped; either way the constraint is the cause
+    assert type(raised[0]).__name__ == "IntegrityError", repr(raised[0])
+    assert "FOREIGN KEY constraint failed" in str(raised[0])
     assert state["documents"] == 1, "the failed delete must roll back"
 
 
