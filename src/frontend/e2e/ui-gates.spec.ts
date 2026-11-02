@@ -1,5 +1,5 @@
 /**
- * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008).
+ * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008, HC-UIG-009).
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
  * fail, or passes on the page it is given. HC-UIG-002 (/inbox colour contrast)
@@ -20,6 +20,7 @@ import {
   ROUTE_CONTAINER_SELECTOR,
   ROUTE_FALLBACK_SELECTOR,
   STILLNESS_NAV_MAX_GAP_MS,
+  STILLNESS_OVERLAY_MAX_GAP_MS,
   axeGate,
   checkSampling,
   consoleAndNetworkGuard,
@@ -708,4 +709,56 @@ test('HC-UIG-008 sampling check bounds a page change at 70 ms, keeps 40 ms elsew
     /only 12 sample\(s\) after the trigger; the 800 ms window needs at least 20 at one per 40 ms/
   );
   expect(sparseNav.failures.join('\n'), 'a 70 ms gap is within the page-change bound').not.toMatch(/sampling gap/);
+});
+
+test('HC-UIG-009 sampling check bounds an overlay open at 70 ms with its own text, keeps 40 ms elsewhere, and keeps the 40 ms minimum', () => {
+  const cadence = (from: number, to: number, step: number): number[] => {
+    const times: number[] = [];
+    for (let t = from; t <= to; t += step) times.push(t);
+    return times;
+  };
+  // A 20 ms cadence with one gap of `gap` ms from the trigger at 0 ms (as in HC-UIG-008).
+  const withGap = (gap: number): number[] => [...cadence(-100, 0, 20), gap, ...cadence(gap + 20, 800, 20)];
+
+  // (a) a 55 ms gap passes as an overlay open.
+  const overlay55 = checkSampling(withGap(55), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (a) overlay 55 ms: ${JSON.stringify(overlay55)}`);
+  expect(overlay55.failures, 'a 55 ms overlay-open gap must pass the 70 ms bound').toEqual([]);
+  expect(overlay55.maxGapMs, 'the 55 ms gap must be measured').toBe(55);
+
+  // (b) the same gap fails as an interaction.
+  const interaction55 = checkSampling(withGap(55), 0, 800, null);
+  console.log(`HC-UIG-009 (b) interaction 55 ms: ${JSON.stringify(interaction55)}`);
+  expect(interaction55.failures.join('\n'), 'an interaction keeps the 40 ms bound: 55 ms must fail').toMatch(
+    /sampling gap of 55 ms \(must be <= 40 ms; G10/
+  );
+
+  // (c) a 75 ms gap fails as an overlay, with the overlay text and not the page-change text.
+  const overlay75 = checkSampling(withGap(75), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (c) overlay 75 ms: ${JSON.stringify(overlay75)}`);
+  expect(overlay75.failures.join('\n'), 'a 75 ms overlay-open gap must fail and name the overlay bound').toContain(
+    'sampling gap of 75 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)'
+  );
+  expect(overlay75.failures.join('\n'), 'an overlay miss must not print the page-change text').not.toMatch(
+    /page change|STILLNESS-NAV-70/
+  );
+
+  // (d) the boundary: 70 ms passes, 71 ms fails.
+  const overlay70 = checkSampling(withGap(70), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (d) overlay 70 ms: ${JSON.stringify(overlay70)}`);
+  expect(overlay70.failures, 'a 70 ms overlay-open gap must pass').toEqual([]);
+  expect(overlay70.maxGapMs, 'the 70 ms gap must be measured').toBe(70);
+  const overlay71 = checkSampling(withGap(71), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (d) overlay 71 ms: ${JSON.stringify(overlay71)}`);
+  expect(overlay71.failures.join('\n'), 'a 71 ms overlay-open gap must fail with the overlay text').toContain(
+    'sampling gap of 71 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)'
+  );
+
+  // (e) 70 ms samples over 800 ms give 12 post-trigger samples; the minimum (800 / 40 = 20) still applies.
+  const sparseOverlay = checkSampling(cadence(-70, 800, 70), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (e) overlay sparse: ${JSON.stringify(sparseOverlay)}`);
+  expect(sparseOverlay.failures.join('\n'), 'too few samples must still fail on the 40 ms minimum').toContain(
+    'only 12 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms'
+  );
+  expect(sparseOverlay.failures.join('\n'), 'a 70 ms gap is within the overlay bound').not.toMatch(/sampling gap/);
 });
