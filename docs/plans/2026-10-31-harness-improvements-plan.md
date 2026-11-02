@@ -134,6 +134,8 @@ Queue rows: [queue.md, "Planned 2026-10-31, harness improvements"](2026-10-15-bu
 
 **Files:** `.claude/workflows/rsi-loop.js` (`MINE_SCHEMA` metrics `:142-149`; Mine prompt `:222`; new `versionedMetrics`; `summary` `:361`), `docs/agentic/rsi-runs/README.md` (Runs table column, `:36-42`).
 
+**Built as (2026-11-02, #458):** the wiring at `rsi-loop.js:547` replaced the planned `summary`-line edit, so all four exits carry validated values.
+
 **depends_on:** RSI-MINE-OUTCOMES merged (needs `outcomes`); RSI-ARCHIVE-LINEAGE merged (file order). **Never beside:** rows C, D, F, G; any other `rsi-loop.js` PR. **Owner gates:** RSI-HARNESS-GO (row H); owner merges (RSI-4). **Stops:** any code path that disables, deletes or reorders a rule.
 
 ---

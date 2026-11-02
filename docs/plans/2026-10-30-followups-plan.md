@@ -1,6 +1,6 @@
 # Follow-ups 2026-10-30 — plans for SOURCE-TRACE-WIRE, SHELL-NAVREF-DEAD and UIG002-TITLE; NAV70-CI-MISS, FOREIGN-CHROMIUM-ON-BOX and GH-READY-REFUSED
 
-**Last Updated:** 2026-10-30 (Opus planner on `144b5d48`: six follow-up bullets from the 2026-10-29 handoff (PR #412, `docs/plans/2026-10-29-session-handoff.md`) §3 item 6 classified; three code rows planned, one folded into STILLNESS-NAV-LATE with an owner question drafted, two harness notes written into the RUNBOOK and recurring-failures in the same PR)
+**Last Updated:** 2026-11-02 (planner on `ea737db2`: VERIFY-KEEPS-FLAG section added, from L0's ruling on #452, comment 6583913126); 2026-10-30 (Opus planner on `144b5d48`: six follow-up bullets from the 2026-10-29 handoff (PR #412, `docs/plans/2026-10-29-session-handoff.md`) §3 item 6 classified; three code rows planned, one folded into STILLNESS-NAV-LATE with an owner question drafted, two harness notes written into the RUNBOOK and recurring-failures in the same PR)
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. **No owner approval is recorded here.** Every gate keeps its state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md). No row below needs a new owner gate. The two drafted owner questions at the end are not asked; L0 has each one reviewed before AskUserQuestion.
 **Base measured:** `origin/main` @ `144b5d48` (2026-10-29, #411 merged). Every `file:line` below was re-read by the planner on that commit. Product code was read only. CI evidence was read with `gh run view` and the job logs (`gh api repos/{owner}/{repo}/actions/jobs/<id>/logs`) on 2026-10-30.
@@ -147,6 +147,54 @@ Queue rows: [queue.md, "Planned 2026-10-30, planner"](2026-10-15-build-program/q
 **Facts.** RUNBOOK §6 (`RUNBOOK.md:160`) and table row 7 (`:40`) tell the item runtime to run `gh pr ready <n>`, and `.claude/workflows/build-item.js:360` tells the verify agent the same. The repo's `.claude/settings.json` has no `permissions` block (only `hooks`), so the refusal comes from the session's permission classifier, not from a repo rule. The refusals are recorded in the build-item session logs and the handoff, not in PR comments: no comment on #396, #397 or #402 mentions them. Ready-marking is the last step after the slot is released, so a refusal stops nothing but the ready flag.
 
 **Change (in this PR).** RUNBOOK §6, after `:160`: if the permission system refuses `gh pr ready`, do not retry it and do not reach the same state another way (`gh api`, GraphQL `markPullRequestReadyForReview`). Finish the PR body, say "ready: L0" in the final report, and L0 runs `gh pr ready`. `build-item.js` is not edited (no workflow-script edits in this PR). L0 already follows this practice.
+
+---
+
+## VERIFY-KEEPS-FLAG — a plain Verify keeps the lab's flag
+
+**Source:** L0 ruling of 2026-11-02 on #452 (comment 6583913126), from review round 3 finding 1. Kind: **PRODUCT (backend; medical-record integrity)**. MVP **P1**. Planned 2026-11-02 on `ea737db2`.
+
+**Facts (re-read on `ea737db2`).**
+- `be/api/observations.py:385` `verify_observation`. The edit block (`:420-446`) writes only the fields the request sent. Then `:466-476` runs for every request: `value < ref_low` gives `L`, `value > ref_high` gives `H`, else `is_abnormal=False` and `flag=None`.
+- So a plain POST with `{}` on a value the report flagged (`CRITICAL`, `H` with no numeric range, `H` while the number sits inside the printed range) erases the lab's flag from the stored record. This is on main today.
+- The extractor stores the report's flag as printed: `api/documents.py:659-660` and `:766-767` set `flag=<extracted flag>` and `is_abnormal = flag is not None`.
+- `ObservationVerify` (`:146-154`) has `value`, `value_text`, `unit`, `ref_low`, `ref_high` (all `Optional`, `None` means "not sent"), `collected_at`, `notes`.
+
+**Fix.** In `verify_observation`, recalculate `is_abnormal` and `flag` only when this request actually changed `value`, `ref_low` or `ref_high`: compare the stored value to the new one (an edit dialog that re-sends unchanged values does not count). A plain Verify leaves both exactly as stored. When one of the three did change, today's recalculation (`:466-476`) runs unchanged. Nothing else in the route changes; audit logging is unchanged. The `changes` dict already holds old and new for the three fields (it is filled even for equal values, so the planner's check is on `old != new`, not on key presence).
+
+**Tasks (test-first).**
+0. **Task 0.** Re-read `:420-476` on the start commit, run the Sweep and the planner checklist below, and stop for L0 if the sweep finds another path.
+1. **RED, new `be/tests/test_verify_keeps_flag.py`, HC-VKF-001…007, through HTTP** with `tests/support/routes.py::route_client` (CLAUDE.md section 4), reusing the profile-DB override pattern of `tests/test_utc_sweep_http.py:73-79` (`_get`, `_seed_obs`, `profile_db`). Seed rows by flag and range, POST `/observations/<id>/verify`, then `expire_all()` and read the stored row (assert on the stored columns, not only the response):
+   - HC-VKF-001: `flag="CRITICAL"`, `is_abnormal=True`, value inside `ref_low`/`ref_high`, body `{}`: both kept. **RED on main** (flag becomes `None`).
+   - HC-VKF-002: `flag="H"`, no `ref_low`/`ref_high`, body `{}`: both kept. **RED on main.**
+   - HC-VKF-003: `flag="H"`, value inside the printed range, body `{}`: both kept. **RED on main.**
+   - HC-VKF-004: `flag="H"` with value above `ref_high`, body re-sends the same `value`, `ref_low` and `ref_high`: both kept; and a second case with a flag that today's rule would clear (as 003). **RED on main** for the case that clears.
+   - HC-VKF-005: value edited out of range (above `ref_high`, then below `ref_low`): `is_abnormal=True`, `flag` `H` / `L`. **Pinned: green on main.**
+   - HC-VKF-006: a flagged row whose value is edited back into range: `is_abnormal=False`, `flag=None`. **Pinned: green on main.**
+   - HC-VKF-007: `ref_high` edited so the unchanged value is now above it: recalculated to `H`. **Pinned: green on main.**
+2. **GREEN.** The changed-value check around `:466-476`, nothing else. Run HC-VKF-001…007, then the neighbours below.
+3. **Deliberate-break checks (paste both).** Remove the changed-value check (always recalculate): HC-VKF-001…004 must go RED. Replace the recalculation by never running it: HC-VKF-005…007 must go RED. Restore.
+4. **Sweep.** See below.
+5. **Measure, report only (do not fix).** POST `{"value_text": "<0.5"}` on a numeric row, and `{"value": <n>, "value_text": "<0.5"}`. #452 finding 14 says the API stores `value_text` and keeps the old `value`, so the old number reads as checked. Paste the stored `value`, `value_text`, `flag`, `is_abnormal` for each. Add no fix. If the plan pattern allows, record it as an `xfail(strict=True)` named HC-VKF-008 with the reason; otherwise a report line only. L0 rules on the result.
+6. **Checks.** Collected backend count reported with the delta (baseline: the current `CLAUDE.md` line, 2606 on `ea737db2`; this row adds 7, or 8 with the xfail), the new file's output, and the neighbours' output, pasted.
+
+**Planner checklist (RUNBOOK §10.1), done 2026-11-02 on `ea737db2`.**
+- `git grep -nE "/verify\"|/verify'|verify_observation\b|ObservationVerify" -- tests api` (in `src/backend`) finds three tests that call the observations verify route: `tests/security/test_sql_echo_phi.py:211` (posts `{"value": 7.77, "notes": ...}`; asserts log text only, no flag), `tests/test_utc_sweep_http.py:96` (posts `collected_at` only; the seeded `L` row stays `L` because 9.0 < 12.0; asserts `collected_at`) and `tests/test_audit_order_guard.py:107` (parity/guard test: lists `api/observations.py::verify_observation` under class `C` and checks the route's audit order from its source). **None needs to change**, and none may be edited by this row. The guard must stay green: the fix adds no call and no new route, so the audit order does not move.
+- `git grep -nE "is_abnormal|flag" -- tests` finds only fixtures and extractor tests (`test_extraction_pipeline.py`, `test_verified_only_consumers.py`, `test_observations_audit.py`, and others that seed `flag=`), none of which posts to the verify route and reads the recalculated flag. **None must change.**
+- Frontend: `src/frontend/src/__tests__/VerificationWorkbench.test.tsx:217` and `VerificationWorkbenchEdit.test.tsx:72` mock `/observations/obs-1/verify` and carry `flag`/`is_abnormal` only as fixture fields; they do not assert recalculation. `e2e/tailwind4-styles.spec.ts:83` posts `{}` to the live route to mark rows verified and asserts styles, not flags. `e2e/ui-provenance.spec.ts:53-54` and `e2e/support/mockApi.ts:93-150` only seed `flag`/`is_abnormal`. **None must change.** The `UI-PG-REVIEW` mocks (#452) are written to the new behaviour in that row.
+- New test file: `be/tests/test_verify_keeps_flag.py`, prefix **HC-VKF**. `git grep -n "HC-VKF"` over the repo is empty on `ea737db2`, so the prefix is unused.
+
+**Sweep (L0 ran it on `origin/main` @ `ea737db2`).** `git grep -nE '\.(flag|is_abnormal) *= ' origin/main -- 'src/backend/api/*.py' 'src/backend/modules/*.py' 'src/backend/core/*.py'` hits only `api/observations.py:469-476`. **Planner re-check (same commit)** of constructor writes: `flag=`/`is_abnormal=` keyword arguments appear in `api/documents.py:659-660` and `:766-767` (the extractor's own values, at insert), `api/medications.py:547-548`, `api/observations.py:136-137` and `:616-617` (response models copying the stored values), and in `modules/` extractors, import and analytics code that build objects from the report. A search for `update(Observation` / `UPDATE observations` / `SET ... flag` in `api`, `modules`, `core` and `migrations` finds nothing. **Builder task:** re-run all three on the start commit (the attribute grep, the constructor grep, a raw SQL grep for the two columns, including `text(` and `.values(`/`.update(`). Report any other path that can drop or rewrite a report's flag. **Do not fix it; stop for L0.**
+
+**Out of scope.** Flags already erased in existing vaults are **not** recoverable by this row. Re-extraction of the document is the only route, and L0 will raise it with the owner. No migration, no backfill, no change to the response model, the frontend or `docs/`.
+
+**Merge order.** This row merges **before UI-PG-REVIEW (#452)** (L0 order: VERIFY-KEEPS-FLAG, then #460 SOURCE-TRACE-WIRE, then #452 resumes). The `UI-PG-REVIEW` mocks then match the new behaviour.
+
+**Ask-first and review.** `api/observations.py` is not on the CLAUDE.md ask-first list (`modules/interpret_safety.py`, `redaction.py`, `faithfulness.py`, `verifier_agent.py`, auth, encryption), so there is no gate. It is a medical-record integrity fix, so the review uses the security lens (a flag silently dropped is a safety signal lost). The fix is the conservative one: it removes a recalculation, adds no rule, and weakens no check.
+
+**Acceptance:** HC-VKF-001…004 RED on main and green after; 005…007 green on both; both deliberate breaks RED (pasted); `test_utc_sweep_http.py`, `test_sql_echo_phi.py` and `test_audit_order_guard.py` green; sweep and `<0.5` measurement reported. Est 1 h.
+
+**Files:** `be/api/observations.py` (`:466-476` block only), `be/tests/test_verify_keeps_flag.py` (new, HC-VKF-001…007). **depends_on:** —. **Never beside:** another PR that edits `api/observations.py` (none open on 2026-11-02: `gh pr diff <n> --name-only` on #460, #456, #454, #453, #452, #401, #399, #316, #264, #239 lists none).
 
 ---
 
