@@ -1,6 +1,6 @@
 # Lane C: Schema and Data Lifecycle (Build Program 2026-10-15)
 
-**Last Updated:** 2026-10-15
+**Last Updated:** 2026-11-02 (C-P6 Delta 2026-11-01 amended: owner P6-CLEANUP-SETNULL "Keep task, null links" and P6-CLEANUP-AUDIT "Yes, write audit row"; P16/P17 are SET NULL repairs, HC-FKC-009 in scope, licensed files widened by the named audit edits); 2026-11-01 (C-P6 [Delta 2026-11-01](#delta-2026-11-01-p6-cleanup-the-fk-migration-cleans-orphans): owner P6-ORPHAN-SYNTH and P6-CLEANUP; FK migration renumbered `017_fk_cascade_alignment`; §2.1 and §3.0 `file:line` re-measured on `094b81c9`); 2026-10-15
 **Owner:** repository owner
 **Status:** DESIGN. Nothing here is approved for execution. Every owner gate in the Owner gates section is **unasked** unless a signed row is quoted. No approval is recorded here.
 **Base measured:** `origin/main` @ `3b2236c` (2026-10-15, worktree `hc-wave6-design`). Every `file:line` below was read at that base unless marked otherwise. Collected-count slot: `CLAUDE.md:30` says **1574 backend tests collected** (the orchestrator note said 1501; the slot wins; pytest was not run).
@@ -13,7 +13,7 @@ Lane C owns the profile schema chain, FK enforcement, the test-reset tuple, expo
 | ID | Item | Kind | Source | Readiness | Depends on | Owner gates |
 |----|------|------|--------|-----------|------------|-------------|
 | C-PMIG | Profile-migration numbering contract | DOCS | this doc §3.0; wearables A11 / OW-W13 | ready | none | OW-W13 (order confirm, optional) |
-| C-P6 | FK enforcement: orphan audit, migration `013`, pragma on both engines | PRODUCT | [plan 06](../../../audit/2026-09-25/plans/06-sql-fk-audit.md), [SQL-FK-001 audit](../2026-09-08-sql-fk-001-foreign-key-audit.md), [P6 pack](../../../audit/2026-09-25/waves/scaffold/P6.md) | blocked-on-owner (Task 1 code is ready) | none on main (P1, S-1, P5 merged) | D5 signed; P6-Q1, P6-Q3, P6-Q4, P6-Q5, P6-ORPHAN unasked |
+| C-P6 | FK enforcement: orphan audit, migration `017` (was `013`; see [Delta 2026-11-01](#delta-2026-11-01-p6-cleanup-the-fk-migration-cleans-orphans)), pragma on both engines | PRODUCT | [plan 06](../../../audit/2026-09-25/plans/06-sql-fk-audit.md), [SQL-FK-001 audit](../2026-09-08-sql-fk-001-foreign-key-audit.md), [P6 pack](../../../audit/2026-09-25/waves/scaffold/P6.md) | ready for Tasks 2-5 (Task 1 merged, #113); merge-only gate P6-CLEANUP-DIFF | none on main (P1, S-1, P5 merged) | D5 signed; P6-Q1, P6-Q3, P6-Q4, P6-Q5 signed 2026-10-16; P6-ORPHAN answered by P6-ORPHAN-SYNTH and P6-CLEANUP (2026-11-01) |
 | C-P7 | Test-reset covers every profile table | PRODUCT | [plan 07](../../../audit/2026-09-25/plans/07-test-reset-tables.md), [P7 pack](../../../audit/2026-09-25/waves/scaffold/P7.md) | blocked-on-item | C-P6 | P7-ROUTE signed; RESET-AUDIT-OWNER signed; N-02 unasked |
 | C-GAM2B | Gamification v2 task 2b: `streaks_hidden` + settings pair + migration | PRODUCT | [GAMIFICATION-V2 §2b](../../../audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md), GAM2-PLAN-APPROVAL | ready (GAM2B-PATH answered, `owner-decisions:208`; #84 merged) | #84; C-PMIG | GAM2-PLAN-APPROVAL signed; GAM2B-PATH answered (accept recommended: `/settings/model/gamification`) |
 | C-GC1 | Export artifacts survive restart | PRODUCT | [W11b G-C1](../2026-09-27-W11b-roadmap-items-gc1-gc4.md) Tasks C1.0-C1.5, [G-C1 pack](../../../audit/2026-09-25/waves/scaffold/G-C1.md) | blocked-on-owner | W-2, C-P6, C-P7 | S-C1-1, S-C1-2 unasked |
@@ -43,15 +43,15 @@ Ordering on shared files:
 | DDI (#41): `Observation.interpretation` has `cascade="all, delete"` with a comment saying the DB ondelete is inert (`models/observation.py:107-116`) | P6 makes that comment false. Add `models/observation.py` (comment only; keep the ORM cascade). P6-Q4. |
 | SQLITE-MIX: profile engine now built with `async_creator` (`core/profile_database.py:314`); key listener `set_sqlite_pragma` at `:331-373` | The FK listener goes after `:373`, before `session_maker` (`:376`). The `connect` event still fires for `async_creator` connections (SQLITE-MIX secrev check 1). |
 | AUDIT-ORDER (#78): `delete_document` and `reprocess_document` are A2 routes | No conflict; FK actions change the DB, not the audit order. |
-| CARE-QUOTE fix on main: `update(CarePlanTask)` in `delete_document` (`api/documents.py:1877`) | Plan 06 "branch1 `45ac889`" caveat is closed. |
-| Head literals | Four, not two: `tests/test_care_tasks.py:809,825`, `tests/test_profile_migrations_sqlcipher_fallback.py:41`, `tests/test_source_spans.py:313`. `tests/test_pinboards.py:270` checks the 012 file text, not the head; leave it. |
+| CARE-QUOTE fix on main: `update(CarePlanTask)` in `delete_document` (`api/documents.py:1895`; `:1877` at `3b2236c`) | Plan 06 "branch1 `45ac889`" caveat is closed. |
+| Head literals | Four, not two: `tests/test_care_tasks.py:808,824`, `tests/test_profile_migrations_sqlcipher_fallback.py:41`, `tests/test_source_spans.py:312` (each now `"016_strict_safety_mode"`, re-measured on `094b81c9`). `tests/test_pinboards.py:272-274` checks the 012 file text, not the head; leave it. |
 
-**Corrected `file:line` (main @ `3b2236c`):**
+**Corrected `file:line` (main @ `3b2236c`; re-measured on `094b81c9` 2026-11-01, drifted lines updated, old line in brackets):**
 
 - master engine `core/database.py:44-48` (`hide_parameters=True` at `:47`).
-- core deletes that bypass ORM cascade: `api/documents.py:630` (`delete(Observation)`), `:869` (`delete(Chunk)`), `:1202-1203` and `:1862-1863` (entity/category), `:90` (pin prune, child side).
-- "pragma set nowhere" comments: `api/profiles.py:939-942`, `tests/test_profile_deletion.py:413`.
-- restore's delete-then-insert of the profile row stays on raw stdlib `sqlite3`: `scripts/backup.py:578-583`. Still required: never route it through a hooked engine.
+- core deletes that bypass ORM cascade: `api/documents.py:640` [`:630`] (`delete(Observation)`), `:905` [`:869`] (`delete(Chunk)`), `:1213-1214` [`:1202-1203`] and `:1880-1881` [`:1862-1863`] (entity/category), `:90` (pin prune, child side).
+- "pragma set nowhere" comments: `api/profiles.py:942-945` [`:939-942`], `tests/test_profile_deletion.py:411-414` [`:413`] (HC-PDEL-017 docstring).
+- restore's delete-then-insert of the profile row stays on raw stdlib `sqlite3`: `scripts/backup.py:618-623` [`:578-583`] (`_reapply_profile_row`; C-BKUP already added the "PRAGMA foreign_keys stays OFF here" comment at `:580`). Still required: never route it through a hooked engine.
 - unnamed FKs to rebuild: `migrations/profile/versions/004_document_categories_entities.py:25,36`, `011_care_plan_tasks.py:32-33`; `document_entity` columns from `004` plus `010_entity_source_spans.py`.
 
 **Still valid as written:** Global Constraints, Tasks 1-5, D5 semantics (P14/P15 CASCADE, P16/P17 SET NULL), migration engines stay pragma-OFF, Task 3 Step 5 superseded by P7.
@@ -60,7 +60,7 @@ Ordering on shared files:
 
 1. **Task 1 script uses the public open path.** Do not call `manager._load_encryption_key` and a raw sqlcipher connect. Copy the owner-chosen backup to a scratch dir, point `settings.app_data_path` at it, call `get_profile_db_manager().open_profile_database(profile_id, password)` and run `find_orphans` on `connection.get_session()`. No new key handling; it runs migrations on the **copy** only. Never point the script at the live vault.
 2. **Add HC-FKA-004 (coverage):** every `ForeignKey` in `ProfileDatabaseBase.metadata` and `Base.metadata` has a row in `PROFILE_CHECKS` / `MASTER_CHECKS`. A later migration that adds an FK without a check row goes red.
-3. **Carry the head literal as one constant** (C-PMIG carrier): create `src/backend/tests/support/migrations.py` with `PROFILE_HEAD = "013_fk_cascade_alignment"` and replace the four literals with it. The value stays hard-coded, so no assertion is weakened; later migrations edit one line.
+3. **Carry the head literal as one constant** (C-PMIG carrier): create `src/backend/tests/support/migrations.py` with `PROFILE_HEAD = "017_fk_cascade_alignment"` (was `013`; Delta 2026-11-01) and replace the four literals with it. The value stays hard-coded, so no assertion is weakened; later migrations edit one line.
 4. **Do not edit `scripts/backup.py`** (plan 06 Task 3 Step 6 comment). C-BKUP owns that file; it adds the "pragma stays OFF here" comment.
 5. **Update the DDI comment** at `models/observation.py:111-113` to say the DB cascade is now enforced too (P6-Q4 option a).
 6. **REPROCESS-INTERP-ORPHAN:** add one `route_client` test that reprocesses a document with a `LabInterpretation` and asserts 0 orphan rows after (P6-Q5 option a). PANEL-INTERP-STALE is not an FK and stays open.
@@ -71,13 +71,71 @@ Ordering on shared files:
 
 ```bash
 cd /mnt/c/Users/DangT/Documents/GitHub/<p6-worktree>/src/backend
-~/venvs/asclexis-311/bin/python -m pytest tests/test_fk_audit.py tests/test_fk_migration_013.py tests/test_fk_enforcement.py -p no:cacheprovider -q
+~/venvs/asclexis-311/bin/python -m pytest tests/test_fk_audit.py tests/test_fk_migration_017.py tests/test_fk_enforcement.py -p no:cacheprovider -q
 ~/venvs/asclexis-311/bin/python scripts/fk_orphan_audit.py --master          # exit 0, M1/M2: 0 orphans
 grep -rn "PRAGMA foreign_keys=ON" core/ | wc -l                                # >= 1
 # full suite under the box's pytest flock; failures ⊆ P6-start failures; collected = start + new
 ```
 
-**Rollback:** revert; `alembic downgrade` to the previous head on any vault that ran `013`; restore a real vault from its pre-phase backup.
+**Rollback:** revert; `alembic downgrade` to the previous head (`016_strict_safety_mode`) on any vault that ran `017`; restore a real vault from its pre-phase backup. The downgrade does not bring back orphan rows the cleanup deleted (Delta 2026-11-01).
+
+#### Delta 2026-11-01 (P6-CLEANUP): the FK migration cleans orphans
+
+**Source:** owner rows P6-ORPHAN-SYNTH and P6-CLEANUP ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md), answered 2026-11-01), amended 2026-11-02 by P6-CLEANUP-SETNULL ("Keep task, null links") and P6-CLEANUP-AUDIT ("Yes, write audit row"). **Base measured:** `origin/main` @ `094b81c9`. This delta adds to §2.1 and plan 06 Tasks 2-5; it does not rewrite them. Where it conflicts with plan 06, this delta wins.
+
+**What the owner answered.** A synthetic vault built through the real API (4 lab PDFs, 13 observations, 10 interpretations, 2 documents deleted with `DELETE /api/v1/documents/{id}`) audited at 0 orphans on every check, P1-P18, L1-L5, M1-M2. Only P1-P4 and P14 held data, and no pre-fix vault exists, so the historic delete-bug leftovers are untested. The owner chose "Proceed, migration cleans (Recommended)": Tasks 2-5 build, and the migration itself handles orphans on an older vault (report + delete only orphans, logged) instead of letting deletes fail with a 500.
+
+**1. Migration revision: `017_fk_cascade_alignment`.** `ls src/backend/migrations/profile/versions/` on `094b81c9` lists `001_initial_schema.py` … `016_strict_safety_mode.py`, so the head is `016_strict_safety_mode` and the next free number is `017` (C-PMIG §3.0: re-measure at the final rebase; if another profile migration lands first, take head+1). `down_revision = "016_strict_safety_mode"`. Plan 06's `013` names map as follows: the file is `017_fk_cascade_alignment.py`; the test file is `tests/test_fk_migration_017.py`; `PROFILE_HEAD = "017_fk_cascade_alignment"`; plan 06 Task 2's `_build_vault_at_012` builds at `016_strict_safety_mode`; the four head literals are `tests/test_care_tasks.py:808,824`, `tests/test_profile_migrations_sqlcipher_fallback.py:41` and `tests/test_source_spans.py:312`, each now `"016_strict_safety_mode"`. Plan 06's model lines moved too: `models/document_category.py:23,39` (was `:22,38`) and `models/care_plan_task.py:38-43` (the two `ForeignKey`s are at `:39` and `:42`).
+
+**2. Cleanup rule (Task 2, first step of `upgrade()`, before any batch rebuild).**
+
+- **Same checks as `core/fk_audit.py`, frozen.** The migration carries a literal tuple `_CLEANUP_CHECKS` of the 18 enforced profile checks, P1-P18, copied from `core/fk_audit.py::PROFILE_CHECKS` (`check_id`, `child_table`, `child_column`, `parent_table`, `parent_column`). It uses the same orphan predicate as `fk_audit.orphan_sql`: `c.<child_column> IS NOT NULL AND p.<parent_column> IS NULL` over a `LEFT JOIN`. It does not import `core.fk_audit`. No file in `migrations/profile/versions/` imports app code, and a later `PROFILE_CHECKS` row for a table created after `017` would otherwise break `017` on an old vault. HC-FKC-007 pins the parity.
+- **Children only.** For each check except P16/P17 (next bullet): `DELETE FROM <child_table> WHERE id IN (SELECT c.id FROM <child_table> c LEFT JOIN <parent_table> p ON … WHERE <orphan predicate>)`. The statement builder takes its target only from `child_table` in the frozen tuple, so a parent table is never a `DELETE` target.
+- **Never deleted:** rows that only the logical checks L1-L5 find (`enforced=False`; report-only, `pinboard_item.item_id` is polymorphic), and anything in the master DB. M1 (`audit_logs`) and M2 (`backup_schedules`) stay report-only; a profile migration never opens the master DB, and audit rows are never deleted by this rule.
+- **P16/P17 are SET NULL repairs, never deletes (P6-CLEANUP-SETNULL, answered 2026-11-02: "Keep task, null links").** Their children are `care_plan_task` rows and D5 makes both columns `SET NULL`. No care task is ever deleted. P16 orphans: `UPDATE care_plan_task SET source_document_id = NULL, source_entity_id = NULL, source_quote = NULL WHERE id IN (<orphan select>)`, exactly as `delete_document` does (`api/documents.py:1894-1897`). P17 orphans: `UPDATE care_plan_task SET source_entity_id = NULL WHERE id IN (<orphan select>)` only, keeping `source_document_id` and `source_quote` for dedup (plan 06 risk register). Their counts are logged as `repaired`, not `removed`. Run P16 before P17 in each pass.
+- **Chained orphans.** Deleting an orphan can orphan that row's own children: P2 chunk then P3 embedding, P1 then P4, P6 then P8/P10/P12, P15 then P17. Repeat full passes over the tuple until a pass removes nothing. Cap the passes at `len(_CLEANUP_CHECKS) + 1` and raise if the cap is reached. Counts are summed per check id.
+- **Pragma OFF, idempotent.** The migration engine stays pragma-OFF (plan 06 Global Constraints), so these deletes do not cascade. Do not rely on a rollback: Alembic's SQLite dialect has `transactional_ddl = False`. The cleanup is idempotent instead: if a later step fails, the vault stays at `016` with its orphans already gone, and the next open re-runs `017`, which finds 0.
+- **Logging, no content.** The logger is `logging.getLogger("alembic.fk_cleanup")`, which inherits INFO from `alembic.ini`'s `[logger_alembic]`; the root logger is WARN. Each check with a non-zero count logs one WARNING, `fk_orphan_cleanup check=<id> removed=<n>` (`repaired=<n>` for P16/P17). One summary line follows: `fk_orphan_cleanup total=<n> checks=<k>`, at WARNING if `n > 0` and INFO if not. Logs never contain row ids, column values, table contents, profile names or the vault path (`run_profile_migration` already logs the path at `core/migrations.py:210`).
+
+**3. Audit trail.** `core/audit.py` exists, but it is not a vault-level mechanism. `create_audit_log` (`core/audit.py:202`) writes `audit_logs` in the **master** DB through an `AsyncSession` (`models/audit.py:21-32`, master `Base`). No profile-DB audit table exists. The migration runs in a worker thread on its own sync engine (`core/migrations.py:194-334`, through `run_profile_migration_async` `:337-352`, called from `core/profile_database.py:384`), with no master session. So the plan does not invent a vault-level audit. The owner chose a master audit row (P6-CLEANUP-AUDIT, answered 2026-11-02: "Yes, write audit row"; counts only, no row content, ids or PHI), written without touching `core/audit.py`: use `event_type="profile.fk_orphan_cleanup"` with `action` equal to the event type (the `_scrub_action` path, `:174-193`) and `details={"resource_counts": {<check_id>: n}, "count": total}`, both keys already allowlisted (`:86`, `:96`). The licensed edits, exactly these and no others:
+- `core/migrations.py`: the migration writes its counts to `context.config.attributes["fk_cleanup_counts"]`, and `run_profile_migration` / `_async` return them;
+- `core/profile_database.py`: a field on `ProfileDatabaseConnection` carries them;
+- `api/profiles.py`: the four `open_profile_database_on_login` call sites (`:331` create, `:406` login, `:757` recovery, `:1094` unlock) read the returned connection and write the row when `total > 0`.
+
+`core/auth.py` (`:363-400`) is ask-first, is not in the row, and must not be edited. The call sites use the connection it already returns. `core/audit.py` is not edited either. The log lines stay as well; the audit row is in addition to them, not instead.
+
+**4. Downgrade is not reversible for deleted orphans.** `downgrade()` rebuilds the three tables back to NO ACTION (plan 06 Task 2 Step 3) and restores nothing that the cleanup removed. The docstring says so, and the PR body repeats it. Recovery of a removed row is only from a pre-upgrade backup. Four existing tests downgrade from head through `017` and stay unedited, so `017.downgrade()` must succeed on their vaults: `tests/test_data_donation.py:113`, `tests/test_safety_mode_setting.py:324`, `tests/test_gamification_settings.py:195`, `tests/test_notification_scheduler_wiring.py:753,787`.
+
+**5. Tests (`tests/test_fk_migration_017.py` unless noted; each RED before GREEN).** Each test builds a file vault at `016_strict_safety_mode` (`_get_alembic_config("profile")` with `vault_path` and `encryption_key` attributes, `command.upgrade(cfg, "016_strict_safety_mode")`), seeds rows with the pragma OFF, then runs `command.upgrade(cfg, "head")`.
+- **HC-FKC-001 planted orphans per enforced class.** Parametrised over P1-P18. Seed one valid parent with one valid child, plus one orphan child, for the check under test. After upgrade: for P1-P15 and P18 the orphan is gone; for P16/P17 the orphan care task **still exists** (same id, same row count in `care_plan_task`) with its links nulled: P16 has `source_document_id`, `source_entity_id` and `source_quote` all NULL; P17 has `source_entity_id` NULL while `source_document_id` and `source_quote` keep their seeded values. In every case the parent and the valid child are present and unchanged, and `PRAGMA foreign_key_check` returns no rows.
+- **HC-FKC-002 chained orphans.** An orphan chunk carrying an embedding, and an orphan schedule carrying a dose: all are removed in one upgrade, with counts P2=1, P3=1, P6=1, P8=1.
+- **HC-FKC-003 logged counts, no content.** Use `caplog` on `alembic.fk_cleanup`. Each planted check gives exactly one record with the right `removed=<n>`, or `repaired=<n>` for P16/P17 (and never `removed` for them), and the summary total matches. No record contains a seeded row id or a sentinel string seeded into a text column (for example `SENTINEL-PHI-7f3a` in `chunks.text` and `observations.analyte`).
+- **HC-FKC-004 out-of-scope rows survive.** A planted L1 (`response_feedback` with a missing session) and L3 (`pinboard_item` pointing at a missing document) are still present after upgrade.
+- **HC-FKC-005 clean vault is a no-op.** A vault with valid rows only has the same per-table row counts and row contents before and after (compared by primary key), logs a single INFO summary with `total=0`, and logs no WARNING.
+- **HC-FKC-006 idempotent re-run.** After HC-FKC-001's upgrade, `downgrade` to `016_strict_safety_mode` and `upgrade` again: `total=0`, and the earlier valid rows are unchanged.
+- **HC-FKC-007 frozen-list parity.** The migration's check ids are exactly P1-P18. Each `_CLEANUP_CHECKS` entry equals the `core.fk_audit.PROFILE_CHECKS` entry with that id, on (`child_table`, `child_column`, `parent_table`, `parent_column`), and that entry is `enforced`. This is a subset check, so a later check row for a newer table does not turn this test red.
+- **HC-FKC-008 delete after migration is not a 500 (route test, `tests/test_fk_enforcement.py`).** Use `route_client(documents_router, "/documents", raise_server_exceptions=False)` and override `get_profile_db_session` with a session on the migrated vault file with the FK pragma ON (Task 3's listener or `tests/support/db.py`), as `tests/test_documents_api.py:804-811` does. Seed at `016`: document D with entity E and category K, a care task T whose `source_document_id` is D and `source_entity_id` is E, plus planted orphans (P3, P4). Upgrade, then `DELETE /documents/D` → **204**. T remains with NULL source references, and `PRAGMA foreign_key_check` returns no rows. RED: on a `016` vault with the pragma ON, the same request returns 500, because `delete(DocumentEntity)` (`api/documents.py:1880`) runs before the care-task update (`:1895`) while `care_plan_task.source_entity_id` is still NO ACTION. The PR also records whether planted orphans alone make any delete fail with the pragma ON and no cleanup. The plan does not assume it: SQLite checks only the new violations a statement causes.
+- **HC-FKC-009 audit row (in scope: P6-CLEANUP-AUDIT, answered 2026-11-02).** A `route_client` unlock with a real master session on a vault holding planted orphans writes one `profile.fk_orphan_cleanup` row. Its `details_json` holds `resource_counts` and `count` only, with no ids, and passes `_scrub_details` unchanged. A clean vault writes no such row.
+
+**Planner checklist (RUNBOOK §10.1).**
+- **Tests that must change:** the four head literals become `PROFILE_HEAD` (allowed edit: the literal only); the `tests/test_profile_deletion.py:411-414` HC-PDEL-017 docstring (comment only; the explicit delete and its assert stay); `tests/test_audit_order_guard.py:195-196` (the reason string for key `core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)` says "schema only"; the allowed edit is that reason text only, to "schema plus 017 orphan cleanup; own connection, no audit session").
+- **Tests that stay unedited:** `test_fk_audit.py` (HC-FKA-001..004), `test_audit_phi_minimization.py`, `test_migration_logging_not_disabled.py` and the four downgrade-through tests in item 4.
+- **No RED run here:** the planner ran no pytest (docs-only planning brief), so the implementer captures RED for each new id.
+
+**6. Ask-first scope. Do not widen it quietly.**
+- **Already licensed** by D5 ("pragma ON for master + profile engines"), P6-Q1 and P6-Q4/Q5:
+  - the master-engine FK listener in `core/database.py` (`install_sqlite_foreign_keys`, applied to the engine at `:44-49`);
+  - the profile-engine FK listener in `core/profile_database.py`, placed after the key listener (`:331-373`) and before `session_maker` (`:376`); both lines are unchanged on `094b81c9`;
+  - comment-only lines in `core/migrations.py` and `migrations/profile/env.py`;
+  - the `api/profiles.py:942-945` comment;
+  - the `models/observation.py:111-113` DDI comment;
+  - the reprocess-orphan HTTP test.
+- **Needs no ask-first edit:** the cleanup itself lives entirely in the new migration file and its tests.
+- **Licensed by P6-CLEANUP-AUDIT (answered 2026-11-02), exactly the item 3 edits:** `core/migrations.py` (return the counts from `config.attributes` through `run_profile_migration` / `_async`), `core/profile_database.py` (one field on `ProfileDatabaseConnection` carrying them), and `api/profiles.py` (one `profile.fk_orphan_cleanup` audit write at each of `:331`, `:406`, `:757`, `:1094` when the total is non-zero). Any other non-comment change to those files is not licensed.
+- **Not touched under any answer:** `core/auth.py`, `core/audit.py`, `core/security.py`, `scripts/backup.py`.
+- **Escalate:** if the implementer finds that the cleanup or the listener needs any other ask-first line, it stops and escalates. It does not fold that line into this row.
+
+**7. Gates.** **P6-CLEANUP-SETNULL** and **P6-CLEANUP-AUDIT** were answered 2026-11-02 (both recommended options), so the build needs no further pre-start answer. The merge waits on the merge-only gate **P6-CLEANUP-DIFF**: L0 shows the owner the exact cleanup diff (the `_CLEANUP_CHECKS` tuple, the delete statements, the P16/P17 null updates, the pass loop, the log lines and the audit plumbing), and the owner says yes before merge.
 
 ### 2.2 C-P7: delta on plan 07
 
@@ -210,7 +268,7 @@ No encryption code is touched. **Acceptance:** `HC_REQUIRE_SQLCIPHER=1 pytest te
    | Expected | Slug | Item | Notes |
    |---|---|---|---|
    | 013 or later | `adaptive_windows_local` | lane D D-2 | data-only (`UPDATE medication_schedules … = NULL`), downgrade no-op; lane D's doc hard-codes `013` / `012_pinboards`, see Peer review |
-   | 013 | `fk_cascade_alignment` | C-P6 | |
+   | 017 | `fk_cascade_alignment` | C-P6 | measured 2026-11-01: `013`-`016` merged first (D-2, C-GAM2B, RSI1-DONATE, `016_strict_safety_mode`); see Delta 2026-11-01 |
    | 014 | `streaks_hidden` | C-GAM2B | may land before C-P6 (owner-accepted race) |
    | 015 | `export_artifacts` | C-GC1 | W11b hard-codes `014`; its Task C1.0 re-measures |
    | 016 | `wearables` | WEAR-02 (#94) | |
@@ -218,7 +276,7 @@ No encryption code is touched. **Acceptance:** `HC_REQUIRE_SQLCIPHER=1 pytest te
    | — | `audit_outbox` | AUDIT-ORDER option B | **withdrawn**: the owner chose design D (AO-DESIGN, `owner-decisions-2026-09-27.md:93`; AO-ASKFIRST "no migration", `:101`); merged as #78 with no migration. Wearables plans 00/02/15 still list `015_audit_outbox`; drop it on their next refresh. |
 
 4. **Second lander renumbers:** rebase, rename the file, update `revision`, `down_revision`, the docstring and the head literal, then re-run its round-trip test. Never edit a merged migration file.
-5. **Head literal:** every new profile migration moves the head, so every migration PR updates it, data-only ones (D-2) included. Before C-P6 merges, update the 4 literals (`tests/test_care_tasks.py:809,825`, `tests/test_profile_migrations_sqlcipher_fallback.py:41`, `tests/test_source_spans.py:313`); these tests go red otherwise. After C-P6, update one constant: `src/backend/tests/support/migrations.py::PROFILE_HEAD: str`.
+5. **Head literal:** every new profile migration moves the head, so every migration PR updates it, data-only ones (D-2) included. Before C-P6 merges, update the 4 literals (`tests/test_care_tasks.py:808,824`, `tests/test_profile_migrations_sqlcipher_fallback.py:41`, `tests/test_source_spans.py:312`, on `094b81c9`); these tests go red otherwise. After C-P6, update one constant: `src/backend/tests/support/migrations.py::PROFILE_HEAD: str`.
 6. **Pre-merge check (all three must hold):**
 
    ```bash
@@ -241,7 +299,7 @@ No encryption code is touched. **Acceptance:** `HC_REQUIRE_SQLCIPHER=1 pytest te
 | `core.fk_audit` | `FkCheck(check_id, child_table, child_column, parent_table, parent_column="id", scope="profile", enforced=True, where=None)`; `MASTER_CHECKS`, `PROFILE_CHECKS`, `LOGICAL_CHECKS: list[FkCheck]`; `async find_orphans(session, checks) -> list[OrphanFinding]`; `find_orphans_dbapi(conn, checks)` | C-P6 |
 | `tests.support.db.fk_profile_engine` | `() -> AsyncEngine`, in-memory, FK pragma on | C-P6 |
 | `tests.support.migrations.PROFILE_HEAD` | `str`, current profile head | C-P6 |
-| FK actions | `document_category.doc_id`, `document_entity.doc_id` → CASCADE; `care_plan_task.source_document_id`, `.source_entity_id` → SET NULL | C-P6 (`013`) |
+| FK actions | `document_category.doc_id`, `document_entity.doc_id` → CASCADE; `care_plan_task.source_document_id`, `.source_entity_id` → SET NULL | C-P6 (`017`) |
 | `api.profiles._SYNTHETIC_RESET_MODELS` | `tuple[type, ...]`, child-first; HC-RESET-010 pins it to `ProfileDatabaseBase.metadata` minus `badge_definition` | C-P7 |
 | `tests.support.routes.route_client(router, prefix, profile_id="profile-a", master_db=None, raise_server_exceptions=True, profile_name: str = "T", profile_db: Optional[async_sessionmaker] = None)` | two appended keywords; `profile_db` overrides `get_profile_db_session`; existing callers unchanged (additive, so readers such as W-7 need not wait for C-P7) | C-P7 |
 | `UserModelSettings.streaks_hidden` | `bool`, default `False` | C-GAM2B |
@@ -272,7 +330,10 @@ Ask-first files touched: `core/profile_database.py`, `core/migrations.py` (C-P6)
 |---|---|---|---|
 | P6-Q1 | D5 covers the FK listener in ask-first `core/profile_database.py` (after `:373`) and comment-only lines in `core/migrations.py` / `migrations/profile/env.py`? | yes | unasked |
 | P6-Q3 | Which real vault backup may Task 1 read (copy only, owner's machine)? | owner names it | unasked |
-| P6-ORPHAN | After Task 1's report: proceed to `013`, clean orphans first (each its own approval), or stop? | depends on report | unasked |
+| P6-ORPHAN | After Task 1's report: proceed to `013`, clean orphans first (each its own approval), or stop? | depends on report | answered 2026-11-01 by P6-ORPHAN-SYNTH (synthetic vault, all checks 0) and P6-CLEANUP ("Proceed, migration cleans"); see Delta 2026-11-01 |
+| P6-CLEANUP-DIFF | Merge-only: yes to the exact cleanup diff in migration `017` | yes if the diff matches the delta | named 2026-11-01, asked with the PR |
+| P6-CLEANUP-SETNULL | P16/P17 orphans are care tasks whose D5 action is SET NULL: delete them (rule as worded) or null the dangling reference and keep the task? | null, keep the task | answered 2026-11-02: "Keep task, null links (Recommended)" |
+| P6-CLEANUP-AUDIT | Write a master audit row for a non-zero cleanup (edits beyond the D5 / P6-Q1 licence), or log only? | audit row | answered 2026-11-02: "Yes, write audit row (Recommended)" |
 | P6-Q4 / P6-Q5 | Reword the DDI comment; add the reprocess-orphan HTTP test and close REPROCESS-INTERP-ORPHAN | (a) / (a) | unasked |
 | N-02 | Reset clears `search_records` / `search_records_fts` and asserts it | (a) clear | unasked |
 | RESET-APPEND | Standing approval: appending a new profile model (that tuple line plus its import) to `_SYNTHETIC_RESET_MODELS` | approve | unasked |

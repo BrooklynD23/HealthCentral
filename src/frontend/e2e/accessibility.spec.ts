@@ -84,37 +84,14 @@ function report(route: Route, { blocking, stale }: Classified): string {
  * else. Keyed by rule + route + selector; never rule-wide or route-wide. The
  * list may only shrink: an entry that matches nothing fails the route test.
  */
-function known(rule: string, fixBy: KnownA11y['fixBy'], note: string, selectors: string[]): KnownA11y[] {
-  return selectors.map((selector) => ({ rule, selector, fixBy, note }));
-}
 
 const KNOWN_A11Y: Record<Route, KnownA11y[]> = {
   '/setup': [],
-  '/inbox': [
-    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
-      ".px-1\\.5",
-    ]),
-  ],
-  '/verify': [
-    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
-      ".px-1\\.5",
-    ]),
-  ],
-  '/trends': [
-    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
-      ".px-1\\.5",
-    ]),
-  ],
-  '/explain': [
-    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
-      ".px-1\\.5",
-    ]),
-  ],
-  '/settings': [
-    ...known("color-contrast", "UI-SHELL", "TopBar ON badge, replaced by UI-SHELL §3.6", [
-      ".px-1\\.5",
-    ]),
-  ],
+  '/inbox': [],
+  '/verify': [],
+  '/trends': [],
+  '/explain': [],
+  '/settings': [],
 };
 
 // Content that proves the page rendered (not a loading skeleton).

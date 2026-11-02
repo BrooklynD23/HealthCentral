@@ -395,7 +395,7 @@ async def get_model_settings(
     selector = get_model_selector()
 
     # Run hardware detection
-    hardware = selector.detect_hardware_tier()
+    hardware = await asyncio.to_thread(selector.detect_hardware_tier)
 
     # Get user settings from database
     user_settings = await _get_user_settings(session.profile_id, profile_db)
@@ -595,7 +595,7 @@ async def list_tiers(
 ):
     """List all available tiers with their status."""
     selector = get_model_selector()
-    hardware = selector.detect_hardware_tier()
+    hardware = await asyncio.to_thread(selector.detect_hardware_tier)
 
     tiers = []
     for tier in TIER_ORDER:
@@ -1197,7 +1197,7 @@ async def update_gamification_settings(
 async def get_environment_diagnostics(session: RequireAuth):
     """Report status of local tools (OCR, models, SQLCipher, GPU)."""
     _ = session
-    return _diagnostics_list_response()
+    return await asyncio.to_thread(_diagnostics_list_response)
 
 
 @router.post(
@@ -1208,7 +1208,7 @@ async def get_environment_diagnostics(session: RequireAuth):
 )
 async def recheck_environment_diagnostics(session: RequireAuth):
     _ = session
-    return _diagnostics_list_response()
+    return await asyncio.to_thread(_diagnostics_list_response)
 
 
 @router.patch(

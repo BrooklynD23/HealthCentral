@@ -7,3 +7,4 @@ export { ScheduleEditor } from './ScheduleEditor';
 export { BadgeToast } from './BadgeToast';
 export { AchievementsWidget } from './AchievementsWidget';
 export { VoiceFirstUseModal } from './VoiceFirstUseModal';
+export { RemindersPanel } from './RemindersPanel';

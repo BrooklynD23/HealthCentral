@@ -184,19 +184,30 @@ describe('DataDonationCard', () => {
     });
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
+
+  it('HC-DON-FE-011: the intro says assistant step-by-step answers are included, once, and the card shows it', async () => {
+    const sentence = 'This includes answers from the step-by-step assistant.';
+    expect(CONSENT_INTRO.split(sentence).length - 1).toBe(1);
+    vi.mocked(api.apiGet).mockResolvedValue(consents());
+    renderCard();
+    await screen.findAllByRole('switch');
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+  });
 });
 
-// HC-DON-FE-010: the owner approved this exact copy as version 2026-10-20-v2
-// (DON-COPY, 2026-10-20). Changing any word must also change the version and
-// get a new owner approval, so this pin fails until both happen.
+// HC-DON-FE-010: the owner approved this exact copy as version 2026-10-27-v3
+// (DON-COPY-V3, answered 2026-10-22: one intro sentence added to v2 of
+// 2026-10-20). Changing any word must also change the version and get a new
+// owner approval, so this pin fails until both happen.
 describe('approved consent copy (DON-COPY)', () => {
   it('HC-DON-FE-010: copy matches the approved text for its version', () => {
-    expect(CONSENT_TEXT_VERSION).toBe('2026-10-20-v2');
+    expect(CONSENT_TEXT_VERSION).toBe('2026-10-27-v3');
     expect(CONSENT_INTRO).toBe([
       'Donating is optional and off by default. You choose each purpose separately, and you can change your mind at any time.',
       'Your data never leaves this device. Before anything is stored as a donated copy, it goes through strict automatic redaction, which removes labelled names and some dates such as 03/15/2024. It can miss other date formats such as 2024-03-15, and names or dates written out in free text, so please keep that in mind.',
       'If you stop, the donated copies for that purpose are deleted. Your own records are not touched. A model already tuned with the copies, or a file already exported from them, is not changed.',
       'Nothing here is medical advice. Donated copies only help improve this app.',
+      'This includes answers from the step-by-step assistant.',
     ].join('\n\n'));
     expect(PURPOSE_COPY).toEqual({
       fine_tune: {

@@ -1,0 +1,38 @@
+{
+  "run_id": "2026-10-26-gpubox",
+  "reconstructed": true,
+  "source": "Reconstructed from docs/plans/2026-10-26-session-handoff.md section 1 (rsi-loop bullet). The run stopped at 'nothing worth proposing' and wrote no .claude/logs/rsi/summary-*.json; the full workflow result (run wf_9e11b537-2db) is in that L0 session's journal, which a later session cannot read. Clusters and per-cluster counts are not recoverable.",
+  "since": "2026-10-24T07:18Z",
+  "dry_run": false,
+  "mod_loaded": true,
+  "tool_calls_mined": 2489,
+  "clusters": null,
+  "candidates": 0,
+  "proposers": {
+    "claude": "nothing worth proposing",
+    "codex": "nothing worth proposing"
+  },
+  "metrics": {
+    "failure_rate_before_after": {
+      "Bash": [
+        "2.61%",
+        "1.98%"
+      ],
+      "Edit": [
+        "11.1%",
+        "1.1%"
+      ],
+      "Read": [
+        "2.78%",
+        "0%"
+      ]
+    }
+  },
+  "notes": [
+    "Limited by data: the rsi-log has no command or stderr signature (bullet RSI-LOG-CMD, needs owner sign-off, privacy).",
+    "Log gap: the handoff says '2026-10-24 08:15Z to 2026-10-26 02:55Z'; measured from this folder's rsi-log.jsonl it is 2026-10-24T15:15:33.229Z to 2026-10-26T02:55:35.360Z (the handoff's 08:15 is the PDT file mtime). The session in between ran without the mod."
+  ],
+  "inferred": [
+    "dry_run: false \u2014 the run_id has no -dry suffix and the handoff describes a real run; handoff section 1 does not state it."
+  ]
+}

@@ -134,7 +134,9 @@ async def test_hc_isv_003_template_path_dosing_text_still_fails(dbs):
         AsyncMock(return_value=(DOSING_TEXT, None)),
     ):
         resp = await _post_interpret(profile_db, master_db, obs_id)
-    assert resp.status_code == 201, resp.text
-    safety = await _stored_safety(profile_db)
-    assert safety["passed"] is False, safety
-    assert any(c.startswith("prohibited_") for c in safety["checks_failed"]), safety
+    from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+    profile_db.expire_all()
+    assert (await profile_db.execute(select(LabInterpretation))).scalars().all() == []

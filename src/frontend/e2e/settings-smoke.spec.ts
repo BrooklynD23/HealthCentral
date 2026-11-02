@@ -62,7 +62,7 @@ test.describe('Settings Page Smoke Tests', () => {
 
     // Should show consent dialog or warning
     await expect(
-      page.getByText(/consent|acknowledge|data will be sent|privacy|understand/i)
+      page.getByRole('main').getByText(/consent|acknowledge|data will be sent|privacy|understand/i)
     ).toBeVisible({ timeout: 5000 });
   });
 

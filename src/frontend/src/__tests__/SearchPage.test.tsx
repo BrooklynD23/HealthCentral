@@ -1,5 +1,6 @@
 /** Search page and compact header search tests (HC-M21). */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -64,19 +65,21 @@ describe('SearchPage', () => {
   it('FE-SRCH-UI-003 submits the compact header search to the search route', async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={['/inbox']}>
-        <Routes>
-          <Route
-            path="*"
-            element={
-              <>
-                <TopBar />
-                <LocationProbe />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/inbox']}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  <TopBar />
+                  <LocationProbe />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
     );
 
     const input = screen.getByRole('searchbox');

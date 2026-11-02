@@ -1,13 +1,10 @@
 /**
- * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006).
+ * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008, HC-UIG-009).
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
- * fail, or reports the expected defect. Tests marked test.fail() are the
- * known defects of /inbox and the route fade (HC-UIG-002, HC-UIG-003). They
- * are expected to fail until UI-TOKENS and UI-SHELL land.
- *
- * test.fail() passes on ANY failure, so the defect assertion alone does not
- * prove the reason. The green "pre" test beside each one is the guard: it shows
+ * fail, or passes on the page it is given. HC-UIG-002 (/inbox colour contrast)
+ * and HC-UIG-003 (the route fade) are plain tests: their assertions must pass
+ * on this branch. The green "pre" test beside each one is the guard: it shows
  * the page rendered and the sampler recorded. The console output prints the
  * axe rule id or the opacity sample that failed.
  *
@@ -22,6 +19,8 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   ROUTE_CONTAINER_SELECTOR,
   ROUTE_FALLBACK_SELECTOR,
+  STILLNESS_NAV_MAX_GAP_MS,
+  STILLNESS_OVERLAY_MAX_GAP_MS,
   axeGate,
   checkSampling,
   consoleAndNetworkGuard,
@@ -126,7 +125,7 @@ test('HC-UIG-001 noHorizontalScroll fails a 600 px block at 390 and passes a fit
 });
 
 // ---------------------------------------------------------------------------
-// HC-UIG-002: axeGate on /inbox reports color-contrast (test.fail until UI-TOKENS).
+// HC-UIG-002: axeGate on /inbox reports no color-contrast (plain test; no longer expected to fail).
 // ---------------------------------------------------------------------------
 test('HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule ids', async ({ page }) => {
   const { mock, guard } = await openInbox(page);
@@ -137,20 +136,22 @@ test('HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule id
   expect(mock.unmocked, 'no /api/v1 call may reach the backend').toEqual([]);
   expect(() => guard.assertClean(), 'console and network must be clean on /inbox').not.toThrow();
 
-  // The guard for the test.fail() below: if axe itself throws, that test would pass for the wrong reason.
+  // The guard for the HC-UIG-002 axe test below: axe must return rule ids on /inbox.
   const result = await axeGate(page);
   console.log(`HC-UIG-002 pre axe rule ids: ${JSON.stringify(result.ruleIds)}`);
   expect(Array.isArray(result.ruleIds), 'axeGate must return a list of rule ids').toBe(true);
 });
 
-test.fail(
-  'HC-UIG-002 axeGate on /inbox reports color-contrast (expected until UI-TOKENS)',
+test(
+  'HC-UIG-002 axeGate on /inbox reports no color-contrast',
   async ({ page }) => {
     await installMockApi(page);
     await seedMockSession(page);
     await page.goto('/inbox');
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
 
+    // Axe reads colour mid-fade if it runs during the route's entrance fade (flaky otherwise).
+    await settleRoute(page);
     const result = await axeGate(page);
     console.log(
       `HC-UIG-002 axe rule ids on /inbox: ${JSON.stringify(result.ruleIds)} ` +
@@ -161,7 +162,7 @@ test.fail(
 );
 
 // ---------------------------------------------------------------------------
-// HC-UIG-003: routeOpacitySamples records a sample < 0.3 (test.fail until UI-SHELL).
+// HC-UIG-003: routeOpacitySamples records a sample < 0.3 (UI-SHELL: the route fade is opacity-only, M7).
 // ---------------------------------------------------------------------------
 /**
  * Waits until the route element has finished its entrance fade. On /inbox the
@@ -187,7 +188,7 @@ async function settleRoute(page: Page): Promise<void> {
 const navigateToVerify = (page: Page) => async () => {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
-    .getByRole('link', { name: 'Verify' })
+    .getByRole('link', { name: 'Review values' })
     .click();
 };
 
@@ -209,8 +210,8 @@ test('HC-UIG-003 pre: a nav click samples the route container and ends at opacit
   expect(samples[samples.length - 1]?.opacity, 'route container must settle at 1').toBe(1);
 });
 
-test.fail(
-  'HC-UIG-003 route container opacity after a nav click never drops below 0.3 (expected until UI-SHELL)',
+test(
+  'HC-UIG-003 route container opacity after a nav click never drops below 0.3',
   async ({ page }) => {
     await openInbox(page);
     await settleRoute(page);
@@ -670,4 +671,94 @@ test('HC-UIG-006 sampling check rejects too few samples and a gap over 40 ms, an
   console.log(`HC-UIG-006 sampling gapped: ${JSON.stringify(gapped)}`);
   expect(gapped.maxGapMs, 'the 180 ms gap must be measured').toBe(180);
   expect(gapped.failures.join('\n'), 'the gap must be named').toMatch(/sampling gap of 180 ms/);
+});
+
+test('HC-UIG-008 sampling check bounds a page change at 70 ms, keeps 40 ms elsewhere, and keeps the 40 ms minimum', () => {
+  const cadence = (from: number, to: number, step: number): number[] => {
+    const times: number[] = [];
+    for (let t = from; t <= to; t += step) times.push(t);
+    return times;
+  };
+  // A 20 ms cadence with one gap of `gap` ms from the trigger at 0 ms.
+  const withGap = (gap: number): number[] => [...cadence(-100, 0, 20), gap, ...cadence(gap + 20, 800, 20)];
+
+  const nav70 = checkSampling(withGap(70), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
+  console.log(`HC-UIG-008 navigation 70 ms: ${JSON.stringify(nav70)}`);
+  expect(nav70.failures, 'a 70 ms page-change gap must pass the 70 ms bound').toEqual([]);
+  expect(nav70.maxGapMs, 'the 70 ms gap must be measured').toBe(70);
+
+  const nav71 = checkSampling(withGap(71), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
+  console.log(`HC-UIG-008 navigation 71 ms: ${JSON.stringify(nav71)}`);
+  expect(nav71.failures.join('\n'), 'a 71 ms page-change gap must fail and name the 70 ms bound').toMatch(
+    /sampling gap of 71 ms \(must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms\)/
+  );
+
+  const interaction41 = checkSampling(withGap(41), 0, 800, null);
+  console.log(`HC-UIG-008 interaction 41 ms: ${JSON.stringify(interaction41)}`);
+  expect(interaction41.failures.join('\n'), 'an interaction keeps the 40 ms bound: 41 ms must fail').toMatch(
+    /sampling gap of 41 ms \(must be <= 40 ms/
+  );
+
+  const interaction40 = checkSampling(withGap(40), 0, 800, null);
+  expect(interaction40.failures, 'a 40 ms gap must pass the default bound').toEqual([]);
+
+  // 70 ms samples over 800 ms give 12 post-trigger samples; the minimum (800 / 40 = 20) still applies.
+  const sparseNav = checkSampling(cadence(-70, 800, 70), 0, 800, null, STILLNESS_NAV_MAX_GAP_MS);
+  console.log(`HC-UIG-008 navigation sparse: ${JSON.stringify(sparseNav)}`);
+  expect(sparseNav.failures.join('\n'), 'too few samples must still fail on the 40 ms minimum').toMatch(
+    /only 12 sample\(s\) after the trigger; the 800 ms window needs at least 20 at one per 40 ms/
+  );
+  expect(sparseNav.failures.join('\n'), 'a 70 ms gap is within the page-change bound').not.toMatch(/sampling gap/);
+});
+
+test('HC-UIG-009 sampling check bounds an overlay open at 70 ms with its own text, keeps 40 ms elsewhere, and keeps the 40 ms minimum', () => {
+  const cadence = (from: number, to: number, step: number): number[] => {
+    const times: number[] = [];
+    for (let t = from; t <= to; t += step) times.push(t);
+    return times;
+  };
+  // A 20 ms cadence with one gap of `gap` ms from the trigger at 0 ms (as in HC-UIG-008).
+  const withGap = (gap: number): number[] => [...cadence(-100, 0, 20), gap, ...cadence(gap + 20, 800, 20)];
+
+  // (a) a 55 ms gap passes as an overlay open.
+  const overlay55 = checkSampling(withGap(55), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (a) overlay 55 ms: ${JSON.stringify(overlay55)}`);
+  expect(overlay55.failures, 'a 55 ms overlay-open gap must pass the 70 ms bound').toEqual([]);
+  expect(overlay55.maxGapMs, 'the 55 ms gap must be measured').toBe(55);
+
+  // (b) the same gap fails as an interaction.
+  const interaction55 = checkSampling(withGap(55), 0, 800, null);
+  console.log(`HC-UIG-009 (b) interaction 55 ms: ${JSON.stringify(interaction55)}`);
+  expect(interaction55.failures.join('\n'), 'an interaction keeps the 40 ms bound: 55 ms must fail').toMatch(
+    /sampling gap of 55 ms \(must be <= 40 ms; G10/
+  );
+
+  // (c) a 75 ms gap fails as an overlay, with the overlay text and not the page-change text.
+  const overlay75 = checkSampling(withGap(75), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (c) overlay 75 ms: ${JSON.stringify(overlay75)}`);
+  expect(overlay75.failures.join('\n'), 'a 75 ms overlay-open gap must fail and name the overlay bound').toContain(
+    'sampling gap of 75 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)'
+  );
+  expect(overlay75.failures.join('\n'), 'an overlay miss must not print the page-change text').not.toMatch(
+    /page change|STILLNESS-NAV-70/
+  );
+
+  // (d) the boundary: 70 ms passes, 71 ms fails.
+  const overlay70 = checkSampling(withGap(70), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (d) overlay 70 ms: ${JSON.stringify(overlay70)}`);
+  expect(overlay70.failures, 'a 70 ms overlay-open gap must pass').toEqual([]);
+  expect(overlay70.maxGapMs, 'the 70 ms gap must be measured').toBe(70);
+  const overlay71 = checkSampling(withGap(71), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (d) overlay 71 ms: ${JSON.stringify(overlay71)}`);
+  expect(overlay71.failures.join('\n'), 'a 71 ms overlay-open gap must fail with the overlay text').toContain(
+    'sampling gap of 71 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)'
+  );
+
+  // (e) 70 ms samples over 800 ms give 12 post-trigger samples; the minimum (800 / 40 = 20) still applies.
+  const sparseOverlay = checkSampling(cadence(-70, 800, 70), 0, 800, null, STILLNESS_OVERLAY_MAX_GAP_MS, true);
+  console.log(`HC-UIG-009 (e) overlay sparse: ${JSON.stringify(sparseOverlay)}`);
+  expect(sparseOverlay.failures.join('\n'), 'too few samples must still fail on the 40 ms minimum').toContain(
+    'only 12 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms'
+  );
+  expect(sparseOverlay.failures.join('\n'), 'a 70 ms gap is within the overlay bound').not.toMatch(/sampling gap/);
 });

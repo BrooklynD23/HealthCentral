@@ -25,16 +25,19 @@ function AdherenceRing({
   const radius = (size - 8) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (value * circumference);
+  // Status tokens (the same ones the status chips use). The ring is final: no draw transition, because the
+  // figure it shows is T0 and must not move (plan §2.7).
+  const tone = pct >= 80 ? 'var(--verified)' : pct >= 50 ? 'var(--caution)' : 'var(--outside)';
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size} className="-rotate-90" data-t0="">
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(0,0,0,0.06)"
+          style={{ stroke: 'var(--line)' }}
           strokeWidth={6}
         />
         <circle
@@ -42,16 +45,15 @@ function AdherenceRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke={pct >= 80 ? '#7BA387' : pct >= 50 ? '#D4A574' : '#C9857A'}
+          style={{ stroke: tone }}
           strokeWidth={6}
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className="transition-all duration-700"
         />
       </svg>
       <div className="text-center -mt-[calc(50%+16px)] mb-4">
-        <p className="text-lg font-display font-semibold text-ink">{pct}%</p>
+        <p className="text-lg font-display font-semibold text-ink" data-t0="">{pct}%</p>
       </div>
       <p className="text-xs text-ink-secondary">{label}</p>
     </div>
@@ -122,19 +124,19 @@ export function AdherenceDashboard({
         {/* Totals */}
         <div className="grid grid-cols-3 gap-3">
           <div className="p-3 rounded-xl bg-surface-muted text-center">
-            <p className="text-lg font-display font-semibold text-status-verified">
+            <p className="text-lg font-display font-semibold text-status-verified" data-t0="">
               {stats.total_doses_taken}
             </p>
             <p className="text-xs text-ink-secondary">Taken</p>
           </div>
           <div className="p-3 rounded-xl bg-surface-muted text-center">
-            <p className="text-lg font-display font-semibold text-status-caution">
+            <p className="text-lg font-display font-semibold text-status-caution" data-t0="">
               {stats.total_doses_skipped}
             </p>
             <p className="text-xs text-ink-secondary">Skipped</p>
           </div>
           <div className="p-3 rounded-xl bg-surface-muted text-center">
-            <p className="text-lg font-display font-semibold text-ink">
+            <p className="text-lg font-display font-semibold text-ink" data-t0="">
               {stats.total_doses_expected}
             </p>
             <p className="text-xs text-ink-secondary">Expected</p>

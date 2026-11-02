@@ -43,7 +43,7 @@ test.describe('Routing', () => {
     const nav = page.locator('nav[aria-label="Main navigation"]');
 
     // Each route has its own lazyRoute Suspense; RouteFallback (sr-only 'Loading page...') is expected on both legs.
-    await nav.getByRole('link', { name: 'Trends' }).click();
+    await nav.getByRole('link', { name: 'Results' }).click();
     await expect(page).toHaveURL(/\/trends$/);
     await expect(main.getByRole('heading', { level: 1, name: 'Trends Dashboard' })).toBeVisible({ timeout: 15_000 });
 

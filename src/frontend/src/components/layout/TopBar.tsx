@@ -1,81 +1,62 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Shield, ShieldCheck, User } from 'lucide-react';
-import { cn } from '@/utils/cn';
-import { Button } from '@/components/ui';
+import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search } from 'lucide-react';
+import { BrandMark } from './BrandMark';
+import { ProfileMenu } from './ProfileMenu';
+import { SafetyModeToggle } from './SafetyModeToggle';
 
+/**
+ * The top bar (plan §3.2). On desktop it is one 64 px row: the search form, the safety toggle and the profile
+ * menu. On phones the brand mark sits at the start and a search icon link stands in for the form. Row 1 holds the
+ * brand, the search link and the profile menu; row 2 holds the safety toggle with its full label (L0 ruling
+ * 10:24:24Z). Row 2 is part of the header, so the route container starts below it.
+ */
 export function TopBar() {
   const navigate = useNavigate();
-  const [safeMode, setSafeMode] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const submitSearch = (event: React.FormEvent) => {
+  const submitSearch = (event: FormEvent) => {
     event.preventDefault();
     const q = searchQuery.trim();
     if (q) navigate(`/search?${new URLSearchParams({ q }).toString()}`);
   };
 
   return (
-    <header className="sticky top-0 z-40 h-16 px-8 flex items-center justify-between gap-6 bg-surface/80 backdrop-blur-md border-b border-black/4">
-      <form className="flex-1 max-w-md" role="search" onSubmit={submitSearch}>
-        <div className="relative group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary group-focus-within:text-accent transition-colors" />
+    <header className="sticky top-0 z-40 flex flex-wrap items-center gap-x-2 border-b border-border bg-surface px-3 py-1 lg:h-16 lg:flex-nowrap lg:gap-6 lg:px-8 lg:py-0">
+      <span className="lg:hidden">
+        <BrandMark wordmark={false} />
+      </span>
+
+      <form className="hidden min-w-0 flex-1 lg:block lg:max-w-md" role="search" onSubmit={submitSearch}>
+        <div className="relative">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-tertiary"
+          />
           <input
             type="search"
-            placeholder="Search health records..."
+            placeholder="Search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={cn(
-              'w-full pl-10 pr-4 py-2 rounded-xl h-10',
-              'bg-white border border-black/6',
-              'text-sm text-ink placeholder:text-ink-tertiary',
-              'focus:outline-hidden focus:ring-2 focus:ring-accent focus:border-accent focus:ring-offset-0',
-              'transition-all duration-200'
-            )}
+            className="h-10 w-full min-w-0 rounded-xl border border-border bg-surface-elevated pl-10 pr-3 text-sm text-ink placeholder:text-ink-tertiary focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             aria-label="Search health records"
           />
         </div>
       </form>
 
-      <div className="flex items-center gap-3">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setSafeMode(!safeMode)}
-          className={cn(
-            'gap-2 h-10 px-4 rounded-xl font-medium border-black/6',
-            safeMode && 'bg-status-verified-subtle text-status-verified border-status-verified/20 hover:bg-status-verified-subtle'
-          )}
-          aria-pressed={safeMode ? "true" : "false"}
-          aria-label={`Safety mode ${safeMode ? 'enabled' : 'disabled'}`}
-        >
-          {safeMode ? (
-            <ShieldCheck className="w-4 h-4" />
-          ) : (
-            <Shield className="w-4 h-4" />
-          )}
-          <span>Safety Mode</span>
-          <span
-            className={cn(
-              'px-1.5 py-0.5 rounded-sm text-[10px] font-bold tracking-wider',
-              safeMode ? 'bg-status-verified/20' : 'bg-black/10'
-            )}
-          >
-            {safeMode ? 'ON' : 'OFF'}
-          </span>
-        </Button>
+      <Link
+        to="/search"
+        aria-label="Search"
+        className="ml-auto inline-flex min-h-target min-w-target items-center justify-center rounded-xl border border-border bg-surface-elevated text-ink hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden lg:hidden"
+      >
+        <Search className="h-5 w-5" aria-hidden="true" />
+      </Link>
 
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon"
-          className="h-10 w-10 rounded-xl border-black/6"
-          aria-label="Profile and settings"
-          title="Profile and settings"
-          onClick={() => navigate('/settings')}
-        >
-          <User className="w-5 h-5" />
-        </Button>
+      {/* Below lg the group is `contents`, so the toggle and the profile menu become header items: the toggle
+          drops to row 2 (order-last, full width) and the profile menu stays on row 1. At lg they sit side by side. */}
+      <div className="contents lg:flex lg:shrink-0 lg:items-center lg:gap-4">
+        <SafetyModeToggle className="order-last basis-full lg:order-none lg:basis-auto" />
+        <ProfileMenu />
       </div>
     </header>
   );

@@ -177,7 +177,7 @@ test.describe('Tailwind 4 style guard', () => {
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(
       'rgb(246, 245, 241)'
     );
-    const heading = page.locator('aside h1').first();
+    const heading = page.locator('aside [data-brand]').first();
     expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 27, 25)');
 
     // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl` + border opacity class + Button.tsx cva) has
@@ -267,7 +267,7 @@ test.describe('Tailwind 4 style guard', () => {
 
     // Target: modal close button, explicit radius utility at DoseLoggingModal.tsx:100.
     const close = page.getByRole('button', { name: 'Close' });
-    expect(await close.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('8px');
+    expect(await close.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('10px');
     await shot(page, 'dose-logging-modal');
   });
 });

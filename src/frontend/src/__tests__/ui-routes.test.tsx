@@ -159,7 +159,7 @@ describe('UI-ROUTES route error boundary', () => {
     const verifyPage = screen.getByRole('main').firstElementChild;
 
     const nav = screen.getByRole('navigation', { name: 'Main navigation' });
-    fireEvent.click(within(nav).getByRole('link', { name: 'Inbox' }));
+    fireEvent.click(within(nav).getByRole('link', { name: 'Documents' }));
 
     await waitFor(() => expect(verifyPage?.isConnected).toBe(false), { timeout: 5000 });
     // Let the entering page finish mounting before counting.
