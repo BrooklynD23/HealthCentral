@@ -125,6 +125,11 @@ function TaskCard({
   isUpdating: boolean;
 }) {
   const isClosed = task.status === 'done' || task.status === 'ignored';
+  // The first label of a card shows at once. Only a later change of status fades the new label in (M8).
+  const hasMounted = useRef(false);
+  useEffect(() => {
+    hasMounted.current = true;
+  }, []);
   return (
     <div
       data-care-task=""
@@ -136,7 +141,7 @@ function TaskCard({
         <m.span
           key={task.status}
           data-care-status={task.status}
-          initial={{ opacity: 0 }}
+          initial={hasMounted.current ? { opacity: 0 } : false}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
           className="block h-5 text-xs font-medium text-ink-tertiary"
@@ -225,34 +230,35 @@ export function CareTasksPage() {
   }, [tasks]);
 
   /**
-   * Shows a status change at once, then sends it. A failed save puts the list back as it was and says so. The
+   * Shows a status change at once, then sends it. A failed save puts that task back as it was and says so. The
    * server's answer refreshes the list (useUpdateCareTask), so the list ends on the saved state.
+   *
+   * The callbacks are attached with mutateAsync, which reports every save. mutate() reports only the latest one,
+   * so a second save started meanwhile (the Undo of another card) would drop this save's error.
    */
-  const changeStatus = (taskId: string, status: CareTaskStatus, onSaved?: () => void) => {
-    const snapshot = queryClient.getQueryData<CarePlanTask[]>(TASKS_QUERY_KEY);
-    queryClient.setQueryData<CarePlanTask[]>(TASKS_QUERY_KEY, (current) =>
-      current?.map((task) => (task.id === taskId ? { ...task, status } : task))
-    );
-    updateTask.mutate(
-      { taskId, data: { status } },
-      {
-        onSuccess: onSaved,
-        onError: () => {
-          if (snapshot) queryClient.setQueryData(TASKS_QUERY_KEY, snapshot);
-          void queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
-          notify({ message: SAVE_FAILED });
-        },
-      }
-    );
+  const changeStatus = async (taskId: string, status: CareTaskStatus, onSaved?: () => void) => {
+    // A refetch still in flight would answer with the old status and overwrite the change shown here.
+    await queryClient.cancelQueries({ queryKey: TASKS_QUERY_KEY });
+    const previous = queryClient.getQueryData<CarePlanTask[]>(TASKS_QUERY_KEY)?.find((task) => task.id === taskId)?.status;
+    const show = (shown: CareTaskStatus) =>
+      queryClient.setQueryData<CarePlanTask[]>(TASKS_QUERY_KEY, (current) =>
+        current?.map((task) => (task.id === taskId ? { ...task, status: shown } : task))
+      );
+    show(status);
+    await updateTask.mutateAsync({ taskId, data: { status } }).then(onSaved, () => {
+      if (previous) show(previous);
+      void queryClient.invalidateQueries({ queryKey: TASKS_QUERY_KEY });
+      notify({ message: SAVE_FAILED });
+    });
   };
 
   /** Done or Ignore: the Undo toast returns the task to the status it had before. */
   const closeTask = (task: CarePlanTask, status: 'done' | 'ignored', message: string) => {
     const previous = task.status;
-    changeStatus(task.id, status, () => {
+    void changeStatus(task.id, status, () => {
       notify({
         message,
-        action: { label: 'Undo', onClick: () => changeStatus(task.id, previous) },
+        action: { label: 'Undo', onClick: () => void changeStatus(task.id, previous) },
       });
     });
   };
@@ -356,7 +362,7 @@ export function CareTasksPage() {
       {grouped.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
-          title="No care tasks yet"
+          title="No follow-ups yet"
           description="Accept follow-up suggestions from a visit note above to build your checklist."
           action={
             <Button variant="secondary" onClick={() => documentPickerRef.current?.focus()}>
@@ -380,7 +386,7 @@ export function CareTasksPage() {
                   task={task}
                   onDone={(item) => closeTask(item, 'done', 'Marked as done.')}
                   onIgnore={(item) => closeTask(item, 'ignored', 'Marked as ignored.')}
-                  onReopen={(item) => changeStatus(item.id, 'open')}
+                  onReopen={(item) => void changeStatus(item.id, 'open')}
                   isUpdating={updateTask.isPending}
                 />
               ))}
