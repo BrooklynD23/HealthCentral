@@ -462,11 +462,11 @@ describe('HC-UIPAL-004: the record search is debounced 150 ms and stops when the
 
 const openWithKeys = () => fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
 const optionNamed = (name: string | RegExp) => within(dialog()).getByRole('option', { name });
-const searchHits = (types: string[]) =>
+const searchHits = (types: string[], idFor: (type: string) => string = (type) => `${type}-1`) =>
   vi.mocked(useSearch).mockReturnValue({
     data: {
       count: types.length,
-      results: types.map((type) => HIT({ type, id: `${type}-1`, title: `Hit ${type}`, verified_status: 'verified' })),
+      results: types.map((type) => HIT({ type, id: idFor(type), title: `Hit ${type}`, verified_status: 'verified' })),
     },
     isLoading: false,
     isError: false,
@@ -486,12 +486,13 @@ describe('HC-UIPAL-004: the Actions group and each record hit go to their destin
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  // The observation hit's id is 'l1', an LDL observation in the shell's list, so it opens LDL's chart, not a bare /trends.
   it.each([
-    ['document', /^\/inbox$/],
-    ['entity', /^\/verify$/],
-    ['observation', /^\/trends$/],
-  ])('a %s hit goes to its page', async (type, path) => {
-    searchHits([type]);
+    ['document', 'document-1', /^\/inbox$/],
+    ['entity', 'entity-1', /^\/verify$/],
+    ['observation', 'l1', /^\/trends\?analyte=ldl_cholesterol$/],
+  ])('a %s hit goes to its page', async (type, id, path) => {
+    searchHits([type], () => id);
     const user = userEvent.setup();
     renderShell('/timeline');
     await user.click(trigger());
@@ -855,12 +856,18 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
       await expectChartOf('ldl_cholesterol');
     });
 
-    it('j) the hit\'s id matches no observation: plain /trends, the first analyte, no error', async () => {
+    it('j) the hit\'s id matches no observation: the hit is not offered, the page stays on the first analyte\'s chart', async () => {
       observationHit('not-an-observation');
       renderTrends('/trends', false, true);
       await expectChartOf('glucose');
-      await pickHit();
-      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      const user = userEvent.setup();
+      act(() => openPalette());
+      await user.type(await screen.findByRole('combobox'), 'zzq');
+      const root = dialog();
+      await within(root).findByRole('option', { name: /Search records for/ });
+      await settle(300); // past the 150 ms debounce, where the hit would have rendered
+      expect(within(root).getByRole('option', { name: /Search records for/ })).toBeInTheDocument();
+      expect(within(root).queryByRole('option', { name: /LDL Cholesterol/ }), 'an unresolved hit could only open the wrong chart').toBeNull();
       expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends$/);
       await expectChartOf('glucose');
     });
