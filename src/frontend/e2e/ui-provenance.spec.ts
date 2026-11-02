@@ -446,7 +446,7 @@ const GATE_ROUTES: GateRoute[] = [
     interact: async (page) => {
       // Another page: PageImageOverlay refetches for page 1, its highlight unmounts and remounts,
       // and a fresh TraceMark mounts after reduced motion is emulated. Re-selecting the same row would not.
-      const preClickSrc = await page.locator(PAGE_IMAGE_OVERLAY).locator('img').first().getAttribute('src');
+      const preClickSrc = await page.locator(SOURCE_IMAGE).getAttribute('src');
       await page.getByText('Hemoglobin A1c', { exact: true }).first().click();
       // For a frame after the click the old page-3 image already carries the "Page 1" alt, so PAGE_ONE_IMAGE
       // matches it. Wait for a blob: src that is not the pre-click one, loaded, before settling it.
@@ -561,29 +561,41 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
 // ---------------------------------------------------------------------------
 type FrameWindow = {
   __rafCount: number;
-  __rafStop: boolean;
+  __rafRun: number;
   __rafAtReadd?: number;
 };
 
 /**
- * Starts an in-page requestAnimationFrame counter. With `vanish`, the `.target` element is removed on
- * frame `removeAt` and put back on frame `readdAt`, both counted from the start.
+ * Starts an in-page requestAnimationFrame counter. Each run owns a token, so a stopped loop can never
+ * revive and the count rises by exactly one per real frame. With `vanish`, the `.target` element is
+ * removed once waitForSettled has counted `removeAtSettleFrames` stable frames, and put back
+ * `readdAfterFrames` real frames later.
  */
-async function startFrameCounter(page: Page, vanish?: { removeAt: number; readdAt: number }): Promise<void> {
+async function startFrameCounter(
+  page: Page,
+  vanish?: { removeAtSettleFrames: number; readdAfterFrames: number }
+): Promise<void> {
   await page.evaluate((plan) => {
-    const w = window as unknown as FrameWindow;
+    const w = window as unknown as FrameWindow & { __hcSettle?: { frames: number } };
     w.__rafCount = 0;
-    w.__rafStop = false;
     w.__rafAtReadd = undefined;
+    const run = (w.__rafRun = (w.__rafRun ?? 0) + 1);
     let removed: Element | null = null;
+    let removedAt = 0;
+    // A stale count from an earlier call must not trigger the removal: only a count seen below the
+    // threshold means the wait under test has started counting.
+    let waitStarted = false;
     const tick = () => {
-      if (w.__rafStop) return;
+      if (run !== w.__rafRun) return;
       w.__rafCount += 1;
-      if (plan && w.__rafCount === plan.removeAt) {
+      const settleFrames = w.__hcSettle?.frames ?? 0;
+      if (settleFrames < (plan?.removeAtSettleFrames ?? 0)) waitStarted = true;
+      if (plan && waitStarted && !removed && w.__rafAtReadd === undefined && settleFrames >= plan.removeAtSettleFrames) {
         removed = document.querySelector('.target');
         removed?.remove();
+        removedAt = w.__rafCount;
       }
-      if (plan && w.__rafCount === plan.readdAt && removed) {
+      if (plan && removed && w.__rafAtReadd === undefined && w.__rafCount - removedAt >= plan.readdAfterFrames) {
         document.body.append(removed);
         w.__rafAtReadd = w.__rafCount;
       }
@@ -596,7 +608,7 @@ async function startFrameCounter(page: Page, vanish?: { removeAt: number; readdA
 async function stopFrameCounter(page: Page): Promise<number> {
   return page.evaluate(() => {
     const w = window as unknown as FrameWindow;
-    w.__rafStop = true;
+    w.__rafRun += 1;
     return w.__rafCount;
   });
 }
@@ -623,11 +635,11 @@ test('HC-UIPV-007 waitForSettled needs six fresh frames on every call', async ({
 
   // Case 2: the element is removed for a few frames mid-wait and re-added at the same rect. The frames
   // counted before it vanished must not count; six consecutive frames on the present element are needed.
-  await startFrameCounter(page, { removeAt: 4, readdAt: 8 });
+  await startFrameCounter(page, { removeAtSettleFrames: 3, readdAfterFrames: 3 });
   await waitForSettled(page, '.target');
   const result = await page.evaluate(() => {
     const w = window as unknown as FrameWindow;
-    w.__rafStop = true;
+    w.__rafRun += 1;
     return { total: w.__rafCount, atReadd: w.__rafAtReadd };
   });
   expect(result.atReadd, 'waitForSettled returned before the element was re-added').toBeDefined();
