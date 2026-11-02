@@ -123,7 +123,7 @@ function gateNumstat(text) {
   for (const row of rows) {
     const [add, del, ...rest] = row.split(/\s+/)
     const p = rest.join(' ')
-    if (![`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.ts`].includes(p)) continue
+    if (![`${MOD}/hooks/rules.ts`, `${MOD}/replay/cases.ts`, 'docs/agentic/recurring-failures.md'].includes(p)) continue
     if (del === '-' || add === '-' || !/^\d+$/.test(del) || Number(del) > 0) violations.push(`${p}: ${del} deleted line(s); additions only`)
   }
   return { ok: violations.length === 0, violations }
