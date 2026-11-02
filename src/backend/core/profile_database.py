@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
+from .database import install_sqlite_foreign_keys
 from .security import (
     unseal_key_with_dpapi,
     KeySealingError,
@@ -371,6 +372,10 @@ class PerProfileDatabaseManager:
                     logger.error(f"SQLCipher key verification failed: {e}")
                     raise
                 cursor.close()
+
+            # FK enforcement (SQL-FK-001). Registered after the key listener, so
+            # PRAGMA key runs first on every new connection.
+            install_sqlite_foreign_keys(engine.sync_engine)
 
             # Create session maker
             session_maker = async_sessionmaker(

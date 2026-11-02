@@ -238,6 +238,8 @@ def run_profile_migration(
         "user_model_settings",
     ]
 
+    # PRAGMA foreign_keys stays OFF on migration engines on purpose: Alembic batch
+    # rebuilds need it off (SQL-FK-001). The runtime engines turn it on.
     # Create sync engine with SQLCipher support
     url = f"sqlite:///{vault_path}"
     creator = None
