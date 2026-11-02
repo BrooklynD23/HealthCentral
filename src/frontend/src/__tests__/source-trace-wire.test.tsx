@@ -704,7 +704,13 @@ describe('HC-STW-008 "This is what your report states." is shown only with an ex
 // HC-STW-006 (stale data), HC-STW-010 (font), HC-STW-011 (file name): review round 2.
 // ---------------------------------------------------------------------------
 describe('HC-STW-006 a failed refetch does not leave the button enabled on the old data', () => {
-  it('HC-STW-006 reopened with the cached source and both GETs now failing: disabled with the unavailable reason', async () => {
+  // One GET failing at a time as well as both: each query's isError must count on its own, not only
+  // when the other query has no data.
+  it.each<[string, { document?: GetPlan; pages?: GetPlan }]>([
+    ['only the document GET fails', { document: 'fail' }],
+    ['only the pages GET fails', { pages: 'fail' }],
+    ['both GETs fail', { document: 'fail', pages: 'fail' }],
+  ])('HC-STW-006 reopened with the cached source, %s: disabled with the unavailable reason', async (_label, plan) => {
     const first = stubSheetFetch();
     const { user, dialog } = await openSheet();
     await bothGetsRequested(first);
@@ -717,7 +723,7 @@ describe('HC-STW-006 a failed refetch does not leave the button enabled on the o
     });
 
     // The cache still holds both responses; react-query keeps them when the refetch on reopening fails.
-    const second = stubSheetFetch({ document: 'fail', pages: 'fail' });
+    const second = stubSheetFetch(plan);
     await user.click(screen.getByRole('button', SHOW_SOURCE));
     const reopened = await screen.findByRole('dialog', { name: 'Source for Glucose' });
     await bothGetsRequested(second);
@@ -746,7 +752,7 @@ describe('HC-STW-010 the monospace font is loaded before the sheet opens, so the
     Reflect.deleteProperty(document, 'fonts');
   });
 
-  it('HC-STW-010 asks for JetBrains Mono when the card is shown, before any click, and sends no request for it', async () => {
+  it('HC-STW-010 asks for JetBrains Mono when the card is shown, before any click, and makes no API request', async () => {
     const fetchMock = stubSheetFetch();
     renderCard({ observation });
     await waitFor(() => expect(FONT_LOAD).toHaveBeenCalled());
@@ -766,10 +772,10 @@ describe('HC-STW-010 the monospace font is loaded before the sheet opens, so the
   });
 });
 
-describe('HC-STW-011 a long file name stays on one line, so the rows below it never move', () => {
+describe('HC-STW-011 a long file name wraps to at most two lines and always reserves both, so the rows below it never move', () => {
   const LONG_NAME = 'a-very-long-lab-report-file-name-with-no-break-point-anywhere-2026-04-10-final.pdf';
 
-  it('HC-STW-011 the File value is truncated to one line and carries the full name as its title', async () => {
+  it('HC-STW-011 the File value is clamped to two lines, reserves two lines, can shrink, breaks inside a word and carries the full name as its title', async () => {
     const { SourceTrace } = await load<typeof import('@/components/results/SourceTrace')>('@/components/results/SourceTrace');
     const client = new QueryClient();
     render(
@@ -781,7 +787,17 @@ describe('HC-STW-011 a long file name stays on one line, so the rows below it ne
     );
 
     const file = screen.getByText(LONG_NAME);
-    expect(file.className).toContain('truncate');
+    const classes = file.className.split(/\s+/);
+    // Two lines at most (the end is cut with an ellipsis, the title has the rest) ...
+    expect(classes).toContain('line-clamp-2');
+    // ... and the height of two lines is kept for a short name or "Source file not available", so the
+    // row does not grow when the real name arrives. text-sm is 20 px a line, min-h-10 is 40 px.
+    expect(classes).toContain('min-h-10');
+    // The value column can shrink and an unbroken name breaks inside the word; a single-line
+    // truncate would hide the extension where there is no hover to read the title.
+    expect(classes).toContain('min-w-0');
+    expect(classes).toContain('break-words');
+    expect(classes).not.toContain('truncate');
     expect(file.getAttribute('title')).toBe(LONG_NAME);
     // The full name is still the element's text, so a screen reader reads all of it.
     expect(file.textContent).toBe(LONG_NAME);
