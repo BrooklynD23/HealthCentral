@@ -14,7 +14,11 @@ import {
   X,
   RefreshCcw,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, EmptyState } from '@/components/ui';
+// Overlays and the showcase recipes are imported by path, as the ui barrel notes. ThinkingOrb loads
+// thinking-orbs lazily: never import that library from this page (HC-UISK-004).
+import { AlertDialog } from '@/components/ui/AlertDialog';
+import { Sheet } from '@/components/ui/Sheet';
 import { cn } from '@/utils/cn';
 import {
   useDocuments,
@@ -61,10 +65,12 @@ export function DocumentInbox() {
   const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
   const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
   const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
   const [importError, setImportError] = useState<{ message: string; fileName: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const moreButtons = useRef(new Map<string, HTMLButtonElement>());
 
   // Get active profile from auth store
   const profileId = useAuthStore((state) => state.profileId) || '';
@@ -141,11 +147,18 @@ export function DocumentInbox() {
     }
   };
 
-  const handleDeleteDocument = (doc: Document) => {
-    if (!window.confirm(`Remove "${doc.source || 'this document'}" from your library? This cannot be undone.`)) {
-      return;
-    }
-    deleteDocument.mutate(doc.id);
+  // The dialog is opened from a menu item, not from a trigger, so Radix has no element to give focus back to.
+  // Cancel and Escape return it to the More options button of the row the dialog was opened for.
+  const closeDeleteDialog = () => {
+    const id = deleteTarget?.id;
+    setDeleteTarget(null);
+    // After the render: while the dialog is still open its focus trap would pull the focus straight back.
+    if (id) requestAnimationFrame(() => moreButtons.current.get(id)?.focus());
+  };
+
+  const confirmDelete = () => {
+    if (deleteTarget) deleteDocument.mutate(deleteTarget.id);
+    setDeleteTarget(null);
   };
 
   return (
@@ -369,10 +382,17 @@ export function DocumentInbox() {
               Loading documents...
             </div>
           ) : documents.length === 0 ? (
-            <div className="p-8 text-center text-ink-secondary">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No documents yet. Import your first lab report above.</p>
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="Your library is empty"
+              description="No documents yet. Import your first lab report above."
+              action={
+                <Button variant="secondary" onClick={handleBrowseClick}>
+                  Choose a file
+                </Button>
+              }
+              className="border-0 bg-transparent"
+            />
           ) : (
             <div className="divide-y divide-black/4">
               {documents.map((doc) => (
@@ -445,6 +465,10 @@ export function DocumentInbox() {
                           variant="ghost"
                           size="icon"
                           aria-label="More options"
+                          ref={(el) => {
+                            if (el) moreButtons.current.set(doc.id, el);
+                            else moreButtons.current.delete(doc.id);
+                          }}
                         >
                           <MoreVertical className="w-4 h-4" />
                         </Button>
@@ -474,7 +498,7 @@ export function DocumentInbox() {
                           )}
                           <DropdownMenu.Item
                             className="rounded-lg px-3 py-2 text-sm outline-hidden cursor-pointer text-status-critical hover:bg-status-critical/10 focus:bg-status-critical/10"
-                            onSelect={() => handleDeleteDocument(doc)}
+                            onSelect={() => setDeleteTarget(doc)}
                           >
                             Delete…
                           </DropdownMenu.Item>
@@ -489,32 +513,36 @@ export function DocumentInbox() {
         </CardContent>
       </Card>
 
-      {previewDocId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="document-preview-title"
-          onClick={closePreview}
-        >
-          <Card
-            className="w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-elevated"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <CardHeader className="flex flex-row items-center justify-between shrink-0 border-b border-black/4">
-              <CardTitle id="document-preview-title" className="text-lg">
-                Document preview
-              </CardTitle>
-              <Button type="button" variant="ghost" size="icon" onClick={closePreview} aria-label="Close">
-                <X className="w-5 h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="overflow-y-auto p-4">
-              <PageImageOverlay documentId={previewDocId} pageNumber={1} bbox={null} />
-            </CardContent>
-          </Card>
+      {/* The preview holds document content, so the Sheet is still (M0). */}
+      <Sheet
+        open={previewDocId !== null}
+        onOpenChange={(open) => {
+          if (!open) closePreview();
+        }}
+        title="Document preview"
+        still
+        className="lg:max-w-3xl"
+      >
+        {previewDocId && <PageImageOverlay documentId={previewDocId} pageNumber={1} bbox={null} />}
+      </Sheet>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteDialog();
+        }}
+        title="Remove this document?"
+        description={`Remove "${deleteTarget?.source || 'this document'}" from your library? This cannot be undone.`}
+      >
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="secondary" data-alert-cancel onClick={closeDeleteDialog}>
+            Cancel
+          </Button>
+          <Button type="button" variant="danger" onClick={confirmDelete}>
+            Remove
+          </Button>
         </div>
-      )}
+      </AlertDialog>
     </div>
   );
 }
