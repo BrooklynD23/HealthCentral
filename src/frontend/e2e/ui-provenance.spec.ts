@@ -207,19 +207,26 @@ async function seedSession(page: Page): Promise<void> {
 /**
  * Waits until the element's effective opacity is 1 and its box has not moved for
  * six frames. Playwright's visibility check accepts opacity 0, so a route that is
- * still fading in would otherwise look ready.
+ * still fading in would otherwise look ready. Every call counts its own frames: the
+ * count is cleared when the call starts and whenever the element is absent.
  */
 async function waitForSettled(page: Page, selector: string): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as { __hcSettle?: unknown }).__hcSettle = undefined;
+  });
   await page.waitForFunction(
     (sel) => {
+      const w = window as unknown as { __hcSettle?: { x: number; y: number; frames: number } };
       const el = document.querySelector(sel);
-      if (!el) return false;
+      if (!el) {
+        w.__hcSettle = undefined;
+        return false;
+      }
       let opacity = 1;
       for (let node: Element | null = el; node; node = node.parentElement) {
         opacity *= Number(getComputedStyle(node).opacity);
       }
       const rect = el.getBoundingClientRect();
-      const w = window as unknown as { __hcSettle?: { x: number; y: number; frames: number } };
       const prev = w.__hcSettle;
       const stable = prev !== undefined && Math.abs(prev.x - rect.x) < 0.01 && Math.abs(prev.y - rect.y) < 0.01;
       const frames = stable ? prev.frames + 1 : 0;
@@ -439,7 +446,18 @@ const GATE_ROUTES: GateRoute[] = [
     interact: async (page) => {
       // Another page: PageImageOverlay refetches for page 1, its highlight unmounts and remounts,
       // and a fresh TraceMark mounts after reduced motion is emulated. Re-selecting the same row would not.
+      const preClickSrc = await page.locator(PAGE_IMAGE_OVERLAY).locator('img').first().getAttribute('src');
       await page.getByText('Hemoglobin A1c', { exact: true }).first().click();
+      // For a frame after the click the old page-3 image already carries the "Page 1" alt, so PAGE_ONE_IMAGE
+      // matches it. Wait for a blob: src that is not the pre-click one, loaded, before settling it.
+      await page.waitForFunction(
+        ({ before, sel }) => {
+          const img = document.querySelector(sel) as HTMLImageElement | null;
+          return img !== null && img.src.startsWith('blob:') && img.src !== before && img.complete && img.naturalWidth > 0;
+        },
+        { before: preClickSrc, sel: PAGE_ONE_IMAGE },
+        { polling: 'raf', timeout: 10_000 }
+      );
       // toBeVisible accepts opacity 0, and the image is opacity 0 until onLoad. The highlight and its TraceMark
       // mount only after onLoad (PageImageOverlay.tsx), so wait for the settled page-1 image, then for its mark.
       await waitForSettled(page, PAGE_ONE_IMAGE);
