@@ -739,7 +739,8 @@ test('HC-STW-009 verify on /interpret sends one verify POST and leaves the inter
   await page.goto('/interpret');
 
   const cardText = page.getByText(interpretation.interpretation_text).first();
-  await expect(cardText).toBeVisible();
+  // Generous: run alone, this is the first page the dev server compiles.
+  await expect(cardText).toBeVisible({ timeout: 20_000 });
   const textBefore = await cardText.textContent();
   expect(textBefore).toContain(interpretation.interpretation_text);
 
