@@ -23,7 +23,7 @@ One folder per machine and date: `<YYYY-MM-DD>-<machine>/`.
 
 From the RSI-MINE-OUTCOMES row on, `summary.json` also carries `outcome_clusters` (`{source, class, count, ids}`): build-item stop classes and PR-title states as fixed classes only, with queue ids and PR numbers, never titles, slugs or stop reasons.
 
-From the RSI-OWNER-NOTES row on, `summary.json` may also carry `owner_notes` (`{cluster, target, suggestion}`, fixed values only, at most 5): advice for the owner about a file outside the loop's allow-list (a skill, workflow, `CLAUDE.md`, `AGENT.md` or the RUNBOOK), never a PR or an edit. L0 reads them after each run and turns any it agrees with into a queue bullet.
+From the RSI-OWNER-NOTES row on, `summary.json` may also carry `owner_notes` (`{cluster, target, suggestion}`, fixed values only, at most 5): advice for the owner about one file from a fixed list (a `SKILL.md` under `.claude/skills/` or `skills/asclexis-*`, a script in `.claude/workflows/`, `CLAUDE.md`, `AGENT.md`, the RUNBOOK or `docs/agentic/recurring-failures.md`, which is also on the loop's allow-list), never a PR or an edit. L0 reads them after each run and turns any it agrees with into a queue bullet.
 
 ## Windows
 
