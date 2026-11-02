@@ -126,13 +126,15 @@ async def test_hc_vkf_004_resending_same_numbers_keeps_flag(profile_db):
 
 @pytest.mark.asyncio
 async def test_hc_vkf_005_edited_value_out_of_range_is_flagged(profile_db):
-    hi_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+    # Seeded with a different printed flag so only the changed-value check
+    # (not the "no flag" fallback of 008) can trigger the recalculation.
+    hi_id = await _seed_obs(profile_db, flag="L", is_abnormal=True,
                             value=14.0, ref_low=12.0, ref_high=16.0)
     hi = await _verify_and_load(profile_db, hi_id, {"value": 18.0})
     assert hi.is_abnormal is True
     assert hi.flag == "H"
 
-    lo_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+    lo_id = await _seed_obs(profile_db, flag="H", is_abnormal=True,
                             value=14.0, ref_low=12.0, ref_high=16.0)
     lo = await _verify_and_load(profile_db, lo_id, {"value": 9.0})
     assert lo.is_abnormal is True
@@ -149,15 +151,18 @@ async def test_hc_vkf_006_edited_value_back_in_range_clears_flag(profile_db):
 
 
 @pytest.mark.asyncio
-async def test_hc_vkf_007_edited_ref_high_flags_unchanged_value(profile_db):
-    obs_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+async def test_hc_vkf_007_edited_range_flags_unchanged_value(profile_db):
+    # Rows carry a (different) printed flag so only the changed-range check,
+    # not the "no flag" fallback of 008, can trigger the recalculation.
+    # ref_high edited so the unchanged value is now above it.
+    obs_id = await _seed_obs(profile_db, flag="L", is_abnormal=True,
                              value=14.0, ref_low=12.0, ref_high=16.0)
     obs = await _verify_and_load(profile_db, obs_id, {"ref_high": 13.0})
     assert obs.is_abnormal is True
     assert obs.flag == "H"
 
-    # ref_low edited so the unchanged value is now below it: also recalculated.
-    lo_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+    # ref_low edited so the unchanged value is now below it.
+    lo_id = await _seed_obs(profile_db, flag="H", is_abnormal=True,
                             value=14.0, ref_low=12.0, ref_high=16.0)
     lo = await _verify_and_load(profile_db, lo_id, {"ref_low": 15.0})
     assert lo.is_abnormal is True
