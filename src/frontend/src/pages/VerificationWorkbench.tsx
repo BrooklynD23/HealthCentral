@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { m } from 'framer-motion';
 import {
   CheckCircle,
   AlertTriangle,
@@ -16,8 +15,6 @@ import { Dialog } from '@/components/ui/Dialog';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { notify } from '@/components/ui/toast';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { duration, ease } from '@/motion/tokens';
 import { useObservations, useVerifyObservation } from '@/services/observations';
 import {
   useDocuments,
@@ -29,7 +26,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { apiGet, ApiError } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
-import { EntityDetailView } from '@/components/documents/EntityDetailView';
+import { EntityDetailView, InkMarker } from '@/components/documents/EntityDetailView';
 import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
 import type { Observation, DocumentPage, BoundingBox, Document } from '@/services/types';
 import type { DocumentEntityResponse } from '@/services';
@@ -60,66 +57,42 @@ const LOW_FLAGS = new Set(['L', 'LL', 'LOW']);
  * against, nothing is claimed.
  */
 function rangeStateOf(observation: Observation): 'above-range' | 'below-range' | 'in-range' | null {
-  const flag = observation.flag?.toUpperCase() ?? '';
+  // The extractor can keep the brackets around a flag, as in "(H)".
+  const flag = (observation.flag ?? '').replace(/[()\s]/g, '').toUpperCase();
   if (HIGH_FLAGS.has(flag)) return 'above-range';
   if (LOW_FLAGS.has(flag)) return 'below-range';
   const { value, ref_low: low, ref_high: high } = observation;
+  if (typeof value === 'number') {
+    if (high !== null && value > high) return 'above-range';
+    if (low !== null && value < low) return 'below-range';
+  }
+  // The report flagged the value (A, ABNORMAL, CRITICAL, or is_abnormal) without saying which side. The numbers
+  // are inside the range, so "In range" would contradict the report; claim nothing and let the report's mark stand.
+  if (flag !== '' || observation.is_abnormal) return null;
   if (typeof value !== 'number') return null;
-  if (high !== null && value > high) return 'above-range';
-  if (low !== null && value < low) return 'below-range';
   return low !== null || high !== null ? 'in-range' : null;
 }
 
-// Mutable copy of the readonly token: framer's Easing type does not accept readonly tuples.
-const EASE_OUT: [number, number, number, number] = [...ease.out];
-const INK_SHUT = 'circle(0% at 50% 50%)';
-const INK_OPEN = 'circle(75% at 50% 50%)';
-
 /**
- * The Ink moment (plan section 4.1): the row marker goes from a dashed graphite ring (pencil) to a filled
- * mark (ink) when the user verifies a value. The ink layer is revealed with a clip-path circle, 360 ms
- * ease-out; nothing else moves. It is decoration (T3): aria-hidden and no data-t0, because the chip beside it
- * says the same thing in words. Reduced motion swaps instantly.
+ * A value verified in this visit. On the default list (needs_verification) the API drops a row once it is
+ * verified, so the row is held in place, as ink, until the page is left. Reload and it is gone, as before.
  */
-function InkMarker({ verified }: { verified: boolean }) {
-  const reduced = useReducedMotion();
-  return (
-    <span
-      data-ink-marker=""
-      data-state={verified ? 'ink' : 'pencil'}
-      data-motion={reduced ? 'instant' : 'ink'}
-      aria-hidden="true"
-      className="relative inline-block h-4 w-4 shrink-0"
-    >
-      <svg viewBox="0 0 16 16" className="absolute inset-0 h-4 w-4" fill="none">
-        <circle
-          cx="8"
-          cy="8"
-          r="6.5"
-          strokeWidth="1.5"
-          strokeDasharray="3 2.5"
-          style={{ stroke: 'var(--pencil)' }}
-        />
-      </svg>
-      <m.span
-        className="absolute inset-0"
-        initial={false}
-        animate={{ clipPath: verified ? INK_OPEN : INK_SHUT }}
-        transition={reduced ? { duration: 0 } : { duration: duration.ink, ease: EASE_OUT }}
-      >
-        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
-          <circle cx="8" cy="8" r="7" style={{ fill: 'var(--ink-1)' }} />
-          <path
-            d="M4.75 8.25l2.25 2.25 4.25-4.5"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ stroke: 'var(--surface-1)' }}
-          />
-        </svg>
-      </m.span>
-    </span>
-  );
+interface HeldRow {
+  observation: Observation;
+  index: number;
+}
+const NO_HELD_ROWS: HeldRow[] = [];
+
+function withHeldRows(fetched: Observation[] | undefined, held: HeldRow[]): Observation[] | undefined {
+  if (!fetched || held.length === 0) return fetched;
+  const heldById = new Map(held.map((entry) => [entry.observation.id, entry.observation]));
+  const rows = fetched.map((row) => heldById.get(row.id) ?? row);
+  const present = new Set(fetched.map((row) => row.id));
+  // Back at the place each one had on screen, lowest first, so the list reads as it did before the refetch.
+  for (const entry of [...held].sort((a, b) => a.index - b.index)) {
+    if (!present.has(entry.observation.id)) rows.splice(Math.min(entry.index, rows.length), 0, entry.observation);
+  }
+  return rows;
 }
 
 /** "Apr 10, 2026" from the stored date, read as a calendar date so no time zone moves it. Null if there is none. */
@@ -196,7 +169,21 @@ export function VerificationWorkbench() {
     documentReviewMode || citedObservationId || citedEntityId
       ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
       : { profile_id: profileId || '', needs_verification: true };
-  const { data: observations, isLoading, isError, error } = useObservations(observationFilters);
+  const { data: fetchedObservations, isLoading, isError, error } = useObservations(observationFilters);
+  // Rows verified in this visit stay on screen as ink. They belong to one filter: another document, another
+  // profile or a citation starts clean.
+  const filterKey = JSON.stringify(observationFilters);
+  const [held, setHeld] = useState<{ key: string; rows: HeldRow[] }>({ key: '', rows: NO_HELD_ROWS });
+  const heldRows = held.key === filterKey ? held.rows : NO_HELD_ROWS;
+  const observations = useMemo(() => withHeldRows(fetchedObservations, heldRows), [fetchedObservations, heldRows]);
+  // The confirmation waits for the commit that flips the row, so the toast never says "checked" over a row that
+  // still reads "Not yet checked".
+  const [justChecked, setJustChecked] = useState<Observation | null>(null);
+  useEffect(() => {
+    if (!justChecked) return;
+    announceChecked(justChecked);
+    setJustChecked(null);
+  }, [justChecked]);
 
   const { data: allDocuments = [], isLoading: documentsLoading } = useDocuments({
     profile_id: profileId || '',
@@ -226,12 +213,28 @@ export function VerificationWorkbench() {
     });
   };
 
+  /** The server said yes: show the row as checked now, ahead of (and surviving) the refetch, then say so. */
+  const markChecked = (observation: Observation, saved: Observation | undefined) => {
+    const checked: Observation = { ...observation, ...saved, user_verified: true };
+    const index = Math.max(0, observations?.findIndex((row) => row.id === observation.id) ?? 0);
+    setHeld((prev) => ({
+      key: filterKey,
+      rows: [
+        ...(prev.key === filterKey ? prev.rows : NO_HELD_ROWS).filter(
+          (entry) => entry.observation.id !== observation.id
+        ),
+        { observation: checked, index },
+      ],
+    }));
+    setJustChecked(checked);
+  };
+
   const handleVerify = async (observation: Observation) => {
-    await verifyMutation.mutateAsync({
+    const saved = await verifyMutation.mutateAsync({
       observationId: observation.id,
       data: {},
     });
-    announceChecked(observation);
+    markChecked(observation, saved);
   };
 
   const handleMarkAllVerifiedClick = async () => {
@@ -294,14 +297,14 @@ export function VerificationWorkbench() {
     if (parsedEdit.kind === 'empty' || parsedEdit.kind === 'error') return;
 
     try {
-      await verifyMutation.mutateAsync({
+      const saved = await verifyMutation.mutateAsync({
         observationId: editingObservation.id,
         data:
           parsedEdit.kind === 'number'
             ? { value: parsedEdit.value }
             : { value_text: parsedEdit.text },
       });
-      announceChecked(editingObservation);
+      markChecked(editingObservation, saved);
       closeEdit();
     } catch (err) {
       setSaveError(
@@ -707,33 +710,34 @@ export function VerificationWorkbench() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="block w-full sm:table">
-                  <thead className="hidden sm:table-header-group">
-                    <tr className="border-b border-black/4 bg-surface-muted/50">
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                <table role="table" className="block w-full sm:table">
+                  <thead role="rowgroup" className="hidden sm:table-header-group">
+                    <tr role="row" className="border-b border-black/4 bg-surface-muted/50">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Test Name
                       </th>
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Value
                       </th>
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Reference Range
                       </th>
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Status
                       </th>
-                      <th className="text-right text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-right text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="block sm:table-row-group">
+                  <tbody role="rowgroup" className="block sm:table-row-group">
                     {observations.map((observation) => {
                       const rangeState = rangeStateOf(observation);
                       return (
                       <tr
                         key={observation.id}
                         id={`observation-row-${observation.id}`}
+                        role="row"
                         className={cn(
                           'block border-b border-black/4 py-2 transition-colors cursor-pointer sm:table-row sm:py-0',
                           selectedRow === observation.id
@@ -742,7 +746,7 @@ export function VerificationWorkbench() {
                         )}
                         onClick={() => handleRowSelect(observation)}
                       >
-                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
+                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
                           <div className="flex flex-wrap items-center gap-2">
                             <InkMarker verified={observation.user_verified} />
                             <span className="font-medium text-ink">
@@ -750,7 +754,9 @@ export function VerificationWorkbench() {
                             </span>
                           </div>
                         </td>
-                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
+                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+                          {/* The header row is hidden below sm, so the cell names itself there. */}
+                          <span className="mr-1.5 font-sans text-xs text-ink-secondary sm:hidden">Value</span>
                           {/* The tint is a hint; the chip below carries the meaning in words (HC-UIREV-001). */}
                           <span
                             data-t0=""
@@ -772,13 +778,13 @@ export function VerificationWorkbench() {
                             </div>
                           ) : null}
                         </td>
-                        <td className="block px-4 py-1.5 text-sm text-ink-secondary font-mono sm:table-cell sm:py-4">
+                        <td role="cell" className="block px-4 py-1.5 text-sm text-ink-secondary font-mono sm:table-cell sm:py-4">
                           <span className="font-sans text-xs sm:hidden">Range </span>
                           <span data-t0="">
                             {formatRefRange(observation)} {observation.unit}
                           </span>
                         </td>
-                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
+                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
                           <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start">
                             {/* Keyed by state: the old chip leaves and a new one arrives, so no T0 node changes its own text. */}
                             <StatusChip
@@ -788,7 +794,7 @@ export function VerificationWorkbench() {
                             <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
                           </div>
                         </td>
-                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
+                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
                           <div className="flex items-center gap-1 sm:justify-end">
                             <Button
                               variant="ghost"

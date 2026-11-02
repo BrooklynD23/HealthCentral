@@ -6,8 +6,12 @@
  * provided, verify/reject controls.
  */
 
+import { m } from 'framer-motion';
 import { AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { StatusChip } from '@/components/ui/StatusChip';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { duration, ease } from '@/motion/tokens';
 import { cn } from '@/utils/cn';
 import type { DocumentEntityResponse } from '@/services/documentCategories';
 import { useDocumentHighlights, type HighlightType } from '@/services/highlights';
@@ -57,6 +61,58 @@ const ENTITY_LABELS: Record<string, string> = {
   facility: 'Facility',
 };
 
+// Mutable copy of the readonly token: framer's Easing type does not accept readonly tuples.
+const EASE_OUT: [number, number, number, number] = [...ease.out];
+const INK_SHUT = 'circle(0% at 50% 50%)';
+const INK_OPEN = 'circle(75% at 50% 50%)';
+
+/**
+ * The Ink moment (plan section 4.1): the row marker goes from a dashed graphite ring (pencil) to a filled
+ * mark (ink) when the user verifies a value. The ink layer is revealed with a clip-path circle, 360 ms
+ * ease-out; nothing else moves. It is decoration (T3): aria-hidden and no data-t0, because the chip beside it
+ * says the same thing in words. Reduced motion swaps instantly.
+ */
+export function InkMarker({ verified }: { verified: boolean }) {
+  const reduced = useReducedMotion();
+  return (
+    <span
+      data-ink-marker=""
+      data-state={verified ? 'ink' : 'pencil'}
+      data-motion={reduced ? 'instant' : 'ink'}
+      aria-hidden="true"
+      className="relative inline-block h-4 w-4 shrink-0"
+    >
+      <svg viewBox="0 0 16 16" className="absolute inset-0 h-4 w-4" fill="none">
+        <circle
+          cx="8"
+          cy="8"
+          r="6.5"
+          strokeWidth="1.5"
+          strokeDasharray="3 2.5"
+          style={{ stroke: 'var(--pencil)' }}
+        />
+      </svg>
+      <m.span
+        className="absolute inset-0"
+        initial={false}
+        animate={{ clipPath: verified ? INK_OPEN : INK_SHUT }}
+        transition={reduced ? { duration: 0 } : { duration: duration.ink, ease: EASE_OUT }}
+      >
+        <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none">
+          <circle cx="8" cy="8" r="7" style={{ fill: 'var(--ink-1)' }} />
+          <path
+            d="M4.75 8.25l2.25 2.25 4.25-4.5"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ stroke: 'var(--surface-1)' }}
+          />
+        </svg>
+      </m.span>
+    </span>
+  );
+}
+
 export function EntityDetailView({
   entities,
   className,
@@ -82,17 +138,17 @@ export function EntityDetailView({
         <CardTitle className="text-base">Extracted Information</CardTitle>
       </CardHeader>
       <CardContent>
-        <table className="block w-full text-sm sm:table">
-          <thead className="hidden sm:table-header-group">
-            <tr className="border-b border-black/6">
-              <th className="text-left py-2 text-ink-tertiary font-medium">Field</th>
-              <th className="text-left py-2 text-ink-tertiary font-medium">Value</th>
+        <table role="table" className="block w-full text-sm sm:table">
+          <thead role="rowgroup" className="hidden sm:table-header-group">
+            <tr role="row" className="border-b border-black/6">
+              <th role="columnheader" className="text-left py-2 text-ink-tertiary font-medium">Field</th>
+              <th role="columnheader" className="text-left py-2 text-ink-tertiary font-medium">Value</th>
               {onSetVerification && (
-                <th className="text-right py-2 text-ink-tertiary font-medium">Review</th>
+                <th role="columnheader" className="text-right py-2 text-ink-tertiary font-medium">Review</th>
               )}
             </tr>
           </thead>
-          <tbody className="block sm:table-row-group">
+          <tbody role="rowgroup" className="block sm:table-row-group">
             {entities.map((entity) => {
               const isLowConfidence = entity.confidence < 0.8;
               const label = ENTITY_LABELS[entity.entity_type] ?? entity.entity_type;
@@ -100,14 +156,16 @@ export function EntityDetailView({
                 <tr
                   key={entity.id}
                   id={`entity-row-${entity.id}`}
+                  role="row"
                   className={cn(
                     'block border-b border-black/4 py-2 sm:table-row sm:py-0',
                     isLowConfidence && 'border-dashed border-status-caution/30',
                     highlightEntityId === entity.id && 'bg-accent/10'
                   )}
                 >
-                  <td className="block py-1 text-ink-secondary sm:table-cell sm:py-2 sm:whitespace-nowrap sm:pr-4 sm:align-top">
-                    <span className="flex items-center gap-1">
+                  <td role="cell" className="block py-1 text-ink-secondary sm:table-cell sm:py-2 sm:whitespace-nowrap sm:pr-4 sm:align-top">
+                    <span className="flex items-center gap-1.5">
+                      {onSetVerification ? <InkMarker verified={entity.verified_by_user === true} /> : null}
                       {label}
                       {isLowConfidence && (
                         <AlertTriangle
@@ -117,7 +175,7 @@ export function EntityDetailView({
                       )}
                     </span>
                   </td>
-                  <td className="block py-1 text-ink wrap-break-word sm:table-cell sm:py-2 sm:max-w-xs sm:align-top">
+                  <td role="cell" className="block py-1 text-ink wrap-break-word sm:table-cell sm:py-2 sm:max-w-xs sm:align-top">
                     <span data-t0="">{entity.entity_value}</span>
                     <div className="mt-1">
                       <ExtractionConfidenceBadge confidence={entity.confidence} />
@@ -135,11 +193,9 @@ export function EntityDetailView({
                     )}
                   </td>
                   {onSetVerification && (
-                    <td className="block py-1 sm:table-cell sm:py-2 sm:text-right sm:whitespace-nowrap sm:align-top">
-                      <span className="inline-flex items-center gap-1">
-                        {entity.verified_by_user === true && (
-                          <Badge variant="verified" className="text-xs">Verified</Badge>
-                        )}
+                    <td role="cell" className="block py-1 sm:table-cell sm:py-2 sm:text-right sm:whitespace-nowrap sm:align-top">
+                      <span className="inline-flex flex-wrap items-center gap-1 sm:flex-nowrap">
+                        {entity.verified_by_user === true && <StatusChip state="checked-by-you" />}
                         {entity.verified_by_user === false && (
                           <Badge variant="attention" className="text-xs">Rejected</Badge>
                         )}
