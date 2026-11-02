@@ -6,6 +6,7 @@ import importlib
 import sys
 import types
 from pathlib import Path
+from tests.support.migrations import PROFILE_HEAD
 
 
 def _import_core_submodule(name: str):
@@ -38,5 +39,5 @@ def test_profile_migration_omits_creator_when_sqlcipher_unavailable(
     assert vault_path.exists()
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "016_strict_safety_mode"
+        == PROFILE_HEAD
     )

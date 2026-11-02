@@ -25,6 +25,7 @@ from core.time import utcnow
 from models.care_plan_task import CarePlanTask
 from models.document_category import DocumentEntity
 from modules.care_tasks import derive_task_candidates
+from tests.support.migrations import PROFILE_HEAD
 
 # ---------------------------------------------------------------------------
 # Shared helpers (mock-session style matches tests/test_source_spans.py)
@@ -805,7 +806,7 @@ def test_hc_task_025_migration_011_upgrade_downgrade_upgrade(tmp_path, monkeypat
     migrations.run_profile_migration(vault_path, encryption_key)
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "016_strict_safety_mode"
+        == PROFILE_HEAD
     )
 
     config = migrations._get_alembic_config("profile")
@@ -821,5 +822,5 @@ def test_hc_task_025_migration_011_upgrade_downgrade_upgrade(tmp_path, monkeypat
     command.upgrade(config, "head")
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "016_strict_safety_mode"
+        == PROFILE_HEAD
     )
