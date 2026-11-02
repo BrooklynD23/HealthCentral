@@ -11,9 +11,11 @@
  *
  * The content holds T0 values, so the sheet is `still` (M0). The only moving
  * element is the TraceMark, a separate background with no data-t0. The text never
- * moves. The File value stays on one line (truncated, full name in its title), and
- * ObservationSourceTrace loads the monospace face before the sheet opens, so neither the
- * name nor the font swap shifts a T0 row.
+ * moves. The File value is clamped to two lines and always reserves both (full name in
+ * its title), ObservationSourceTrace loads the monospace face before the sheet opens, and
+ * below 1024 px, where the sheet is anchored to the bottom, the sheet is kept at its full
+ * height (min-h-[85dvh], its max-h), so neither the name, the font swap nor the excerpt that arrives later
+ * shifts a T0 row.
  */
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -180,12 +182,21 @@ export function SourceTrace({
   };
 
   return (
-    <Sheet still open={open} onOpenChange={onOpenChange} trigger={trigger} title={`Source for ${name}`}>
+    // Below 1024 px the sheet grows upward from the bottom edge, so an excerpt that mounts later would move every row above
+    // it. min-h-[85dvh] is the bottom sheet's own max-h, so it is the same height before and after, whatever its padding and title.
+    <Sheet
+      still
+      open={open}
+      onOpenChange={onOpenChange}
+      trigger={trigger}
+      title={`Source for ${name}`}
+      className="min-h-[85dvh] lg:min-h-0"
+    >
       <div className="space-y-5">
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt className="text-ink-secondary">File</dt>
-          {/* One line, never wrapped: a name that wrapped would push every row below it down when the document arrives. */}
-          <dd className="min-w-0 truncate break-words text-ink" title={sourceFile ?? undefined}>
+          {/* Two lines at most, and both always reserved (min-h-10 is two text-sm lines): the name arrives with the document, and a name that wrapped then would push every row below it down. The end of a longer name is cut; the title has all of it. */}
+          <dd className="min-h-10 min-w-0 line-clamp-2 break-words text-ink" title={sourceFile ?? undefined}>
             {sourceFile ?? 'Source file not available'}
           </dd>
 
