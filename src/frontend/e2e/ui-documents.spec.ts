@@ -4,8 +4,8 @@
  * and the orb while an import is in flight, static under reduced motion), HC-UIDOC-004 (an alert stays outside the
  * beam), HC-UIDOC-005 (delete through the AlertDialog, with the real Radix focus and pointer-events checks),
  * HC-UIDOC-006 (stillnessProbe across an import into an empty list with a scanned-page warning, across a failed
- * import, and across the preview Sheet; an import into a non-empty list is an expected failure, see the test), and
- * Gate G on
+ * import, and across the preview Sheet; an import, completed or failed, into a list that has rows is a pinned
+ * displacement, see the two G10 cases), and Gate G on
  * /inbox: G1 axe in light and dark, G2 CLS, G3 INP with CPU x4, G5 reduced motion, G6 phone and small phone widths,
  * G7 console and network, G9 the Safety Rail, G10 stillness.
  *
@@ -134,6 +134,8 @@ interface DocsControl {
   imports: number;
   /** The next import waits until the returned function is called. */
   hold(): () => void;
+  /** The next GET /documents waits until the returned function is called (the page shows its loading state). */
+  holdList(): () => void;
   answer: ImportAnswer;
   /** Wall-clock ms when the last GET /documents was fulfilled. */
   lastListFulfilledAt: number;
@@ -145,6 +147,7 @@ interface DocsControl {
  */
 async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl> {
   let gate: Promise<void> | null = null;
+  let listGate: Promise<void> | null = null;
   const control: DocsControl = {
     rows: [...rows],
     deletes: [],
@@ -160,10 +163,21 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
       });
       return release;
     },
+    holdList() {
+      let release!: () => void;
+      listGate = new Promise<void>((resolve) => {
+        release = () => {
+          resolve();
+        };
+      });
+      return release;
+    },
   };
 
   await page.route(/\/api\/v1\/documents\/?$/, async (route, request) => {
     if (request.method() !== 'GET') return route.fallback();
+    if (listGate) await listGate;
+    listGate = null;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(control.rows) });
     control.lastListFulfilledAt = Date.now();
   });
@@ -323,6 +337,59 @@ function blockingIds(result: Awaited<ReturnType<typeof axeGate>>): string[] {
   return result.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 }
 
+/**
+ * Counts the pixels of a screenshot of `locator` that sit within 3 px of its edge and are within 48 (RGB distance) of
+ * the accent token. The screenshot is decoded on a blank second page, so the page under test is not touched.
+ * Reads the pixels: a ring that is in the DOM but painted under an opaque card counts 0.
+ */
+async function accentPixelsOnEdge(page: Page, locator: Locator): Promise<number> {
+  const accent = await page.evaluate(() => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--accent)';
+    document.body.append(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = colour;
+    ctx.fillRect(0, 0, 1, 1);
+    return Array.from(ctx.getImageData(0, 0, 1, 1).data).slice(0, 3);
+  });
+  const png = (await locator.screenshot()).toString('base64');
+  const decoder = await page.context().newPage();
+  try {
+    return await decoder.evaluate(
+      async ({ b64, target }) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${b64}`;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(image, 0, 0);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let count = 0;
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const onEdge = x < 3 || y < 3 || x >= canvas.width - 3 || y >= canvas.height - 3;
+            if (!onEdge) continue;
+            const i = (y * canvas.width + x) * 4;
+            const distance = Math.hypot(data[i] - target[0], data[i + 1] - target[1], data[i + 2] - target[2]);
+            if (data[i + 3] > 200 && distance <= 48) count += 1;
+          }
+        }
+        return count;
+      },
+      { b64: png, target: accent }
+    );
+  } finally {
+    await decoder.close();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // HC-UIDOC-001 .. 005 end to end
 // ---------------------------------------------------------------------------
@@ -418,6 +485,30 @@ test.describe('HC-UIDOC end to end', () => {
     await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
     release();
   });
+
+  for (const mode of ['no-preference', 'reduce'] as const) {
+    test(`HC-UIDOC-003: with reducedMotion=${mode} the ring is painted above the card: accent pixels sit on the card edge`, async ({
+      page,
+    }) => {
+      // Would not notice: a ring that is the wrong shade of accent (the tolerance is 48 in RGB distance; only fully opaque pixels count, so the test waits for the 240 ms fade-in), or one that
+      // paints on one edge only (the count is over all four). It does see a ring that sits in the DOM but under the
+      // opaque card, which every DOM and computed-style check misses. Measured before the fix: 0 pixels in both modes.
+      // RED today: the ring has no z-index, so the card (position: relative, later in paint order) covers it.
+      const { docs } = await setup(page);
+      await page.emulateMedia({ reducedMotion: mode });
+      await openInbox(page);
+      const release = await startHeldImport(page, docs);
+      // The ring fades in over 240 ms; a screenshot taken halfway reads blended colours.
+      await page.waitForFunction(() => {
+        const ring = document.querySelector('.beam-border[data-active="true"] > span');
+        return ring !== null && getComputedStyle(ring).opacity === '1';
+      });
+      const accentPixels = await accentPixelsOnEdge(page, page.locator(BEAM));
+      expect(accentPixels, 'accent-coloured pixels within 3 px of the card edge').toBeGreaterThan(100);
+      release();
+      await expect(page.locator(BEAM)).toHaveCount(0);
+    });
+  }
 
   test('HC-UIDOC-004: the import-failed alert stays outside the beam card and does not animate while another import runs', async ({
     page,
@@ -600,7 +691,7 @@ test.describe('Gate G on /inbox', () => {
     page,
   }) => {
     // Would not notice: a transform on the Sheet or the dialog on a path the sequence skips. The check is page-wide.
-    // It covers View document, Delete, an import starting, and the empty library.
+    // It covers View document, Delete, an import starting, the loading state (held list) and the empty library.
     const { docs } = await setup(page);
     await openInbox(page);
     const row = rowByName(page, THIRD_NAME);
@@ -622,6 +713,16 @@ test.describe('Gate G on /inbox', () => {
     expect(afterImport, 'after an import starts').toEqual([]);
     release();
     await expect(page.locator(HANDOFF)).toBeVisible();
+
+    // The loading state: the list request is held, so the spinner is on screen when the transforms are read.
+    const releaseList = docs.holdList();
+    const afterLoading = await reducedMotionSnapshot(page, async () => {
+      await page.goto('/inbox');
+      await expect(page.getByText('Loading documents...')).toBeVisible();
+    });
+    expect(afterLoading, 'the loading state').toEqual([]);
+    releaseList();
+    await expect(page.locator(ROW).first()).toBeVisible();
 
     // The empty library: the EmptyState mounts with the page, so the load is the action.
     docs.rows = [];
@@ -672,6 +773,8 @@ test.describe('Gate G on /inbox', () => {
       // actions div and, during an import, the status line of the orb (813 px wide with this name before it was
       // given [overflow-wrap:anywhere]); every row's actions are also checked against the viewport edge, because a
       // clipped overflow would not move scrollWidth.
+      // It also reads the first row's top before and during the import: a wrapped status line that makes the running
+      // block taller than the idle block moves the page at the start of the import without moving scrollWidth.
       // RED today: the actions div pushes the page wider than 390 px.
       await page.setViewportSize(viewport);
       const { docs } = await setup(page);
@@ -699,9 +802,13 @@ test.describe('Gate G on /inbox', () => {
         expect(past, `${label}: buttons past the right edge`).toEqual([]);
       };
       await checkRows('before');
+      const firstRowTop = () =>
+        page.locator(ROW).first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+      const topBefore = await firstRowTop();
       // The 127-character name has no space: the status line "Reading <name>" has to wrap inside the card.
       const release = await startHeldImport(page, docs, { ...NEW_FILE, name: LONG_NAME });
       expect((await noHorizontalScroll(page)).ok, 'during the import with the long name').toBe(true);
+      expect(await firstRowTop(), 'the first row has not moved since the import started').toBeCloseTo(topBefore, 0);
       release();
       await expect(page.locator(HANDOFF)).toBeVisible();
       await expect(page.getByText(/possible duplicate upload/i)).toBeVisible();
@@ -712,6 +819,32 @@ test.describe('Gate G on /inbox', () => {
       await fileInput(page).setInputFiles({ ...NEW_FILE, name: LONG_NAME });
       await expect(page.getByRole('alert')).toBeVisible();
       await checkRows('after a failure');
+    });
+  }
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 320, height: 640 },
+  ]) {
+    test(`GATE G6 /inbox: a 255-character file name does not move the first row or widen the page when an import starts, at ${viewport.width}x${viewport.height}`, async ({
+      page,
+    }) => {
+      // Would not notice: a name that moves the page only after the import ends (the rows move for the new row, which
+      // is G10's pinned case). The longest name a file system allows is 255 characters; the status line is clamped,
+      // so the running block must not be taller than the idle block.
+      // RED today: 255 characters move the first row by 80 px at 390 and 100 px at 320 (measured in review).
+      await page.setViewportSize(viewport);
+      const { docs } = await setup(page);
+      await openInbox(page);
+      const firstRowTop = () =>
+        page.locator(ROW).first().evaluate((el) => el.getBoundingClientRect().top + window.scrollY);
+      const before = await firstRowTop();
+      const name = `${'x'.repeat(251)}.pdf`;
+      const release = await startHeldImport(page, docs, { ...NEW_FILE, name });
+      expect((await noHorizontalScroll(page)).ok, 'during the import').toBe(true);
+      expect(await firstRowTop(), 'the first row has not moved since the import started').toBeCloseTo(before, 0);
+      release();
+      await expect(page.locator(HANDOFF)).toBeVisible();
     });
   }
 
@@ -771,7 +904,8 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
   }) => {
     // Would not notice: a new row that fades or slides in (M0 is the rule), a handoff that counts up, or a card that
     // shifts a row after it appeared. Rows that were already on screen cannot exist in this state: the list starts
-    // empty, so the case in (b) below is measured separately.
+    // empty, so the displacement of existing rows is measured separately, by the two pinned cases further down (an
+    // import that completes, and an import that fails, both into a list that has rows).
     // The import reports two pages without text, so the scanned-page warning (section 2.7) is expected too.
     // RED today: no node carries data-t0 (the probe fails with "zero [data-t0] nodes").
     const { docs } = await setup(page, []);
@@ -799,7 +933,8 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
   }) => {
     // Would not notice: an alert that fades in or slides (M0 is the rule), or one that loses its data-t0 (the probe
     // fails when the expected selector matches nothing). The list starts empty so that no row sits below the alert:
-    // the alert is inserted above the page body, and a row there would move, which case (a) already covers.
+    // the alert is inserted above the drop zone, and a row below it would move. That is the pinned
+    // failed-import case further down, which starts with rows.
     // RED today: the alert carries no data-t0.
     const { docs } = await setup(page, []);
     docs.answer = { fail: { status: 400, detail: 'Unsupported file type' } };
@@ -859,41 +994,88 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     expect(report.nodes).toBeGreaterThan(0);
   });
 
-  test('GATE G10 /inbox: an import into a NON-EMPTY list is still for the rows already on screen (stillnessProbe, interaction) - EXPECTED TO FAIL until L0 or the owner rules', async ({
+  /**
+   * Runs the real stillnessProbe and PINS its current result for a list that has rows: the probe must fail, and the
+   * failure must be a StillnessError that names a moved rect. A timeout, a missing selector, a lost sampler or any
+   * other error fails the test, so it cannot be mistaken for the expected result. The text is printed and attached,
+   * so L0 reads the figures in the log whether the test passes or fails. The probe is not loosened or special-cased.
+   * When the ruling lands: delete `pinMoved`, call stillnessProbe directly and assert that it passes.
+   */
+  async function pinMoved(
+    testInfo: { attach: (name: string, options: { body: string; contentType: string }) => Promise<void> },
+    name: string,
+    run: () => Promise<unknown>
+  ): Promise<void> {
+    let message: string | null = null;
+    try {
+      await run();
+    } catch (error) {
+      if (error instanceof StillnessError && error.message.includes('getBoundingClientRect changed')) {
+        message = error.message;
+      } else {
+        throw error;
+      }
+    }
+    if (message !== null) {
+      console.log(`${name}: ${message}`);
+      await testInfo.attach(name, { body: message, contentType: 'text/plain' });
+    }
+    expect(message, `${name}: the probe is expected to report a moved rect until L0 or the owner rules`).not.toBeNull();
+  }
+
+  test('GATE G10 /inbox: an import that completes into a NON-EMPTY list moves the rows already on screen (pinned; needs an L0 or owner ruling)', async ({
     page,
   }, testInfo) => {
-    // test.fail, as PAGE_OVERFLOW does in ui-shell.spec.ts: the probe is the real one, not loosened and not
-    // special-cased, and the test passes only while the probe FAILS. The list is newest first
-    // (api/documents.py:1093), so when the import completes the handoff card and the new row appear above the rows
-    // already on screen and push every one of them down (84.4 px in CI). stillnessProbe allows no displacement.
-    // The running state does not add to it any more: it lives in the drop zone's slot, so the start of the import
-    // moves nothing. Which of the two has to give (a probe exemption for a row inserted above, or a list that
-    // does not insert at the top) is an L0 or owner ruling. When it is ruled, delete the test.fail line: this
-    // test then asserts the probe passes.
-    // Would not notice: a probe failure of another kind (a timeout, a missing selector). The failure text is
-    // attached so that L0 can read which one it was.
-    test.fail(true, 'HC-UIDOC-006 with rows on screen: a newest-first list displaces the rows on completion; needs an L0 or owner ruling');
+    // The list is newest first (api/documents.py:1093), so when the import completes the handoff card, the
+    // duplicate warning (if any) and the new row are inserted above the rows already on screen and push them down.
+    // Measured at 1440: 222.2 px in total. How much of it is the handoff card and how much the new row is not
+    // measured: the failure text printed by this test lists the moved rects. stillnessProbe allows no displacement.
+    // The start of the import moves nothing (the running state lives in the drop zone's slot). Which of the
+    // handoff card, the new row, the import-failed alert and the duplicate warning may displace rows is an L0 or
+    // owner ruling; a probe exemption for an inserted row alone would not be enough.
+    // Would not notice: a displacement that happens at the start of the import (G6 covers that) or a probe failure of
+    // another kind (pinMoved fails the test on those).
     const { docs } = await setup(page);
     await openInbox(page);
     const release = docs.hold();
     try {
-      await stillnessProbe(page, {
-        kind: 'interaction',
-        expected: [...EXPECTED, HANDOFF],
-        trigger: async () => {
-          await fileInput(page).setInputFiles(NEW_FILE);
-          await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
-          release();
-          await expect(page.locator(HANDOFF)).toBeVisible();
-          await expect(rowByName(page, NEW_NAME)).toBeVisible();
-        },
-      });
-    } catch (error) {
+      await pinMoved(testInfo, 'g10-non-empty-import', () =>
+        stillnessProbe(page, {
+          kind: 'interaction',
+          expected: [...EXPECTED, HANDOFF],
+          trigger: async () => {
+            await fileInput(page).setInputFiles(NEW_FILE);
+            await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
+            release();
+            await expect(page.locator(HANDOFF)).toBeVisible();
+            await expect(rowByName(page, NEW_NAME)).toBeVisible();
+          },
+        })
+      );
+    } finally {
       release();
-      const text = error instanceof StillnessError ? `FAIL ${error.message}` : `ERROR ${String(error)}`;
-      await testInfo.attach('g10-non-empty-import', { body: text, contentType: 'text/plain' });
-      throw error;
     }
+  });
+
+  test('GATE G10 /inbox: a FAILED import into a NON-EMPTY list moves the rows already on screen (pinned; needs an L0 or owner ruling)', async ({
+    page,
+  }, testInfo) => {
+    // The import-failed alert is inserted above the drop zone, so every row moves down by the height of the alert
+    // (measured in review: 108.4 px at 1440). Same ruling as the completed import; same pin.
+    // Would not notice: see pinMoved. The alert carries data-t0, so the probe also reads the alert itself.
+    const { docs } = await setup(page);
+    docs.answer = { fail: { status: 400, detail: 'Unsupported file type' } };
+    await openInbox(page);
+    await pinMoved(testInfo, 'g10-failed-import-with-rows', () =>
+      stillnessProbe(page, {
+        kind: 'interaction',
+        expected: [ERROR_ALERT, ...EXPECTED],
+        trigger: async () => {
+          await fileInput(page).setInputFiles({ ...NEW_FILE, name: 'bad.pdf' });
+          await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+        },
+      })
+    );
   });
 
   test('INBOX-DATA-RENDER: the longest task between the documents response and the first row, recorded (no assertion)', async ({

@@ -237,8 +237,10 @@ export function DocumentInbox() {
       )}
 
       {/* The running state lives in the drop zone's own slot: the idle block stays in the grid cell (hidden) so the
-          cell keeps its height, and the page below never moves when an import starts or ends (HC-UIDOC-006). */}
-      <BeamBorder active={processingName !== null} className="rounded-2xl">
+          cell keeps its height, and the page below does not move when an import STARTS (HC-UIDOC-006, G6). When it
+          ENDS, the handoff card and the new row are inserted above the rows: that is the pinned G10 case. The ring
+          is lifted above the opaque card (z-10), or the card would paint over it. */}
+      <BeamBorder active={processingName !== null} className="rounded-2xl [&>span]:z-10">
         <Card
           className={cn(
             'border-2 border-dashed transition-all duration-200',
@@ -283,7 +285,7 @@ export function DocumentInbox() {
                     <ThinkingOrb
                       size={20}
                       status={`Reading ${processingName}`}
-                      className="max-w-full min-w-0 [overflow-wrap:anywhere]"
+                      className="max-w-full min-w-0 [overflow-wrap:anywhere] [&_[role=status]]:line-clamp-2 [&_[role=status]]:min-w-0"
                     />
                   </div>
                 )}
@@ -433,7 +435,7 @@ export function DocumentInbox() {
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center text-ink-secondary">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              <Loader2 className="w-6 h-6 motion-safe:animate-spin mx-auto mb-2" />
               Loading documents...
             </div>
           ) : documents.length === 0 ? (
