@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { m, AnimatePresence } from 'framer-motion';
+import { m } from 'framer-motion';
 import {
   Send,
   FileText,
-  ExternalLink,
   Sparkles,
   AlertCircle,
   BookOpen,
@@ -22,7 +21,10 @@ import {
   ChevronUp,
   Tag,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, IconButton } from '@/components/ui';
+import { Pending } from '@/components/ui/Pending';
+import { Popover } from '@/components/ui/Popover';
+import { duration, ease } from '@/motion/tokens';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useAuthStore } from '@/stores/authStore';
@@ -54,6 +56,8 @@ interface CitationChip {
   docId: string | null;
   observationId: string | null;
   entityId: string | null;
+  /** The quoted passage the citation points at; null when the backend sent none. */
+  snippet: string | null;
 }
 
 /**
@@ -75,6 +79,70 @@ function citationTarget(citation: CitationChip): string | null {
   if (citation.docId) params.set('doc', citation.docId);
   if (citation.page != null) params.set('page', String(citation.page));
   return `/verify?${params.toString()}`;
+}
+
+/**
+ * A citation chip. Tap, click or Enter opens its quote in the UI-PROVENANCE popover; hover alone does not. The
+ * popover holds T0 text, so it is `still`. The deep link to the source region (CITE-SRC-001) is inside the popover and
+ * only when the citation has one: a quote with no link is honest, a control that goes nowhere is not.
+ */
+function CitationPopoverChip({ citation, index }: { citation: CitationChip; index: number }) {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const target = citationTarget(citation);
+  const base =
+    citation.source === 'Your Results'
+      ? 'bg-accent-subtle text-accent font-medium'
+      : 'bg-surface-muted text-ink-secondary';
+
+  return (
+    <Popover
+      still
+      open={open}
+      onOpenChange={setOpen}
+      label={`Source ${index + 1}`}
+      className="w-72 max-w-[calc(100vw-1rem)] text-sm"
+      trigger={
+        <button
+          type="button"
+          data-t0=""
+          className={cn(
+            'inline-flex min-h-target items-center gap-1 rounded-lg px-2 text-xs',
+            'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1',
+            base
+          )}
+        >
+          <FileText className="w-3 h-3" aria-hidden="true" />
+          [{index + 1}] {citation.source}
+          {citation.page && ` (p.${citation.page})`}
+        </button>
+      }
+    >
+      <div className="min-w-0 space-y-2">
+        <p data-t0="" className="text-xs font-medium uppercase tracking-wider text-ink-secondary">
+          {citation.source}
+          {citation.page != null && ` \u00b7 page ${citation.page}`}
+        </p>
+        {citation.snippet ? (
+          <p data-t0="" className="leading-relaxed text-ink">
+            {citation.snippet}
+          </p>
+        ) : null}
+        {target ? (
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              navigate(target);
+            }}
+            className="min-h-target text-sm font-medium text-accent underline underline-offset-4"
+          >
+            Show in source document
+          </button>
+        ) : null}
+      </div>
+    </Popover>
+  );
 }
 
 interface Message {
@@ -119,6 +187,18 @@ const documentCategoryLabels: Record<DocumentCategory, string> = {
 
 type DocumentCategoryFilterValue = '' | DocumentCategory;
 
+const EMPTY_FEEDBACK = {
+  rating: null as 1 | -1 | null,
+  tagsOpen: false,
+  correctionOpen: false,
+  correction: '',
+  submitting: false,
+  submitted: false,
+  selectedTags: [] as FeedbackTag[],
+};
+
+const EASE_OUT: [number, number, number, number] = [...ease.out];
+
 export function ExplainAssistant() {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
@@ -128,7 +208,7 @@ export function ExplainAssistant() {
   const [modelUnavailable, setModelUnavailable] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
 
   // Load the most recent session on mount (ASSIST-HIST-001)
   const { data: sessionsData, isFetched: sessionsFetched } = useChatSessions();
@@ -182,15 +262,14 @@ export function ExplainAssistant() {
   const submitFeedback = useSubmitFeedback();
 
   // Per-message feedback UI state: rating, tag picker open, correction text
-  const [feedbackState, setFeedbackState] = useState<
-    Record<string, { rating: 1 | -1 | null; tagsOpen: boolean; correctionOpen: boolean; correction: string; submitting: boolean; submitted: boolean; selectedTags: FeedbackTag[] }>
-  >({});
+  const [feedbackState, setFeedbackState] = useState<Record<string, typeof EMPTY_FEEDBACK>>({});
 
-  const getFeedbackState = (msgId: string) =>
-    feedbackState[msgId] ?? { rating: null, tagsOpen: false, correctionOpen: false, correction: '', submitting: false, submitted: false, selectedTags: [] };
+  const getFeedbackState = (msgId: string) => feedbackState[msgId] ?? EMPTY_FEEDBACK;
 
-  const updateFeedbackState = (msgId: string, patch: Partial<ReturnType<typeof getFeedbackState>>) =>
-    setFeedbackState((prev) => ({ ...prev, [msgId]: { ...getFeedbackState(msgId), ...patch } }));
+  // Merge into the latest state, not the one this render closed over: handleFeedback makes several updates in one
+  // call, and merging into the render's copy made each one overwrite the last (a thumbs-down never showed as pressed).
+  const updateFeedbackState = (msgId: string, patch: Partial<typeof EMPTY_FEEDBACK>) =>
+    setFeedbackState((prev) => ({ ...prev, [msgId]: { ...(prev[msgId] ?? EMPTY_FEEDBACK), ...patch } }));
 
   const handleFeedback = async (msg: Message, rating: 1 | -1) => {
     if (!msg.turnId || !currentSessionId) return;
@@ -305,9 +384,13 @@ export function ExplainAssistant() {
     return 'Local model';
   }, [modelSettings, externalApi, providerInfo, providerInfoPending]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
-  }, [messages, prefersReducedMotion]);
+  // Keep the newest message in view by scrolling the list itself. scrollIntoView on a sentinel also scrolls every
+  // ancestor, which moved the whole page on each send (and on load). Set before paint and without easing, so a
+  // T0 answer is at its final position in the first frame it exists.
+  useLayoutEffect(() => {
+    const list = messageListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [messages, sendMessage.isPending]);
 
   const handleSend = async (overrideQuestion?: string) => {
     const question = (overrideQuestion ?? input).trim();
@@ -383,6 +466,7 @@ export function ExplainAssistant() {
           docId: citation.doc_id,
           observationId: citation.observation_id ?? null,
           entityId: citation.entity_id ?? null,
+          snippet: citation.text_snippet || null,
         });
       });
     });
@@ -431,32 +515,230 @@ export function ExplainAssistant() {
     return "I encountered an error while processing your question. Please try again.";
   };
 
-  return (
-    <div className="h-[calc(100vh-10rem)] flex gap-6">
-      <div className="flex-1 flex flex-col">
-        <Card className="flex-1 flex flex-col overflow-hidden">
-          <CardHeader className="border-b border-black/4 shrink-0">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-accent-subtle flex items-center justify-center">
-                  <Sparkles className="w-4 h-4 text-accent" />
-                </div>
-                <span>Explain Assistant</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {messages.length > 0 && (
-                  <Button
+  const renderBubble = (message: Message) => {
+    const isAssistant = message.role === 'assistant';
+    return (
+      <div
+        className={cn(
+          'max-w-[85%] rounded-2xl px-4 py-3 lg:max-w-[80%]',
+          message.role === 'user'
+            ? 'bg-accent text-[var(--on-accent)]'
+            : message.error
+              ? 'bg-status-danger-subtle border border-status-danger/20'
+              : message.insufficientContext
+                ? 'bg-status-caution-subtle border border-status-caution/20'
+                : 'bg-surface-muted'
+        )}
+      >
+        {message.insufficientContext && (
+          <div className="flex items-center gap-2 mb-2 text-status-caution">
+            <Info className="w-4 h-4" />
+            <span className="text-xs font-medium">Limited Context Available</span>
+          </div>
+        )}
+
+        {message.error && (
+          <div className="flex items-center gap-2 mb-2 text-status-danger">
+            <XCircle className="w-4 h-4" />
+            <span className="text-xs font-medium">Error</span>
+          </div>
+        )}
+
+        {/* T0: an answer's values, and the text of a chat error, never move once they render. The patient's own
+            words are not T0. */}
+        <div
+          {...(isAssistant ? { 'data-t0': '' } : {})}
+          className={cn('text-sm whitespace-pre-wrap break-words', isAssistant && 'prose prose-sm max-w-none')}
+        >
+          {message.content}
+        </div>
+
+        {message.citations && message.citations.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-black/8">
+            <p className="text-xs text-ink-secondary mb-2">Sources:</p>
+            <div className="flex flex-wrap gap-2">
+              {message.citations.map((citation, i) => (
+                <CitationPopoverChip key={i} citation={citation} index={i} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {message.verification && message.verification.enabled && (
+          <div className="mt-3 pt-3 border-t border-black/8">
+            <div className="flex items-center gap-2 text-xs">
+              <CheckCircle2 className="w-3 h-3 text-status-success" />
+              <span className="text-ink-secondary">
+                {message.verification.verifiedClaims}/{message.verification.totalClaims} claims verified
+              </span>
+              <span className="text-ink-tertiary">
+                ({Math.round(message.verification.faithfulnessScore * 100)}% faithfulness)
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div
+          className={cn(
+            'text-xs mt-2',
+            message.role === 'user'
+              ? 'text-[var(--on-accent)]'
+              : 'text-ink-tertiary'
+          )}
+        >
+          <Clock className="w-3 h-3 inline mr-1" />
+          {message.timestamp.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </div>
+
+        {/* ── Feedback widget (assistant turns only) ── */}
+        {message.role === 'assistant' && !message.error && (() => {
+          const fs = getFeedbackState(message.id);
+          return (
+            <div className="mt-3 pt-2 border-t border-black/6">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-ink-tertiary mr-1">Was this helpful?</span>
+                <IconButton
+                  variant="ghost"
+                  aria-label="Helpful"
+                  aria-pressed={fs.rating === 1}
+                  title="Helpful"
+                  onClick={() => handleFeedback(message, 1)}
+                  disabled={fs.submitting}
+                  className={cn(
+                    'rounded-lg',
+                    fs.rating === 1
+                      ? 'bg-status-success/20 text-status-success'
+                      : 'text-ink-tertiary hover:text-status-success hover:bg-status-success/10'
+                  )}
+                >
+                  <ThumbsUp className="w-4 h-4" aria-hidden="true" />
+                </IconButton>
+                <IconButton
+                  variant="ghost"
+                  aria-label="Not helpful"
+                  aria-pressed={fs.rating === -1}
+                  title="Not helpful"
+                  onClick={() => handleFeedback(message, -1)}
+                  disabled={fs.submitting}
+                  className={cn(
+                    'rounded-lg',
+                    fs.rating === -1
+                      ? 'bg-status-danger/20 text-status-danger'
+                      : 'text-ink-tertiary hover:text-status-danger hover:bg-status-danger/10'
+                  )}
+                >
+                  <ThumbsDown className="w-4 h-4" aria-hidden="true" />
+                </IconButton>
+                {fs.rating === -1 && (
+                  <IconButton
                     variant="ghost"
-                    size="sm"
-                    onClick={startNewConversation}
-                    className="gap-1.5 text-xs text-ink-secondary"
-                    title="Start a new conversation"
+                    aria-label="Feedback options"
+                    aria-expanded={fs.tagsOpen}
+                    onClick={() => updateFeedbackState(message.id, { tagsOpen: !fs.tagsOpen, correctionOpen: !fs.correctionOpen })}
+                    className="rounded-lg text-ink-tertiary hover:text-ink"
                   >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                    New
-                  </Button>
+                    <Tag className="w-3.5 h-3.5" aria-hidden="true" />
+                    {fs.tagsOpen ? <ChevronUp className="w-3 h-3" aria-hidden="true" /> : <ChevronDown className="w-3 h-3" aria-hidden="true" />}
+                  </IconButton>
                 )}
-                <Badge variant="info" className="gap-1.5 max-w-[min(20rem,55vw)]" title={activeModelSummary}>
+                {fs.submitted && (
+                  <span className="text-xs text-status-success ml-1">Thanks!</span>
+                )}
+              </div>
+
+              {/* Tag picker + correction (shown on thumbs-down) */}
+              {fs.rating === -1 && fs.tagsOpen && (
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-1">
+                    {FEEDBACK_TAGS.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        aria-pressed={fs.selectedTags.includes(tag)}
+                        onClick={() => {
+                          const tags = fs.selectedTags.includes(tag)
+                            ? fs.selectedTags.filter((t) => t !== tag)
+                            : [...fs.selectedTags, tag];
+                          updateFeedbackState(message.id, { selectedTags: tags });
+                        }}
+                        className={cn(
+                          'text-xs px-3 py-1.5 rounded-full border transition-colors',
+                          fs.selectedTags.includes(tag)
+                            ? 'bg-accent text-[var(--on-accent)] border-accent'
+                            : 'bg-surface-elevated text-ink-secondary border-border hover:border-accent hover:text-accent'
+                        )}
+                      >
+                        {tag.replace(/_/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+
+                  {fs.correctionOpen && (
+                    <div className="space-y-1">
+                      <textarea
+                        aria-label="Suggest a better answer"
+                        value={fs.correction}
+                        onChange={(e) => updateFeedbackState(message.id, { correction: e.target.value })}
+                        placeholder="Optional: write a better answer…"
+                        rows={3}
+                        className="w-full text-xs px-2 py-1.5 rounded-lg bg-surface-elevated border border-border text-ink placeholder:text-ink-tertiary focus:outline-hidden focus:ring-2 focus:ring-accent resize-none"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleSubmitCorrection(message)}
+                        disabled={fs.submitting}
+                        className="text-xs py-1 h-auto"
+                      >
+                        {fs.submitting ? 'Saving…' : 'Submit feedback'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* The card is as tall as the space between the shell's header and its Safety Rail / tab bar (AppLayout writes
+            --shell-top-h and --shell-bottom-h), so the composer and the disclaimer under it are in view without a page
+            scroll and the message list is the only thing that scrolls. 2.5rem / 4rem: the main area's padding. */}
+        <Card
+          className={cn(
+            'flex flex-col overflow-hidden min-h-[28rem]',
+            'h-[calc(100dvh-var(--shell-top-h,4rem)-var(--shell-bottom-h,3rem)-2.5rem)]',
+            'lg:h-[calc(100dvh-var(--shell-top-h,4rem)-var(--shell-bottom-h,3rem)-4rem)]'
+          )}
+        >
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-black/4 px-4 py-3 lg:px-6 lg:py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-accent-subtle flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-accent" />
+              </div>
+              <h1 className="font-display text-xl font-semibold tracking-tight text-ink">Explain Assistant</h1>
+            </div>
+            <div className="flex min-h-target min-w-0 items-center gap-2">
+              {messages.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={startNewConversation}
+                  className="gap-1.5 text-xs text-ink-secondary"
+                  title="Start a new conversation"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  New
+                </Button>
+              )}
+              <Badge variant="info" className="gap-1.5 max-w-[min(20rem,55vw)]" title={activeModelSummary}>
                 <FileText className="w-3 h-3 shrink-0" />
                 {modelSettingsLoading ? (
                   <span className="inline-block h-3.5 w-28 bg-white/50 animate-pulse rounded-sm" aria-hidden />
@@ -464,12 +746,11 @@ export function ExplainAssistant() {
                   <span className="truncate">{activeModelSummary}</span>
                 )}
               </Badge>
-              </div>
-            </CardTitle>
-          </CardHeader>
+            </div>
+          </div>
 
           {modelUnavailable && (
-            <div className="mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
+            <div className="mx-4 mt-4 lg:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
               <Settings className="w-5 h-5 text-status-caution shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-medium text-ink">No AI model configured</p>
@@ -490,13 +771,13 @@ export function ExplainAssistant() {
           )}
 
           {(breakGlassActive || breakGlassUnknown) && (
-            <div className="mx-6 mt-4">
+            <div className="mx-4 mt-4 lg:mx-6">
               <ExternalApiBreakGlassWarning active={breakGlassActive} unknown={breakGlassUnknown} />
             </div>
           )}
 
           {(observationPool?.some((obs) => !obs.user_verified) ?? false) && (
-            <div className="mx-6 mt-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
+            <div className="mx-4 mt-4 lg:mx-6 flex items-center gap-3 px-4 py-3 rounded-xl bg-status-caution-subtle border border-status-caution/20">
               <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
               <p className="text-xs text-ink-secondary">
                 Some values are still unverified. Answers stay grounded, but confirm key numbers in Verify for highest confidence.
@@ -504,7 +785,14 @@ export function ExplainAssistant() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+          <div
+            ref={messageListRef}
+            role="log"
+            aria-label="Conversation"
+            tabIndex={0}
+            className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent lg:p-6"
+          >
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <div className="w-16 h-16 rounded-2xl bg-accent-subtle flex items-center justify-center mb-4">
@@ -523,266 +811,39 @@ export function ExplainAssistant() {
               </div>
             )}
 
-            <AnimatePresence mode="popLayout">
-              {messages.map((message) => (
+            {messages.map((message) => {
+              const rowClass = cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start');
+              // M6: the patient's own message rises 6 px and fades in from .35 (opacity only under reduced motion).
+              // An assistant message holds T0 values and citations, so it renders with no motion at all.
+              return message.role === 'user' ? (
                 <m.div
                   key={message.id}
                   data-testid="chat-message"
                   data-role={message.role}
-                  initial={prefersReducedMotion ? {} : { opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className={cn(
-                    'flex',
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  )}
+                  initial={prefersReducedMotion ? { opacity: 0.35 } : { opacity: 0.35, y: 6 }}
+                  animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                  transition={{ duration: prefersReducedMotion ? 0.12 : duration.md, ease: EASE_OUT }}
+                  className={rowClass}
                 >
-                  <div
-                    className={cn(
-                      'max-w-[80%] rounded-2xl px-4 py-3',
-                      message.role === 'user'
-                        ? 'bg-accent text-white'
-                        : message.error
-                          ? 'bg-status-danger-subtle border border-status-danger/20'
-                          : message.insufficientContext
-                            ? 'bg-status-caution-subtle border border-status-caution/20'
-                            : 'bg-surface-muted'
-                    )}
-                  >
-                    {message.insufficientContext && (
-                      <div className="flex items-center gap-2 mb-2 text-status-caution">
-                        <Info className="w-4 h-4" />
-                        <span className="text-xs font-medium">Limited Context Available</span>
-                      </div>
-                    )}
-
-                    {message.error && (
-                      <div className="flex items-center gap-2 mb-2 text-status-danger">
-                        <XCircle className="w-4 h-4" />
-                        <span className="text-xs font-medium">Error</span>
-                      </div>
-                    )}
-
-                    <div
-                      className={cn(
-                        'text-sm whitespace-pre-wrap',
-                        message.role === 'assistant' && 'prose prose-sm max-w-none'
-                      )}
-                    >
-                      {message.content}
-                    </div>
-
-                    {message.citations && message.citations.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-black/8">
-                        <p className="text-xs text-ink-secondary mb-2">Sources:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {message.citations.map((citation, i) => {
-                            const target = citationTarget(citation);
-                            const label = (
-                              <>
-                                <FileText className="w-3 h-3" />
-                                [{i + 1}] {citation.source}
-                                {citation.page && ` (p.${citation.page})`}
-                                {target && <ExternalLink className="w-3 h-3" />}
-                              </>
-                            );
-                            const base =
-                              citation.source === 'Your Results'
-                                ? 'bg-accent-subtle text-accent font-medium'
-                                : 'bg-white/80 text-ink-secondary';
-
-                            // A citation with no source region is a label, not
-                            // a control — rendering it as a button that goes
-                            // nowhere is worse than plain text (CITE-SRC-001).
-                            if (!target) {
-                              return (
-                                <span
-                                  key={i}
-                                  className={cn(
-                                    'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg',
-                                    base
-                                  )}
-                                >
-                                  {label}
-                                </span>
-                              );
-                            }
-
-                            return (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => navigate(target)}
-                                title="Show this result in the source document"
-                                className={cn(
-                                  'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg transition-colors',
-                                  base,
-                                  citation.source === 'Your Results'
-                                    ? 'hover:bg-accent hover:text-white'
-                                    : 'hover:text-accent'
-                                )}
-                              >
-                                {label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {message.verification && message.verification.enabled && (
-                      <div className="mt-3 pt-3 border-t border-black/8">
-                        <div className="flex items-center gap-2 text-xs">
-                          <CheckCircle2 className="w-3 h-3 text-status-success" />
-                          <span className="text-ink-secondary">
-                            {message.verification.verifiedClaims}/{message.verification.totalClaims} claims verified
-                          </span>
-                          <span className="text-ink-tertiary">
-                            ({Math.round(message.verification.faithfulnessScore * 100)}% faithfulness)
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div
-                      className={cn(
-                        'text-xs mt-2',
-                        message.role === 'user'
-                          ? 'text-white/80'
-                          : 'text-ink-tertiary'
-                      )}
-                    >
-                      <Clock className="w-3 h-3 inline mr-1" />
-                      {message.timestamp.toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-
-                    {/* ── Feedback widget (assistant turns only) ── */}
-                    {message.role === 'assistant' && !message.error && (() => {
-                      const fs = getFeedbackState(message.id);
-                      return (
-                        <div className="mt-3 pt-2 border-t border-black/6">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-ink-tertiary mr-1">Was this helpful?</span>
-                            <button
-                              onClick={() => handleFeedback(message, 1)}
-                              disabled={fs.submitting}
-                              title="Helpful"
-                              className={cn(
-                                'p-1 rounded-lg transition-colors',
-                                fs.rating === 1
-                                  ? 'bg-status-success/20 text-status-success'
-                                  : 'text-ink-tertiary hover:text-status-success hover:bg-status-success/10'
-                              )}
-                            >
-                              <ThumbsUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleFeedback(message, -1)}
-                              disabled={fs.submitting}
-                              title="Not helpful"
-                              className={cn(
-                                'p-1 rounded-lg transition-colors',
-                                fs.rating === -1
-                                  ? 'bg-status-danger/20 text-status-danger'
-                                  : 'text-ink-tertiary hover:text-status-danger hover:bg-status-danger/10'
-                              )}
-                            >
-                              <ThumbsDown className="w-3.5 h-3.5" />
-                            </button>
-                            {fs.rating === -1 && (
-                              <button
-                                onClick={() => updateFeedbackState(message.id, { tagsOpen: !fs.tagsOpen, correctionOpen: !fs.correctionOpen })}
-                                className="ml-1 flex items-center gap-1 text-xs text-ink-tertiary hover:text-ink transition-colors"
-                              >
-                                <Tag className="w-3 h-3" />
-                                {fs.tagsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              </button>
-                            )}
-                            {fs.submitted && (
-                              <span className="text-xs text-status-success ml-1">Thanks!</span>
-                            )}
-                          </div>
-
-                          {/* Tag picker + correction (shown on thumbs-down) */}
-                          {fs.rating === -1 && fs.tagsOpen && (
-                            <div className="mt-2 space-y-2">
-                              <div className="flex flex-wrap gap-1">
-                                {FEEDBACK_TAGS.map((tag) => (
-                                  <button
-                                    key={tag}
-                                    onClick={() => {
-                                      const tags = fs.selectedTags.includes(tag)
-                                        ? fs.selectedTags.filter((t) => t !== tag)
-                                        : [...fs.selectedTags, tag];
-                                      updateFeedbackState(message.id, { selectedTags: tags });
-                                    }}
-                                    className={cn(
-                                      'text-xs px-2 py-0.5 rounded-full border transition-colors',
-                                      fs.selectedTags.includes(tag)
-                                        ? 'bg-accent text-white border-accent'
-                                        : 'bg-white/60 text-ink-secondary border-black/10 hover:border-accent hover:text-accent'
-                                    )}
-                                  >
-                                    {tag.replace(/_/g, ' ')}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {fs.correctionOpen && (
-                                <div className="space-y-1">
-                                  <textarea
-                                    value={fs.correction}
-                                    onChange={(e) => updateFeedbackState(message.id, { correction: e.target.value })}
-                                    placeholder="Optional: write a better answer…"
-                                    rows={3}
-                                    className="w-full text-xs px-2 py-1.5 rounded-lg bg-white/80 border border-black/10 text-ink placeholder:text-ink-tertiary focus:outline-hidden focus:ring-2 focus:ring-accent resize-none"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleSubmitCorrection(message)}
-                                    disabled={fs.submitting}
-                                    className="text-xs py-1 h-auto"
-                                  >
-                                    {fs.submitting ? 'Saving…' : 'Submit feedback'}
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
+                  {renderBubble(message)}
                 </m.div>
-              ))}
-            </AnimatePresence>
+              ) : (
+                <div key={message.id} data-testid="chat-message" data-role={message.role} className={rowClass}>
+                  {renderBubble(message)}
+                </div>
+              );
+            })}
 
             {sendMessage.isPending && (
-              <m.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex justify-start"
-              >
+              <div className="flex justify-start">
                 <div className="bg-surface-muted rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-2 text-ink-secondary">
-                    <div className="flex gap-1">
-                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-2 h-2 bg-accent rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                    <span className="text-sm">Searching documents and generating response...</span>
-                  </div>
+                  <Pending>Reading your verified results…</Pending>
                 </div>
-              </m.div>
+              </div>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-black/4 p-4 shrink-0">
+          <div className="shrink-0 border-t border-black/4 p-4">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <span className="text-xs font-medium text-ink-tertiary flex items-center gap-1">
                 <History className="w-3 h-3" />
@@ -831,10 +892,23 @@ export function ExplainAssistant() {
               </Button>
             </div>
           </div>
+
+          <div className="shrink-0 border-t border-status-caution/20 bg-status-caution-subtle px-4 py-3 lg:px-6">
+            <div className="flex gap-3">
+              <AlertCircle className="w-4 h-4 text-status-caution shrink-0 mt-0.5" aria-hidden="true" />
+              <p data-t0="" data-testid="ask-disclaimer" className="text-xs text-ink-secondary leading-relaxed">
+                <span className="font-medium text-ink">Important. </span>
+                This assistant provides information based on your documents
+                and general medical references. It does not provide medical
+                advice, diagnosis, or treatment recommendations. Always
+                consult your healthcare provider.
+              </p>
+            </div>
+          </div>
         </Card>
       </div>
 
-      <div className="w-80 space-y-4">
+      <div className="w-full space-y-4 lg:w-80 lg:shrink-0">
         {/* Filters */}
         <Card>
           <CardHeader className="pb-2">
@@ -844,26 +918,35 @@ export function ExplainAssistant() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div>
-              <label className="text-xs text-ink-secondary block mb-1">Date Range</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  aria-label="From date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
-                />
-                <span className="text-xs text-ink-tertiary">to</span>
-                <input
-                  type="date"
-                  aria-label="To date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="flex-1 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
-                />
+            <fieldset className="min-w-0">
+              <legend className="text-xs text-ink-secondary mb-1">Date Range</legend>
+              <div className="flex flex-wrap gap-2">
+                <div className="min-w-[8.5rem] flex-1">
+                  <label htmlFor="ask-from-date" className="text-xs text-ink-secondary block mb-1">
+                    From date
+                  </label>
+                  <input
+                    id="ask-from-date"
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-full min-w-0 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                <div className="min-w-[8.5rem] flex-1">
+                  <label htmlFor="ask-to-date" className="text-xs text-ink-secondary block mb-1">
+                    To date
+                  </label>
+                  <input
+                    id="ask-to-date"
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="w-full min-w-0 px-2 py-1.5 rounded-lg bg-surface-muted text-xs text-ink border border-black/6 focus:outline-hidden focus:ring-2 focus:ring-accent"
+                  />
+                </div>
               </div>
-            </div>
+            </fieldset>
             <div>
               <label htmlFor="document-category-select" className="text-xs text-ink-secondary block mb-1">
                 Document Category
@@ -976,23 +1059,6 @@ export function ExplainAssistant() {
                 {question}
               </button>
             ))}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-status-caution-subtle border-status-caution/20">
-          <CardContent className="p-4">
-            <div className="flex gap-3">
-              <AlertCircle className="w-5 h-5 text-status-caution shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-ink mb-1">Important</p>
-                <p className="text-xs text-ink-secondary leading-relaxed">
-                  This assistant provides information based on your documents
-                  and general medical references. It does not provide medical
-                  advice, diagnosis, or treatment recommendations. Always
-                  consult your healthcare provider.
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>
