@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/* react-remove-scroll-bar sets this on body while a modal is open; inherited, it restyles every element.
+   Nothing reads it below body, so it does not inherit: read it from body. */
+@property --removed-body-scroll-bar-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 /*
  * Fallback metrics for the self-hosted families (plan §2.3). The local system
  * face is scaled and its vertical metrics overridden to the webfont's, so the
