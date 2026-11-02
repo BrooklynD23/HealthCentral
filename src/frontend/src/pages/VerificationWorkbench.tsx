@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { m } from 'framer-motion';
 import {
   CheckCircle,
   AlertTriangle,
@@ -13,8 +12,8 @@ import {
   X,
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { StatusChip } from '@/components/ui/StatusChip';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useVerifyObservation } from '@/services/observations';
 import {
   useDocuments,
@@ -48,6 +47,25 @@ function parseBbox(json: string | null | undefined): BoundingBox | null {
   return null;
 }
 
+const HIGH_FLAGS = new Set(['H', 'HH', 'HIGH']);
+const LOW_FLAGS = new Set(['L', 'LL', 'LOW']);
+
+/**
+ * Which side of the report's range a value sits on, in words (HC-UIREV-001, WCAG 1.4.1).
+ * The report's own flag wins. Without one, the direction comes from the numbers; with no range to compare
+ * against, nothing is claimed.
+ */
+function rangeStateOf(observation: Observation): 'above-range' | 'below-range' | 'in-range' | null {
+  const flag = observation.flag?.toUpperCase() ?? '';
+  if (HIGH_FLAGS.has(flag)) return 'above-range';
+  if (LOW_FLAGS.has(flag)) return 'below-range';
+  const { value, ref_low: low, ref_high: high } = observation;
+  if (typeof value !== 'number') return null;
+  if (high !== null && value > high) return 'above-range';
+  if (low !== null && value < low) return 'below-range';
+  return low !== null || high !== null ? 'in-range' : null;
+}
+
 function documentAttentionHint(doc: Document): string {
   switch (doc.status) {
     case 'pending_ocr':
@@ -64,7 +82,6 @@ function documentAttentionHint(doc: Document): string {
 }
 
 export function VerificationWorkbench() {
-  const prefersReducedMotion = useReducedMotion();
   const { profileId } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDocId = searchParams.get('doc');
@@ -517,7 +534,7 @@ export function VerificationWorkbench() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Verification Workbench
@@ -526,7 +543,7 @@ export function VerificationWorkbench() {
             Review and correct extracted values from your documents
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {documentReviewMode && selectedDocument && (
             <Badge variant="default">
               Reviewing: {selectedDocument.source || 'Document'}
@@ -597,8 +614,8 @@ export function VerificationWorkbench() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
+                <table className="block w-full sm:table">
+                  <thead className="hidden sm:table-header-group">
                     <tr className="border-b border-black/4 bg-surface-muted/50">
                       <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Test Name
@@ -617,24 +634,23 @@ export function VerificationWorkbench() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {observations.map((observation, index) => (
-                      <m.tr
+                  <tbody className="block sm:table-row-group">
+                    {observations.map((observation) => {
+                      const rangeState = rangeStateOf(observation);
+                      return (
+                      <tr
                         key={observation.id}
                         id={`observation-row-${observation.id}`}
-                        initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
                         className={cn(
-                          'border-b border-black/4 transition-colors cursor-pointer',
+                          'block border-b border-black/4 py-2 transition-colors cursor-pointer sm:table-row sm:py-0',
                           selectedRow === observation.id
                             ? 'bg-accent-subtle'
                             : 'hover:bg-surface-muted/50'
                         )}
                         onClick={() => handleRowSelect(observation)}
                       >
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
+                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium text-ink">
                               {observation.analyte_raw}
                             </span>
@@ -646,8 +662,10 @@ export function VerificationWorkbench() {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-4">
+                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
+                          {/* The tint is a hint; the chip below carries the meaning in words (HC-UIREV-001). */}
                           <span
+                            data-t0=""
                             className={cn(
                               'font-mono font-semibold',
                               getStatusColor(observation)
@@ -655,18 +673,28 @@ export function VerificationWorkbench() {
                           >
                             {observation.value ?? observation.value_text ?? '-'}
                           </span>
-                          <span className="text-ink-secondary ml-1 text-sm">
-                            {observation.unit}
+                          {observation.unit ? (
+                            <span data-t0="" className="text-ink-secondary ml-1 text-sm">
+                              {observation.unit}
+                            </span>
+                          ) : null}
+                          {rangeState ? (
+                            <div className="mt-1">
+                              <StatusChip state={rangeState} />
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="block px-4 py-1.5 text-sm text-ink-secondary font-mono sm:table-cell sm:py-4">
+                          <span className="font-sans text-xs sm:hidden">Range </span>
+                          <span data-t0="">
+                            {formatRefRange(observation)} {observation.unit}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-sm text-ink-secondary font-mono">
-                          {formatRefRange(observation)} {observation.unit}
-                        </td>
-                        <td className="px-4 py-4">
+                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4">
                           <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
                         </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <td className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
+                          <div className="flex items-center gap-1 sm:justify-end">
                             <Button
                               variant="ghost"
                               size="icon"
@@ -716,8 +744,9 @@ export function VerificationWorkbench() {
                             </Button>
                           </div>
                         </td>
-                      </m.tr>
-                    ))}
+                      </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -82,8 +82,8 @@ export function EntityDetailView({
         <CardTitle className="text-base">Extracted Information</CardTitle>
       </CardHeader>
       <CardContent>
-        <table className="w-full text-sm">
-          <thead>
+        <table className="block w-full text-sm sm:table">
+          <thead className="hidden sm:table-header-group">
             <tr className="border-b border-black/6">
               <th className="text-left py-2 text-ink-tertiary font-medium">Field</th>
               <th className="text-left py-2 text-ink-tertiary font-medium">Value</th>
@@ -92,7 +92,7 @@ export function EntityDetailView({
               )}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="block sm:table-row-group">
             {entities.map((entity) => {
               const isLowConfidence = entity.confidence < 0.8;
               const label = ENTITY_LABELS[entity.entity_type] ?? entity.entity_type;
@@ -101,12 +101,12 @@ export function EntityDetailView({
                   key={entity.id}
                   id={`entity-row-${entity.id}`}
                   className={cn(
-                    'border-b border-black/4',
+                    'block border-b border-black/4 py-2 sm:table-row sm:py-0',
                     isLowConfidence && 'border-dashed border-status-caution/30',
                     highlightEntityId === entity.id && 'bg-accent/10'
                   )}
                 >
-                  <td className="py-2 text-ink-secondary whitespace-nowrap pr-4 align-top">
+                  <td className="block py-1 text-ink-secondary sm:table-cell sm:py-2 sm:whitespace-nowrap sm:pr-4 sm:align-top">
                     <span className="flex items-center gap-1">
                       {label}
                       {isLowConfidence && (
@@ -117,8 +117,8 @@ export function EntityDetailView({
                       )}
                     </span>
                   </td>
-                  <td className="py-2 text-ink wrap-break-word max-w-xs align-top">
-                    {entity.entity_value}
+                  <td className="block py-1 text-ink wrap-break-word sm:table-cell sm:py-2 sm:max-w-xs sm:align-top">
+                    <span data-t0="">{entity.entity_value}</span>
                     <div className="mt-1">
                       <ExtractionConfidenceBadge confidence={entity.confidence} />
                     </div>
@@ -135,7 +135,7 @@ export function EntityDetailView({
                     )}
                   </td>
                   {onSetVerification && (
-                    <td className="py-2 text-right whitespace-nowrap align-top">
+                    <td className="block py-1 sm:table-cell sm:py-2 sm:text-right sm:whitespace-nowrap sm:align-top">
                       <span className="inline-flex items-center gap-1">
                         {entity.verified_by_user === true && (
                           <Badge variant="verified" className="text-xs">Verified</Badge>
