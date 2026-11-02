@@ -4,6 +4,9 @@
  * the page and the matching line after it), HC-STW-003 (excerptFromPage table),
  * HC-STW-004 (Escape closes the sheet and focus returns to "Show source").
  * HC-STW-005 (the same path in a browser) is Playwright, in e2e/ui-provenance.spec.ts.
+ * HC-STW-006 to 008 (review round 1, finding 2): "It matches, mark as checked" is enabled
+ * only while an excerpt is on screen and both GETs have resolved; the reason is visible
+ * when it is not; HC-STW-009 (the same on /interpret) is Playwright.
  *
  * Plan: docs/plans/2026-10-30-followups-plan.md, "SOURCE-TRACE-WIRE".
  *
@@ -466,5 +469,233 @@ describe('HC-STW-004 Escape closes the sheet and focus returns to "Show source"'
       expect(screen.queryByRole('dialog', { name: 'Source for Glucose' })).toBeNull();
     });
     expect(document.activeElement).toBe(button);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-006 to 008: "It matches, mark as checked" needs the source on screen.
+// ---------------------------------------------------------------------------
+const MARK_BUTTON = { name: 'It matches, mark as checked' };
+const LOADING_REASON = 'Loading the source to compare.';
+const UNAVAILABLE_REASON = 'The source is not available to compare, so this cannot be marked here.';
+const VERIFY_PATH = `/observations/${OBSERVATION_ID}/verify`;
+const MARKED_TEXT = 'You have marked this value as checked.';
+
+type GetPlan = 'ok' | 'hold' | 'fail' | 'no-match' | 'null-source';
+const gates: Array<() => void> = [];
+
+/**
+ * Like stubFetch, with a plan per GET: 'hold' leaves it pending until afterEach, 'fail' answers
+ * 500 (document) or 404 (pages), 'no-match' serves a page with no matching line, 'null-source'
+ * serves a document whose source is null. POST /observations/<id>/verify is answered here, so
+ * a click that should not have sent one is caught by the recorded calls, not by a 500.
+ */
+function stubSheetFetch(plan: { document?: GetPlan; pages?: GetPlan } = {}) {
+  const hold = () =>
+    new Promise<void>((resolve) => {
+      gates.push(resolve);
+    });
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = pathOf(input);
+    const method = init?.method ?? 'GET';
+    if (method === 'POST' && path === VERIFY_PATH) return jsonResponse({ ...observation, user_verified: true });
+    if (method === 'GET' && path === `/documents/${DOC_ID}`) {
+      if (plan.document === 'hold') await hold();
+      if (plan.document === 'fail') return jsonResponse({ detail: 'failed' }, 500);
+      if (plan.document === 'null-source') return jsonResponse({ ...documentBody, source: null });
+      return jsonResponse(documentBody);
+    }
+    if (method === 'GET' && path === `/documents/${DOC_ID}/pages`) {
+      if (plan.pages === 'hold') await hold();
+      if (plan.pages === 'fail') return jsonResponse({ detail: 'failed' }, 404);
+      if (plan.pages === 'no-match') return jsonResponse(pagesBody('Panel\nSodium 140 mmol/L 136-145'));
+      return jsonResponse(pagesBody(PAGE_THREE_TEXT));
+    }
+    return jsonResponse({ detail: `not stubbed: ${method} ${path}` }, 500);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+function nonGetCalls(fetchMock: FetchMock) {
+  return fetchMock.mock.calls.filter(([, init]) => (init?.method ?? 'GET') !== 'GET');
+}
+
+async function openSheet(sheetObservation: Observation = observation) {
+  const user = userEvent.setup();
+  renderCard({ observation: sheetObservation });
+  await user.click(screen.getByRole('button', SHOW_SOURCE));
+  const dialog = await screen.findByRole('dialog', { name: 'Source for Glucose' });
+  return { user, dialog };
+}
+
+async function bothGetsRequested(fetchMock: FetchMock) {
+  await waitFor(() => {
+    expect(requestsTo(fetchMock, `/documents/${DOC_ID}`)).toHaveLength(1);
+    expect(requestsTo(fetchMock, `/documents/${DOC_ID}/pages`)).toHaveLength(1);
+  });
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+
+afterEach(() => {
+  gates.splice(0).forEach((release) => release());
+});
+
+describe('HC-STW-006 "It matches, mark as checked" is disabled, with a visible reason, until the source is on screen', () => {
+  // Held GETs: the document pending with the pages resolved has the excerpt ON SCREEN, so a rule that
+  // looks only at the excerpt would leave the button enabled here.
+  it.each<[string, { document?: GetPlan; pages?: GetPlan }, (dialog: HTMLElement, fetchMock: FetchMock) => Promise<unknown>]>([
+    [
+      'the document GET is pending and the excerpt is already on screen',
+      { document: 'hold' },
+      (dialog) => within(dialog).findByText(MATCH_LINE),
+    ],
+    [
+      'the pages GET is pending and the file name is already on screen',
+      { pages: 'hold' },
+      (dialog) => within(dialog).findByText('provenance-report.pdf'),
+    ],
+    ['both GETs are pending', { document: 'hold', pages: 'hold' }, (_dialog, fetchMock) => bothGetsRequested(fetchMock)],
+  ])('HC-STW-006 is disabled with the loading reason while %s', async (_label, plan, untilShown) => {
+    const fetchMock = stubSheetFetch(plan);
+    const { user, dialog } = await openSheet();
+    await untilShown(dialog, fetchMock);
+    await bothGetsRequested(fetchMock);
+
+    const button = within(dialog).getByRole('button', MARK_BUTTON) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    const reason = within(dialog).getByText(LOADING_REASON);
+    expect(button.getAttribute('aria-describedby')).toBe(reason.id);
+    expect(reason.id).not.toBe('');
+    expect(within(dialog).queryByText(UNAVAILABLE_REASON)).toBeNull();
+
+    await user.click(button);
+    await settle();
+    expect(nonGetCalls(fetchMock)).toEqual([]);
+  });
+
+  it.each<[string, { document?: GetPlan; pages?: GetPlan }]>([
+    ['the document GET fails with 500 (the excerpt is on screen)', { document: 'fail' }],
+    ['the pages GET fails with 404', { pages: 'fail' }],
+    ['both GETs fail', { document: 'fail', pages: 'fail' }],
+    ['both GETs succeed but no line matches', { pages: 'no-match' }],
+    ['the document GET succeeds with source null (the excerpt is on screen)', { document: 'null-source' }],
+  ])('HC-STW-006 is disabled with the unavailable reason, and a click sends no POST, when %s', async (_label, plan) => {
+    const fetchMock = stubSheetFetch(plan);
+    const { user, dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+
+    // The reason names the settled state, so both GETs have resolved when it appears.
+    const reason = await within(dialog).findByText(UNAVAILABLE_REASON);
+    const button = within(dialog).getByRole('button', MARK_BUTTON) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.getAttribute('aria-describedby')).toBe(reason.id);
+    expect(reason.id).not.toBe('');
+    expect(within(dialog).queryByText(LOADING_REASON)).toBeNull();
+    // The way out stays available in every state.
+    expect(within(dialog).getByRole('link', { name: 'Correct it in Review values' })).not.toBeNull();
+
+    await user.click(button);
+    await settle();
+    expect(nonGetCalls(fetchMock)).toEqual([]);
+  });
+});
+
+describe('HC-STW-007 with the source on screen the button is enabled and one click sends one verify POST', () => {
+  it('HC-STW-007 shows no reason, is enabled, and one click sends exactly one POST with body {} and leaves the card text alone', async () => {
+    const fetchMock = stubSheetFetch();
+    const { user, dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+    expect((await within(dialog).findByText(MATCH_LINE)).closest('li')?.textContent).toContain('Matching line:');
+    expect(await within(dialog).findByText('provenance-report.pdf')).not.toBeNull();
+
+    const button = within(dialog).getByRole('button', MARK_BUTTON) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(within(dialog).queryByText(LOADING_REASON)).toBeNull();
+    expect(within(dialog).queryByText(UNAVAILABLE_REASON)).toBeNull();
+    expect(button.getAttribute('aria-describedby')).toBeNull();
+
+    // The card sits behind the dialog (aria-hidden), so it is read by text, not by role.
+    const textBefore = screen.getByText(interpretation.interpretation_text).textContent;
+    expect(textBefore).toBe(interpretation.interpretation_text);
+
+    await user.click(button);
+    expect(await within(dialog).findByText(MARKED_TEXT)).not.toBeNull();
+    await settle();
+
+    const posts = nonGetCalls(fetchMock);
+    expect(posts.map(([input, init]) => `${init?.method} ${pathOf(input)}`)).toEqual([`POST ${VERIFY_PATH}`]);
+    expect(posts[0][1]?.body).toBe('{}');
+    expect(screen.getByText(interpretation.interpretation_text).textContent).toBe(textBefore);
+    expect(within(dialog).queryByRole('button', MARK_BUTTON)).toBeNull();
+  });
+
+  it('HC-STW-007 opening the sheet sends no POST, with the source on screen', async () => {
+    const fetchMock = stubSheetFetch();
+    const { dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+    await within(dialog).findByText(MATCH_LINE);
+    await settle();
+
+    expect((within(dialog).getByRole('button', MARK_BUTTON) as HTMLButtonElement).disabled).toBe(false);
+    expect(nonGetCalls(fetchMock)).toEqual([]);
+  });
+
+  it('HC-STW-007 opening the sheet sends no POST, with the source unavailable', async () => {
+    const fetchMock = stubSheetFetch({ document: 'fail', pages: 'fail' });
+    const { dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+    // These texts also show while loading, so settle() lets the two failed GETs be answered (no dependence on the new reason).
+    await within(dialog).findByText('Source file not available');
+    await within(dialog).findByText('Excerpt not available.');
+    await settle();
+
+    expect(nonGetCalls(fetchMock)).toEqual([]);
+  });
+
+  // Regression pin: true at head 7cb75d1b already (an already-checked value never showed the button).
+  it('HC-STW-007 an already verified value shows no button and no reason', async () => {
+    const fetchMock = stubSheetFetch({ pages: 'no-match' });
+    const { dialog } = await openSheet({ ...observation, user_verified: true });
+    await bothGetsRequested(fetchMock);
+    await within(dialog).findByText('Excerpt not available.');
+    await settle();
+
+    expect(within(dialog).getByText(MARKED_TEXT)).not.toBeNull();
+    expect(within(dialog).queryByRole('button', MARK_BUTTON)).toBeNull();
+    expect(within(dialog).queryByText(LOADING_REASON)).toBeNull();
+    expect(within(dialog).queryByText(UNAVAILABLE_REASON)).toBeNull();
+  });
+});
+
+describe('HC-STW-008 "This is what your report states." is shown only with an excerpt', () => {
+  const REPORT_STATES = 'This is what your report states.';
+
+  it('HC-STW-008 is present with an excerpt', async () => {
+    const fetchMock = stubSheetFetch();
+    const { dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+    await within(dialog).findByText(MATCH_LINE);
+    expect(within(dialog).getByText(REPORT_STATES)).not.toBeNull();
+  });
+
+  it('HC-STW-008 is absent under "Excerpt not available."', async () => {
+    const fetchMock = stubSheetFetch({ pages: 'no-match' });
+    const { dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+    expect(await within(dialog).findByText('provenance-report.pdf')).not.toBeNull();
+    await settle();
+    expect(within(dialog).getByText('Excerpt not available.')).not.toBeNull();
+    expect(within(dialog).queryByText(REPORT_STATES)).toBeNull();
+  });
+
+  it('HC-STW-008 is absent while loading, which still says "Excerpt not available."', async () => {
+    const fetchMock = stubSheetFetch({ document: 'hold', pages: 'hold' });
+    const { dialog } = await openSheet();
+    await bothGetsRequested(fetchMock);
+    await settle();
+    expect(within(dialog).getByText('Excerpt not available.')).not.toBeNull();
+    expect(within(dialog).queryByText(REPORT_STATES)).toBeNull();
   });
 });
