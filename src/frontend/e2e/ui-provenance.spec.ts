@@ -595,8 +595,8 @@ test('HC-UIPV-006 the Source Trace sheet is still from its opening click (stilln
 
 // ---------------------------------------------------------------------------
 // HC-STW-012 (SOURCE-TRACE-WIRE, review round 2): the same probe with a 51-character file name, at
-// the default 1280 px (the side sheet; below 1024 px the sheet is anchored to the bottom, so any
-// content that mounts below the rows moves them whatever the name is). The name arrives with the lazy document GET; if it wrapped, every row below it (Location,
+// the default 1280 px (the side sheet; below 1024 px the sheet is held at its full height and
+// HC-STW-013 covers that size, so this case covers the side sheet). The name arrives with the lazy document GET; if it wrapped, every row below it (Location,
 // Result, ...) would move down at that moment. The stored name is the uploaded file's name
 // (api/documents.py:450), so a long one is real. Only the document route is answered here; mockApi
 // is not edited. The excerpt lines are probed too, so it also goes red if the JetBrains Mono swap
@@ -636,8 +636,8 @@ test('HC-STW-012 the Source Trace sheet stays still when the file name is long',
 // HC-STW-013 (SOURCE-TRACE-WIRE, review round 3): the same probe below 1024 px, where the sheet is
 // anchored to the bottom. The excerpt mounts when the lazy pages GET resolves; a bottom sheet that
 // grows with its content then moves every row above it up (measured at 390x844: the Result value
-// [136.5,515.2] -> [136.5,439.8] within 87 ms). The content root keeps the sheet at its full height
-// (min-h-[calc(85dvh-6rem)]) so nothing moves. 390x640 checks that a short phone is no different.
+// [136.5,515.2] -> [136.5,439.8] within 87 ms). The Sheet's own class keeps it at its full height
+// (min-h-[85dvh], which is the sheet's max-h) so nothing moves. 390x640 checks that a short phone is no different.
 // ---------------------------------------------------------------------------
 for (const viewport of [
   { width: 390, height: 844 },
