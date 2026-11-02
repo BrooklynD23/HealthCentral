@@ -175,7 +175,6 @@ import models  # noqa: E402,F401  registers every model on both metadatas
 import models.response_feedback  # noqa: E402,F401  not exported by models/__init__
 from core.profile_database import ProfileDatabaseBase  # noqa: E402
 
-
 _DUMMY = (
     ("BOOL", 0), ("INT", 1), ("FLOAT", 0.5),
     ("DATETIME", "2026-01-01 00:00:00.000000"), ("DATE", "2026-01-01"),
@@ -425,7 +424,11 @@ from core import migrations  # noqa: E402
 from core.config import settings as _settings  # noqa: E402
 from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available  # noqa: E402
 from tests.test_fk_migration_017 import (  # noqa: E402
-    KEY, REV_016, _alembic_cfg, _connect, _insert,
+    KEY,
+    REV_016,
+    _alembic_cfg,
+    _connect,
+    _insert,
 )
 
 DOC_ID = "3f2c9d1e-0000-4000-8000-000000000001"

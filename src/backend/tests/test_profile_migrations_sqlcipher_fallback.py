@@ -6,6 +6,7 @@ import importlib
 import sys
 import types
 from pathlib import Path
+
 from tests.support.migrations import PROFILE_HEAD
 
 

@@ -63,8 +63,9 @@ def _master() -> int:
 
     path = Path(settings.database_url.split("///", 1)[1])
     if not path.exists():
-        print(f"master DB not found at {path}; nothing to audit")
-        return 0
+        # Did not run is not clean: exit 2 (refused), never 0.
+        print(f"master DB not found at {path}; audit did not run")
+        return 2
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
         return _report(find_orphans_dbapi(conn, MASTER_CHECKS), MASTER_CHECKS)

@@ -105,10 +105,11 @@ def _cleanup_orphans(bind) -> dict[str, int]:
     """Repeat full passes until one finds nothing; return per-check totals.
 
     Deleting an orphan can orphan its own children (chunk then embedding), hence
-    the repeat. The pragma is OFF here, so nothing cascades by itself. Alembic's
-    SQLite dialect has no transactional DDL, so this is idempotent rather than
-    rollback-safe: if a later step fails the vault stays at 016 with its orphans
-    already gone and the next open re-runs this revision and finds none.
+    the repeat. The pragma is OFF here, so nothing cascades by itself. Alembic
+    reports non-transactional DDL, but measured on SQLCipher a failure in any of
+    the three rebuilds rolled the whole upgrade back (orphans still present,
+    revision 016). Do not rely on that: the cleanup is idempotent, so a re-run
+    after a partial failure finds fewer or no orphans and still converges.
     """
     counts: dict[str, int] = {}
     for _ in range(len(_CLEANUP_CHECKS) + 1):
@@ -224,10 +225,12 @@ def _rebuild_all(cascade: Optional[str], set_null: Optional[str]) -> None:
 
 def upgrade() -> None:
     counts = _cleanup_orphans(op.get_bind())
+    _rebuild_all("CASCADE", "SET NULL")
+    # Only after the rebuilds succeed: a failed upgrade must not log removed=<n>
+    # or hand counts to the audit-row writer for rows that are still there.
     _log_counts(counts)
     # Read by core.migrations.run_profile_migration for the master audit row.
     context.config.attributes["fk_cleanup_counts"] = counts
-    _rebuild_all("CASCADE", "SET NULL")
 
 
 def downgrade() -> None:

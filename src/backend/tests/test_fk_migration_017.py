@@ -565,6 +565,40 @@ def test_hc_fkc_007_frozen_list_matches_fk_audit(vault016):
     assert not {m for m in imported if m.split(".")[0] in app_roots}, imported
 
 
+def test_hc_fkc_011_failed_rebuild_rolls_everything_back_and_logs_nothing(
+    vault016, fk_log
+):
+    """A rebuild that fails after the cleanup leaves the vault exactly at 016.
+
+    Measured on SQLCipher: the whole upgrade rolls back, so the orphan is still
+    there, the log has no removed= line (the rows were not removed) and no
+    counts are handed to the audit-row writer. The third rebuild is made to
+    fail by occupying the temp table name batch_alter_table needs.
+    """
+    path, cfg = vault016
+    conn = _connect(path)
+    try:
+        _seed_base(conn)
+        _table, orphan_id = _plant(conn, "P2")
+        conn.execute("CREATE TABLE _alembic_tmp_care_plan_task (x INTEGER)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    with pytest.raises(Exception):
+        command.upgrade(cfg, "head")
+
+    conn = _connect(path)
+    try:
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == REV_016
+        assert conn.execute("SELECT 1 FROM chunks WHERE id = ?", (orphan_id,)).fetchone()
+        assert set(_fk_actions(conn, "document_category").values()) == {"NO ACTION"}
+    finally:
+        conn.close()
+    assert not [r.getMessage() for r in fk_log() if "removed=" in r.getMessage()]
+    assert "fk_cleanup_counts" not in cfg.attributes
+
+
 # --------------------------------------------------------------------------
 # HC-FKC-009: counts-only master audit row (P6-CLEANUP-AUDIT)
 # --------------------------------------------------------------------------
@@ -837,3 +871,21 @@ def _snapshot_of(data_dir: Path, pid: str, key: bytes):
         return _snapshot(conn)
     finally:
         conn.close()
+
+
+def test_hc_fkc_010c_audit_script_master_missing_exits_2_not_clean(
+    tmp_path, monkeypatch, capsys
+):
+    """No master DB means the audit did not run; that must not read as clean (0)."""
+    import importlib.util
+
+    script = Path(__file__).parent.parent / "scripts" / "fk_orphan_audit.py"
+    spec = importlib.util.spec_from_file_location("fk_orphan_audit_master", script)
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    monkeypatch.setattr(settings, "app_mode", "server")
+    monkeypatch.setattr(settings, "sqlite_database_path", str(tmp_path / "absent.db"))
+
+    rc = audit._master()
+
+    assert rc == 2, capsys.readouterr().out
