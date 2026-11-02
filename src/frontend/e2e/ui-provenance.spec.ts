@@ -633,6 +633,43 @@ test('HC-STW-012 the Source Trace sheet stays still when the file name is long',
 });
 
 // ---------------------------------------------------------------------------
+// HC-STW-013 (SOURCE-TRACE-WIRE, review round 3): the same probe below 1024 px, where the sheet is
+// anchored to the bottom. The excerpt mounts when the lazy pages GET resolves; a bottom sheet that
+// grows with its content then moves every row above it up (measured at 390x844: the Result value
+// [136.5,515.2] -> [136.5,439.8] within 87 ms). The content root keeps the sheet at its full height
+// (min-h-[calc(85dvh-6rem)]) so nothing moves. 390x640 checks that a short phone is no different.
+// ---------------------------------------------------------------------------
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 390, height: 640 },
+]) {
+  test(`HC-STW-013 the Source Trace sheet stays still from its opening click at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const unmocked = await mockApi(page);
+    await seedSession(page);
+    await page.goto('/interpret');
+    const showSource = page.getByRole('button', { name: 'Show source' });
+    await expect(showSource).toBeVisible({ timeout: 20_000 });
+    await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+    await showSource.scrollIntoViewIfNeeded();
+    await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+    const report = await stillnessProbe(page, {
+      kind: 'overlay',
+      trigger: () => showSource.click(),
+      expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+    });
+    expect(report.postTriggerSamples).toBeGreaterThan(0);
+    const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+    expect(unmocked, 'every API request was mocked').toEqual([]);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // HC-UIPV-007: waitForSettled counts six fresh frames on every call. Its state used to live on
 // window across calls, so a second call on a replaced element returned on its first frame, and
 // frames counted before the element vanished survived its absence.
