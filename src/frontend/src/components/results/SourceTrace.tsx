@@ -15,7 +15,11 @@
  * its title), ObservationSourceTrace loads the monospace face before the sheet opens, and
  * below 1024 px, where the sheet is anchored to the bottom, the sheet is kept at its full
  * height (min-h-[85dvh], its max-h), so neither the name, the font swap nor the excerpt that arrives later
- * shifts a T0 row.
+ * shifts a T0 row. The scrollbar gutter is reserved (scrollbar-gutter: stable), so a classic scrollbar
+ * that appears once the excerpt makes the sheet scroll does not narrow the text and re-wrap it.
+ * "Source file not available" and "Excerpt not available." are said only after their own GET has
+ * failed or returned nothing; until then the sheet says "Loading the file name…" or "Loading the
+ * excerpt…" as plain text, with no spinner (the sheet is still, and the TraceMark is its only motion).
  */
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
@@ -86,6 +90,13 @@ export interface SourceTraceProps extends TraceSource {
    * ready. Default 'ready': a caller that passes the excerpt itself has nothing to load.
    */
   sourceStatus?: 'loading' | 'failed' | 'ready';
+  /**
+   * Whether the document GET (the file name) is still pending, and whether the pages GET (the excerpt)
+   * is. Each decides only its own wording, so a failed document GET beside a pending pages GET does not
+   * say "Excerpt not available.". Default false: a caller that passes the values itself has nothing to load.
+   */
+  sourceFileLoading?: boolean;
+  excerptLoading?: boolean;
   /** Controlled open state. Omit it and use a `trigger` for uncontrolled use. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -138,6 +149,8 @@ export function SourceTrace({
   excerptLines = [],
   matchIndex = null,
   sourceStatus = 'ready',
+  sourceFileLoading = false,
+  excerptLoading = false,
   open,
   onOpenChange,
   trigger,
@@ -184,20 +197,22 @@ export function SourceTrace({
   return (
     // Below 1024 px the sheet grows upward from the bottom edge, so an excerpt that mounts later would move every row above
     // it. min-h-[85dvh] is the bottom sheet's own max-h, so it is the same height before and after, whatever its padding and title.
+    // [scrollbar-gutter:stable] is on the same overflow-y-auto element: when the excerpt makes it scroll, a classic scrollbar
+    // takes its width from the gutter that was already reserved, not from the text, which would re-wrap.
     <Sheet
       still
       open={open}
       onOpenChange={onOpenChange}
       trigger={trigger}
       title={`Source for ${name}`}
-      className="min-h-[85dvh] lg:min-h-0"
+      className="min-h-[85dvh] [scrollbar-gutter:stable]"
     >
       <div className="space-y-5">
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt className="text-ink-secondary">File</dt>
           {/* Two lines at most, and both always reserved (min-h-10 is two text-sm lines): the name arrives with the document, and a name that wrapped then would push every row below it down. The end of a longer name is cut; the title has all of it. */}
           <dd className="min-h-10 min-w-0 line-clamp-2 break-words text-ink" title={sourceFile ?? undefined}>
-            {sourceFile ?? 'Source file not available'}
+            {sourceFile ?? (sourceFileLoading ? 'Loading the file name…' : 'Source file not available')}
           </dd>
 
           <dt className="text-ink-secondary">Location</dt>
@@ -252,7 +267,9 @@ export function SourceTrace({
               })}
             </ol>
           ) : (
-            <p className="text-sm text-ink-secondary">Excerpt not available.</p>
+            <p className="text-sm text-ink-secondary">
+              {excerptLoading ? 'Loading the excerpt…' : 'Excerpt not available.'}
+            </p>
           )}
           {excerptLines.length > 0 ? (
             <p className="text-sm font-medium text-ink">This is what your report states.</p>
@@ -383,6 +400,8 @@ export function ObservationSourceTrace({
       excerptLines={excerptLines}
       matchIndex={matchIndex}
       sourceStatus={sourceStatus}
+      sourceFileLoading={documentQuery.isPending}
+      excerptLoading={pagesQuery.isPending}
     />
   );
 }
