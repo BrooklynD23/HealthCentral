@@ -359,7 +359,7 @@ test.describe('HC-UIMED-002: the dose sheet', () => {
     const report = await stillnessProbe(page, {
       trigger: () => page.getByRole('button', { name: 'Log', exact: true }).first().click(),
       expected: ['[role="dialog"] [data-t0]'],
-      kind: 'interaction',
+      kind: 'overlay',
     });
     expect(report.nodes).toBeGreaterThan(0);
     await page.keyboard.press('Escape');
