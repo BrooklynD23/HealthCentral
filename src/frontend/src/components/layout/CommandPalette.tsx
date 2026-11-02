@@ -218,10 +218,10 @@ function PaletteBody({ onPick }: { onPick: () => void }) {
       if (debounced === trimmed) {
         for (const hit of found?.results ?? []) {
           const meta = RECORD_LINK[hit.type];
-          // An observation hit's id is the observation's id: open that analyte's chart, or plain /trends if it is not in the list.
-          // Until the observations are known the hit could only open the first analyte's chart under this name, so it waits.
-          if (hit.type === 'observation' && !observations) continue;
+          // An observation hit's id is the observation's id: it opens that analyte's chart. Before the observations answer, or when
+          // its id is not in the list, it could only open the first analyte's chart under the picked name, so it is left out.
           const analyte = hit.type === 'observation' ? observations?.find((obs) => obs.id === hit.id)?.analyte_canonical : undefined;
+          if (hit.type === 'observation' && !analyte) continue;
           records.push({
             value: `record:${hit.type}:${hit.id}`,
             label: hit.title,
