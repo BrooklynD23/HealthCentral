@@ -1,7 +1,6 @@
 import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { m } from 'framer-motion';
 import {
   Upload,
   FileText,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   useDocuments,
   useImportDocument,
@@ -45,8 +43,21 @@ function pagesWithoutTextNotice(pages: number[]): string {
   return `Pages ${head} and ${pages[pages.length - 1]} have no readable text, so their values were not read. Check the original report.`;
 }
 
+/** The words for a stored document type. A raw identifier never reaches the page (HC-UIDOC-002). */
+const DOC_TYPE_WORDS: Record<string, string> = {
+  lab_pdf: 'Lab Report',
+  lab_report: 'Lab Report',
+  lab_pdf_scanned: 'Scanned Lab Report',
+  lab_image: 'Lab Image',
+  lab_csv: 'Lab Spreadsheet',
+  fhir_bundle: 'Health Record (FHIR)',
+};
+
+function docTypeWords(doc: Document): string {
+  return DOC_TYPE_WORDS[doc.doc_type] ?? 'Document';
+}
+
 export function DocumentInbox() {
-  const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
@@ -129,14 +140,6 @@ export function DocumentInbox() {
       fileInputRef.current.value = '';
     }
   };
-  
-  const getDocTypeBadge = (doc: Document) => {
-    const typeMap: Record<string, string> = {
-      'lab_pdf': 'Lab Report',
-      'lab_image': 'Lab Image',
-    };
-    return typeMap[doc.doc_type] || doc.doc_type;
-  };
 
   const handleDeleteDocument = (doc: Document) => {
     if (!window.confirm(`Remove "${doc.source || 'this document'}" from your library? This cannot be undone.`)) {
@@ -145,23 +148,10 @@ export function DocumentInbox() {
     deleteDocument.mutate(doc.id);
   };
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: prefersReducedMotion ? 0 : 0.05 },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 12 },
-    show: { opacity: 1, y: 0 },
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Document Inbox
           </h1>
@@ -185,11 +175,11 @@ export function DocumentInbox() {
       </div>
 
       {importError && (
-        <Card className="border-status-critical/30 bg-status-critical/5" role="alert">
+        <Card className="border-status-critical/30 bg-status-critical/5" role="alert" data-t0>
           <CardContent className="py-4 flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
+            <div className="flex min-w-0 items-start gap-3">
               <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
-              <div>
+              <div className="min-w-0 break-words">
                 <p className="font-medium text-ink">Import failed: {importError.fileName}</p>
                 <p className="text-sm text-ink-secondary mt-1">{importError.message}</p>
               </div>
@@ -198,6 +188,7 @@ export function DocumentInbox() {
               type="button"
               variant="ghost"
               size="icon"
+              className="shrink-0"
               aria-label={`Dismiss import error for ${importError.fileName}`}
               onClick={() => setImportError(null)}
             >
@@ -294,8 +285,8 @@ export function DocumentInbox() {
       {lastImport && (
         <Card className="border-accent/20 bg-accent-subtle/40">
           <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <p className="font-medium text-ink">Document imported: {lastImport.document.source || 'Untitled document'}</p>
+            <div className="min-w-0 space-y-1">
+              <p className="font-medium text-ink break-words">Document imported: {lastImport.document.source || 'Untitled document'}</p>
               <p className="text-sm text-ink-secondary">
                 {lastImport.observations_extracted} values extracted · status {lastImport.document.status.replace(/_/g, ' ')}
               </p>
@@ -307,7 +298,7 @@ export function DocumentInbox() {
                 </p>
               )}
               {(lastImport.pages_without_text?.length ?? 0) > 0 && (
-                <p role="status" className="text-sm font-medium text-ink">
+                <p role="status" data-t0 className="text-sm font-medium text-ink">
                   {pagesWithoutTextNotice(lastImport.pages_without_text ?? [])}
                 </p>
               )}
@@ -331,9 +322,9 @@ export function DocumentInbox() {
           role="status"
         >
           <CardContent className="py-4 flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
+            <div className="flex min-w-0 items-start gap-3">
               <AlertCircle className="w-5 h-5 text-status-caution shrink-0 mt-0.5" />
-              <div>
+              <div className="min-w-0 break-words">
                 <p className="font-medium text-ink">Possible duplicate upload</p>
                 <p className="text-sm text-ink-secondary mt-1">
                   {importResult.duplicate_warning?.match_type === 'content_hash'
@@ -350,6 +341,7 @@ export function DocumentInbox() {
               type="button"
               variant="ghost"
               size="icon"
+              className="shrink-0"
               aria-label={`Dismiss duplicate warning for ${
                 importResult.duplicate_warning?.title || importResult.document.source || 'document'
               }`}
@@ -382,66 +374,60 @@ export function DocumentInbox() {
               <p>No documents yet. Import your first lab report above.</p>
             </div>
           ) : (
-            <m.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="divide-y divide-black/4"
-            >
+            <div className="divide-y divide-black/4">
               {documents.map((doc) => (
-                <m.div
+                <div
                   key={doc.id}
-                  variants={itemVariants}
-                  className="flex items-center gap-4 p-4 hover:bg-surface-muted/50 transition-colors group"
+                  data-inbox-row
+                  className="flex flex-wrap items-start gap-x-3 gap-y-2 p-4 hover:bg-surface-muted/50 transition-colors"
                 >
                   <div className="shrink-0 w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center">
                     <FileText className="w-5 h-5 text-ink-secondary" />
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-ink truncate">{doc.source || 'Untitled Document'}</h4>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-ink-secondary">
-                      <span>{getDocTypeBadge(doc)}</span>
+                  <div className="min-w-0 flex-1 basis-40">
+                    <h4 className="font-medium text-ink truncate" title={doc.source || undefined}>
+                      {doc.source || 'Untitled Document'}
+                    </h4>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-ink-secondary">
+                      <span>{docTypeWords(doc)}</span>
                       <span className="text-ink-tertiary">•</span>
-                      <span className="flex items-center gap-1">
+                      <span data-t0 data-inbox-date className="flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
                         {new Date(doc.imported_at).toLocaleDateString()}
                       </span>
+                      {doc.status === 'verified' ? (
+                        <Badge variant="verified" className="gap-1" data-t0 data-inbox-status>
+                          <CheckCircle className="w-3 h-3" />
+                          Verified
+                        </Badge>
+                      ) : doc.status === 'pending_ocr' ? (
+                        <Badge variant="default" className="gap-1" data-t0 data-inbox-status title="OCR processing is required. In Settings, enable document OCR and install Tesseract (or your admin must set OCR_ENABLED).">
+                          <AlertCircle className="w-3 h-3" />
+                          OCR Required
+                        </Badge>
+                      ) : (
+                        <Badge variant="caution" className="gap-1" data-t0 data-inbox-status>
+                          <AlertCircle className="w-3 h-3" />
+                          {doc.status === 'pending' ? 'Pending' : 'Needs Review'}
+                        </Badge>
+                      )}
                     </div>
                     {highlightsByDoc.has(doc.id) && (
                       <HighlightChips
                         counts={highlightsByDoc.get(doc.id)!}
-                        max={4}
+                        max={2}
                         className="mt-1.5"
                       />
                     )}
-                    <div className="mt-1.5">
-                      <ExtractionConfidenceBadge confidence={doc.extraction_confidence} lowest />
+                    <div className="mt-1.5 empty:hidden">
+                      <ExtractionConfidenceBadge confidence={doc.extraction_confidence} lowest belowThresholdOnly />
                     </div>
                   </div>
 
-                  <Badge variant={doc.doc_type === 'lab_pdf' ? 'accent' : 'default'}>
-                    {getDocTypeBadge(doc)}
-                  </Badge>
-
-                  {doc.status === 'verified' ? (
-                    <Badge variant="verified" className="gap-1">
-                      <CheckCircle className="w-3 h-3" />
-                      Verified
-                    </Badge>
-                  ) : doc.status === 'pending_ocr' ? (
-                    <Badge variant="default" className="gap-1" title="OCR processing is required. In Settings, enable document OCR and install Tesseract (or your admin must set OCR_ENABLED).">
-                      <AlertCircle className="w-3 h-3" />
-                      OCR Required
-                    </Badge>
-                  ) : (
-                    <Badge variant="caution" className="gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {doc.status === 'pending' ? 'Pending' : 'Needs Review'}
-                    </Badge>
-                  )}
-
-                  <div className="flex items-center gap-1 sm:[@media(hover:hover)]:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 sm:transition-opacity">
+                  {/* Always visible and reachable by Tab (HC-UIDOC-001). focus-within:opacity-100 no longer does
+                      anything: it stays only because FE-TW4-HOVER-002 asserts the token. */}
+                  <div className="ml-auto flex items-center gap-1 focus-within:opacity-100">
                     <AddToPinboardButton items={[{ item_type: 'document', item_id: doc.id }]} />
                     <Button
                       type="button"
@@ -496,9 +482,9 @@ export function DocumentInbox() {
                       </DropdownMenu.Portal>
                     </DropdownMenu.Root>
                   </div>
-                </m.div>
+                </div>
               ))}
-            </m.div>
+            </div>
           )}
         </CardContent>
       </Card>
