@@ -8,10 +8,11 @@ recalculates only a row with no flag or a normal word (NORMAL, N, WNL, NO,
 FALSE, 0 after strip().upper(); see 008 and 010). Any other stored flag is kept
 with its is_abnormal, even one that disagrees with the number (009, 011, 012).
 A real change to value, ref_low or ref_high recalculates when a range exists
-after the edit (005-007, 013, 022, 023); with both bounds null after the edit it
-keeps flag and is_abnormal, and a row with no flag stays none (VERIFY-EDIT-NO-RANGE,
-017-024). Every case goes through HTTP and asserts the STORED columns, not only
-the response.
+after the edit (005-007, 013, 022, 023). A real edit with both bounds null after
+the edit keeps an abnormal flag and its is_abnormal (017, 018, 020), while a
+normal word recalculates to (None, False), as a plain Verify does (019, 025), and
+a row with no flag stays none (021) (VERIFY-EDIT-NO-RANGE, 017-025). Every case
+goes through HTTP and asserts the STORED columns, not only the response.
 """
 
 import json
@@ -30,6 +31,7 @@ import api.observations as obs_api
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
 from models import Document, Observation
+from modules.interpret import InterpretationContext, InterpretModule
 from tests.support.routes import route_client
 
 PROFILE = "profile-a"
@@ -486,11 +488,14 @@ async def test_hc_vkf_016_fhir_export_leaves_a_coded_flag_unchanged(
 # --- VERIFY-EDIT-NO-RANGE (owner: "Keep the flag"): a real edit, no range ----
 #
 # When a real edit changes value, ref_low or ref_high and both bounds are null
-# after the edit, flag and is_abnormal are kept: there is no range to
-# recalculate against, and the old code erased a report's own flag (and set
-# is_abnormal False) just because the number was corrected. With a range the
-# recalculation is unchanged. 017-020 are RED on #463's head (eb94b9a7); 021-024
-# are pins, green on #463's head and after.
+# after the edit, an abnormal flag and its is_abnormal are kept: there is no
+# range to recalculate against, and the old code erased a report's own flag (and
+# set is_abnormal False) just because the number was corrected. A normal word
+# (_NORMAL_FLAGS) is not kept: it recalculates to (None, False), the same as a
+# plain Verify (019; L0 ruling on #479, VERIFY-FLAG-WORDS). 025 pins the
+# patient-facing sentence. With a range the recalculation is unchanged.
+# 017, 018, 020 are RED on #463's head (eb94b9a7); 021-024 are pins, green on
+# #463's head and after.
 
 
 @pytest.mark.asyncio
@@ -514,21 +519,26 @@ async def test_hc_vkf_018_real_edit_with_no_range_keeps_is_abnormal_exactly(prof
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("word", ["N", "Normal", "No"])
-async def test_hc_vkf_019_real_edit_with_no_range_keeps_a_normal_word(profile_db, word):
-    # The row has no exception for normal words: with no range a real edit
-    # keeps the stored flag and is_abnormal as they are (imports store
-    # is_abnormal = flag is not None, so this is True). Asymmetry with 010: a
-    # plain `{}` Verify on the same row still recalculates to (None, False).
+@pytest.mark.parametrize(
+    "word",
+    ["Normal", "NORMAL", " Normal ", "N", "n", "WNL", "WnL", "NO", "No",
+     "FALSE", "False", "0"],
+)
+async def test_hc_vkf_019_real_edit_with_no_range_recalculates_a_normal_word(
+        profile_db, word):
+    # A normal word is not an abnormal flag worth keeping (VERIFY-FLAG-WORDS):
+    # with no range a real edit recalculates it to (None, False), the same as a
+    # plain Verify (010). Imports store is_abnormal = flag is not None, so the
+    # seed is_abnormal=True is what a real import leaves behind.
     obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
                              value=7.1, ref_low=None, ref_high=None)
     obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
-    assert obs.value == 7.2
-    assert (obs.flag, obs.is_abnormal) == (word, True)
+    assert obs.value == 7.2, "the edit itself must still apply"
+    assert (obs.flag, obs.is_abnormal) == (None, False)
 
-    plain_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
-                               value=7.1, ref_low=None, ref_high=None)
-    plain = await _verify_and_load(profile_db, plain_id, {})
+    # Same row, then a plain Verify: still (None, False), value untouched.
+    plain = await _verify_and_load(profile_db, obs_id, {})
+    assert plain.value == 7.2
     assert (plain.flag, plain.is_abnormal) == (None, False)
 
 
@@ -618,3 +628,23 @@ async def test_hc_vkf_024_not_a_real_edit_with_no_range_is_unchanged(profile_db)
                               value=7.1, ref_low=None, ref_high=None)
     none = await _verify_and_load(profile_db, none_id, {})
     assert (none.flag, none.is_abnormal) == (None, False)
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_025_real_no_range_edit_does_not_tell_the_patient_outside(profile_db):
+    # The sentence the patient reads. A ("Normal", True) row edited with no
+    # range must not come back as "outside the normal reference range": that
+    # was the (flag, is_abnormal) pair the first fix kept. The real sentence
+    # function sees the stored row after the HTTP edit.
+    obs_id = await _seed_obs(profile_db, flag="Normal", is_abnormal=True,
+                             value=7.1, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
+    module = InterpretModule(
+        knowledge_loader=SimpleNamespace(get_biomarker_knowledge=AsyncMock(return_value=None)),
+        safety_guard=SimpleNamespace(),
+        recommendation_engine=SimpleNamespace(generate_recommendations=AsyncMock(return_value=None)),
+        model_selector=SimpleNamespace(),
+    )
+    text, _ = await module._generate_interpretation(
+        InterpretationContext(observation=obs), AsyncMock())
+    assert "outside" not in text.lower(), text
