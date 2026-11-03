@@ -17,9 +17,10 @@
  * height (min-h-[85dvh], its max-h), so neither the name, the font swap nor the excerpt that arrives later
  * shifts a T0 row. The scrollbar gutter is reserved (scrollbar-gutter: stable), so a classic scrollbar
  * that appears once the excerpt makes the sheet scroll does not narrow the text and re-wrap it.
- * "Source file not available" and "Excerpt not available." are said only after their own GET has
- * failed or returned nothing; until then the sheet says "Loading the file name…" or "Loading the
- * excerpt…" as plain text, with no spinner (the sheet is still, and the TraceMark is its only motion).
+ * While its own GET is pending, the sheet says "Loading the file name…" or "Loading the excerpt…"
+ * as plain text, with no spinner (the sheet is still, and the TraceMark is its only motion). Once that
+ * GET settles, or if a caller has nothing to load, a value with nothing to show reads "Source file not
+ * available" or "Excerpt not available." That includes a page that has no single matching line.
  */
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
