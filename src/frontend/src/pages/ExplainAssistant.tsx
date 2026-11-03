@@ -226,8 +226,10 @@ const EMPTY_FEEDBACK = {
   tagsOpen: false,
   correctionOpen: false,
   correction: '',
-  // The last correction that "Submit feedback" stored. A thumb click resends this, never the draft in the textarea.
+  // The last correction and tags that "Submit feedback" stored. A thumb click resends these, never the draft in the
+  // textarea or tags ticked since. They live in this component, so they last until it unmounts.
   savedCorrection: '',
+  savedTags: [] as FeedbackTag[],
   submitting: false,
   submitted: false,
   selectedTags: [] as FeedbackTag[],
@@ -318,10 +320,9 @@ export function ExplainAssistant() {
     // The pressed thumb stays pressed: there is no request that withdraws a rating, so clearing it on screen would
     // show a state the stored row does not have.
     if (fs.rating === rating) return;
-    const newRating = rating;
-    updateFeedbackState(msg.id, { rating: newRating, submitting: true });
+    updateFeedbackState(msg.id, { rating, submitting: true });
     // Open correction textarea on thumbs-down
-    if (newRating === -1) {
+    if (rating === -1) {
       updateFeedbackState(msg.id, { tagsOpen: true, correctionOpen: true });
     }
     try {
@@ -329,17 +330,19 @@ export function ExplainAssistant() {
         turnId: msg.turnId,
         data: {
           session_id: currentSessionId,
-          rating: newRating,
+          rating,
           response_text: msg.content,
-          feedback_tags: fs.selectedTags.length > 0 ? fs.selectedTags : undefined,
-          // Only what was submitted: the draft in the textarea is not the patient's answer until they press Submit.
-          // Left out, the upsert would erase a correction already stored.
+          // Only what was submitted: a draft in the textarea or a tag ticked since is not the patient's answer until
+          // they press Submit. Left out, the upsert would erase what is already stored, but only within this mount:
+          // after a reload these are empty and the backend upsert replaces the row (queued as a backend row).
+          feedback_tags: fs.savedTags.length > 0 ? fs.savedTags : undefined,
           correction_text: fs.savedCorrection || undefined,
         },
       });
       updateFeedbackState(msg.id, { submitting: false, submitted: true });
     } catch {
-      updateFeedbackState(msg.id, { submitting: false });
+      // Back to the stored rating (null if none), so the screen shows what the row has and the next click retries.
+      updateFeedbackState(msg.id, { submitting: false, rating: fs.rating });
     }
   };
 
@@ -364,6 +367,7 @@ export function ExplainAssistant() {
         correctionOpen: false,
         tagsOpen: false,
         savedCorrection: fs.correction.trim(),
+        savedTags: fs.selectedTags,
       });
     } catch {
       updateFeedbackState(msg.id, { submitting: false });
