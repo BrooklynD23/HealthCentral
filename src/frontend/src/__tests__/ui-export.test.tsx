@@ -114,13 +114,11 @@ function recorded() {
 }
 
 /**
- * The toggle for a section. Today these are buttons named 'Include X' / 'Exclude X'; after UI-PG-EXPORT they are
- * checkboxes named X. Either role is accepted so the same pin runs on both.
+ * The toggle for a section. Before UI-PG-EXPORT these were buttons named 'Include X' / 'Exclude X'; they are now
+ * checkboxes named X, and this pin was recorded on the buttons.
  */
 function toggle(label: string): HTMLElement {
-  const box = screen.queryByRole('checkbox', { name: label });
-  if (box) return box;
-  return screen.getByRole('button', { name: new RegExp(`^(Include|Exclude) ${label}$`) });
+  return screen.getByRole('checkbox', { name: label });
 }
 
 beforeEach(() => {
@@ -209,6 +207,29 @@ describe('HC-UIEXP-003: request bodies equal the recorded ones (pin, green on th
     expect(wire(postsTo('/export/doctor-summary')[0][1])).toStrictEqual(SUMMARY_TRENDS_OFF_QUESTIONS_ON);
     expect(vi.mocked(api.apiPost).mock.calls.map(([url]) => url)).toEqual(['/export/doctor-summary', '/export/questions']);
     expect(postsTo('/export/questions')[0]).toEqual(['/export/questions']);
+  });
+
+  it('a failed questions call still shows the summary, and the sheet opens', async () => {
+    // Blind spot: the mocked api rejects at once, so this covers the page's catch, not a slow or half-open request.
+    const user = userEvent.setup();
+    setupApi();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const base = vi.mocked(api.apiPost).getMockImplementation()!;
+    vi.mocked(api.apiPost).mockImplementation((url: string, ...rest: unknown[]) =>
+      url === '/export/questions'
+        ? Promise.reject(new Error('questions down'))
+        : (base as (...a: unknown[]) => Promise<unknown>)(url, ...rest)
+    );
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+
+    expect(await screen.findByText('Health Summary Report')).toBeInTheDocument();
+    expect(screen.queryByText(/Failed to generate summary/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Questions for Your Clinician')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /full preview/i })).toBeEnabled();
+    consoleError.mockRestore();
   });
 
   it('Results Summary and Flagged Values change nothing in the request (reported, not fixed)', async () => {
@@ -393,7 +414,7 @@ describe('UI-PG-EXPORT keeps behaviour: what clears a generated file (green toda
 });
 
 const REDACTION_COPY =
-  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted. The question lines shown in this preview, and in text copied with Copy Text, are not redacted.';
+  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own unredacted copy of your lab results. The question lines shown in this preview, and in text copied with Copy Text, are not redacted.';
 
 describe('HC-UIEXP-001: Full Preview opens a Sheet with the summary', () => {
   // Blind spot: jsdom applies no CSS and runs no motion, so this cannot see the sheet's size, its slide, or that it
@@ -526,11 +547,24 @@ describe('HC-UIEXP-004: the redaction level is shown as read-only text', () => {
     expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   });
 
-  it('says CSV and JSON are not redacted', () => {
+  it('is the first thing in the preview card body, before and after generating, so it never moves', async () => {
+    // Blind spot: DOM order only. jsdom has no layout; e2e/ui-export.spec.ts G10 measures the rectangle.
+    const user = userEvent.setup();
     setupApi();
     renderPage();
 
-    expect(screen.getByText(/CSV and JSON downloads are your own full copy and are not redacted\./)).toBeInTheDocument();
+    const note = screen.getByText(REDACTION_COPY);
+    expect(note.parentElement?.firstElementChild).toBe(note);
+    await generateSummary(user);
+    await screen.findByText('Health Summary Report');
+    expect(screen.getByText(REDACTION_COPY).parentElement?.firstElementChild).toBe(note);
+  });
+
+  it('says CSV and JSON are your unredacted copy of your lab results', () => {
+    setupApi();
+    renderPage();
+
+    expect(screen.getByText(/CSV and JSON downloads are your own unredacted copy of your lab results\./)).toBeInTheDocument();
   });
 
   it('says the question lines and Copy Text are not redacted', () => {

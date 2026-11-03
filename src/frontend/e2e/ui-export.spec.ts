@@ -94,9 +94,9 @@ const questions = [
 
 /**
  * The documents list and the export calls. `summaryDelayMs` holds the summary response back so a spinner is on
- * screen when G5 samples it. Anything else falls through to installMockApi's shell fixtures.
+ * screen when G5 samples it; `questionsDelayMs` does the same for the questions call, which arrives after the summary. Anything else falls through to installMockApi's shell fixtures.
  */
-async function mockExportApi(page: Page, options: { summaryDelayMs?: number } = {}): Promise<void> {
+async function mockExportApi(page: Page, options: { summaryDelayMs?: number; questionsDelayMs?: number } = {}): Promise<void> {
   await page.route(/\/api\/v1\/(documents|export)(\/|\?|$)/, async (route: Route, request) => {
     const path = new URL(request.url()).pathname.replace(/^.*\/api\/v1/, '').replace(/\/+$/, '') || '/';
     const json = (body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
@@ -119,7 +119,10 @@ async function mockExportApi(page: Page, options: { summaryDelayMs?: number } = 
       if (options.summaryDelayMs) await new Promise((resolve) => setTimeout(resolve, options.summaryDelayMs));
       return json(summary);
     }
-    if (method === 'POST' && path === '/export/questions') return json(questions);
+    if (method === 'POST' && path === '/export/questions') {
+      if (options.questionsDelayMs) await new Promise((resolve) => setTimeout(resolve, options.questionsDelayMs));
+      return json(questions);
+    }
     if (method === 'POST' && path === '/export/visit-prep') {
       return json({
         packet_id: 'packet-export-1',
@@ -164,7 +167,7 @@ async function settle(page: Page): Promise<void> {
 const nav = (page: Page, name: string) =>
   page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true });
 
-async function openExport(page: Page, options: { summaryDelayMs?: number; viewport?: { width: number; height: number } } = {}) {
+async function openExport(page: Page, options: { summaryDelayMs?: number; questionsDelayMs?: number; viewport?: { width: number; height: number } } = {}) {
   await page.setViewportSize(options.viewport ?? DESKTOP);
   const mock = await installMockApi(page);
   await mockExportApi(page, options);
@@ -253,7 +256,7 @@ test.describe('HC-UIEXP e2e', () => {
     const note = page.getByText(/^Redaction level: strict\./);
     await expect(note).toBeVisible();
     await expect(note).toHaveAttribute('data-t0');
-    await expect(page.getByText(/CSV and JSON downloads are your own full copy and are not redacted\./)).toBeVisible();
+    await expect(page.getByText(/CSV and JSON downloads are your own unredacted copy of your lab results\./)).toBeVisible();
   });
 
   test('the export flows still reach the API: summary, packet and bundle, with consent first', async ({ page }) => {
@@ -464,6 +467,22 @@ test.describe('QUIET-BOX UI-PG-EXPORT timing gates', () => {
       expect(sheetReport.nodes).toBeGreaterThan(0);
       await page.keyboard.press('Escape');
       guard.assertClean();
+    });
+
+    test(`QUIET-BOX G10 stillness on /export with Questions ticked (${theme})`, async ({ page }, testInfo) => {
+      // The questions call answers after the summary. The page waits for it before showing the summary, so the
+      // preview must not grow or move when the questions arrive.
+      await openExport(page, { questionsDelayMs: 300 });
+      await applyTheme(page, theme);
+      await page.getByRole('checkbox', { name: 'Questions for Clinician' }).click();
+
+      const report = await stillnessProbe(page, {
+        trigger: () => page.getByRole('button', { name: 'Generate Summary' }).click(),
+        expected: ['p[data-t0]', 'strong[data-t0]', 'ul[data-t0]', 'footer[data-t0]'],
+        kind: 'interaction',
+      });
+      testInfo.annotations.push({ type: 'gate-g10', description: `generate with questions ${theme}: ${JSON.stringify(report)}` });
+      await expect(page.getByText(questions[0].question)).toBeVisible();
     });
   }
 });

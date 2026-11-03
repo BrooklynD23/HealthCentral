@@ -66,7 +66,7 @@ const visitPrepSectionDefaults = [
  * redaction, so they and the text Copy Text copies are not redacted. Read-only: the level is not a setting here.
  */
 const REDACTION_COPY =
-  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted. The question lines shown in this preview, and in text copied with Copy Text, are not redacted.';
+  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own unredacted copy of your lab results. The question lines shown in this preview, and in text copied with Copy Text, are not redacted.';
 
 function RedactionNote({ className }: { className?: string }) {
   return (
@@ -245,13 +245,19 @@ export function ExportPage() {
         include_questions: includeQuestions,
         format: 'text',
       });
-      setSummary(result);
 
-      // Also generate questions if enabled
+      // Also generate questions if enabled. Await them before showing the summary so the preview does not
+      // grow when they arrive; a questions failure must not hide the summary.
+      let questionsResult: QuestionItem[] = [];
       if (includeQuestions) {
-        const questionsResult = await generateQuestions.mutateAsync();
-        setQuestions(questionsResult);
+        try {
+          questionsResult = await generateQuestions.mutateAsync();
+        } catch (questionsError) {
+          console.error('Failed to generate questions:', questionsError);
+        }
       }
+      setQuestions(questionsResult);
+      setSummary(result);
     } catch (error) {
       console.error('Failed to generate summary:', error);
     }
@@ -329,6 +335,7 @@ export function ExportPage() {
     exportCSV.isPending ||
     exportJSON.isPending ||
     generateSummary.isPending ||
+    generateQuestions.isPending ||
     downloadSummary.isPending;
 
   return (
@@ -457,7 +464,9 @@ export function ExportPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              {generateSummary.isPending ? (
+              {/* First child, above the area that swaps between empty, spinner and summary, so it never moves. */}
+              <RedactionNote className="mb-6 border-b border-black/8 pb-4" />
+              {generateSummary.isPending || generateQuestions.isPending ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 motion-safe:animate-spin text-accent" />
                   <span className="ml-3 text-ink-secondary">Generating summary...</span>
@@ -484,7 +493,6 @@ export function ExportPage() {
                   </p>
                 </div>
               )}
-              <RedactionNote className="mt-6 border-t border-black/8 pt-4" />
             </CardContent>
           </Card>
 
@@ -791,11 +799,11 @@ export function ExportPage() {
                       'w-5 h-5 rounded-full flex items-center justify-center',
                       exportFormat === fmt
                         ? 'bg-accent'
-                        : 'bg-white border border-black/12'
+                        : 'bg-surface-elevated border border-black/12'
                     )}
                   >
                     {exportFormat === fmt && (
-                      <div className="w-2 h-2 rounded-full bg-white" />
+                      <div className="w-2 h-2 rounded-full bg-[var(--on-accent)]" />
                     )}
                   </div>
                 </button>
