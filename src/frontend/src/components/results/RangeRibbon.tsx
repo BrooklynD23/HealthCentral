@@ -18,7 +18,7 @@
  * - Slider semantics. ← → step and Home/End jump with no transition. A pointer
  *   press picks the nearest point and the cursor glides for --dur-sm; the glide
  *   is a FLIP that ends at identity, so no element keeps a CSS transform.
- * - M10 reveal, once per analyte per session: the line draws in 640 ms and the
+ * - M10 reveal, once per analyte per page load (nothing is stored): the line draws in 640 ms and the
  *   points rise from .6 to 1 at 40 ms intervals. The reveal is value-blind, no
  *   number tweens, and reduced motion shows the final frame.
  * - The text layer carries data-t0 (§2.7). Colours are CSS tokens;
@@ -57,7 +57,6 @@ const STEP_MS = 40;
 const POINT_MS = Math.round(duration.sm * 1000);
 const DRAW_MS = Math.round(duration.draw * 1000);
 const EASE_OUT = `cubic-bezier(${ease.out.join(', ')})`;
-const REVEAL_KEY = 'hc:range-ribbon:revealed:';
 
 type Side = 'above' | 'below' | 'within' | 'none' | 'conflict';
 type Move = 'start' | 'pointer' | 'key';
@@ -293,23 +292,9 @@ function nearestIndex(points: LayoutPoint[], x: number): number {
   return best;
 }
 
-// A view that cannot read or write sessionStorage still renders. The reveal then
-// may replay on the next mount, which is cosmetic only.
-function hasRevealed(analyte: string): boolean {
-  try {
-    return window.sessionStorage.getItem(REVEAL_KEY + analyte) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function markRevealed(analyte: string): void {
-  try {
-    window.sessionStorage.setItem(REVEAL_KEY + analyte, '1');
-  } catch {
-    // Storage is blocked. The reveal may replay on the next mount.
-  }
-}
+// Analytes already revealed in this page load. Held in memory only: an analyte name is never written to browser
+// storage (L0 ruling on the UI-PG-RESULTS PR), so a reload reveals again. It is presentation only.
+const revealedAnalytes = new Set<string>();
 
 function triangleD(x: number, y: number, side: 'above' | 'below'): string {
   return side === 'above'
@@ -345,7 +330,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
 
   // Decided once per mount. The reveal is written in an effect, so StrictMode's
   // double render cannot see its own write and skip the reveal.
-  const [revealing] = useState(() => !reduced && !hasRevealed(analyte));
+  const [revealing] = useState(() => !reduced && !revealedAnalytes.has(analyte));
   const [selected, setSelected] = useState(() => count - 1);
   const [move, setMove] = useState<Move>('start');
 
@@ -355,7 +340,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
   const lastX = useRef<number | null>(null);
 
   useEffect(() => {
-    if (revealing) markRevealed(analyte);
+    if (revealing) revealedAnalytes.add(analyte);
   }, [revealing, analyte]);
 
   useLayoutEffect(() => {
