@@ -86,19 +86,19 @@ _NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
 PANEL_DEFINITIONS = {
     "cbc": {
         "name": "Complete Blood Count",
-        "analytes": ["wbc", "rbc", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
+        "analytes": ["wbc", "white_blood_cells", "rbc", "red_blood_cells", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
     },
     "cmp": {
         "name": "Comprehensive Metabolic Panel",
-        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "calcium", "protein_total", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
+        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "carbon_dioxide", "calcium", "protein_total", "total_protein", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
     },
     "lipid": {
         "name": "Lipid Panel",
-        "analytes": ["cholesterol_total", "triglycerides", "hdl", "ldl", "vldl"],
+        "analytes": ["cholesterol_total", "total_cholesterol", "triglycerides", "hdl", "hdl_cholesterol", "ldl", "ldl_cholesterol", "vldl"],
     },
     "thyroid": {
         "name": "Thyroid Panel",
-        "analytes": ["tsh", "t3_free", "t4_free", "t3_total", "t4_total"],
+        "analytes": ["tsh", "t3_free", "free_t3", "t4_free", "free_t4", "t3_total", "t4_total"],
     },
 }
 
