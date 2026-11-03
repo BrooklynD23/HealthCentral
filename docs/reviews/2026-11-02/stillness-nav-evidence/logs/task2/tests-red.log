@@ -1,0 +1,267 @@
+
+Running 10 tests using 1 worker
+
+
+[1/10] [chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError
+[chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError
+HC-UIG-010 (a) rejected with: StillnessError: stillnessProbe failed (1):
+  - no new keyed route container for /gates/fixture appeared (data-route-container must equal the pathname)
+
+  1) [chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError 
+
+    Error: the rejection must be the settle error, not a gap failure
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "StillnessSettleError"
+    Received: "StillnessError"
+
+      823 |   console.log(`HC-UIG-010 (a) rejected with: ${String(error)}`);
+      824 |   expect(error, 'the probe must reject a start page that never settles').not.toBeNull();
+    > 825 |   expect(error?.name, 'the rejection must be the settle error, not a gap failure').toBe(SETTLE_ERROR_NAME);
+          |                                                                                    ^
+      826 |   expect(String(error), 'the rejection must name the request still in flight').toContain('/gates/held');
+      827 |   expect(await wasStarted(page), 'the trigger must not run on a page that never settled').toBe(false);
+      828 | });
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:825:84
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-a-a-re-aea45-e-with-StillnessSettleError-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-a-a-re-aea45-e-with-StillnessSettleError-chromium/error-context.md
+
+
+
+[2/10] [chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle
+[chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle
+HC-UIG-010 (b) rejected with: StillnessError: stillnessProbe failed (1):
+  - no new keyed route container for /gates/fixture appeared (data-route-container must equal the pathname)
+
+  2) [chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "StillnessSettleError"
+    Received: "StillnessError"
+
+      839 |   console.log(`HC-UIG-010 (b) rejected with: ${String(error)}`);
+      840 |   expect(error, 'the probe must reject a start page with a request in flight').not.toBeNull();
+    > 841 |   expect(error?.name).toBe(SETTLE_ERROR_NAME);
+          |                       ^
+      842 |   expect(String(error)).toContain('/gates/held');
+      843 |   expect(await wasStarted(page), 'the trigger must not run on a page that never settled').toBe(false);
+      844 | });
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:841:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-b-a-re-d7f93-not-invisible-to-the-settle-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-b-a-re-d7f93-not-invisible-to-the-settle-chromium/error-context.md
+
+
+
+[3/10] [chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity
+[chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity
+HC-UIG-010 (c1) rejected with: StillnessError: stillnessProbe failed (2):
+  - no new keyed route container for /gates/fixture appeared (data-route-container must equal the pathname)
+  - effective opacity 0.50 (must be 1) on [data-t0] p "Route A" at 0 ms
+
+  3) [chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "StillnessSettleError"
+    Received: "StillnessError"
+
+      858 |   console.log(`HC-UIG-010 (c1) rejected with: ${String(error)}`);
+      859 |   expect(error, 'a route that never finishes its entrance fade must fail the probe').not.toBeNull();
+    > 860 |   expect(error?.name).toBe(SETTLE_ERROR_NAME);
+          |                       ^
+      861 |   expect(String(error), 'the rejection must name the last opacity').toContain('opacity 0.5');
+      862 |   expect(await wasStarted(page)).toBe(false);
+      863 | });
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:860:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-c1-a-r-1b1d2-tleError-naming-the-opacity-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-c1-a-r-1b1d2-tleError-naming-the-opacity-chromium/error-context.md
+
+
+
+[4/10] [chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError
+[chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError
+HC-UIG-010 (c2) rejected with: StillnessError: stillnessProbe failed (1):
+  - no new keyed route container for /gates/fixture appeared (data-route-container must equal the pathname)
+
+  4) [chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "StillnessSettleError"
+    Received: "StillnessError"
+
+      871 |   console.log(`HC-UIG-010 (c2) rejected with: ${String(error)}`);
+      872 |   expect(error, 'a page with no route element has no entrance fade to wait for and must fail the probe').not.toBeNull();
+    > 873 |   expect(error?.name).toBe(SETTLE_ERROR_NAME);
+          |                       ^
+      874 |   expect(String(error), 'the rejection must say there was no route element').toContain('no route element');
+      875 |   expect(await wasStarted(page)).toBe(false);
+      876 | });
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:873:23
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-c2-a-p-95b67-e-with-StillnessSettleError-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-c2-a-p-95b67-e-with-StillnessSettleError-chromium/error-context.md
+
+
+
+[5/10] [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+[chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+HC-UIG-010 (d) rejected with: StillnessError: stillnessProbe failed (2):
+  - sampling gap of 161 ms (must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms)
+  - no new keyed route container for /gates/fixture appeared (data-route-container must equal the pathname)
+
+  5) [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound 
+
+    Error: the trigger must run after the start page settled
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      908 |   expect(error, 'the probe must reject the blocked main thread').not.toBeNull();
+      909 |   expect(error?.name, 'the settle must not be what rejects it').not.toBe(SETTLE_ERROR_NAME);
+    > 910 |   expect(await sawSlowDone(page), 'the trigger must run after the start page settled').toBe(true);
+          |                                                                                        ^
+      911 |   const gap = /sampling gap of (\d+) ms \(must be <= 70 ms for a page change, owner STILLNESS-NAV-70/.exec(String(error));
+      912 |   expect(gap, 'the rejection must be the 70 ms page-change gap bound').not.toBeNull();
+      913 |   expect(Number(gap?.[1]), 'the gap is the 150 ms the trigger blocked').toBeGreaterThan(70);
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:910:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-d-work-2552e-l-fails-the-70-ms-gap-bound-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-d-work-2552e-l-fails-the-70-ms-gap-bound-chromium/error-context.md
+
+
+
+[6/10] [chromium] › e2e/ui-gates.spec.ts:916:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+[chromium] › e2e/ui-gates.spec.ts:916:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+HC-UIG-010 (e) rejected with: StillnessError: stillnessProbe failed (3):
+  - computed transform changed on [data-t0] p "Glucose 104 mg/dL": "none" -> "matrix(0.96, 0, 0, 0.96, 0, 0)" at 22 ms
+  - getBoundingClientRect changed on [data-t0] p "Glucose 104 mg/dL": [0,16,220,22.4] -> [4.4,16.4,211.2,21.5] at 22 ms
+  - no new keyed route container for /gates/fixture appeared (data-route-container must equal the pathname)
+
+  6) [chromium] › e2e/ui-gates.spec.ts:916:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe 
+
+    Error: the trigger must run after the start page settled
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      932 |   expect(error, 'the probe must reject a T0 node that moves').not.toBeNull();
+      933 |   expect(error?.name, 'the settle must not be what rejects it').not.toBe(SETTLE_ERROR_NAME);
+    > 934 |   expect(await sawSlowDone(page), 'the trigger must run after the start page settled').toBe(true);
+          |                                                                                        ^
+      935 |   expect(String(error), 'the rejection must name the property that moved').toMatch(/computed transform changed/);
+      936 | });
+      937 |
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:934:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-e-a-da-b3d80-ettle-still-fails-the-probe-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-e-a-da-b3d80-ettle-still-fails-the-probe-chromium/error-context.md
+
+
+
+[7/10] [chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false)
+[chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false)
+HC-UIG-010 (f) lazyRoute false: error=null report={"samples":41,"postTriggerSamples":40,"maxGapMs":21,"elapsedMs":809,"nodes":1,"routeKey":"/gates/next"}
+
+  7) [chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false) 
+
+    Error: the trigger must run after the request that began before the probe
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      958 |     console.log(`HC-UIG-010 (f) lazyRoute ${lazyRoute}: error=${String(error)} report=${JSON.stringify(report)}`);
+      959 |     expect(error, 'a settled page with a normal fade must pass').toBeNull();
+    > 960 |     expect(await sawSlowDone(page), 'the trigger must run after the request that began before the probe').toBe(true);
+          |                                                                                                           ^
+      961 |     expect(report?.samples, 'probe must take samples').toBeGreaterThan(3);
+      962 |   });
+      963 | }
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:960:107
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-f-a-se-cf329--fade-pass-lazyRoute-false--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-f-a-se-cf329--fade-pass-lazyRoute-false--chromium/error-context.md
+
+
+
+[8/10] [chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true)
+[chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true)
+HC-UIG-010 (f) lazyRoute true: error=null report={"samples":66,"postTriggerSamples":65,"maxGapMs":21,"elapsedMs":1300,"nodes":1,"routeKey":"/gates/next"}
+
+  8) [chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true) 
+
+    Error: the trigger must run after the request that began before the probe
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      958 |     console.log(`HC-UIG-010 (f) lazyRoute ${lazyRoute}: error=${String(error)} report=${JSON.stringify(report)}`);
+      959 |     expect(error, 'a settled page with a normal fade must pass').toBeNull();
+    > 960 |     expect(await sawSlowDone(page), 'the trigger must run after the request that began before the probe').toBe(true);
+          |                                                                                                           ^
+      961 |     expect(report?.samples, 'probe must take samples').toBeGreaterThan(3);
+      962 |   });
+      963 | }
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:960:107
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-f-a-se-95bb9-e-fade-pass-lazyRoute-true--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-f-a-se-95bb9-e-fade-pass-lazyRoute-true--chromium/error-context.md
+
+
+
+[9/10] [chromium] › e2e/ui-gates.spec.ts:968:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+[chromium] › e2e/ui-gates.spec.ts:968:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+HC-UIG-010 (g) interaction: null
+
+[10/10] [chromium] › e2e/ui-gates.spec.ts:968:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+[chromium] › e2e/ui-gates.spec.ts:968:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+HC-UIG-010 (g) overlay: null
+
+  8 failed
+    [chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError 
+    [chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle 
+    [chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity 
+    [chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError 
+    [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound 
+    [chromium] › e2e/ui-gates.spec.ts:916:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe 
+    [chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false) 
+    [chromium] › e2e/ui-gates.spec.ts:939:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true) 
+  2 passed (5.4m)
+EXIT=1

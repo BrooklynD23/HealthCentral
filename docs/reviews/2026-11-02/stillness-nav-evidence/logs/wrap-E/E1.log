@@ -1,0 +1,123 @@
+=== batch E1 plan=Cs batch=1 start 2026-11-02T19:15:48-08:00 cases=20
+ 19:15:48 up 2 days,  9:04,  1 user,  load average: 1.37, 2.23, 5.57
+(node:1801273) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 20 tests using 1 worker
+
+[1A[2K(node:1801327) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:1801327) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+[1A[2K(node:1801327) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c1
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c1
+CONFIG	trace="off"	video="off"	screenshot="off"	workers=1	retries=0	viewport={"width":1280,"height":720}
+
+[1A[2KPROBECOST	/search	maxGap=56	durBeforeGap=4.9	durAtGap=0.1	maxDur=0.3	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=-49	gapEndsAtMs=7	windowMs=1376	triggeredAt=472
+
+[1A[2KREQLOG	end:-26:/api/v1/documents/ start:-2:/api/v1/pinboards/ end:5:/api/v1/documents/highlights/summary end:8:/api/v1/pinboards/ start:44:/favicon.svg start:52:/src/pages/SearchPage.tsx end:54:/favicon.svg end:57:/src/pages/SearchPage.tsx start:63:/api/v1/search/ end:69:/api/v1/search/ start:1075:/api/v1/search/ end:1078:/api/v1/search/
+
+[1A[2KRESULT	{"id":"Cs.b1.trace-search.base.probe.search.c1","set":"probe","unit":"trace-search","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.29,"measured":true,"maxGap":56,"gapStartMs":-49,"gapEndMs":7,"windowMs":1376,"postSamples":70,"meanDur":0.2,"maxDur":0.3,"triggeredAt":472,"anchorPage":417.80000001192093,"longtasks":[],"loaf":[{"s":-192,"d":90,"blocking":31,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|77"]}],"reqlog":"end:-26:/api/v1/documents/ start:-2:/api/v1/pinboards/ end:5:/api/v1/documents/highlights/summary end:8:/api/v1/pinboards/ start:44:/favicon.svg start:52:/src/pages/SearchPage.tsx end:54:/favicon.svg end:57:/src/pages/SearchPage.tsx start:63:/api/v1/search/ end:69:/api/v1/search/ start:1075:/api/v1/search/ end:1078:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":"/mnt/e/Programming/Github Repo/hc-stillness-nav-late/docs/reviews/2026-11-02/stillness-nav-evidence/logs/wrap-E/Cs.b1.trace-search.base.probe.search.c1.json","load1End":1.29}
+
+[1A[2K[2/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c2
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c2
+PROBECOST	/search	maxGap=36	durBeforeGap=4.3	durAtGap=0.5	maxDur=1.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=56	gapStartsAtMs=-8	gapEndsAtMs=28	windowMs=1116	triggeredAt=373
+
+[1A[2KREQLOG	end:-1:/api/v1/documents/ end:-1:/api/v1/documents/highlights/summary start:21:/api/v1/pinboards/ end:29:/api/v1/pinboards/ start:62:/favicon.svg start:70:/src/pages/SearchPage.tsx end:73:/favicon.svg end:74:/src/pages/SearchPage.tsx start:79:/api/v1/search/ end:86:/api/v1/search/ start:1088:/api/v1/search/ end:1091:/api/v1/search/
+
+[1A[2KRESULT	{"id":"Cs.b1.trace-search.base.probe.search.c2","set":"probe","unit":"trace-search","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.29,"measured":true,"maxGap":36,"gapStartMs":-8,"gapEndMs":28,"windowMs":1116,"postSamples":56,"meanDur":0.2,"maxDur":1.4,"triggeredAt":373,"anchorPage":359.5,"longtasks":[],"loaf":[{"s":-137,"d":86,"blocking":25,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|70"]}],"reqlog":"end:-1:/api/v1/documents/ end:-1:/api/v1/documents/highlights/summary start:21:/api/v1/pinboards/ end:29:/api/v1/pinboards/ start:62:/favicon.svg start:70:/src/pages/SearchPage.tsx end:73:/favicon.svg end:74:/src/pages/SearchPage.tsx start:79:/api/v1/search/ end:86:/api/v1/search/ start:1088:/api/v1/search/ end:1091:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":null,"load1End":1.29}
+
+[1A[2K[3/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c3
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c3
+PROBECOST	/search	maxGap=36	durBeforeGap=0.2	durAtGap=0.1	maxDur=1.2	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=16	gapEndsAtMs=52	windowMs=1413	triggeredAt=354
+
+[1A[2KREQLOG	start:5:/api/v1/documents/ start:6:/api/v1/documents/highlights/summary end:16:/api/v1/documents/ end:17:/api/v1/documents/highlights/summary start:40:/api/v1/pinboards/ end:54:/api/v1/pinboards/ start:77:/favicon.svg start:87:/src/pages/SearchPage.tsx end:90:/favicon.svg end:91:/src/pages/SearchPage.tsx start:96:/api/v1/search/ end:102:/api/v1/search/ start:1104:/api/v1/search/ end:1107:/api/v1/search/
+
+[1A[2KRESULT	{"id":"Cs.b1.trace-search.base.probe.search.c3","set":"probe","unit":"trace-search","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.29,"measured":true,"maxGap":36,"gapStartMs":16,"gapEndMs":52,"windowMs":1413,"postSamples":70,"meanDur":0.2,"maxDur":1.2,"triggeredAt":354,"anchorPage":343.80000001192093,"longtasks":[],"loaf":[{"s":-128,"d":81,"blocking":23,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|69"]}],"reqlog":"start:5:/api/v1/documents/ start:6:/api/v1/documents/highlights/summary end:16:/api/v1/documents/ end:17:/api/v1/documents/highlights/summary start:40:/api/v1/pinboards/ end:54:/api/v1/pinboards/ start:77:/favicon.svg start:87:/src/pages/SearchPage.tsx end:90:/favicon.svg end:91:/src/pages/SearchPage.tsx start:96:/api/v1/search/ end:102:/api/v1/search/ start:1104:/api/v1/search/ end:1107:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":null,"load1End":1.18}
+
+[1A[2K[4/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c4
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c4
+PROBECOST	/search	maxGap=44	durBeforeGap=4.7	durAtGap=0.2	maxDur=0.3	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=69	gapStartsAtMs=-8	gapEndsAtMs=36	windowMs=1396	triggeredAt=394
+
+[1A[2KREQLOG	end:-1:/api/v1/documents/ end:-1:/api/v1/documents/highlights/summary start:26:/api/v1/pinboards/ end:37:/api/v1/pinboards/ start:69:/favicon.svg start:77:/src/pages/SearchPage.tsx end:80:/favicon.svg end:85:/src/pages/SearchPage.tsx start:91:/api/v1/search/ end:97:/api/v1/search/ start:1099:/api/v1/search/ end:1102:/api/v1/search/
+
+[1A[2KRESULT	{"id":"Cs.b1.trace-search.base.probe.search.c4","set":"probe","unit":"trace-search","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.18,"measured":true,"maxGap":44,"gapStartMs":-8,"gapEndMs":36,"windowMs":1396,"postSamples":69,"meanDur":0.1,"maxDur":0.3,"triggeredAt":394,"anchorPage":380.09999999403954,"longtasks":[],"loaf":[],"reqlog":"end:-1:/api/v1/documents/ end:-1:/api/v1/documents/highlights/summary start:26:/api/v1/pinboards/ end:37:/api/v1/pinboards/ start:69:/favicon.svg start:77:/src/pages/SearchPage.tsx end:80:/favicon.svg end:85:/src/pages/SearchPage.tsx start:91:/api/v1/search/ end:97:/api/v1/search/ start:1099:/api/v1/search/ end:1102:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":"/mnt/e/Programming/Github Repo/hc-stillness-nav-late/docs/reviews/2026-11-02/stillness-nav-evidence/logs/wrap-E/Cs.b1.trace-search.base.probe.search.c4.json","load1End":1.18}
+
+[1A[2K[5/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c5
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c5
+PROBECOST	/search	maxGap=44	durBeforeGap=4.4	durAtGap=0.1	maxDur=0.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=69	gapStartsAtMs=-9	gapEndsAtMs=35	windowMs=1396	triggeredAt=368
+
+[1A[2KREQLOG	start:-3:/api/v1/documents/ start:-2:/api/v1/documents/highlights/summary end:2:/api/v1/documents/ end:2:/api/v1/documents/highlights/summary start:28:/api/v1/pinboards/ end:35:/api/v1/pinboards/ start:67:/favicon.svg start:72:/src/pages/SearchPage.tsx end:79:/favicon.svg end:79:/src/pages/SearchPage.tsx start:90:/api/v1/search/ end:95:/api/v1/search/ start:1097:/api/v1/search/ end:1100:/api/v1/search/
+
+[1A[2KRESULT	{"id":"Cs.b1.trace-search.base.probe.search.c5","set":"probe","unit":"trace-search","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.18,"measured":true,"maxGap":44,"gapStartMs":-9,"gapEndMs":35,"windowMs":1396,"postSamples":69,"meanDur":0.2,"maxDur":0.4,"triggeredAt":368,"anchorPage":351.90000000596046,"longtasks":[],"loaf":[{"s":-134,"d":83,"blocking":24,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|69"]}],"reqlog":"start:-3:/api/v1/documents/ start:-2:/api/v1/documents/highlights/summary end:2:/api/v1/documents/ end:2:/api/v1/documents/highlights/summary start:28:/api/v1/pinboards/ end:35:/api/v1/pinboards/ start:67:/favicon.svg start:72:/src/pages/SearchPage.tsx end:79:/favicon.svg end:79:/src/pages/SearchPage.tsx start:90:/api/v1/search/ end:95:/api/v1/search/ start:1097:/api/v1/search/ end:1100:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":"/mnt/e/Programming/Github Repo/hc-stillness-nav-late/docs/reviews/2026-11-02/stillness-nav-evidence/logs/wrap-E/Cs.b1.trace-search.base.probe.search.c5.json","load1End":1.09}
+
+[1A[2K[6/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c6
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c6
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c6","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[7/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c7
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c7
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c7","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[8/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c8
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c8
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c8","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[9/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c9
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c9
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c9","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[10/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c10
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c10
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c10","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[11/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c11
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c11
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c11","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[12/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c12
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c12
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c12","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[13/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c13
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c13
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c13","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[14/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c14
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c14
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c14","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[15/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c15
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c15
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c15","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[16/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c16
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c16
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c16","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[17/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c17
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c17
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c17","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[18/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c18
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c18
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c18","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[19/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c19
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c19
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c19","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K[20/20] [chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c20
+[1A[2K[chromium] › nav-sets.spec.ts:175:7 › Cs.b1.trace-search.base.probe.search.c20
+RESULT	{"id":"Cs.b1.trace-search.base.probe.search.c20","skippedBecause":"3 traces already kept","set":"probe","unit":"trace-search","role":"base","route":"/search"}
+
+[1A[2K  20 passed (17.8s)
+playwright exit=0
+=== batch E1 end 2026-11-02T19:16:13-08:00
+ 19:16:13 up 2 days,  9:04,  1 user,  load average: 1.09, 2.09, 5.43
