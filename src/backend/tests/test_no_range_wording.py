@@ -1,7 +1,7 @@
 """NO-RANGE-WORDING: a result whose report gave no reference range never
 tells the patient it is "within the normal reference range".
 
-Spec: docs/plans/2026-10-15-build-program/queue.md (NO-RANGE-WORDING row);
+Spec: the NO-RANGE-WORDING row of the build-program queue;
 owner answer "Say no range is available".
 
 HC-NRW-001..005: no range -> the "no range available" sentence, with and
