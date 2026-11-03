@@ -940,7 +940,7 @@ export function VerificationWorkbench() {
                                 disabled={verifyMutation.isPending}
                               >
                                 {verifyMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" />
                                 ) : (
                                   'Verify'
                                 )}
@@ -1107,7 +1107,7 @@ export function VerificationWorkbench() {
                 }
               >
                 {verifyMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse mr-2" />
                 ) : null}
                 Save & Verify
               </Button>
