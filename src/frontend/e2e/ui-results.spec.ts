@@ -11,7 +11,8 @@
  * Ids: 001 redirects, 002 the CBC tab, 003 first paint and stillness, 004 DF-4 (the drawn plot on a phone), 005 the
  * closed table of controls, 006 PNG and SVG download, 007 Reported and Read confidence, 008 the tabs, 009 widths
  * between a phone and lg, 010 the break-glass warning in a real browser, 011 an explanation belongs to the result it
- * was made for.
+ * was made for, 024 no analyte name in browser storage and the reveal replays after a reload (the mock API has no
+ * lock endpoint, so the Lock now step is in the unit test HC-UIRES-024).
  *
  * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, hdl_cholesterol, ...), and
  * the panel fixtures list the analytes a panel should hold for them (see the PANEL_DEFINITIONS note in the PR).
@@ -815,6 +816,51 @@ test.describe('the ribbon in the page (real browser)', () => {
     await list(page).getByRole('button', { name: /Glucose/ }).click();
     await chartUp(page);
     expect(await clips(), 'glucose does not reveal twice in one session').toBe(afterHemoglobin);
+  });
+
+  test('HC-UIRES-024: after two reveals no storage key or value names the analytes, and a reload reveals again (nothing persists the state)', async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __clip: number };
+      w.__clip = 0;
+      const animate = Element.prototype.animate;
+      Element.prototype.animate = function patched(this: Element, keyframes: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions) {
+        if (Array.isArray(keyframes) && keyframes.some((frame) => 'clipPath' in frame)) w.__clip += 1;
+        return animate.call(this, keyframes, options);
+      };
+    });
+    const clips = () => page.evaluate(() => (window as unknown as { __clip: number }).__clip);
+    // Every key and value of both storages, lower-cased.
+    const stored = () =>
+      page.evaluate(() => {
+        const texts: string[] = [];
+        for (const area of [window.sessionStorage, window.localStorage]) {
+          for (let i = 0; i < area.length; i += 1) {
+            const key = area.key(i) as string;
+            texts.push(key, area.getItem(key) ?? '');
+          }
+        }
+        return texts.map((text) => text.toLowerCase());
+      });
+    const names = ['glucose', 'hemoglobin'];
+    await openApp(page);
+    await chartUp(page);
+    const afterGlucose = await clips();
+    expect(afterGlucose, 'glucose revealed').toBeGreaterThan(0);
+    await page.getByRole('tab', { name: /^CBC/ }).click();
+    await chartUp(page, 'Hemoglobin');
+    expect(await clips(), 'hemoglobin revealed').toBeGreaterThan(afterGlucose);
+
+    const texts = await stored();
+    expect(texts.length, 'the probe reads the seeded session, so it is not looking at an empty list').toBeGreaterThan(0);
+    for (const name of names) {
+      expect(texts.filter((text) => text.includes(name)), `no storage key or value contains "${name}"`).toEqual([]);
+    }
+
+    // The cost L0 accepted: the state lives in memory, so a reload draws the line again.
+    await page.reload();
+    await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
+    await chartUp(page);
+    expect(await clips(), 'after a reload glucose reveals again').toBeGreaterThan(0);
   });
 });
 

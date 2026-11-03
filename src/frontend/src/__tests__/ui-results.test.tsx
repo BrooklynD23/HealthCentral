@@ -12,7 +12,8 @@
  * and Read-confidence words and its viewHeight; 009 the page's phone height; 010 tabs; 012 and 013 the Explain
  * click; 014 the lab-interpreter components; 015 the folded-in Trends and Interpret details; 016 and 017 source audits;
  * 018 a grounded explanation belongs to the result it was made for; 019 a panel interpretation belongs to its tab;
- * 020 the gauge prints no verdict on a scale that is not finite; 021 the logged-out route; 022 an empty panel.
+ * 020 the gauge prints no verdict on a scale that is not finite; 021 the logged-out route; 022 an empty panel;
+ * 023 the card's toggle name; 024 no analyte name reaches browser storage, before or after a lock.
  *
  * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, ...). The panel fixtures list
  * the analytes a panel should hold for those names (the backend's PANEL_DEFINITIONS must agree, see the PR).
@@ -21,6 +22,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { ProfileMenu } from '@/components/layout/ProfileMenu';
 import type { ComponentType } from 'react';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -1513,5 +1516,110 @@ describe('HC-UIRES-023 the card toggle matches the heading it opens', () => {
     expect(screen.queryByText('Questions you could ask your clinician')).toBeNull();
     expect(screen.getByRole('button', { name: /show questions to ask/i })).toBeInTheDocument();
     expect(screen.queryByText(/recommendations/i)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-024: no analyte name reaches browser storage (L0 ruling, PR #476 comment 6606545865)
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-024 the ribbon puts no analyte name in sessionStorage or localStorage', () => {
+  // The suite's localStorage is a plain object with no key() or length (setup.ts), so it cannot be listed. Every
+  // setItem on either storage is recorded instead, and sessionStorage (jsdom's real one) is also listed as it stands.
+  type Write = { area: string; key: string; value: string };
+  function recordWrites(): Write[] {
+    const writes: Write[] = [];
+    const wrap = (area: string, target: Storage) => {
+      const original = target.setItem.bind(target);
+      vi.spyOn(target, 'setItem').mockImplementation((key: string, value: string) => {
+        writes.push({ area, key: String(key), value: String(value) });
+        original(key, value);
+      });
+    };
+    wrap('localStorage', window.localStorage);
+    wrap('sessionStorage', window.sessionStorage);
+    return writes;
+  }
+  function storedText(writes: Write[]): string[] {
+    const texts = writes.flatMap((w) => [w.key, w.value]);
+    for (let i = 0; i < window.sessionStorage.length; i += 1) {
+      const key = window.sessionStorage.key(i) as string;
+      texts.push(key, window.sessionStorage.getItem(key) ?? '');
+    }
+    return texts;
+  }
+  const NAMES = ['fasting_glucose', 'Fasting Glucose', 'vitamin_b12', 'Vitamin B12'];
+  function namesFound(writes: Write[]): string[] {
+    const texts = storedText(writes).map((text) => text.toLowerCase());
+    return NAMES.filter((name) => texts.some((text) => text.includes(name.toLowerCase())));
+  }
+
+  it('HC-UIRES-024: after a reveal, and after Lock now, neither storage holds the analyte canonical or display name', async () => {
+    window.sessionStorage.clear();
+    const writes = recordWrites();
+    const animateCalls: Element[] = [];
+    Object.defineProperty(Element.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value(this: Element) {
+        animateCalls.push(this);
+        return { cancel: () => undefined, finish: () => undefined, finished: Promise.resolve() };
+      },
+    });
+    try {
+      // A unique analyte, so no earlier test in this file has already used up its reveal.
+      const { RangeRibbon } = await loadRibbon();
+      const fasting = ribbonTrend(
+        [trendPoint('2026-01-10T00:00:00', 92, { unit: 'mg/dL' }), trendPoint('2026-04-10T00:00:00', 101, { unit: 'mg/dL' })],
+        { analyte_canonical: 'fasting_glucose', analyte_display_name: 'Fasting Glucose', unit: 'mg/dL', ref_low: 70, ref_high: 99 }
+      );
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      vi.mocked(api.apiPost).mockResolvedValue({ id: 'profile-123', is_locked: true });
+      const view = render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={['/results']}>
+            <ProfileMenu />
+            <Probe />
+            <RangeRibbon trend={fasting} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+
+      // The reveal really ran (reduced motion is off in this suite). Without this, an empty storage proves nothing.
+      expect(window.matchMedia('(prefers-reduced-motion: reduce)').matches).toBe(false);
+      expect(animateCalls.length).toBeGreaterThan(0);
+      expect(screen.getByRole('slider')).toHaveAttribute('aria-label', 'Fasting Glucose: results over time');
+      expect(namesFound(writes)).toEqual([]);
+
+      // The real lock path: Lock now calls clearAuth() and queryClient.clear().
+      const user = userEvent.setup();
+      expect(useAuthStore.getState().isAuthenticated).toBe(true);
+      await user.click(screen.getByRole('button', { name: 'Profile and settings' }));
+      await user.click(screen.getByRole('button', { name: 'Lock now' }));
+      await waitFor(() => expect(useAuthStore.getState().isAuthenticated).toBe(false));
+      expect(screen.getByTestId('location')).toHaveTextContent('/setup');
+      expect(namesFound(writes)).toEqual([]);
+
+      // A second analyte revealed after the lock leaves nothing behind either.
+      animateCalls.length = 0;
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={['/results']}>
+            <ProfileMenu />
+            <Probe />
+            <RangeRibbon
+              trend={ribbonTrend(
+                [trendPoint('2026-01-10T00:00:00', 410, { unit: 'pg/mL' }), trendPoint('2026-04-10T00:00:00', 450, { unit: 'pg/mL' })],
+                { analyte_canonical: 'vitamin_b12', analyte_display_name: 'Vitamin B12', unit: 'pg/mL', ref_low: 200, ref_high: 900 }
+              )}
+            />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+      expect(animateCalls.length).toBeGreaterThan(0);
+      expect(namesFound(writes)).toEqual([]);
+    } finally {
+      delete (Element.prototype as unknown as { animate?: unknown }).animate;
+    }
   });
 });
