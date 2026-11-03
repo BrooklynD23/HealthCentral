@@ -197,6 +197,14 @@ async function chartUp(page: Page, title = 'Glucose') {
   await expect(chartTitle(page)).toHaveText(title, { timeout: 15_000 });
   await expect(slider(page)).toBeVisible();
 }
+/** The probe starts from a settled page: fonts loaded and the route fade finished (a probe started mid-fade reads 0.99). */
+async function settled(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => {
+    const container = document.querySelector('[data-route-container]');
+    return container !== null && getComputedStyle(container).opacity === '1';
+  });
+}
 const analyteNames = async (page: Page) =>
   (await listButtons(page).allInnerTexts()).map((text) => text.split('\n')[0].replace(/\s+\d.*$/, '').trim());
 
@@ -320,6 +328,7 @@ test.describe('HC-UIRES-003 first paint', () => {
     await chartUp(page);
     await page.goto('/inbox');
     await expect(page.locator(RAIL)).toBeVisible();
+    await settled(page);
     const report = await stillnessProbe(page, {
       kind: 'navigation',
       lazyRoute: true,
@@ -334,6 +343,7 @@ test.describe('HC-UIRES-003 first paint', () => {
   test('QUIET-BOX G10: a tab click, an analyte click and Explain this result are each still from the click', async ({ page }) => {
     await openApp(page);
     await chartUp(page);
+    await settled(page);
     const tab = await stillnessProbe(page, {
       trigger: () => page.getByRole('tab', { name: /^Lipids/ }).click(),
       expected: ['[data-readout]', RAIL],
@@ -341,6 +351,7 @@ test.describe('HC-UIRES-003 first paint', () => {
     expect(tab.nodes).toBeGreaterThan(0);
     await page.getByRole('tab', { name: 'All' }).click();
     await chartUp(page);
+    await settled(page);
     const row = await stillnessProbe(page, {
       trigger: () => list(page).getByRole('button', { name: /Hemoglobin/ }).click(),
       expected: ['[data-readout]', RAIL],
