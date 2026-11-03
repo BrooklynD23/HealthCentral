@@ -13,6 +13,9 @@ Key features:
 
 import asyncio
 import logging
+import os
+import shutil
+import sqlite3
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +27,7 @@ from sqlalchemy import create_engine, event, inspect, text
 
 from .config import settings
 from .sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
+from .time import UTC, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +190,203 @@ async def run_master_migrations_async() -> None:
     run_master_migrations()
 
 
+
+# =============================================================================
+# Pre-017 snapshot (C-P6 / P6-SNAPSHOT)
+# =============================================================================
+
+# Migration 017 deletes orphan child rows and nulls dangling links, and its
+# downgrade restores neither. So an existing, non-empty vault is copied first.
+# The copy is the encrypted file itself, never decrypted: same key, same bytes.
+_SNAPSHOT_REVISION = "017_fk_cascade_alignment"
+# Neither name may end in ".db": scripts/backup.py collects vaults with
+# rglob("*.db"), and a snapshot in a backup would outlive the profile's delete.
+_SNAPSHOT_NAME = "vault.pre017.snapshot"
+_SNAPSHOT_TMP_NAME = "vault.pre017.snapshot.tmp"
+_SNAPSHOT_SIDECARS = ("-wal", "-shm", "-journal")
+# How long the WAL checkpoint may wait for a reader before the snapshot is refused.
+_SNAPSHOT_BUSY_TIMEOUT_S = 5.0
+
+
+class ProfileMigrationRefused(RuntimeError):
+    """A profile migration was refused before it changed anything.
+
+    The text is fixed words only: core/auth.py logs ``{e}`` for any failure to
+    open a vault, and an OSError's own text carries the file path. The cause is
+    deliberately not chained for the same reason. The step and exception class
+    go to the log in ``_refuse``.
+    """
+
+
+class _SnapshotInvalid(Exception):
+    """A snapshot check failed (nothing path-like in the text, by construction)."""
+
+
+def _refuse(what: str, step: str, exc: Exception) -> ProfileMigrationRefused:
+    """Log once (step and exception class only) and build the refusal to raise."""
+    logger.error("Profile migration refused: %s failed at step %s (%s)", what, step, type(exc).__name__)
+    return ProfileMigrationRefused(f"Profile migration refused: {what} failed at step {step}")
+
+
+def _snapshot_paths(vault_path: Path) -> tuple[Path, Path]:
+    return vault_path.with_name(_SNAPSHOT_NAME), vault_path.with_name(_SNAPSHOT_TMP_NAME)
+
+
+def _with_sidecars(path: Path) -> list[Path]:
+    return [path] + [path.with_name(path.name + suffix) for suffix in _SNAPSHOT_SIDECARS]
+
+
+def _unlink_quietly(paths) -> None:
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass  # best effort on a failure path; the original error is what matters
+
+
+def _open_keyed(path: Path, hex_key: str, timeout: float = 5.0):
+    """Raw DBAPI connection on ``path`` with the vault key set.
+
+    Same rule as the migration engine's connect listener: SQLCipher with
+    PRAGMA key and a sqlite_master read when available, stdlib sqlite3
+    otherwise.
+    """
+    if not is_sqlcipher_available():
+        return sqlite3.connect(str(path), timeout=timeout)
+    conn = get_sqlcipher_module().connect(str(path), timeout=timeout)
+    try:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("PRAGMA cipher_version")
+            row = cursor.fetchone()
+            if not row or not row[0]:
+                if settings.database_encryption_required:
+                    raise RuntimeError("SQLCipher is not available but database encryption is required.")
+                return conn
+            cursor.execute(f"PRAGMA key = \"x'{hex_key}'\"")
+            cursor.execute("SELECT count(*) FROM sqlite_master")
+            cursor.fetchone()
+        finally:
+            cursor.close()
+    except BaseException:
+        conn.close()
+        raise
+    return conn
+
+
+def _pre017_snapshot_pending(config: Config, current_revision: Optional[str]) -> bool:
+    """True when revision 017 is above ``current_revision`` in the script chain.
+
+    Asks ScriptDirectory rather than comparing with head, so a vault at 017 or
+    later (a future 018 included) is never "pending". Unknown revision on
+    either side fails closed: take the snapshot.
+    """
+    if current_revision is None:
+        return True
+    try:
+        script = ScriptDirectory.from_config(config)
+        script.get_revision(_SNAPSHOT_REVISION)
+        applied = {r.revision for r in script.walk_revisions(base="base", head=current_revision)}
+    except Exception:
+        return True
+    return _SNAPSHOT_REVISION not in applied
+
+
+def _verify_snapshot(path: Path, hex_key: str) -> None:
+    """Raise unless ``path`` opens with the vault key, has tables, and
+    PRAGMA quick_check returns exactly one row, ``ok``."""
+    conn = _open_keyed(path, hex_key)
+    try:
+        tables = conn.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]
+        rows = [tuple(r) for r in conn.execute("PRAGMA quick_check").fetchall()]
+    finally:
+        conn.close()
+    if not tables:
+        raise _SnapshotInvalid("empty database")
+    if rows != [("ok",)]:
+        raise _SnapshotInvalid("quick_check")
+
+
+def _checkpoint_wal(vault_path: Path, hex_key: str) -> None:
+    """Fold the WAL into the main file so a plain file copy is complete."""
+    conn = _open_keyed(vault_path, hex_key, timeout=_SNAPSHOT_BUSY_TIMEOUT_S)
+    try:
+        busy = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0]
+        if busy != 0:
+            raise _SnapshotInvalid("checkpoint busy")
+        wal = vault_path.with_name(vault_path.name + "-wal")
+        if wal.exists() and wal.stat().st_size > 0:
+            raise _SnapshotInvalid("wal not empty")
+    finally:
+        conn.close()
+
+
+def _fsync_file(path: Path) -> None:
+    with open(path, "rb+") as handle:
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _fsync_dir(directory: Path) -> None:
+    if os.name == "nt":
+        return  # Windows cannot open a directory for fsync; nothing to sync there
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
+    """Make sure a verified, encrypted copy of the vault exists, or refuse.
+
+    Keep-first: a snapshot that already exists and still verifies is kept, so a
+    retry after a failed upgrade cannot replace the pristine copy with a copy of
+    a partly cleaned vault. One that does not verify is replaced through the
+    temp name. A failed attempt never touches the final name.
+
+    Raises ProfileMigrationRefused on any failure; the vault is untouched.
+    """
+    snap, tmp = _snapshot_paths(vault_path)
+    step = "inspect"
+    try:
+        if snap.exists():
+            step = "verify-existing"
+            try:
+                _verify_snapshot(snap, hex_key)
+                return
+            except Exception:
+                pass  # does not verify: replace it below
+        step = "clear-temp"
+        for stale in _with_sidecars(tmp):
+            stale.unlink(missing_ok=True)
+        step = "checkpoint"
+        _checkpoint_wal(vault_path, hex_key)
+        step = "copy"
+        shutil.copy2(vault_path, tmp)
+        step = "sync"
+        _fsync_file(tmp)
+        step = "verify"
+        if tmp.stat().st_size != vault_path.stat().st_size:
+            raise _SnapshotInvalid("size")
+        _verify_snapshot(tmp, hex_key)
+        # copy2 keeps the vault's mtime, which would make a new snapshot look as
+        # old as the vault and be purged on the next open. Stamp it now, as UTC:
+        # utcnow() is naive, and .timestamp() on a naive value reads it as local.
+        step = "stamp-time"
+        now = utcnow().replace(tzinfo=UTC).timestamp()
+        os.utime(tmp, (now, now))
+        step = "publish"
+        for stale in _with_sidecars(tmp)[1:] + _with_sidecars(snap)[1:]:
+            stale.unlink(missing_ok=True)
+        os.replace(tmp, snap)
+        step = "sync-dir"
+        _fsync_dir(snap.parent)
+    except Exception as exc:
+        _unlink_quietly(_with_sidecars(tmp))
+        raise _refuse("pre-017 snapshot", step, exc) from None
+
+
 # =============================================================================
 # Profile Database Migrations (SQLCipher)
 # =============================================================================
@@ -328,6 +529,11 @@ def run_profile_migration(
                             current_revision,
                         )
                         return cleanup_counts
+
+                # Revision 017 deletes orphan rows: copy a non-empty vault first
+                # and refuse the whole migration if the copy cannot be verified.
+                if has_tables and _pre017_snapshot_pending(config, current_revision):
+                    _ensure_pre017_snapshot(vault_path, hex_key)
 
                 # Either empty DB or has pending migrations: upgrade
                 logger.info(

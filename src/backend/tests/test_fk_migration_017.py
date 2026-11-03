@@ -15,8 +15,12 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import errno
+import hashlib
+import json
 import logging
 import logging.config
+import shutil
 import sys
 import uuid
 from pathlib import Path
@@ -923,3 +927,473 @@ def test_hc_fkc_010c_audit_script_master_missing_exits_2_not_clean(
     rc = audit._master()
 
     assert rc == 2, capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# HC-FKS: verified encrypted snapshot before 017 (P6-SNAPSHOT)
+# --------------------------------------------------------------------------
+
+SNAP_NAME = "vault.pre017.snapshot"
+TMP_NAME = "vault.pre017.snapshot.tmp"
+MIGRATIONS_LOGGER = "core.migrations"
+
+
+def _snap(vault: Path) -> Path:
+    return vault.with_name(SNAP_NAME)
+
+
+def _leftovers(vault: Path) -> list[str]:
+    """Every ``vault.pre017*`` file except the snapshot itself (temp, sidecars)."""
+    return sorted(p.name for p in vault.parent.glob("vault.pre017*") if p.name != SNAP_NAME)
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _rev(path: Path, key: bytes = KEY):
+    return migrations.get_profile_current_revision(path, key)
+
+
+@pytest.fixture
+def mig_log():
+    """Records of ``core.migrations``. env.py's fileConfig() strips root handlers
+    on every migration run, so a handler on the logger itself is what survives."""
+    records: list[logging.LogRecord] = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    logger = logging.getLogger(MIGRATIONS_LOGGER)
+    handler, level = _Collect(), logger.level
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    yield records
+    logger.removeHandler(handler)
+    logger.setLevel(level)
+
+
+def _assert_refusal_leaks_nothing(path: Path, exc, records, *, step_words, error_class):
+    """One ERROR record naming the step and the exception class; no path, key or
+    hex anywhere in the refusal's text or in any WARNING-or-worse record."""
+    errors = [r for r in records if r.levelno >= logging.ERROR]
+    assert len(errors) == 1, [r.getMessage() for r in errors]
+    message = errors[0].getMessage()
+    classes = (error_class,) if isinstance(error_class, str) else error_class
+    assert any(f"({c})" in message for c in classes), (classes, message)
+    assert any(w in message for w in step_words), message
+    texts = [str(exc)] + [r.getMessage() for r in records if r.levelno >= logging.WARNING]
+    for r in records:
+        if r.levelno >= logging.WARNING:
+            assert r.exc_info is None and not r.exc_text, "a traceback would carry the path"
+    forbidden = [str(path), str(path.parent), path.parent.name, KEY.hex().upper(), KEY.hex(), repr(KEY)]
+    for text in texts:
+        for needle in forbidden:
+            assert needle not in text, f"{needle!r} leaked into {text!r}"
+    assert exc.__cause__ is None
+
+
+def _assert_untouched_at_016(path: Path, sha_before: str, key: bytes = KEY):
+    assert _sha(path) == sha_before, "a refused migration must not touch the vault"
+    assert _rev(path, key) == REV_016
+    assert not _snap(path).exists()
+    assert _leftovers(path) == []
+
+
+def _enospc(src, dst, *args, **kwargs):
+    """A copy that runs out of space part-way, leaving a half-written temp."""
+    Path(dst).write_bytes(b"\x00" * 10)
+    raise OSError(errno.ENOSPC, "No space left on device", str(dst))
+
+
+def _corrupt_whole(_src: Path, dst: Path) -> None:
+    dst.write_bytes(b"\xa5" * dst.stat().st_size)  # same size, nothing opens
+
+
+def _corrupt_empty(_src: Path, dst: Path) -> None:
+    dst.write_bytes(b"")  # an empty file is a valid empty database to SQLite
+
+
+def _corrupt_table_page(src: Path, dst: Path) -> None:
+    """Page 1 and sqlite_master stay readable, so only a full scan sees this."""
+    conn = _connect(src)
+    try:
+        root = int(conn.execute("SELECT rootpage FROM sqlite_master WHERE name='chunks'").fetchone()[0])
+        psize = int(conn.execute("PRAGMA page_size").fetchone()[0])
+    finally:
+        conn.close()
+    with open(dst, "r+b") as f:
+        f.seek((root - 1) * psize)
+        f.write(b"\xa5" * psize)
+
+
+def _copy_then(corrupt):
+    real = shutil.copy2
+
+    def _copy(src, dst, *args, **kwargs):
+        out = real(src, dst, *args, **kwargs)
+        corrupt(Path(src), Path(dst))
+        return out
+
+    return _copy
+
+
+def test_hc_fks_001_real_snapshot_of_the_pre_017_vault(vault016):
+    path, _cfg = vault016
+    _seed(path, ALL_CHECKS)
+    sha_before = _sha(path)
+
+    counts = migrations.run_profile_migration(path, KEY)
+
+    assert sum(counts.values()) == 18
+    snap = _snap(path)
+    assert snap.is_file()
+    assert _leftovers(path) == [], "no temp or sidecar may stay behind"
+    # the copy is the vault exactly as it was before the upgrade
+    assert _sha(snap) == sha_before
+    conn = _connect(snap)  # same key opens it
+    try:
+        assert [tuple(r) for r in conn.execute("PRAGMA quick_check")] == [("ok",)]
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == REV_016
+        rows = _snapshot(conn)
+    finally:
+        conn.close()
+    # every planted orphan is still in the snapshot ...
+    for cid in ALL_CHECKS:
+        table, orphan_id = (
+            ("care_plan_task", f"O-{cid}") if cid in CARE_REPAIR_CHECKS
+            else (_PLAN[cid][0], f"O-{cid}")
+        )
+        assert any(r[0] == orphan_id for r in rows[table]), f"{cid} orphan missing from snapshot"
+    # ... and gone from the live vault, which is at head
+    assert _rev(path) == PROFILE_HEAD
+    live, fk_violations = _read(path)
+    assert fk_violations == []
+    assert all(r[0] != "O-P2" for r in live["chunks"])
+    if is_sqlcipher_available():
+        with pytest.raises(Exception):
+            wrong = _connect(snap, b"1" * 32)
+            try:
+                wrong.execute("SELECT count(*) FROM sqlite_master").fetchall()
+            finally:
+                wrong.close()
+        assert snap.read_bytes()[:16] != b"SQLite format 3\x00", "snapshot must stay encrypted"
+
+
+def test_hc_fks_002_no_snapshot_for_a_new_vault_or_a_vault_at_head(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    new = tmp_path / "new" / "vault.db"
+
+    migrations.run_profile_migration(new, KEY)  # empty -> head
+    assert _rev(new) == PROFILE_HEAD
+    assert list(new.parent.glob("vault.pre017*")) == []
+
+    migrations.run_profile_migration(new, KEY)  # already at head
+    assert list(new.parent.glob("vault.pre017*")) == []
+
+
+def _config_with_a_later_revision(tmp_path: Path):
+    """A profile script directory with a made-up 018 on top of 017."""
+    src = Path(migrations.__file__).parent.parent / "migrations" / "profile"
+    dst = tmp_path / "scripts018"
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
+    (dst / "versions" / "018_next.py").write_text(
+        'revision = "018_next"\ndown_revision = "017_fk_cascade_alignment"\n'
+        "branch_labels = None\ndepends_on = None\n"
+        "def upgrade():\n    pass\ndef downgrade():\n    pass\n"
+    )
+    cfg = migrations._get_alembic_config("profile")
+    cfg.set_main_option("script_location", str(dst))
+    return cfg
+
+
+def test_hc_fks_002b_pending_helper_is_about_017_not_about_head(tmp_path):
+    pending = migrations._pre017_snapshot_pending
+    cfg = migrations._get_alembic_config("profile")
+    assert migrations._SNAPSHOT_REVISION == "017_fk_cascade_alignment"
+
+    assert pending(cfg, REV_016) is True
+    assert pending(cfg, "010_entity_source_spans") is True
+    assert pending(cfg, "001_initial") is True
+    assert pending(cfg, "017_fk_cascade_alignment") is False
+
+    # once an 018 exists, a vault at 018 or at 017 must still not be "pending"
+    later = _config_with_a_later_revision(tmp_path)
+    assert pending(later, "018_next") is False
+    assert pending(later, "017_fk_cascade_alignment") is False
+    assert pending(later, REV_016) is True
+    # unknown revision: fail closed, which here means take the snapshot
+    assert pending(cfg, "no_such_revision") is True
+
+
+@pytest.mark.parametrize(
+    "corrupt,error_class",
+    [
+        (_corrupt_whole, "DatabaseError"),  # the key check cannot read page 1
+        (_corrupt_empty, "_SnapshotInvalid"),  # opens fine, holds nothing
+        (_corrupt_table_page, ("OperationalError", "DatabaseError", "_SnapshotInvalid")),  # only a full scan sees it
+    ],
+    ids=["garbage", "empty", "table_page"],
+)
+def test_hc_fks_003_corrupt_copy_refuses_and_leaves_the_vault_alone(
+    vault016, monkeypatch, mig_log, corrupt, error_class
+):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    sha_before = _sha(path)
+    monkeypatch.setattr(migrations.shutil, "copy2", _copy_then(corrupt))
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_untouched_at_016(path, sha_before)
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("verify",), error_class=error_class
+    )
+
+
+def test_hc_fks_004_unwritable_destination_refuses_and_leaves_the_vault_alone(
+    vault016, monkeypatch, mig_log
+):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    sha_before = _sha(path)
+    monkeypatch.setattr(migrations.shutil, "copy2", _enospc)
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_untouched_at_016(path, sha_before)
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("copy",), error_class="OSError"
+    )
+
+
+def _enable_wal_with_rows_only_in_the_wal(path: Path):
+    """Switch the vault to WAL and commit a row that lives only in ``-wal``.
+
+    The returned connection must stay open: the last close checkpoints and
+    deletes the WAL, which would remove the very thing under test.
+    """
+    hold = _connect(path)
+    assert hold.execute("PRAGMA journal_mode=WAL").fetchone()[0].lower() == "wal"
+    hold.execute("PRAGMA wal_autocheckpoint=0")
+    _insert(hold, "documents", id="WAL-ONLY")
+    hold.commit()
+    assert Path(str(path) + "-wal").stat().st_size > 0
+    return hold
+
+
+def test_hc_fks_005_rows_only_in_the_wal_reach_the_snapshot(vault016, tmp_path):
+    path, _cfg = vault016
+    hold = _enable_wal_with_rows_only_in_the_wal(path)
+    try:
+        # premise: the main file alone does not hold the row
+        alone = tmp_path / "main-file-only.db"
+        shutil.copy2(path, alone)
+        conn = _connect(alone)
+        try:
+            assert conn.execute("SELECT count(*) FROM documents WHERE id='WAL-ONLY'").fetchone()[0] == 0
+        finally:
+            conn.close()
+
+        migrations.run_profile_migration(path, KEY)
+    finally:
+        hold.close()
+
+    conn = _connect(_snap(path))
+    try:
+        assert conn.execute("SELECT count(*) FROM documents WHERE id='WAL-ONLY'").fetchone()[0] == 1
+        assert [tuple(r) for r in conn.execute("PRAGMA quick_check")] == [("ok",)]
+    finally:
+        conn.close()
+    assert _rev(path) == PROFILE_HEAD
+    assert _leftovers(path) == []
+
+
+def test_hc_fks_005b_a_busy_checkpoint_refuses(vault016, monkeypatch, mig_log):
+    path, _cfg = vault016
+    monkeypatch.setattr(migrations, "_SNAPSHOT_BUSY_TIMEOUT_S", 0.2)
+    hold = _enable_wal_with_rows_only_in_the_wal(path)
+    reader = _connect(path)
+    reader.execute("BEGIN")
+    reader.execute("SELECT * FROM documents").fetchone()  # read transaction stays open
+    try:
+        with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+            migrations.run_profile_migration(path, KEY)
+    finally:
+        reader.close()
+        hold.close()
+
+    assert _rev(path) == REV_016
+    assert not _snap(path).exists()
+    assert _leftovers(path) == []
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("checkpoint",), error_class="_SnapshotInvalid"
+    )
+
+
+def _vault_with_orphan_and_blocker(vault016):
+    """016 vault with a P2 orphan and a table that makes the third rebuild fail
+    (the HC-FKC-011 failure)."""
+    path, cfg = vault016
+    conn = _connect(path)
+    try:
+        _seed_base(conn)
+        _table, orphan_id = _plant(conn, "P2")
+        conn.execute("CREATE TABLE _alembic_tmp_care_plan_task (x INTEGER)")
+        conn.commit()
+    finally:
+        conn.close()
+    return path, orphan_id
+
+
+def test_hc_fks_008_keep_first_a_retry_does_not_overwrite_the_pristine_copy(vault016):
+    path, orphan_id = _vault_with_orphan_and_blocker(vault016)
+
+    with pytest.raises(Exception) as first:
+        migrations.run_profile_migration(path, KEY)
+    assert not isinstance(first.value, migrations.ProfileMigrationRefused), "the upgrade failed, not the snapshot"
+    snap = _snap(path)
+    first_bytes = snap.read_bytes()
+    assert _rev(path) == REV_016
+
+    # a partly cleaned vault and the blocker gone: the retry now succeeds
+    conn = _connect(path)
+    try:
+        conn.execute("DROP TABLE _alembic_tmp_care_plan_task")
+        conn.execute("DELETE FROM chunks WHERE id = ?", (orphan_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    migrations.run_profile_migration(path, KEY)
+
+    assert _rev(path) == PROFILE_HEAD
+    assert snap.read_bytes() == first_bytes, "the first, pristine snapshot must be kept"
+    conn = _connect(snap)
+    try:
+        assert conn.execute("SELECT 1 FROM chunks WHERE id = ?", (orphan_id,)).fetchone(), (
+            "the snapshot must still hold the orphan the live vault lost"
+        )
+    finally:
+        conn.close()
+
+
+def test_hc_fks_008b_a_snapshot_that_does_not_verify_is_replaced(vault016):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    sha_before = _sha(path)
+    _snap(path).write_bytes(b"not a database" * 100)
+
+    migrations.run_profile_migration(path, KEY)
+
+    assert _sha(_snap(path)) == sha_before, "replaced by a fresh, verified copy"
+    assert _leftovers(path) == []
+
+
+def test_hc_fks_008c_a_failed_attempt_never_touches_the_final_name(vault016, monkeypatch):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    snap = _snap(path)
+    snap.write_bytes(b"not a database" * 100)
+    existing = snap.read_bytes()
+    monkeypatch.setattr(migrations.shutil, "copy2", _enospc)
+
+    with pytest.raises(migrations.ProfileMigrationRefused):
+        migrations.run_profile_migration(path, KEY)
+
+    assert snap.read_bytes() == existing, "only a verified temp may replace the snapshot"
+    assert _leftovers(path) == []
+    assert _rev(path) == REV_016
+
+
+@pytest.mark.parametrize("scoped", [False, True], ids=["full", "scoped"])
+def test_hc_fks_009_a_real_backup_leaves_the_snapshot_and_temp_out(
+    tmp_path, monkeypatch, scoped
+):
+    from scripts.backup import backup
+
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    pid = "p9"
+    data = tmp_path / "data"
+    vault_dir = data / "vaults" / pid
+    vault_dir.mkdir(parents=True)
+    vault = vault_dir / "vault.db"
+    command.upgrade(_alembic_cfg(vault), REV_016)
+    _seed(vault, ["P2"])
+    migrations.run_profile_migration(vault, KEY)
+    (vault_dir / TMP_NAME).write_bytes(b"an interrupted attempt")
+    on_disk = [p.name for p in vault_dir.glob("vault.pre017*")]
+    assert len(on_disk) == 2, f"fixture needs a real snapshot and a temp: {on_disk}"
+
+    result = backup(data, tmp_path / "backups", profile_id=pid if scoped else None)
+
+    assert result.success
+    stored = [p.name for p in result.backup_path.rglob("*") if p.is_file()]
+    assert "vault.db" in stored, stored
+    assert not [n for n in stored if n.startswith("vault.pre017")], stored
+    manifest = json.loads(result.manifest_path.read_text())
+    assert not [f for f in manifest["files"] if "pre017" in f["path"]]
+
+
+@pytest.mark.asyncio
+async def test_hc_fks_012_login_with_the_snapshot_refused_is_the_fixed_500(
+    tmp_path, monkeypatch
+):
+    from core.profile_database import get_profile_db_manager
+
+    async with _planted_vault_client(tmp_path, monkeypatch, ["P2"]) as ctx:
+        vault = tmp_path / "vaults" / ctx.pid / "vault.db"
+        sha_before = _sha(vault)
+        login = {"profile_id": ctx.pid, "password": _PASSWORD}
+
+        with monkeypatch.context() as patched:
+            patched.setattr(migrations.shutil, "copy2", _enospc)
+            refused = ctx.client.post("/profiles/login", json=login)
+
+        assert refused.status_code == 500
+        assert refused.json()["detail"] == "Failed to open profile database"
+        assert str(tmp_path) not in refused.text
+        assert ctx.pid not in get_profile_db_manager()._connections, "no cached connection"
+        _assert_untouched_at_016(vault, sha_before, ctx.key)
+        assert await ctx.rows() == [], "nothing was cleaned, so nothing is audited"
+
+        ok = ctx.client.post("/profiles/login", json=login)
+        assert ok.status_code == 200, ok.text
+        assert len(await ctx.rows()) == 1
+        assert _snap(vault).is_file()
+
+
+@pytest.mark.asyncio
+async def test_hc_fks_013_recovery_with_the_snapshot_refused_loses_the_new_code(
+    tmp_path, monkeypatch
+):
+    """Pins the accepted limit (item 2 of the owner ask): recover_profile commits
+    the new password and the rotated code before it opens the vault, so a refused
+    snapshot returns a 500 with no code in it, and the code the patient typed is
+    already spent."""
+    import api.profiles as profiles_api
+
+    new_password = "Brand-New-Pass-7!"
+    async with _planted_vault_client(tmp_path, monkeypatch, ["P2"]) as ctx:
+        vault = tmp_path / "vaults" / ctx.pid / "vault.db"
+        code = profiles_api._issue_recovery_code(ctx.pid, ctx.key)
+        body = {"recovery_code": code, "new_password": new_password}
+
+        with monkeypatch.context() as patched:
+            patched.setattr(migrations.shutil, "copy2", _enospc)
+            refused = ctx.client.post(f"/profiles/{ctx.pid}/recover", json=body)
+
+        assert refused.status_code == 500
+        assert "recovery_code" not in refused.text, "the rotated code never reached the patient"
+        assert _rev(vault, ctx.key) == REV_016
+        # the code that was typed is spent, so it cannot be retried ...
+        again = ctx.client.post(f"/profiles/{ctx.pid}/recover", json=body)
+        assert again.status_code == 401
+        # ... but the new password was committed and opens the vault
+        login = ctx.client.post(
+            "/profiles/login", json={"profile_id": ctx.pid, "password": new_password}
+        )
+        assert login.status_code == 200, login.text
+        assert _rev(vault, ctx.key) == PROFILE_HEAD
