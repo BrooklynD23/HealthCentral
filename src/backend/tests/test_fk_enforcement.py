@@ -594,3 +594,57 @@ async def test_hc_fkc_008c_orphans_alone_do_not_break_a_delete(tmp_path, monkeyp
     assert state["documents"] == 0
     # the untouched orphans are still there for the migration to clean
     assert {r[0] for r in state["fk_check"]} == {"embeddings", "lab_interpretations"}
+
+
+# --------------------------------------------------------------------------
+# HC-FKC-001r: a dose kept by P8 still reads back through its list route
+# --------------------------------------------------------------------------
+
+MED_ID = "3f2c9d1e-0000-4000-8000-0000000000aa"
+
+
+@pytest.mark.asyncio
+async def test_hc_fkc_001r_dose_kept_by_p8_reads_back_through_the_list_route(
+    tmp_path, monkeypatch
+):
+    """P8 keeps a dose whose schedule is gone and clears its link. The patient's
+    dose history must still list it over HTTP with ``schedule_id`` null: a row
+    that survives in the file but cannot be read back is not kept."""
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from api.medications import router as med_router
+    from core.auth import get_profile_db_session
+    from tests.support.routes import route_client
+
+    monkeypatch.setattr(_settings, "database_encryption_required", False)
+    vault = tmp_path / "vault.db"
+    cfg = _alembic_cfg(vault)
+    command.upgrade(cfg, REV_016)
+    conn = _connect(vault)
+    try:
+        _insert(conn, "medications", id=MED_ID, profile_id="profile-a", name="Metformin")
+        _insert(conn, "doses_taken", id="DOSE-ORPHAN", medication_id=MED_ID,
+                schedule_id="MISSING-SCHEDULE")
+        conn.commit()
+    finally:
+        conn.close()
+    command.upgrade(cfg, "head")
+    assert cfg.attributes["fk_cleanup_counts"] == {"P8": 1}
+
+    engine = _pragma_on_vault_engine(vault)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        with route_client(med_router, "/medications", profile_id="profile-a") as client:
+            async def _db():
+                return session
+
+            client.app.dependency_overrides[get_profile_db_session] = _db
+            resp = client.get(f"/medications/{MED_ID}/doses")
+    finally:
+        await session.close()
+        await engine.dispose()
+
+    assert resp.status_code == 200, resp.text
+    assert [(d["id"], d["medication_id"], d["schedule_id"]) for d in resp.json()] == [
+        ("DOSE-ORPHAN", MED_ID, None)
+    ]

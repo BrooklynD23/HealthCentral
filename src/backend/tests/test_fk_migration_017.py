@@ -181,9 +181,13 @@ _PLAN = {
     "P15": ("document_entity", {"doc_id": "D1"}, "doc_id"),
     "P18": ("earned_badge", {"badge_id": "B1"}, "badge_id"),
 }
-DELETE_CHECKS = list(_PLAN)
-REPAIR_CHECKS = ["P16", "P17"]
 ALL_CHECKS = [f"P{i}" for i in range(1, 19)]
+# P8/P12 (doses, reminder logs: schedule_id -> NULL) and P16/P17 (care tasks) are
+# kept and repaired; every other check deletes the orphan child (P6-P8P12).
+SCHEDULE_REPAIR_CHECKS = ["P8", "P12"]
+CARE_REPAIR_CHECKS = ["P16", "P17"]
+REPAIR_CHECKS = SCHEDULE_REPAIR_CHECKS + CARE_REPAIR_CHECKS
+DELETE_CHECKS = [c for c in ALL_CHECKS if c not in REPAIR_CHECKS]
 
 
 def _seed_base(conn) -> None:
@@ -201,7 +205,7 @@ def _seed_base(conn) -> None:
 
 def _plant(conn, check_id: str) -> tuple[str, str]:
     """Add one valid child and one orphan for ``check_id``; (table, orphan id)."""
-    if check_id in REPAIR_CHECKS:
+    if check_id in CARE_REPAIR_CHECKS:
         valid = dict(
             source_document_id="D1", source_entity_id="E1", source_quote="valid quote"
         )
@@ -263,6 +267,18 @@ def _task_row(path: Path, task_id: str) -> dict:
         return None if row is None else dict(zip(
             ("source_document_id", "source_entity_id", "source_quote", "title"), row
         ))
+    finally:
+        conn.close()
+
+
+def _row_cols(path: Path, table: str, row_id: str, cols: tuple[str, ...]):
+    """The named columns of one row, or None when the row is gone."""
+    conn = _connect(path)
+    try:
+        row = conn.execute(
+            f"SELECT {', '.join(cols)} FROM {table} WHERE id = ?", (row_id,)
+        ).fetchone()
+        return None if row is None else dict(zip(cols, row))
     finally:
         conn.close()
 
@@ -365,7 +381,21 @@ def test_hc_fkc_001_planted_orphan_cleaned_per_check(vault016, check_id):
     after, fk_violations = _read(path)
     assert counts == {check_id: 1}
     assert fk_violations == []
-    if check_id in REPAIR_CHECKS:
+    if check_id in SCHEDULE_REPAIR_CHECKS:
+        # the dose / reminder log is kept: same row, same id, same medication;
+        # only the dangling schedule link is cleared (P6-P8P12)
+        assert len(after[table]) == len(before[table]) == 2
+        cols = ("schedule_id", "medication_id")
+        assert _row_cols(path, table, orphan_id, cols) == {
+            "schedule_id": None, "medication_id": "M1",
+        }
+        # the valid child still points at its schedule
+        assert _row_cols(path, table, f"V-{check_id}", cols) == {
+            "schedule_id": "S1", "medication_id": "M1",
+        }
+        others = {t: rows for t, rows in after.items() if t != table}
+        assert others == {t: rows for t, rows in before.items() if t != table}
+    elif check_id in CARE_REPAIR_CHECKS:
         # the care task is kept, same id and same row count; only links change
         assert len(after["care_plan_task"]) == len(before["care_plan_task"]) == 2
         orphan = _task_row(path, orphan_id)
@@ -398,7 +428,8 @@ def test_hc_fkc_002_chained_orphans_removed_in_one_upgrade(vault016):
         # orphan chunk carrying an embedding (P2 then P3)
         _insert(conn, "chunks", id="OC", doc_id="MISSING")
         _insert(conn, "embeddings", id="OE", chunk_id="OC")
-        # orphan schedule carrying a dose (P6 then P8)
+        # orphan schedule carrying a dose (P6 deletes the schedule, then P8 keeps
+        # the dose and clears its link)
         _insert(conn, "medication_schedules", id="OS", medication_id="MISSING")
         _insert(conn, "doses_taken", id="OD", medication_id="M1", schedule_id="OS")
         conn.commit()
@@ -411,10 +442,13 @@ def test_hc_fkc_002_chained_orphans_removed_in_one_upgrade(vault016):
     after, fk_violations = _read(path)
     assert fk_violations == []
     for table, rid in (
-        ("chunks", "OC"), ("embeddings", "OE"),
-        ("medication_schedules", "OS"), ("doses_taken", "OD"),
+        ("chunks", "OC"), ("embeddings", "OE"), ("medication_schedules", "OS"),
     ):
         assert all(r[0] != rid for r in after[table]), f"{table}.{rid} survived"
+    # the dose outlived its deleted schedule: kept, link cleared, medication intact
+    assert _row_cols(path, "doses_taken", "OD", ("schedule_id", "medication_id")) == {
+        "schedule_id": None, "medication_id": "M1",
+    }
     # the valid parents are untouched
     assert [r[0] for r in after["chunks"]] == ["C1"]
     assert [r[0] for r in after["medication_schedules"]] == ["S1"]
@@ -493,7 +527,7 @@ def test_hc_fkc_005_clean_vault_is_a_noop(vault016, fk_log):
     try:
         _seed_base(conn)
         for cid in ALL_CHECKS:  # valid children only: nothing to clean
-            if cid in REPAIR_CHECKS:
+            if cid in CARE_REPAIR_CHECKS:
                 continue
             table, extra, _col = _PLAN[cid]
             _insert(conn, table, id=f"V-{cid}", **extra)

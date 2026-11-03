@@ -8,6 +8,9 @@ pragma can be switched on over vaults written without it.
    pragma does not turn a historic leftover into a failing delete. Only child
    rows are ever deleted. ``care_plan_task`` rows are never deleted: P16/P17
    null the dangling link instead (owner decision P6-CLEANUP-SETNULL).
+   ``doses_taken`` and ``reminder_logs`` rows are kept too: P8/P12 null the
+   dangling ``schedule_id`` and leave ``medication_id`` alone (P6-P8P12). That
+   makes 4 repair checks (P8, P12, P16, P17) and 14 delete checks.
 2. It then rebuilds ``document_category`` and ``document_entity`` (doc_id ->
    CASCADE) and ``care_plan_task`` (source_document_id and source_entity_id ->
    SET NULL). SQLite cannot ALTER a constraint, and the original constraints are
@@ -73,9 +76,13 @@ _CLEANUP_CHECKS: tuple[_Check, ...] = (
     _Check("P18", "earned_badge", "badge_id", "badge_definition", "id"),
 )
 
-# P16/P17 repair instead of delete. P16 clears the quote as well, exactly as
+# P8/P12/P16/P17 repair instead of delete. P8/P12 keep the dose or reminder log
+# and clear only schedule_id (a nullable column, ondelete SET NULL; the row still
+# belongs to its medication). P16 clears the quote as well, exactly as
 # api/documents.py delete_document does; P17 keeps document id and quote.
 _REPAIR_SET = {
+    "P8": "schedule_id = NULL",
+    "P12": "schedule_id = NULL",
     "P16": "source_document_id = NULL, source_entity_id = NULL, source_quote = NULL",
     "P17": "source_entity_id = NULL",
 }
