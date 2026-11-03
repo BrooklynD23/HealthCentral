@@ -29,7 +29,7 @@ import {
   stillnessProbe,
   type Theme,
 } from './support/gates';
-import { installMockApi, seedMockSession } from './support/mockApi';
+import { documentFixtures, installMockApi, seedMockSession } from './support/mockApi';
 
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
@@ -289,6 +289,68 @@ async function fillConversation(page: Page, answers = 6): Promise<void> {
 }
 
 const MESSAGE_LIST = (page: Page) => page.getByRole('log', { name: 'Conversation' });
+
+/** The document behind citation 1: what GET /documents/<id> and /pages return once the Source Trace sheet is open. */
+const SOURCE_DOC_ID = 'doc-fixture-0001';
+const SOURCE_FILE = 'quest-lipid-panel-2026-03.pdf';
+/** A chat citation's doc_title, which is not a file name. The sheet must never show it. */
+const CHAT_TITLE = 'Your LDL Result';
+const LONG_TOKEN = 'X'.repeat(160);
+/** The line `excerptFromPage` matches: it names the analyte and holds the value as a whole token. */
+const MATCH_LINE = 'LDL Cholesterol 142 mg/dL';
+
+interface SourceOptions {
+  /** The matching line (default: the analyte, the value and the unit). */
+  line?: string;
+  /** The page text, when the default five lines are not what the test needs. */
+  pageText?: string;
+  /** Which of the two GETs answers 500 instead of its data. */
+  fail?: 'document' | 'pages';
+  /** Hold both answers until `release()`. */
+  hold?: boolean;
+}
+
+interface SourceMock {
+  /** Every GET to the document or its pages, as "GET /documents/<id>[/pages]". */
+  readonly requests: string[];
+  release(): void;
+}
+
+/** Answers the two calls the Source Trace sheet makes once it is open. Register after openAsk. */
+async function mockSource(page: Page, options: SourceOptions = {}): Promise<SourceMock> {
+  const requests: string[] = [];
+  let open: () => void = () => {};
+  const gate = options.hold ? new Promise<void>((resolve) => (open = resolve)) : null;
+  const pageText =
+    options.pageText ??
+    ['Lipid Panel', 'Collected March 14, 2026', options.line ?? MATCH_LINE, 'HDL Cholesterol 52 mg/dL', 'Reference: LDL below 100 mg/dL'].join('\n');
+  await page.route(new RegExp(`/api/v1/documents/${SOURCE_DOC_ID}(/pages)?/?$`), async (route, request) => {
+    if (request.method() !== 'GET') return route.fallback();
+    const path = new URL(request.url()).pathname.replace(/^.*\/api\/v1/, '').replace(/\/+$/, '');
+    requests.push(`GET ${path}`);
+    if (gate) await gate;
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (path.endsWith('/pages')) {
+      return options.fail === 'pages' ? json({ detail: 'fixture failure' }, 500) : json([{ page_number: 2, text: pageText, has_tables: false }]);
+    }
+    if (options.fail === 'document') return json({ detail: 'fixture failure' }, 500);
+    return json({ ...documentFixtures[0], source: SOURCE_FILE });
+  });
+  return { requests, release: () => open() };
+}
+
+/** Opens citation 1, then "Open source", and returns the Source Trace sheet. */
+async function openSourceSheet(page: Page) {
+  await page.getByRole('button', { name: /^Citation 1:/ }).click();
+  await page.getByRole('dialog', { name: 'Citation 1' }).getByRole('button', { name: 'Open source' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Source for LDL Cholesterol' });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+const MARK_CHECKED = 'It matches, mark as checked';
+const REPORT_STATES = 'This is what your report states.';
 
 // HC-UIASK-001: sending scrolls only the message list.
 for (const [name, viewport] of [
@@ -682,17 +744,192 @@ test('HC-UIASK-005: a citation popover is still when it opens', async ({ page })
   await expect(page.getByRole('dialog', { name: 'Citation 1' })).toHaveCount(0);
 });
 
-// The e2e sides of the citation popover: it opens the quote, and "Open source" opens the Source Trace sheet.
-test('UI-PG-ASK: a citation chip opens its quote, and Open source opens the Source Trace sheet', async ({ page }) => {
+// HC-UIASK-005, sheet half: the Source Trace sheet opened from a citation is still from the click. The file name and the
+// excerpt arrive with the lazy GETs, so the rows reserve their room (SourceTrace's own rule); the probe checks it here.
+// A timing measurement: quiet box only.
+test('HC-UIASK-005: the Source Trace sheet is still when it opens from a citation', async ({ page }) => {
   await openAsk(page);
+  await mockSource(page);
+  await ask(page, 'What is my LDL?', 1);
+  const chip = page.getByRole('button', { name: /^Citation 1:/ });
+  await chip.click();
+  const popover = page.getByRole('dialog', { name: 'Citation 1' });
+  await expect(popover).toBeVisible();
+  const report = await stillnessProbe(page, {
+    trigger: () => popover.getByRole('button', { name: 'Open source' }).click(),
+    expected: ['[role="dialog"] dd[data-t0]', '[role="dialog"] ol [data-t0]'],
+    kind: 'overlay',
+    lazyRoute: true,
+  });
+  expect(report.nodes).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for LDL Cholesterol' });
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(MATCH_LINE);
+});
+
+// The e2e sides of the citation popover: it opens the quote, and "Open source" opens the Source Trace sheet WITH the
+// real source: the document's file name and the excerpt, never the chat citation's doc_title and never "not available"
+// for a document the app knows (L0 ruling 6586537788, option (a)). Before this the test asserted `142 mg/dL`, which an
+// empty sheet also shows.
+test('UI-PG-ASK: a citation chip opens its quote, and Open source opens the Source Trace sheet with the real source', async ({ page }) => {
+  const { ask: chat } = await openAsk(page);
+  chat.docTitle(CHAT_TITLE);
+  await mockSource(page);
   await ask(page, 'What is my LDL?', 1);
   await page.getByRole('button', { name: /^Citation 1:/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Citation 1' });
   await expect(dialog).toContainText('LDL Cholesterol 142 mg/dL');
   await expect(dialog).toContainText('Page 2');
   await dialog.getByRole('button', { name: 'Open source' }).click();
-  await expect(page.getByRole('dialog', { name: 'Source for LDL Cholesterol' })).toBeVisible();
-  await expect(page.getByRole('dialog', { name: 'Source for LDL Cholesterol' })).toContainText('142 mg/dL');
+  const sheet = page.getByRole('dialog', { name: 'Source for LDL Cholesterol' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('142 mg/dL');
+  await expect(sheet.getByText(SOURCE_FILE), 'the document\u2019s own file name').toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' }), 'the excerpt, with its matching line').toContainText(MATCH_LINE);
+  await expect(sheet.getByText(REPORT_STATES)).toBeVisible();
+  await expect(sheet).not.toContainText('Source file not available');
+  await expect(sheet).not.toContainText('Excerpt not available.');
+  await expect(sheet, 'the chat title is not a file name').not.toContainText(CHAT_TITLE);
+});
+
+// A citation costs nothing until "Open source" is clicked: no GET to the document or its pages after the answer
+// renders or the popover opens (G7 and the first-paint budget).
+test('UI-PG-ASK: no document request until Open source is clicked', async ({ page }) => {
+  await openAsk(page);
+  const source = await mockSource(page);
+  await ask(page, 'What is my LDL?', 1);
+  await page.waitForLoadState('networkidle');
+  expect(source.requests, 'after the answer renders').toEqual([]);
+  await page.getByRole('button', { name: /^Citation 1:/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Citation 1' });
+  await expect(dialog.getByRole('button', { name: 'Open source' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(source.requests, 'after the popover opens').toEqual([]);
+  await dialog.getByRole('button', { name: 'Open source' }).click();
+  await expect.poll(() => [...source.requests].sort()).toEqual([`GET /documents/${SOURCE_DOC_ID}`, `GET /documents/${SOURCE_DOC_ID}/pages`]);
+});
+
+// HC-UIPV-004 (DF-2): every excerpt line in Source Trace wraps. This is the id's own definition (plan :643); the popover
+// half is the DF-2 test further down. The sheet is reached the way a patient reaches it, from a chip on /explain.
+for (const [name, viewport] of [
+  ['1440', DESKTOP],
+  ['390', PHONE],
+] as const) {
+  test(`HC-UIPV-004: a long unbroken excerpt line wraps inside the Source Trace sheet opened from a citation (${name})`, async ({ page }) => {
+    await openAsk(page, viewport);
+    await mockSource(page, { line: `${MATCH_LINE} ${LONG_TOKEN}` });
+    await ask(page, 'What is my LDL?', 1);
+    const sheet = await openSourceSheet(page);
+    await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(LONG_TOKEN);
+
+    const lines = await sheet.evaluate((root) => {
+      const vw = document.documentElement.clientWidth;
+      const items = Array.from(root.querySelectorAll('ol li'));
+      const rect = root.getBoundingClientRect();
+      return {
+        count: items.length,
+        wide: items.flatMap((li) => [li, ...Array.from(li.querySelectorAll('*'))])
+          .filter((el) => el.scrollWidth > el.clientWidth + 1)
+          .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+        sheetWide: root.scrollWidth > root.clientWidth + 1,
+        right: rect.right,
+        vw,
+      };
+    });
+    expect(lines.count, 'the excerpt lines are on screen').toBe(5);
+    expect(lines.wide, 'every excerpt line wraps (scrollWidth <= clientWidth)').toEqual([]);
+    expect(lines.sheetWide, 'the sheet does not scroll sideways').toBe(false);
+    expect(lines.right, 'the sheet ends inside the screen').toBeLessThanOrEqual(lines.vw + 0.5);
+    expect((await noHorizontalScroll(page)).ok, 'no horizontal page scroll').toBe(true);
+  });
+}
+
+// #460's rule, on /explain, with a mocked UNVERIFIED row (a verified one shows "You have marked this value as
+// checked." and no button): "It matches, mark as checked" is enabled only with the excerpt on screen, and "This is
+// what your report states." appears only over an excerpt.
+test('UI-PG-ASK: on the sheet, mark-as-checked is disabled while loading and enabled only over the excerpt', async ({ page }) => {
+  await openAsk(page, DESKTOP, { observation: 'unverified' });
+  const source = await mockSource(page, { hold: true });
+  await ask(page, 'What is my LDL?', 1);
+  const sheet = await openSourceSheet(page);
+  const mark = sheet.getByRole('button', { name: MARK_CHECKED });
+  await expect.poll(() => source.requests.length).toBe(2);
+  await expect(mark, 'disabled while the source loads').toBeDisabled();
+  await expect(sheet).toContainText('Loading the source to compare.');
+  await expect(sheet.getByText(REPORT_STATES), 'no claim over nothing').toHaveCount(0);
+
+  source.release();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(MATCH_LINE);
+  await expect(sheet.getByText(REPORT_STATES)).toBeVisible();
+  await expect(mark, 'enabled with the excerpt on screen').toBeEnabled();
+});
+
+test('UI-PG-ASK: on the sheet, mark-as-checked is disabled when no single line matches', async ({ page }) => {
+  await openAsk(page, DESKTOP, { observation: 'unverified' });
+  // Two lines name the analyte and hold the value: the match is ambiguous, so no line is claimed.
+  await mockSource(page, { pageText: `${MATCH_LINE}\nLDL Cholesterol 142 mg/dL (repeat)\nHDL Cholesterol 52 mg/dL` });
+  await ask(page, 'What is my LDL?', 1);
+  const sheet = await openSourceSheet(page);
+  await expect(sheet.getByText(SOURCE_FILE)).toBeVisible();
+  await expect(sheet).toContainText('Excerpt not available.');
+  await expect(sheet.getByText(REPORT_STATES), 'no claim over nothing').toHaveCount(0);
+  await expect(sheet.getByRole('button', { name: MARK_CHECKED })).toBeDisabled();
+});
+
+test('UI-PG-ASK: on the sheet, a failed document GET leaves mark-as-checked disabled', async ({ page }) => {
+  await openAsk(page, DESKTOP, { observation: 'unverified' });
+  const source = await mockSource(page, { fail: 'document' });
+  await ask(page, 'What is my LDL?', 1);
+  const sheet = await openSourceSheet(page);
+  // The GET really went out and failed: an empty sheet would also say "not available".
+  await expect.poll(() => source.requests).toContain(`GET /documents/${SOURCE_DOC_ID}`);
+  // react-query retries once (about 1 s) before the GET counts as failed.
+  await expect(sheet).toContainText('Source file not available', { timeout: 15_000 });
+  await expect(sheet).toContainText('The source is not available to compare');
+  await expect(sheet.getByRole('button', { name: MARK_CHECKED }), 'no file name to compare with').toBeDisabled();
+});
+
+test('UI-PG-ASK: on the sheet, a failed pages GET leaves mark-as-checked disabled and claims nothing', async ({ page }) => {
+  await openAsk(page, DESKTOP, { observation: 'unverified' });
+  const source = await mockSource(page, { fail: 'pages' });
+  await ask(page, 'What is my LDL?', 1);
+  const sheet = await openSourceSheet(page);
+  await expect.poll(() => source.requests).toContain(`GET /documents/${SOURCE_DOC_ID}/pages`);
+  await expect(sheet).toContainText('Excerpt not available.', { timeout: 15_000 });
+  await expect(sheet.getByText(REPORT_STATES), 'no claim over nothing').toHaveCount(0);
+  await expect(sheet.getByRole('button', { name: MARK_CHECKED })).toBeDisabled();
+});
+
+// The popover stays open under the modal sheet. Escape closes the sheet and focus returns to "Open source"; a second
+// Escape closes the popover and focus returns to the chip.
+test('UI-PG-ASK: Escape closes the sheet, then the popover, and focus walks back to the chip', async ({ page }) => {
+  await openAsk(page);
+  await mockSource(page);
+  await ask(page, 'What is my LDL?', 1);
+  const chip = page.getByRole('button', { name: /^Citation 1:/ });
+  const popover = page.getByRole('dialog', { name: 'Citation 1' });
+  const openSource = popover.getByRole('button', { name: 'Open source' });
+  const sheet = await openSourceSheet(page);
+
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(popover, 'the popover is still open under where the sheet was').toBeVisible();
+  await expect(openSource).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(popover).toHaveCount(0);
+  await expect(chip).toBeFocused();
+});
+
+// A source title such as a file name shows unchanged (the old `.replace('_', ' ')` turned the first underscore
+// into a space: "Quest Lab_Report.pdf").
+test('UI-PG-ASK: a source title shows unchanged in the popover', async ({ page }) => {
+  const { ask: chat } = await openAsk(page);
+  chat.docTitle('Quest_Lab_Report.pdf');
+  await ask(page, 'What is my LDL?', 1);
+  await page.getByRole('button', { name: /^Citation 1:/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Citation 1' });
+  await expect(dialog.getByText('Quest_Lab_Report.pdf', { exact: true })).toBeVisible();
+  await expect(dialog).not.toContainText('Quest Lab_Report.pdf');
 });
 
 // The default agent path sends row ids where the legacy path sends quotes (recurring failures #1).
@@ -707,21 +944,24 @@ test('UI-PG-ASK: an agent-shaped citation shows the record, never its row id', a
   await expect(page.locator('body')).not.toContainText('obs-fixture-0001');
 });
 
-// DF-2, popover half: every line of the citation popover wraps. This is NOT HC-UIPV-004. That id is excerpt lines in
-// Source Trace (plan :643), and /explain has no excerpt lines today (the sheet opens with "Excerpt not available"), so
-// HC-UIPV-004 did not run on this page.
+// DF-2, popover half: the wrap rule is CitationTooltip's own. Its title line and its quote line both wrap, so one long
+// unbroken token in either stays inside the popover on this page and on every other caller. The excerpt lines of the
+// Source Trace sheet are HC-UIPV-004, above.
 for (const [name, viewport] of [
   ['1440', DESKTOP],
   ['390', PHONE],
 ] as const) {
   test(`UI-PG-ASK DF-2 popover: a long unbroken quote wraps inside the citation popover (${name})`, async ({ page }) => {
     const { ask: chat } = await openAsk(page, viewport);
-    // A quote has words, so it is shown; one unbroken 184-character token inside it is what must wrap.
+    // A quote has words, so it is shown; one unbroken 184-character token inside it is what must wrap. The title line
+    // (the source name) gets the same treatment.
     chat.snippet({ kind: 'text', text: `Report states ${'LDL'.repeat(61)}END here` });
+    chat.docTitle(`Report_${'Q'.repeat(120)}.pdf`);
     await ask(page, 'What is my LDL?', 1);
     await page.getByRole('button', { name: /^Citation 1:/ }).click();
     const dialog = page.getByRole('dialog', { name: 'Citation 1' });
     await expect(dialog).toContainText('LDLLDL');
+    await expect(dialog).toContainText('QQQQ');
 
     const overflow = await dialog.evaluate((root) => {
       const vw = document.documentElement.clientWidth;

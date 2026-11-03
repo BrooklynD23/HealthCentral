@@ -539,6 +539,167 @@ describe('UI-PG-ASK', () => {
     });
   });
 
+  // L0 ruling 6586537788, option (a): "Open source" on a citation shows the real source, fetched only once the sheet is
+  // open (ObservationSourceTrace), never the chat citation's doc_title as a file name, and #460's rule: "It matches,
+  // mark as checked" is enabled only with the excerpt on screen. Blind spot: jsdom has no layout, so a long excerpt
+  // line wrapping (HC-UIPV-004) and the sheet staying still are measured in e2e/ui-ask.spec.ts.
+  describe('UI-PG-ASK: Open source shows the real source', () => {
+    const SOURCE_FILE = 'quest-lipid-panel-2026-03.pdf';
+    const MARK = 'It matches, mark as checked';
+    const STATES = 'This is what your report states.';
+    const unverified = { ...hemoglobinObservation, user_verified: false };
+    const pages = [{ page_number: 2, text: 'Lab Report\nHemoglobin 14.2 g/dL\nHematocrit 42 %', has_tables: false }];
+    const documentRow = { id: 'doc-1', source: SOURCE_FILE };
+
+    interface Serve {
+      observation?: typeof unverified;
+      pages?: unknown;
+      document?: () => Promise<unknown>;
+      pagesCall?: () => Promise<unknown>;
+    }
+    function serve({ observation = unverified, pages: pageRows = pages, document, pagesCall }: Serve = {}) {
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => {
+        if (url === '/observations/') return [observation];
+        if (url === '/documents/doc-1') return document ? document() : documentRow;
+        if (url === '/documents/doc-1/pages') return pagesCall ? pagesCall() : pageRows;
+        return [];
+      });
+    }
+    const documentCalls = () =>
+      vi.mocked(api.apiGet).mock.calls.map(([url]) => url).filter((url) => String(url).startsWith('/documents/doc-1'));
+
+    async function openPopover(user: ReturnType<typeof userEvent.setup>, answer: unknown = answerWithCitations) {
+      vi.mocked(api.apiPost).mockResolvedValueOnce(answer);
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/hemoglobin level is 14.2/);
+      await user.click(await screen.findByRole('button', { name: /^Citation 1:/ }));
+      return screen.findByRole('dialog', { name: 'Citation 1' });
+    }
+    async function openSheet(user: ReturnType<typeof userEvent.setup>) {
+      const popover = await openPopover(user);
+      await user.click(within(popover).getByRole('button', { name: 'Open source' }));
+      return screen.findByRole('dialog', { name: 'Source for Hemoglobin' });
+    }
+
+    it('shows the document\u2019s file name and the excerpt, never the chat title or "not available"', async () => {
+      const user = userEvent.setup();
+      serve();
+      const sheet = await openSheet(user);
+      expect(await within(sheet).findByText(SOURCE_FILE)).toBeInTheDocument();
+      expect(await within(sheet).findByText('Hemoglobin 14.2 g/dL')).toBeInTheDocument();
+      expect(within(sheet).getByText(STATES)).toBeInTheDocument();
+      expect(sheet).not.toHaveTextContent('Source file not available');
+      expect(sheet).not.toHaveTextContent('Excerpt not available.');
+      // The chat citation's doc_title ("Quest Lab Report") is a title, not a file name.
+      expect(sheet).not.toHaveTextContent('Quest Lab Report');
+    });
+
+    it('makes no document request until "Open source" is clicked', async () => {
+      const user = userEvent.setup();
+      serve();
+      const popover = await openPopover(user);
+      expect(documentCalls(), 'after the answer renders and the popover opens').toEqual([]);
+
+      await user.click(within(popover).getByRole('button', { name: 'Open source' }));
+      await screen.findByRole('dialog', { name: 'Source for Hemoglobin' });
+      await waitFor(() => expect([...documentCalls()].sort()).toEqual(['/documents/doc-1', '/documents/doc-1/pages']));
+    });
+
+    it('keeps "It matches, mark as checked" disabled while the source loads, and enables it only over the excerpt', async () => {
+      const user = userEvent.setup();
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      serve({ document: async () => (await gate, documentRow), pagesCall: async () => (await gate, pages) });
+      const sheet = await openSheet(user);
+
+      expect(await within(sheet).findByRole('button', { name: MARK })).toBeDisabled();
+      expect(within(sheet).getByText('Loading the source to compare.')).toBeInTheDocument();
+      expect(within(sheet).queryByText(STATES)).toBeNull();
+
+      release();
+      expect(await within(sheet).findByText('Hemoglobin 14.2 g/dL')).toBeInTheDocument();
+      expect(within(sheet).getByText(STATES)).toBeInTheDocument();
+      await waitFor(() => expect(within(sheet).getByRole('button', { name: MARK })).toBeEnabled());
+    });
+
+    it('keeps it disabled, and claims nothing, when no single line matches', async () => {
+      const user = userEvent.setup();
+      serve({ pages: [{ page_number: 2, text: 'Hemoglobin 14.2 g/dL\nHemoglobin 14.2 g/dL (repeat)', has_tables: false }] });
+      const sheet = await openSheet(user);
+      expect(await within(sheet).findByText(SOURCE_FILE)).toBeInTheDocument();
+      expect(await within(sheet).findByText('Excerpt not available.')).toBeInTheDocument();
+      expect(within(sheet).queryByText(STATES)).toBeNull();
+      expect(within(sheet).getByRole('button', { name: MARK })).toBeDisabled();
+    });
+
+    it('keeps it disabled when the document GET fails', async () => {
+      const user = userEvent.setup();
+      serve({ document: async () => Promise.reject(new Error('boom')) });
+      const sheet = await openSheet(user);
+      // The GET really went out and failed: an empty sheet would also say "not available".
+      await waitFor(() => expect(documentCalls()).toContain('/documents/doc-1'));
+      expect(await within(sheet).findByText('Source file not available')).toBeInTheDocument();
+      expect(within(sheet).getByRole('button', { name: MARK })).toBeDisabled();
+      expect(within(sheet).getByText(/The source is not available to compare/)).toBeInTheDocument();
+    });
+
+    it('a record with no document behind it keeps its text and offers no "Open source"', async () => {
+      const user = userEvent.setup();
+      serve({ observation: { ...unverified, doc_id: null as unknown as string } });
+      const popover = await openPopover(user);
+      expect(within(popover).getByText(/Hemoglobin: 14\.2 g\/dL \(13\.5-17\.5\)/)).toBeInTheDocument();
+      expect(within(popover).queryByRole('button', { name: 'Open source' })).toBeNull();
+    });
+
+    it('shows a source title unchanged: Quest_Lab_Report.pdf keeps both underscores', async () => {
+      const user = userEvent.setup();
+      serve();
+      const answer = {
+        ...answerWithCitations,
+        segments: [
+          {
+            ...answerWithCitations.segments[0],
+            citations: [{ ...answerWithCitations.segments[0].citations[0], doc_title: 'Quest_Lab_Report.pdf' }],
+          },
+        ],
+      };
+      const popover = await openPopover(user, answer);
+      expect(within(popover).getByText('Quest_Lab_Report.pdf')).toBeInTheDocument();
+      expect(popover).not.toHaveTextContent('Quest Lab_Report.pdf');
+    });
+
+    it('the popover title and quote wrap by their own class, and the page injects no global rule for them', async () => {
+      const user = userEvent.setup();
+      serve();
+      const popover = await openPopover(user);
+      expect(within(popover).getByText('Quest Lab Report')).toHaveClass('[overflow-wrap:anywhere]');
+      expect(within(popover).getByText(/Hemoglobin: 14\.2 g\/dL/)).toHaveClass('[overflow-wrap:anywhere]');
+      expect(Array.from(document.querySelectorAll('style')).some((el) => /Citation/.test(el.textContent ?? ''))).toBe(false);
+    });
+
+    // The popover stays open under the modal sheet. Escape closes the sheet and focus returns to "Open source"; the
+    // next Escape closes the popover and focus returns to the chip.
+    it('Escape closes the sheet, then the popover, and focus walks back to the chip', async () => {
+      const user = userEvent.setup();
+      serve();
+      const popover = await openPopover(user);
+      const chip = screen.getByRole('button', { name: /^Citation 1:/ });
+      const openSource = within(popover).getByRole('button', { name: 'Open source' });
+      await user.click(openSource);
+      await screen.findByRole('dialog', { name: 'Source for Hemoglobin' });
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Source for Hemoglobin' })).toBeNull());
+      expect(screen.getByRole('dialog', { name: 'Citation 1' })).toBeInTheDocument();
+      await waitFor(() => expect(document.activeElement).toBe(openSource));
+
+      await user.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Citation 1' })).toBeNull());
+      await waitFor(() => expect(document.activeElement).toBe(chip));
+    });
+  });
+
   describe('UI-PG-ASK: restored messages', () => {
     // Blind spot: vitest sees only the first frame (no LazyMotion), so this proves a restored message does not start
     // at M6's first frame. That a sent one finishes M6 is measured in e2e/ui-ask.spec.ts.
