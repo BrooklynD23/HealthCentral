@@ -48,7 +48,9 @@ import { useSubmitFeedback, FEEDBACK_TAGS, type FeedbackTag } from '@/services/f
  * A citation as rendered in the chat (CITE-SRC-001).
  *
  * `observationId` / `entityId` are the deep-link target. Which control a citation gets (AskCitation):
- *  - its observation is in the loaded list: the UI-PROVENANCE CitationTooltip, with "Open source" (Source Trace);
+ *  - its observation is in the loaded list: the UI-PROVENANCE CitationTooltip. With a `doc_id` it offers "Open source",
+ *    the Source Trace sheet with the document's real file name and excerpt, fetched only once the sheet opens (never
+ *    the citation's doc_title as a file name); without one it keeps the record text and offers no sheet;
  *  - else it has a target: a button to the Verification Workbench;
  *  - else it has a real quote: the CitationTooltip with the quote only;
  *  - else (a care task, a timeline event, a bare locator) a plain label, because a button that opens nothing or
@@ -107,13 +109,6 @@ function recordText(observation: Observation): string {
 }
 
 /**
- * CitationTooltip's quote has no wrap rule, so one long unbroken token runs off the popover and the screen (DF-2,
- * HC-UIPV-004). The popover is portaled out of this page, so a class here cannot reach it; this rule can. Remove it
- * when CitationTooltip wraps its own quote.
- */
-const CITATION_WRAP_CSS = '[role="dialog"][aria-label^="Citation "] p { overflow-wrap: anywhere; }';
-
-/**
  * One citation under an answer. Chips are T0: the quote, the page and the source never move once they render.
  */
 function AskCitation({
@@ -129,6 +124,7 @@ function AskCitation({
   const target = citationTarget(citation);
   const quote = quoteOf(citation.snippet);
   const label = `${citation.source}${citation.page ? ` (p.${citation.page})` : ''}`;
+  const title = observation || citation.page == null ? citation.source : `${citation.source} \u00b7 page ${citation.page}`;
   const tone =
     citation.source === 'Your Results' ? 'bg-accent-subtle text-accent font-medium' : 'bg-surface-muted text-ink-secondary';
 
@@ -138,11 +134,14 @@ function AskCitation({
         <CitationTooltip
           index={index}
           citation={{
-            type: observation || citation.page == null ? citation.source : `${citation.source} \u00b7 page ${citation.page}`,
+            type: title,
             id: citation.observationId ?? citation.entityId ?? '',
             text: quote ?? (observation ? recordText(observation) : ''),
           }}
-          source={observation ? { observation } : undefined}
+          // The source's own title, as given ("Quest_Lab_Report.pdf"), never the machine type CitationTooltip rewrites.
+          title={title}
+          // Only a row with a document can open a sheet that has a file name to show (as InterpretedResultCard).
+          traceObservation={observation?.doc_id ? observation : undefined}
         />
         <span data-t0="" className="min-w-0 text-xs text-ink-secondary [overflow-wrap:anywhere]">
           {label}
@@ -756,7 +755,6 @@ export function ExplainAssistant() {
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      <style>{CITATION_WRAP_CSS}</style>
       <div className="flex min-w-0 flex-1 flex-col">
         {/* The card is as tall as the space between the shell's header and its Safety Rail / tab bar (AppLayout writes
             --shell-top-h and --shell-bottom-h), so the composer and the disclaimer under it are in view without a page
