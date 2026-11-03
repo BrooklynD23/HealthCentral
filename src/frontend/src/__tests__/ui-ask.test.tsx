@@ -293,7 +293,7 @@ describe('UI-PG-ASK', () => {
       vi
         .mocked(api.apiPost)
         .mock.calls.filter(([url]) => String(url).startsWith('/feedback/turns/'))
-        .map(([, body]) => body as { rating: number; correction_text?: string });
+        .map(([, body]) => body as { rating: number; correction_text?: string; feedback_tags?: string[] });
 
     async function answered(user: ReturnType<typeof userEvent.setup>) {
       vi.mocked(api.apiPost).mockImplementation(async (url: string) =>
@@ -359,6 +359,105 @@ describe('UI-PG-ASK', () => {
       expect(notHelpful).toHaveAttribute('aria-pressed', 'true');
       expect(screen.getByRole('button', { name: 'Helpful' })).toHaveAttribute('aria-pressed', 'false');
       expect(feedbackBodies()).toHaveLength(1);
+    });
+
+    // Review of #453, round 2/3. The no-op guard above turned a failed save into a dead end: the catch kept the new
+    // rating on screen, so the retry click hit the guard. Blind spot: the mock rejects the POST; it cannot tell a
+    // network error from a 4xx, and the page treats both the same.
+    describe('a failed save shows the stored rating and the next click retries', () => {
+      let failFeedback = false;
+      const useFlakyFeedback = () =>
+        vi.mocked(api.apiPost).mockImplementation(async (url: string) => {
+          if (url === '/assistant/chat') return answerWithCitations;
+          if (failFeedback && String(url).startsWith('/feedback/turns/')) throw new Error('offline');
+          return { ok: true };
+        });
+      beforeEach(() => {
+        failFeedback = false;
+      });
+
+      it('first rating fails: the thumb is not pressed, no "Thanks!", and a second click sends the POST', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+        const helpful = screen.getByRole('button', { name: 'Helpful' });
+
+        failFeedback = true;
+        await user.click(helpful);
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+        await waitFor(() => expect(helpful).toBeEnabled());
+        expect(helpful).toHaveAttribute('aria-pressed', 'false');
+        expect(screen.queryByText('Thanks!')).not.toBeInTheDocument();
+
+        failFeedback = false;
+        await user.click(helpful);
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+        await waitFor(() => expect(helpful).toHaveAttribute('aria-pressed', 'true'));
+        expect(screen.getByText('Thanks!')).toBeInTheDocument();
+      });
+
+      it('flip fails: the stored thumb stays pressed, "Thanks!" is about it, and a second click sends the POST', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+        const helpful = screen.getByRole('button', { name: 'Helpful' });
+        const notHelpful = screen.getByRole('button', { name: 'Not helpful' });
+
+        await user.click(notHelpful); // stored: -1
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+        await waitFor(() => expect(notHelpful).toHaveAttribute('aria-pressed', 'true'));
+        await waitFor(() => expect(helpful).toBeEnabled());
+
+        failFeedback = true;
+        await user.click(helpful);
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+        await waitFor(() => expect(helpful).toBeEnabled());
+        expect(helpful).toHaveAttribute('aria-pressed', 'false');
+        expect(notHelpful).toHaveAttribute('aria-pressed', 'true');
+
+        failFeedback = false;
+        await user.click(helpful);
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+        await waitFor(() => expect(helpful).toHaveAttribute('aria-pressed', 'true'));
+        expect(notHelpful).toHaveAttribute('aria-pressed', 'false');
+      });
+    });
+
+    it('a thumb click never sends tags that were ticked but not submitted', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.click(screen.getByRole('button', { name: 'inaccurate' }));
+      expect(screen.getByRole('button', { name: 'inaccurate' })).toHaveAttribute('aria-pressed', 'true');
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+
+      for (const body of feedbackBodies()) expect(body.feedback_tags, JSON.stringify(body)).toBeUndefined();
+    });
+
+    it('a thumb click after "Submit feedback" resends the submitted tags, not tags ticked later', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.click(screen.getByRole('button', { name: 'inaccurate' }));
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      expect(feedbackBodies()[1]).toMatchObject({ feedback_tags: ['inaccurate'] });
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Feedback options' })); // reopen the picker
+      await user.click(screen.getByRole('button', { name: 'unsafe' }));
+      await user.click(screen.getByRole('button', { name: 'Helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      // The upsert replaces the row, so leaving the submitted tags out would erase them; the unsent tick stays out.
+      expect(feedbackBodies()[2]).toMatchObject({ rating: 1, feedback_tags: ['inaccurate'] });
     });
   });
 
