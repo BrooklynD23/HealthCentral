@@ -232,3 +232,111 @@ async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(
     hw = await _verify_and_load(profile_db, hw_id, {})
     assert hw.flag == " High "
     assert hw.is_abnormal is True
+
+
+# --- L0 ruling (#463): a plain Verify keeps any flag except a normal word ----
+
+# Every shape a kept flag must survive: no printed range, inside it, outside it.
+_SHAPES = (
+    ("no_range", 14.0, None, None),
+    ("in_range", 14.0, 12.0, 16.0),
+    ("out_of_range", 18.0, 12.0, 16.0),
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("word", ["Critical high", "Yes", "Positive", "Elevated"])
+@pytest.mark.parametrize("shape", _SHAPES, ids=[s[0] for s in _SHAPES])
+async def test_hc_vkf_009_unknown_words_are_kept(profile_db, word, shape):
+    _, value, ref_low, ref_high = shape
+    obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                             value=value, ref_low=ref_low, ref_high=ref_high)
+    obs = await _verify_and_load(profile_db, obs_id, {})
+    assert obs.flag == word
+    assert obs.is_abnormal is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "word",
+    ["Normal", "N", "WNL", "normal", "n", "wnl", "WnL", " Normal ", " n ", " WNL "],
+)
+async def test_hc_vkf_010_normal_words_are_recalculated(profile_db, word):
+    # Pin: green on 3f9bfee7 and on origin/main as well (a normal word was
+    # always recalculated); it guards the new keep rule against over-reach.
+    for value, ref_low, ref_high, want_flag, want_abn in (
+        (14.0, 12.0, 16.0, None, False),
+        (18.0, 12.0, 16.0, "H", True),
+        (9.0, 12.0, 16.0, "L", True),
+        (14.0, None, None, None, False),
+    ):
+        obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                                 value=value, ref_low=ref_low, ref_high=ref_high)
+        obs = await _verify_and_load(profile_db, obs_id, {})
+        assert (obs.flag, obs.is_abnormal) == (want_flag, want_abn), (word, value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "word", ["H", "L", "HH", "LL", "A", "HIGH", "LOW", "ABNORMAL", "CRITICAL"]
+)
+@pytest.mark.parametrize("shape", _SHAPES[:2], ids=[s[0] for s in _SHAPES[:2]])
+async def test_hc_vkf_011_all_coded_words_are_kept(profile_db, word, shape):
+    # Green on 3f9bfee7, red on the origin/main route (which recalculated).
+    _, value, ref_low, ref_high = shape
+    obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                             value=value, ref_low=ref_low, ref_high=ref_high)
+    obs = await _verify_and_load(profile_db, obs_id, {})
+    assert obs.flag == word
+    assert obs.is_abnormal is True
+
+
+def _extractor_flag_words() -> set[str]:
+    from modules.extract import ExtractModule
+
+    pat = ExtractModule.FLAG_PATTERN.pattern
+    return set(pat[pat.index("(") + 1:pat.rindex(")")].split("|"))
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_012_every_extractor_flag_word_is_kept(profile_db):
+    # Parity with the extractor: derive the words from FLAG_PATTERN itself so a
+    # word added there later is covered. A loop with a message, not parametrize,
+    # because an empty parametrize would skip silently.
+    words = _extractor_flag_words()
+    assert words, "no flag words derived from ExtractModule.FLAG_PATTERN"
+    assert {"HH", "LL"} <= words, words
+    for word in sorted(words):
+        for _, value, ref_low, ref_high in _SHAPES[:2]:
+            obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                                     value=value, ref_low=ref_low, ref_high=ref_high)
+            obs = await _verify_and_load(profile_db, obs_id, {})
+            assert obs.flag == word, (word, value, ref_low, ref_high)
+            assert obs.is_abnormal is True, (word, value, ref_low, ref_high)
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_013_kept_word_beside_the_real_change_rule(profile_db):
+    # A real edit of the value still rewrites a kept word.
+    up_id = await _seed_obs(profile_db, flag="Critical high", is_abnormal=True,
+                            value=14.0, ref_low=12.0, ref_high=16.0)
+    up = await _verify_and_load(profile_db, up_id, {"value": 18.0})
+    assert (up.flag, up.is_abnormal) == ("H", True)
+
+    down_id = await _seed_obs(profile_db, flag="Critical high", is_abnormal=True,
+                              value=18.0, ref_low=12.0, ref_high=16.0)
+    down = await _verify_and_load(profile_db, down_id, {"value": 14.0})
+    assert (down.flag, down.is_abnormal) == (None, False)
+
+    # Re-sending the same numbers is not a change: the word is kept.
+    same_id = await _seed_obs(profile_db, flag="Critical high", is_abnormal=True,
+                              value=14.0, ref_low=12.0, ref_high=16.0)
+    same = await _verify_and_load(
+        profile_db, same_id, {"value": 14.0, "ref_low": 12.0, "ref_high": 16.0})
+    assert (same.flag, same.is_abnormal) == ("Critical high", True)
+
+    # "Exactly": a kept flag keeps is_abnormal too, even when it was False.
+    yes_id = await _seed_obs(profile_db, flag="Yes", is_abnormal=False,
+                             value=14.0, ref_low=12.0, ref_high=16.0)
+    yes = await _verify_and_load(profile_db, yes_id, {})
+    assert (yes.flag, yes.is_abnormal) == ("Yes", False)
