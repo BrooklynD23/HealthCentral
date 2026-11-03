@@ -961,6 +961,7 @@ def test_hc_fkc_010c_audit_script_master_missing_exits_2_not_clean(
 
 SNAP_NAME = "vault.pre017.snapshot"
 TMP_NAME = "vault.pre017.snapshot.tmp"
+ASIDE_NAME = "vault.pre017.snapshot.aside"
 MIGRATIONS_LOGGER = "core.migrations"
 
 
@@ -1119,7 +1120,7 @@ def test_hc_fks_002_no_snapshot_for_a_new_vault_or_a_vault_at_head(tmp_path, mon
     assert list(new.parent.glob("vault.pre017*")) == []
 
 
-def _config_with_a_later_revision(tmp_path: Path):
+def _config_with_a_later_revision(tmp_path: Path, upgrade_body: str = "pass"):
     """A profile script directory with a made-up 018 on top of 017."""
     src = Path(migrations.__file__).parent.parent / "migrations" / "profile"
     dst = tmp_path / "scripts018"
@@ -1127,7 +1128,7 @@ def _config_with_a_later_revision(tmp_path: Path):
     (dst / "versions" / "018_next.py").write_text(
         'revision = "018_next"\ndown_revision = "017_fk_cascade_alignment"\n'
         "branch_labels = None\ndepends_on = None\n"
-        "def upgrade():\n    pass\ndef downgrade():\n    pass\n"
+        f"def upgrade():\n    {upgrade_body}\ndef downgrade():\n    pass\n"
     )
     cfg = migrations._get_alembic_config("profile")
     cfg.set_main_option("script_location", str(dst))
@@ -1633,6 +1634,145 @@ def test_hc_fks_007d_public_purge_removes_everything_and_raises_on_failure(tmp_p
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vault.db", SNAP_NAME], (
         "one failure must not stop the other files from being removed"
     )
+
+
+# --------------------------------------------------------------------------
+# HC-FKS-016..018: the age purge waits until the vault is confirmed at 017
+# --------------------------------------------------------------------------
+
+
+def _set_age(path: Path, made: datetime) -> None:
+    os.utime(path, (_utc_ts(made), _utc_ts(made)))
+
+
+def _state(path: Path) -> tuple[bytes, int]:
+    """Bytes and mtime: a purge-and-recopy that keeps the bytes still changes the mtime."""
+    return path.read_bytes(), path.stat().st_mtime_ns
+
+
+def test_hc_fks_016_a_failed_017_keeps_an_aged_snapshot_until_it_completes(vault016, monkeypatch):
+    """The snapshot is the only copy of rows 017 deletes. While 017 has not
+    completed it must survive any age, and the open that completes 017 must not
+    purge it either: that call has just deleted rows."""
+    path, _orphan_id = _vault_with_orphan_and_blocker(vault016)
+    with pytest.raises(Exception) as first:
+        migrations.run_profile_migration(path, KEY)
+    assert not isinstance(first.value, migrations.ProfileMigrationRefused), "the upgrade failed, not the snapshot"
+    snap = _snap(path)
+    _set_age(snap, MADE_AT)
+    monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + timedelta(days=31))
+    before = _state(snap)
+
+    with pytest.raises(Exception) as retry:  # still blocked, snapshot is 31 days old
+        migrations.run_profile_migration(path, KEY)
+
+    assert not isinstance(retry.value, migrations.ProfileMigrationRefused)
+    assert snap.is_file(), "a failed retry must not purge the snapshot"
+    assert _state(snap) == before, "not purged and re-copied either"
+    assert _rev(path) == REV_016
+
+    conn = _connect(path)
+    try:
+        conn.execute("DROP TABLE _alembic_tmp_care_plan_task")
+        conn.commit()
+    finally:
+        conn.close()
+    migrations.run_profile_migration(path, KEY)  # the open that completes 017
+
+    assert _rev(path) == PROFILE_HEAD
+    assert snap.is_file() and _state(snap) == before, "the open that completes 017 keeps the aged snapshot"
+
+    migrations.run_profile_migration(path, KEY)  # the next open: confirmed at 017
+
+    assert not snap.exists(), "purged on the first open after success"
+    assert _leftovers(path) == []
+
+
+def _refused_no_match(tmp_path, monkeypatch, request):
+    request.getfixturevalue("fast_references")
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    conn = _connect(path)
+    try:
+        conn.execute("ALTER TABLE documents ADD COLUMN stray_column TEXT")
+        conn.commit()
+    finally:
+        conn.close()
+    _unversioned(path)
+    return path, migrations.ProfileMigrationRefused, [SNAP_NAME]
+
+
+def _failed_with_018_pending(tmp_path, monkeypatch, request):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), "head")  # confirmed at 017
+    later = _config_with_a_later_revision(tmp_path, upgrade_body="raise RuntimeError('018 fails')")
+    monkeypatch.setattr(migrations, "_get_alembic_config", lambda section="master": later)
+    return path, Exception, [SNAP_NAME]
+
+
+_REFUSED_CASES = {
+    "unversioned-no-match": _refused_no_match,
+    "failed-018-after-017": _failed_with_018_pending,
+}
+
+
+@pytest.mark.parametrize("case", list(_REFUSED_CASES))
+def test_hc_fks_017_a_refused_or_failed_open_keeps_an_aged_snapshot(
+    tmp_path, monkeypatch, request, case
+):
+    path, expected, aged = _REFUSED_CASES[case](tmp_path, monkeypatch, request)
+    for name in aged:
+        planted = path.with_name(name)
+        planted.write_bytes(b"planted " + name.encode())
+        _set_age(planted, MADE_AT)
+    monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + timedelta(days=45))
+    before = {name: _state(path.with_name(name)) for name in aged}
+
+    with pytest.raises(expected):
+        migrations.run_profile_migration(path, KEY)
+
+    for name in aged:
+        assert path.with_name(name).is_file(), f"{name} was purged by a refused or failed open"
+        assert _state(path.with_name(name)) == before[name]
+
+
+def _purge_case_at_head(tmp_path, monkeypatch):
+    return _head_vault(tmp_path, monkeypatch), PROFILE_HEAD
+
+
+def _purge_case_017_with_018_pending(tmp_path, monkeypatch):
+    vault = _head_vault(tmp_path, monkeypatch)
+    later = _config_with_a_later_revision(tmp_path)
+    monkeypatch.setattr(migrations, "_get_alembic_config", lambda section="master": later)
+    return vault, "018_next"
+
+
+@pytest.mark.parametrize(
+    "where", [_purge_case_at_head, _purge_case_017_with_018_pending], ids=["at-head", "017-with-018-pending"]
+)
+@pytest.mark.parametrize(
+    "snap_days,snap_kept",
+    [(45, False), (3, True)],
+    ids=["aged-snapshot-purged", "young-snapshot-kept"],
+)
+def test_hc_fks_018_a_vault_confirmed_at_017_purges_what_is_aged(
+    tmp_path, monkeypatch, where, snap_days, snap_kept
+):
+    """At head the purge runs. At 017 with a newer revision pending it runs after
+    that upgrade succeeded (a stubbed 018 stands in for a future revision)."""
+    vault, final_rev = where(tmp_path, monkeypatch)
+    now = MADE_AT + timedelta(days=60)
+    snap = _snap(vault)
+    snap.write_bytes(b"planted snapshot")
+    _set_age(snap, now - timedelta(days=snap_days))
+    monkeypatch.setattr(migrations, "utcnow", lambda: now)
+
+    migrations.run_profile_migration(vault, KEY)
+
+    assert _rev(vault) == final_rev
+    assert snap.exists() is snap_kept
 
 
 # --------------------------------------------------------------------------

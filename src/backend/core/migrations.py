@@ -210,7 +210,9 @@ _SNAPSHOT_REVISION = "017_fk_cascade_alignment"
 _SNAPSHOT_NAME = "vault.pre017.snapshot"
 _SNAPSHOT_TMP_NAME = "vault.pre017.snapshot.tmp"
 _SNAPSHOT_SIDECARS = ("-wal", "-shm", "-journal")
-# A snapshot is purged on the first open this long (or longer) after it was made.
+# A snapshot this old (or older) is purged on the first open that finds the vault
+# confirmed at revision 017 or later. Until then it is kept at any age: while 017
+# has not completed it is the only copy of the rows 017 deletes.
 _SNAPSHOT_MAX_AGE = timedelta(days=30)
 # How long the WAL checkpoint may wait for a reader before the snapshot is refused.
 _SNAPSHOT_BUSY_TIMEOUT_S = 5.0
@@ -417,17 +419,29 @@ def purge_pre017_snapshot(vault_path: Path) -> None:
         raise first_error
 
 
-def _purge_expired_snapshot(vault_path: Path) -> None:
+def _clear_snapshot_temp(vault_path: Path) -> None:
     """Housekeeping at the start of every profile open; never blocks the open.
 
-    A temp copy is an interrupted attempt and goes at any age. The snapshot goes
-    once it is 30 days old or more. The age is its own mtime, which
-    ``_ensure_pre017_snapshot`` sets to the time it was made.
+    A temp copy is an interrupted attempt and goes at any age.
     """
-    snap, tmp = _snapshot_paths(vault_path)
+    _snap, tmp = _snapshot_paths(vault_path)
     try:
         for stale in _with_sidecars(tmp):
             stale.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("Pre-017 snapshot temp clean-up failed (%s)", type(exc).__name__)
+
+
+def _purge_expired_snapshot(vault_path: Path) -> None:
+    """Remove the snapshot once it is 30 days old or more; never blocks the open.
+
+    The caller runs this only when the vault was confirmed at revision 017 or
+    later at the start of the call and the call has succeeded. The age is the
+    snapshot's own mtime, which ``_ensure_pre017_snapshot`` sets to the time it
+    was made.
+    """
+    snap, _tmp = _snapshot_paths(vault_path)
+    try:
         try:
             made = utcfromtimestamp(snap.stat().st_mtime)
         except FileNotFoundError:
@@ -574,8 +588,11 @@ def run_profile_migration(
 
     Snapshot: before revision 017 runs on a non-empty vault, a verified encrypted
     copy is made beside it (``vault.pre017.snapshot``); if that fails, this
-    raises ProfileMigrationRefused and changes nothing. On every call, a snapshot
-    that is 30 days old or more is purged first.
+    raises ProfileMigrationRefused and changes nothing. An interrupted temp copy
+    is cleared on every call. A snapshot that is 30 days old or more is purged
+    only when the vault was confirmed at revision 017 or later at the start of
+    the call and the call succeeded: a refused or failed call purges nothing, and
+    the call that completes 017 keeps the snapshot (the next open purges it).
     """
     logger.info(f"Running profile database migrations for {vault_path}...")
 
@@ -589,8 +606,9 @@ def run_profile_migration(
     # Ensure vault directory exists
     vault_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Before anything else, so it also runs for a vault already at head.
-    _purge_expired_snapshot(vault_path)
+    # An interrupted temp copy goes at any age. The age purge of the snapshot
+    # itself waits until this call has succeeded on a vault confirmed at 017.
+    _clear_snapshot_temp(vault_path)
 
     # Convert key to hex format
     hex_key = _key_to_hex(encryption_key)
@@ -663,6 +681,7 @@ def run_profile_migration(
         cursor.close()
 
     cleanup_counts: dict[str, int] = {}
+    purge_when_done = False
     try:
         with engine.connect() as connection:
             has_tables, has_alembic_version = _check_baseline_needed(
@@ -689,6 +708,8 @@ def run_profile_migration(
                 # Snapshot before the stamp, so a refusal leaves no alembic_version.
                 if _pre017_snapshot_pending(config, matched):
                     _ensure_pre017_snapshot(vault_path, hex_key)
+                else:
+                    purge_when_done = True  # matched at 017 or later
                 command.stamp(config, matched)
                 if matched not in set(ScriptDirectory.from_config(config).get_heads()):
                     command.upgrade(config, "head")
@@ -707,7 +728,11 @@ def run_profile_migration(
                             vault_path,
                             current_revision,
                         )
+                        _purge_expired_snapshot(vault_path)
                         return cleanup_counts
+
+                # Fails closed: an unreadable or missing revision is "pending".
+                purge_when_done = not _pre017_snapshot_pending(config, current_revision)
 
                 # Revision 017 deletes orphan rows: copy a non-empty vault first
                 # and refuse the whole migration if the copy cannot be verified.
@@ -728,6 +753,8 @@ def run_profile_migration(
     finally:
         engine.dispose()
 
+    if purge_when_done:
+        _purge_expired_snapshot(vault_path)
     return cleanup_counts
 
 
