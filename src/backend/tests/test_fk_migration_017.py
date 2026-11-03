@@ -22,6 +22,7 @@ import logging
 import logging.config
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 import time
@@ -1865,10 +1866,22 @@ def _damaged_zero_bytes(_vault: Path) -> bytes:
     return b""
 
 
+def _damaged_mid_page_flip(vault: Path) -> bytes:
+    """A real encrypted vault copy with one byte flipped inside a page, past the
+    header. The page's HMAC then fails: the driver raises OperationalError (code
+    1, "SQL logic error"), not NOTADB. A rule that read every OperationalError as
+    "not damage" would turn this real damage into a lockout."""
+    real = bytearray(vault.read_bytes())
+    assert len(real) > 3 * 4096
+    real[2 * 4096 + 100] ^= 0xFF
+    return bytes(real)
+
+
 _DAMAGED = {
     "garbage": _damaged_garbage,
     "head-zeroed": _damaged_head_zeroed,
     "zero-bytes": _damaged_zero_bytes,
+    "mid-page-flip": _damaged_mid_page_flip,
 }
 
 
@@ -1918,7 +1931,7 @@ def test_hc_fks_019_a_corrupted_snapshot_is_moved_aside_and_a_new_one_taken(
         assert needle not in events[0], events[0]
     # the exception class (and only the class) is logged, as in every refusal: a
     # moved-aside line without it cannot tell damage from a bug
-    assert events[0].endswith(("(_SnapshotInvalid)", "(DatabaseError)")), events[0]
+    assert events[0].endswith(("(_SnapshotInvalid)", "(DatabaseError)", "(OperationalError)")), events[0]
     assert not [r for r in mig_log if r.levelno >= logging.ERROR]
 
 
@@ -1989,8 +2002,9 @@ def test_hc_fks_021_a_failed_move_refuses_and_keeps_the_damaged_snapshot(
 @pytest.fixture
 def vault016_rel(tmp_path, monkeypatch):
     """(RELATIVE vault path, alembic config) at 016. Local mode's app_data_path is
-    the relative ``Path("data")``, so every real vault path is relative; every
-    other fixture here uses an absolute tmp_path and cannot see what that breaks."""
+    the relative ``Path("data")``, so in local mode every vault path is relative
+    (server mode's is the absolute parent of its database path); every other
+    fixture here uses an absolute tmp_path and cannot see what that breaks."""
     monkeypatch.setattr(settings, "database_encryption_required", False)
     monkeypatch.chdir(tmp_path)
     path = Path("data/vaults/p/vault.db")
@@ -2086,15 +2100,16 @@ def test_hc_fks_019r_relative_vault_a_corrupted_snapshot_is_moved_aside_and_a_ne
 
 @pytest.mark.parametrize(
     "error",
-    [ValueError("a relative path"), RuntimeError("encryption required"), PermissionError(errno.EACCES, "locked")],
-    ids=["ValueError", "RuntimeError", "PermissionError"],
+    [ValueError("a relative path"), RuntimeError("encryption required")],
+    ids=["ValueError", "RuntimeError"],
 )
 def test_hc_fks_022_a_verifier_error_that_says_nothing_about_the_file_refuses_and_moves_nothing(
     vault016, mig_log, monkeypatch, error
 ):
     """Only a failed check (the verifier's own refusal, or a database error) means
-    the snapshot is damaged. Anything else (here a bug or a locked file) says
-    nothing about the file, so the good snapshot must not be moved."""
+    the snapshot is damaged. Anything else (here a bug) says nothing about the
+    file, so the good snapshot must not be moved. An environment fault from the
+    driver is HC-FKS-024..026."""
     path, _orphan_id = _vault_with_orphan_and_blocker(vault016)
     with pytest.raises(Exception):
         migrations.run_profile_migration(path, KEY)  # the failed 017 leaves a good snapshot
@@ -2142,6 +2157,155 @@ def test_hc_fks_023_a_database_error_from_the_verifier_counts_as_damage(vault016
     migrations.run_profile_migration(path, KEY)
 
     assert seen == ["DatabaseError"], seen
+    assert path.with_name(ASIDE_NAME).read_bytes() == damaged
+    assert _rev(path) == PROFILE_HEAD
+
+
+# --------------------------------------------------------------------------
+# HC-FKS-024..026: an environment fault is not damage (review round 3)
+# --------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _no_free_fds():
+    """Every file descriptor this process may open is taken, so the next open()
+    fails with EMFILE. Unix only."""
+    resource = pytest.importorskip("resource")
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    held: list[int] = []
+    resource.setrlimit(resource.RLIMIT_NOFILE, (len(os.listdir("/proc/self/fd")) + 4, hard))
+    try:
+        try:
+            while True:
+                held.append(os.open(os.devnull, os.O_RDONLY))
+        except OSError:
+            pass
+        yield
+    finally:
+        for fd in held:
+            os.close(fd)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
+
+
+def _vault_with_good_snapshot(vault016):
+    """A failed 017 leaves a good snapshot; returns (path, the tree's shas)."""
+    path, _orphan_id = _vault_with_orphan_and_blocker(vault016)
+    with pytest.raises(Exception):
+        migrations.run_profile_migration(path, KEY)
+    migrations._verify_snapshot(_snap(path), migrations._key_to_hex(KEY))
+    return path, _tree_shas(path.parent)
+
+
+def _assert_refused_nothing_moved(path, before, exc, mig_log, error_class):
+    assert _tree_shas(path.parent) == before, "nothing was moved, added or removed"
+    assert _leftovers(path) == []
+    assert _rev(path) == REV_016
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("verify-existing",), error_class=error_class
+    )
+
+
+@pytest.mark.skipif(not hasattr(os, "geteuid") or os.geteuid() == 0, reason="root ignores file modes")
+def test_hc_fks_024_an_unreadable_good_snapshot_refuses_and_is_not_moved_aside(vault016, mig_log):
+    """Real chmod 000. The driver raises OperationalError "unable to open database
+    file" (CANTOPEN). The snapshot is intact; moving it aside would let the next
+    fault hit an occupied aside name with a second full copy on disk."""
+    path, before = _vault_with_good_snapshot(vault016)
+    mig_log.clear()
+    os.chmod(_snap(path), 0)
+    try:
+        with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+            migrations.run_profile_migration(path, KEY)
+    finally:
+        os.chmod(_snap(path), 0o600)
+
+    _assert_refused_nothing_moved(path, before, exc, mig_log, "OperationalError")
+
+
+def test_hc_fks_025_a_snapshot_that_cannot_be_opened_for_lack_of_file_handles_is_not_moved_aside(
+    vault016, mig_log, monkeypatch
+):
+    """Real descriptor exhaustion (RLIMIT_NOFILE) around the one read-only verify."""
+    path, before = _vault_with_good_snapshot(vault016)
+    real_verify = migrations._verify_snapshot
+
+    def _verify(target, hex_key, read_only=False):
+        if read_only:
+            with _no_free_fds():
+                return real_verify(target, hex_key, read_only=read_only)
+        return real_verify(target, hex_key, read_only=read_only)
+
+    monkeypatch.setattr(migrations, "_verify_snapshot", _verify)
+    mig_log.clear()
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_refused_nothing_moved(path, before, exc, mig_log, "OperationalError")
+
+
+def _driver_error(code):
+    """The driver's own error class (the one ``_database_errors`` catches), with
+    ``sqlite_errorcode`` set as the driver sets it, or left unset when ``code`` is None."""
+    cls = get_sqlcipher_module().OperationalError if is_sqlcipher_available() else sqlite3.OperationalError
+    error = cls("injected")
+    if code is not None:
+        error.sqlite_errorcode = code
+    return error
+
+
+# SQLite result codes: PERM 3, BUSY 5, LOCKED 6, CANTOPEN 14 are the environment;
+# ERROR 1 (a page that fails its HMAC), IOERR 10 (a bad sector), CORRUPT 11 and
+# NOTADB 26 are the file. Extended codes carry the primary code in the low byte.
+@pytest.mark.parametrize(
+    "code",
+    [None, 3, 5, 6, 14, 5 | (1 << 8), 14 | (2 << 8), 8, 13],
+    ids=["no-code", "PERM", "BUSY", "LOCKED", "CANTOPEN", "BUSY_RECOVERY", "CANTOPEN_ISDIR", "READONLY", "FULL"],
+)
+def test_hc_fks_026_a_driver_error_code_that_is_not_damage_refuses_and_moves_nothing(
+    vault016, mig_log, monkeypatch, code
+):
+    path, before = _vault_with_good_snapshot(vault016)
+    real_verify = migrations._verify_snapshot
+
+    def _verify(target, hex_key, read_only=False):
+        if read_only:
+            raise _driver_error(code)
+        return real_verify(target, hex_key, read_only=read_only)
+
+    monkeypatch.setattr(migrations, "_verify_snapshot", _verify)
+    mig_log.clear()
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_refused_nothing_moved(path, before, exc, mig_log, "OperationalError")
+
+
+@pytest.mark.parametrize(
+    "code", [1, 10, 11, 26, 10 | (1 << 8), 11 | (4 << 8)],
+    ids=["ERROR", "IOERR", "CORRUPT", "NOTADB", "IOERR_READ", "CORRUPT_VTAB"],
+)
+def test_hc_fks_026_a_driver_error_code_that_is_damage_moves_the_snapshot_aside(
+    vault016, monkeypatch, code
+):
+    """IOERR is damage: a bad sector in the snapshot raises it, and refusing would
+    lock the patient out of an intact vault."""
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    damaged = b"stands in for a snapshot the driver cannot read" * 50
+    _snap(path).write_bytes(damaged)
+    real_verify = migrations._verify_snapshot
+
+    def _verify(target, hex_key, read_only=False):
+        if read_only:
+            raise _driver_error(code)
+        return real_verify(target, hex_key, read_only=read_only)
+
+    monkeypatch.setattr(migrations, "_verify_snapshot", _verify)
+
+    migrations.run_profile_migration(path, KEY)
+
     assert path.with_name(ASIDE_NAME).read_bytes() == damaged
     assert _rev(path) == PROFILE_HEAD
 
@@ -2593,14 +2757,17 @@ OLD_TWELVE = {
 
 
 def test_hc_fkb_009_the_single_table_list_is_every_table_the_old_check_missed(tmp_path, monkeypatch):
-    """Read from a real head vault, so a table a later revision adds fails this
-    test until it is added to SINGLE_TABLES (and so to the refusal tests below)."""
-    head = _head_vault(tmp_path, monkeypatch)
+    """Read from a real vault built at 017_fk_cascade_alignment, not at head: a
+    table a later revision adds is not a table this fix has to name, and must not
+    turn this test red."""
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    vault = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(vault), "017_fk_cascade_alignment")
     missed = {
-        t for t in _tables(head)
+        t for t in _tables(vault)
         if t != "alembic_version" and not migrations._is_runtime_search_table(t)
     } - OLD_TWELVE
-    assert OLD_TWELVE <= _tables(head), "the old list names real tables"
+    assert OLD_TWELVE <= _tables(vault), "the old list names real tables"
     assert len(SINGLE_TABLES) == 13 and len(set(SINGLE_TABLES)) == 13
     assert set(SINGLE_TABLES) == missed
 

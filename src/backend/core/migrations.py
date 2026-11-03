@@ -237,6 +237,25 @@ class _SnapshotInvalid(Exception):
     """A snapshot check failed (nothing path-like in the text, by construction)."""
 
 
+# SQLite primary result codes (the low byte of ``sqlite_errorcode``; an extended
+# code keeps the primary one there) that say the snapshot FILE is damaged:
+# ERROR 1 (what a page that fails its HMAC raises, measured), IOERR 10 (a bad
+# sector in the file: refusing on it would lock a patient out of an intact vault),
+# CORRUPT 11 and NOTADB 26. Every other code, and a missing code, is a fault of
+# the environment (PERM 3, BUSY 5, LOCKED 6, CANTOPEN 14: no permission, a lock,
+# no file handles left) or unknown, and says nothing about the file.
+_DAMAGE_RESULT_CODES = frozenset({1, 10, 11, 26})
+
+
+def _says_file_is_damaged(exc: BaseException) -> bool:
+    """True for the verifier's own refusal, or a driver error whose result code
+    names the file. Anything else must not move a snapshot that may be good."""
+    if isinstance(exc, _SnapshotInvalid):
+        return True
+    code = getattr(exc, "sqlite_errorcode", None)
+    return isinstance(code, int) and (code & 0xFF) in _DAMAGE_RESULT_CODES
+
+
 def _database_errors() -> tuple[type[Exception], ...]:
     """The database errors a damaged file raises, from the stdlib driver and from
     SQLCipher's (a different class: ``sqlcipher3.dbapi2.DatabaseError`` is not a
@@ -288,7 +307,10 @@ def _open_keyed(path: Path, hex_key: str, timeout: float = 5.0, read_only: bool 
     with its sidecars byte for byte.
     """
     # as_uri() raises ValueError on a relative path, and local mode's app_data_path
-    # is the relative Path("data"), so every real vault path is relative.
+    # is the relative Path("data"), so in local mode every vault path is relative
+    # (server mode's is absolute). A Windows network (UNC) path becomes
+    # file://server/share/..., which SQLite rejects ("invalid uri authority"); that
+    # form has not been measured on Windows and is a known limit.
     target = f"{path.resolve().as_uri()}?mode=ro&immutable=1" if read_only else str(path)
     if not is_sqlcipher_available():
         return sqlite3.connect(target, timeout=timeout, uri=read_only)
@@ -402,9 +424,12 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
             try:
                 _verify_snapshot(snap, hex_key, read_only=True)
             except (_SnapshotInvalid, *_database_errors()) as exc:
-                # Only a failed check means the file is damaged. Any other error
-                # (a bug, a locked file) says nothing about it: it goes to the outer
-                # handler, which refuses with nothing moved.
+                # Only a failed check, or a driver error whose result code names the
+                # file, means the snapshot is damaged. Any other error (a bug, no
+                # permission, a lock, no file handles) says nothing about it: it goes
+                # to the outer handler, which refuses with nothing moved.
+                if not _says_file_is_damaged(exc):
+                    raise
                 verifies = False
                 damage = type(exc).__name__
             if verifies:
