@@ -59,8 +59,52 @@ Stored in master database (not encrypted by default).
 | Health data (PHI) | Indefinite | Delete via UI or API |
 | Audit logs | Indefinite | Archival recommended |
 | Backups | 30 days | Settings → Backup & restore, or `--retention-days`. `0` means never prune. Deleted with the profile. |
+| Pre-017 vault snapshot | 30 days | One per profile, in its own folder, made once before migration 017 runs on an existing vault. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Deleted with the profile and by the synthetic-profile test reset. |
 | Request metrics | In-memory (session) | Cleared on restart |
 | AI model cache | Persistent | Manual cleanup via settings |
+
+### Pre-017 vault snapshot
+
+Migration 017 (C-P6, SQL-FK-001) deletes orphan rows that point at a parent
+that no longer exists and clears dangling links, and its downgrade restores
+neither. So before 017 runs on a vault that already holds data, the app keeps a
+copy of the vault file.
+
+- **Where and what.** One per profile, in the profile's own folder
+  (`<app_data>/vaults/<profile_id>/vault.pre017.snapshot`). It is a copy of the
+  encrypted file, sealed with the same key as the vault. It is never decrypted
+  and never written as plain text.
+- **When.** Only when 017 has not yet run on a vault that already has tables. A
+  new empty vault, and a vault already at 017 or later, take none.
+- **Verified before it counts.** The write-ahead log is folded into the vault
+  file first, the copy is written under a temporary name and flushed, opened
+  with the same key, and `PRAGMA quick_check` must report `ok`. Only then is it
+  renamed into place. If any step fails, the migration is **refused**: the vault
+  is left untouched and is not upgraded. The patient sees the existing generic
+  500 "Failed to open profile database"; the reason (the step and the error
+  class, no path or key) goes to the application log only. On recovery with a
+  recovery code the new password and the rotated code are committed before the
+  vault is opened, so a refused snapshot there loses the new code.
+- **A good snapshot is kept.** If one already verifies, it is kept and not
+  copied again, so a retry after a failed upgrade cannot replace the original
+  with a copy of a partly cleaned vault. After a backup is restored over a vault
+  that holds a snapshot younger than 30 days, migration therefore takes no fresh
+  one; the restored backup is the recovery copy.
+- **Deleted.** With the profile (the vault-folder sweep in step 4 below) and by
+  the synthetic-profile test reset.
+- **Purged by age.** On the first open of the vault 30 days or more after the
+  snapshot was made. The age is the snapshot's own time, not the vault's. A
+  session that is already open does not purge it until the vault is opened
+  again. A leftover temporary copy from an interrupted attempt is removed on
+  every open, at any age.
+- **Not purged when the password or recovery code changes.** Those re-seal the
+  same data key and there is no re-keying path, so the snapshot is keyed by the
+  same key as the live vault. An old password opens nothing without the old
+  sealed key file, and whoever holds the data key can read the live vault too.
+- **Excluded from backups by name.** A backup copies the files ending in `.db`
+  and the four sealed-key files; neither the snapshot nor its temporary copy
+  ends in `.db`. A restore does not remove a snapshot; the 30-day purge covers
+  that.
 
 ## Data Portability
 
@@ -136,9 +180,10 @@ recoverable state rather than a corrupt one:
    point: without the sealed key the vault is unreadable even if the database
    file survives. If the key cannot be destroyed, the operation aborts before
    the master row is touched, so the user can retry.
-4. Sweep the whole vault directory — database, WAL/SHM sidecars, and encrypted
-   documents. Failures here are logged but do not abort: the data is already
-   cryptographically erased, and a retry finishes the cleanup.
+4. Sweep the whole vault directory — database, WAL/SHM sidecars, encrypted
+   documents, and the pre-017 snapshot if one is still there. Failures here are
+   logged but do not abort: the data is already cryptographically erased, and a
+   retry finishes the cleanup.
 5. Sweep the profile's backup directory (`<app_data>/backups/<profile_id>`) on
    the same log-and-continue terms. Each backup holds its own copy of the sealed
    key, so leaving them behind would leave the record restorable after a
