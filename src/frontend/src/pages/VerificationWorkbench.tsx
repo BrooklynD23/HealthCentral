@@ -510,7 +510,7 @@ export function VerificationWorkbench() {
       {documentsLoading ? (
         <Card>
           <CardContent className="py-16 flex justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" aria-hidden />
+            <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:animate-pulse text-accent" aria-hidden />
             <span className="sr-only">Loading documents…</span>
           </CardContent>
         </Card>
@@ -569,7 +569,7 @@ export function VerificationWorkbench() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:animate-pulse text-accent" />
         <span className="sr-only">Loading observations for verification...</span>
       </div>
     );
@@ -669,7 +669,7 @@ export function VerificationWorkbench() {
                     disabled={reprocessMutation.isPending}
                     className="gap-2"
                   >
-                    {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" /> : null}
                     Continue OCR / Retry extraction
                   </Button>
                 )}
@@ -757,7 +757,7 @@ export function VerificationWorkbench() {
               onClick={() => selectedDocument && retryExtraction(selectedDocument.id)}
               disabled={!selectedDocument || reprocessMutation.isPending}
             >
-              {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" /> : null}
               Retry extraction
             </Button>
           )}
@@ -1000,7 +1000,7 @@ export function VerificationWorkbench() {
             <CardContent>
               {loadingSource ? (
                 <div className="aspect-3/4 rounded-xl bg-surface-muted flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
+                  <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:animate-pulse text-accent" />
                 </div>
               ) : sourcePages.length > 0 ? (
                 <div className="aspect-3/4 rounded-xl bg-surface-muted p-4 overflow-auto">
