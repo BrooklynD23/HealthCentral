@@ -8,6 +8,7 @@
 #   B  variants: warm-up, then 3 batches of 16 units x (5 control + 5 variant runs)
 #   C  trace: 10 cycles of the baseline probe with CDP Tracing (first 3 misses kept), then 5 runs counting
 #      DEBUG=pw:protocol messages in the probe window (the count failed in wrap C: unquoted path; redone in D)
+#   E  trace of /search only: 20 baseline probe runs, the first 3 misses kept
 #   D  diagnostic: comparison traces (baseline probe, probe + candidate 1's wait, bare timer) and the CDP message count
 #
 # Before EACH batch: wait (bounded, 30 min) for the 1-minute load < 1.5, then log uptime, pgrep, ss with own PIDs marked.
@@ -141,6 +142,12 @@ D)
   run_batch warmD warmA 0 || exit $?
   run_batch D1 Ccmp 1 MEAS_TRACE_KEEP_MAX=9 MEAS_TRACE_KEEP_OVER_MS=-1 || exit $?
   run_batch D2 Ccdp 1 DEBUG=pw:protocol || exit $?
+  ;;
+E)
+  precheck "pre-start" || exit 75
+  start_server dev 3000 ./node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort || exit 3
+  run_batch warmE warmA 0 || exit $?
+  run_batch E1 Cs 1 MEAS_TRACE_KEEP_MAX=3 || exit $?
   ;;
 *) echo "unknown wrap $WRAP"; exit 2 ;;
 esac

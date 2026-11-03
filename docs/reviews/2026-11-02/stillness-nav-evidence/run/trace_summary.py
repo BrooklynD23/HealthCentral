@@ -37,7 +37,11 @@ def main(path):
         tp = r.get('tracePath')
         if not tp:
             continue
-        d = json.load(open(tp))
+        import gzip
+        import os
+        # Raw traces are 2.5-4.5 MB: only the three baseline-miss traces are committed, gzipped next to the jsonl.
+        gz = os.path.join(os.path.dirname(os.path.abspath(path)), os.path.basename(tp) + '.gz')
+        d = json.load(gzip.open(gz)) if (not os.path.exists(tp) and os.path.exists(gz)) else json.load(open(tp))
         ev = d['traceEvents'] if isinstance(d, dict) else d
         anchor = next(e for e in ev if e['name'] == 'snl-anchor')
         a_ts, a_page = anchor['ts'], anchor['args']['data']['startTime']

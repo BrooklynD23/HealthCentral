@@ -8,6 +8,7 @@ plans:
   B               variants: per batch, for every unit a control block and a variant block (5 routes each),
                   alternating which goes first; the unit order rotates by batch
   C               trace: baseline probe, 10 cycles over the 5 routes, CDP Tracing on (keeps the first 3 misses)
+  Cs              /search-only trace: baseline probe, 20 runs, the first 3 misses kept
   Ccmp            comparison traces (diagnostic): baseline probe, probe with candidate 1's wait, bare timer; 3 routes each
   Ccdp            baseline probe, one pass over the 5 routes, with SNL-MARK lines for the DEBUG=pw:protocol count
 No randomness: the plan is reproducible from the committed copy.
@@ -76,6 +77,10 @@ def main():
         for cycle in range(10):
             for r in ROUTES:
                 out.append(case('C', 1, 'trace', 'base', 'probe', ['trace'], DEV, r, f'.c{cycle + 1}'))
+    elif plan == 'Cs':
+        # Trace of /search only (the route of every CI miss and of 31 of the 71 baseline misses): baseline probe, first 3 misses kept.
+        for k in range(20):
+            out.append(case('Cs', 1, 'trace-search', 'base', 'probe', ['trace'], DEV, '/search', f'.c{k + 1}'))
     elif plan == 'Ccmp':
         # Diagnostic comparison for the trace finding (not a rule input): the same three routes traced under the baseline
         # probe, the probe with candidate 1's 100 ms wait, and the bare timer. Kept whatever their gap (KEEP_OVER_MS=-1).
