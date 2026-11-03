@@ -148,6 +148,8 @@ function startLift(panel: HTMLElement | null, reduced: boolean): void {
   }
 }
 
+const UNLOCK_EMPTY_MESSAGE = 'Enter your password';
+
 export function ProfileSetup() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -199,7 +201,7 @@ export function ProfileSetup() {
     if (!unlockProfileId) return;
     setUnlockError(null);
     if (!unlockPassword) {
-      setUnlockError('Enter your password');
+      setUnlockError(UNLOCK_EMPTY_MESSAGE);
       return;
     }
     try {
@@ -404,7 +406,13 @@ export function ProfileSetup() {
                   label="Unlock password"
                   placeholder="Your password"
                   value={unlockPassword}
-                  onChange={(e) => setUnlockPassword(e.target.value)}
+                  onChange={(e) => {
+                    setUnlockPassword(e.target.value);
+                    // The empty-field message stops being true once there is text. A server message stays.
+                    if (e.target.value) {
+                      setUnlockError((m) => (m === UNLOCK_EMPTY_MESSAGE ? null : m));
+                    }
+                  }}
                   autoComplete="current-password"
                   aria-invalid={unlockError ? true : undefined}
                   aria-describedby={unlockError ? 'unlock-password-error' : undefined}
@@ -569,8 +577,8 @@ export function ProfileSetup() {
                       onClick={handleCreateProfile}
                       size="lg"
                       className="w-full group"
-                      disabled={createProfile.isPending}
-                      loading={isCreating}
+                      disabled={createProfile.isPending || isCreating}
+                      aria-busy={isCreating || undefined}
                     >
                       {isCreating ? (
                         'Creating your profile…'

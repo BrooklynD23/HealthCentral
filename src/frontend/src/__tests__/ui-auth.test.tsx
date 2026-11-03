@@ -170,6 +170,27 @@ describe('HC-UIAUTH-001: a fixed field error disappears on the next valid input'
     // Submit stays authoritative: nothing was added on change.
     expect(api.apiPost).not.toHaveBeenCalled();
   });
+
+  it('clears the unlock "Enter your password" error once something is typed, and keeps a server error while typing', async () => {
+    const user = userEvent.setup({ delay: null });
+    vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
+    renderPage(<ProfileSetup />);
+    const field = await screen.findByLabelText('Unlock password');
+    await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter your password');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+
+    await user.type(field, 'x');
+    expect(screen.queryByText('Enter your password')).not.toBeInTheDocument();
+    expect(field).not.toHaveAttribute('aria-invalid');
+
+    // A message from the server is not about the empty field: typing does not clear it.
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new api.ApiError(429, 'Too Many Requests', 'Slow down'));
+    await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts');
+    await user.type(field, 'y');
+    expect(screen.getByRole('alert')).toHaveTextContent('Too many attempts');
+  });
 });
 
 describe('HC-UIAUTH-002: no progress that is not tied to the real request', () => {
@@ -251,6 +272,29 @@ describe('HC-UIAUTH-002: no progress that is not tied to the real request', () =
     expect(screen.getByLabelText('Profile Name')).toBeDisabled();
     expect(screen.getByPlaceholderText('Create a secure password')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Show password' })).toBeDisabled();
+
+    resolvePost(created);
+    expect(await screen.findByTestId('recovery-code')).toHaveTextContent(CODE);
+  });
+
+  it('while the POST is pending the button is disabled and busy with its label and no spinner (G5: a spinner rotates under reduced motion)', async () => {
+    const user = userEvent.setup({ delay: null });
+    let resolvePost: (value: unknown) => void = () => undefined;
+    vi.mocked(api.apiPost).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolvePost = resolve;
+      })
+    );
+    renderPage(<ProfileSetup />);
+    await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
+    await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+    await user.click(screen.getByRole('button', { name: /create your profile/i }));
+
+    const pending = await screen.findByRole('button', { name: /creating your profile…/i });
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute('aria-busy', 'true');
+    // No element in the page spins: Tailwind's animate-spin is a transform that reduced motion does not stop.
+    expect(document.querySelector('[class*="animate-spin"]')).toBeNull();
 
     resolvePost(created);
     expect(await screen.findByTestId('recovery-code')).toHaveTextContent(CODE);
