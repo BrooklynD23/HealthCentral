@@ -54,9 +54,10 @@ const LOW_FLAGS = new Set(['L', 'LL', 'LOW']);
 /**
  * Which side of the report's range a value sits on, in words (HC-UIREV-001, WCAG 1.4.1).
  * The report's own flag wins. Without one, the direction comes from the numbers; with no range to compare
- * against, nothing is claimed.
+ * against, nothing is claimed. A value inside its range gets no word at all: this page claims no reassurance
+ * it was not asked to (L0 ruling on review round 3).
  */
-function rangeStateOf(observation: Observation): 'above-range' | 'below-range' | 'in-range' | null {
+function rangeStateOf(observation: Observation): 'above-range' | 'below-range' | null {
   // The extractor can keep the brackets around a flag, as in "(H)".
   const flag = (observation.flag ?? '').replace(/[()\s]/g, '').toUpperCase();
   if (HIGH_FLAGS.has(flag)) return 'above-range';
@@ -66,11 +67,17 @@ function rangeStateOf(observation: Observation): 'above-range' | 'below-range' |
     if (high !== null && value > high) return 'above-range';
     if (low !== null && value < low) return 'below-range';
   }
-  // The report flagged the value (A, ABNORMAL, CRITICAL, or is_abnormal) without saying which side. The numbers
-  // are inside the range, so "In range" would contradict the report; claim nothing and let the report's mark stand.
-  if (flag !== '' || observation.is_abnormal) return null;
-  if (typeof value !== 'number') return null;
-  return low !== null || high !== null ? 'in-range' : null;
+  // A flag with no side (A, ABNORMAL, CRITICAL) or is_abnormal on numbers inside the range also gets no word here.
+  // This page does not print the flag text itself, so such a row shows no range word at all.
+  return null;
+}
+
+/** The value's tint, from the same state as the words, so a flag form such as "(H)" is read once. */
+function valueTintOf(observation: Observation): string {
+  const state = rangeStateOf(observation);
+  if (state === 'above-range') return 'text-status-attention';
+  if (state === 'below-range') return 'text-status-caution';
+  return 'text-ink';
 }
 
 /**
@@ -400,21 +407,14 @@ export function VerificationWorkbench() {
     }
   };
 
-  const getStatusColor = (observation: Observation) => {
-    if (observation.flag === 'H' || observation.flag === 'HH' || observation.flag === 'HIGH') {
-      return 'text-status-attention';
-    }
-    if (observation.flag === 'L' || observation.flag === 'LL' || observation.flag === 'LOW') {
-      return 'text-status-caution';
-    }
-    return 'text-ink';
-  };
-
   const formatRefRange = (observation: Observation) => {
     if (observation.ref_range_text) return observation.ref_range_text;
     if (observation.ref_low !== null && observation.ref_high !== null) {
       return `${observation.ref_low}-${observation.ref_high}`;
     }
+    // One limit only: say which side, so "Above the report's range" never sits beside "- mg/dL".
+    if (observation.ref_high !== null) return `≤ ${observation.ref_high}`;
+    if (observation.ref_low !== null) return `≥ ${observation.ref_low}`;
     return '-';
   };
 
@@ -757,12 +757,12 @@ export function VerificationWorkbench() {
                         <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
                           {/* The header row is hidden below sm, so the cell names itself there. */}
                           <span className="mr-1.5 font-sans text-xs text-ink-secondary sm:hidden">Value</span>
-                          {/* The tint is a hint; the chip below carries the meaning in words (HC-UIREV-001). */}
+                          {/* The tint is a hint, from the same state as the chip below, which carries the meaning in words (HC-UIREV-001). */}
                           <span
                             data-t0=""
                             className={cn(
                               'font-mono font-semibold',
-                              getStatusColor(observation)
+                              valueTintOf(observation)
                             )}
                           >
                             {observation.value ?? observation.value_text ?? '-'}
@@ -785,7 +785,8 @@ export function VerificationWorkbench() {
                           </span>
                         </td>
                         <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
-                          <div className="flex flex-wrap items-center gap-1.5 sm:flex-col sm:items-start">
+                          {/* sm:min-w-[7.5rem]: "Checked by you" is 0.7 px wider than "Not yet checked". Without a floor above both, the column grows on Verify and the auto layout shifts every other column by a fraction of a pixel. */}
+                          <div className="flex flex-wrap items-center gap-1.5 sm:min-w-[7.5rem] sm:flex-col sm:items-start">
                             {/* Keyed by state: the old chip leaves and a new one arrives, so no T0 node changes its own text. */}
                             <StatusChip
                               key={observation.user_verified ? 'checked-by-you' : 'not-checked'}
