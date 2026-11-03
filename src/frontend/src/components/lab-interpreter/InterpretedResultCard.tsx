@@ -23,7 +23,8 @@ import { AdviceSection } from './AdviceSection';
 import { ReferenceRangeComparison } from './ReferenceRangeComparison';
 import { DisclaimerBanner } from './DisclaimerBanner';
 import { formatInterpretationText } from './formatInterpretationText';
-import type { InterpretationResponse } from '@/services/types';
+import { ObservationSourceTrace } from '@/components/results/SourceTrace';
+import type { InterpretationResponse, Observation } from '@/services/types';
 
 interface InterpretedResultCardProps {
   interpretation: InterpretationResponse;
@@ -35,6 +36,8 @@ interface InterpretedResultCardProps {
   onRegenerate?: () => void;
   isRegenerating?: boolean;
   className?: string;
+  /** The value this card interprets. With a doc_id, the card offers "Show source" (SOURCE-TRACE-WIRE). */
+  observation?: Observation;
 }
 
 const severityVariant: Record<string, 'verified' | 'caution' | 'attention' | 'info' | 'default'> = {
@@ -56,6 +59,7 @@ export function InterpretedResultCard({
   onRegenerate,
   isRegenerating,
   className,
+  observation,
 }: InterpretedResultCardProps) {
   const [expanded, setExpanded] = useState(true);
   const prefersReducedMotion = useReducedMotion();
@@ -116,8 +120,8 @@ export function InterpretedResultCard({
                 )
               )}
             </div>
-            {interpretation.citations.length > 0 && (
-              <div className="flex items-center gap-1.5 mt-3">
+            {(interpretation.citations.length > 0 || observation?.doc_id) && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-3">
                 {interpretation.citations.map((citation, i) => (
                   <CitationTooltip
                     key={`${citation.type}:${citation.id}:${i}`}
@@ -125,6 +129,23 @@ export function InterpretedResultCard({
                     index={i}
                   />
                 ))}
+                {observation?.doc_id ? (
+                  <ObservationSourceTrace
+                    observation={observation}
+                    trigger={
+                      <button
+                        type="button"
+                        className={cn(
+                          'inline-flex h-11 items-center rounded-sm px-1 text-sm font-medium text-accent',
+                          'underline underline-offset-4 hover:text-accent-hover transition-colors',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                        )}
+                      >
+                        Show source
+                      </button>
+                    }
+                  />
+                ) : null}
               </div>
             )}
           </div>
