@@ -326,6 +326,13 @@ latest-vs-prior comparison"), so the answer names two different rules, and the
 CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
 code exists, not that the feature runs it.
 
+A 2026-11-02 instance in VERIFY-KEEPS-FLAG (#463): the comment in
+`modules/fhir_export.py` called `flag` a "short coded flag" while the flag was
+stored as printed, free text of up to 2000 characters from import. The comment
+read as authority and the line went out unredacted; it was exposed only once
+Verify stopped erasing free-text flags. Recheck: when a comment states the
+shape of a field, find where the field is written before relying on it.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
@@ -508,4 +515,6 @@ On 2026-11-02 PRs #398, #454 (C-P6), #457 and #399 each stopped with "tests fail
 
 Related trap, same day: a named workflow loads from the session's main checkout, so a session on an old branch runs an old `build-item.js`. That session ran a 366-line copy against main's 481 lines, without HARNESS-SPEEDUP's scope gating, so frontend-only rows ran the full backend suite. Ask whether a harness change you are relying on is in the copy this session actually runs.
 
-**Recheck:** the runner prompt says to wait for every command, and a result with `exit_code -1` is never a finding. Before relying on a merged harness change, `diff` the session's `.claude/workflows/<name>.js` against origin/main, and use `scriptPath` with a copy of main's file if they differ.
+Second cause, same day: #399 (twice) and #454 stopped as "incomplete" with no failing test. In the #454 implementer's transcript (workflow run wf_33290fe3-3f3) the agent started commands with `run_in_background`, then sent the text-only message "Waiting for the background events." The harness replied `[structured-output-enforce] You MUST call the StructuredOutput tool`, so the run ended, and the background-command notice says such a command "is terminated when you give your final answer". The WAIT FOR EVERY COMMAND sentence reached only the runner prompts and said to keep checking, not how. `build-item.js` STYLE, which is appended to every agent prompt, now carries a HOW TO WAIT rule: a foreground `timeout 580 bash -c 'until grep -q "^EXIT=" <file>; do sleep 5; done'` loop (exit 124 only means not yet).
+
+**Recheck:** the runner prompt says to wait for every command, and a result with `exit_code -1` is never a finding. Before relying on a merged harness change, `diff` the session's `.claude/workflows/<name>.js` against origin/main, and use `scriptPath` with a copy of main's file if they differ. A stop that says a command had not finished is read in the agent's transcript, not in the stop text: a `[structured-output-enforce]` line right after a text-only message means the agent ended its own turn.

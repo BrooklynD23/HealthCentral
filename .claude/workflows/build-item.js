@@ -13,7 +13,8 @@ export const meta = {
 }
 
 // Runbook: docs/plans/2026-10-15-build-program/RUNBOOK.md. This script only sequences it.
-let STYLE = 'Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)'
+let STYLE = `Output style: follow ~/.claude/rules/common/subagent-output.md (i-have-adhd)
+HOW TO WAIT: a message with no tool call ends your run at once and kills your background commands, so never send one while a command you need is queued or running. Start a long command with its output in a file ending in EXIT=$? , then wait with a foreground Bash call, timeout 590000: \`timeout 580 bash -c 'until grep -q "^EXIT=" <file>; do sleep 5; done'\`. Repeat that call until the line exists (exit 124 only means not yet). Monitor does not keep you alive on its own.`
 const RUNBOOK = 'docs/plans/2026-10-15-build-program/RUNBOOK.md'
 const QUEUE = 'docs/plans/2026-10-15-build-program/queue.md'
 const MAX_ROUNDS = 3

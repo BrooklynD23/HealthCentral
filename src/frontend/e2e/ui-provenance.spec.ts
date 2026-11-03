@@ -2,7 +2,7 @@
  * UI-PROVENANCE e2e (plan section 7.6): HC-UIPV-001 (popover opens on click and
  * Enter, not hover; Escape closes and returns focus), HC-UIPV-002 (a tap opens it
  * in a hasTouch context), HC-UIPV-006 (popover part: stillnessProbe from the
- * opening click), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
+ * opening click; Source Trace sheet part: the same from "Show source"), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
  * and Gate G on the three routes that show the citation popover
  * or PageImageOverlay: /interpret, /inbox and /verify.
  *
@@ -138,6 +138,10 @@ const PAGE_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAZAAAABkCAIAAAAnqfEgAAABDUlEQVR42u3UQREAAAzCMPyrRQI6tksk9NEU4IhIABgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYwF8DXxGNujLHPvkAAAAASUVORK5CYII=';
 const PAGE_PNG = Buffer.from(PAGE_PNG_BASE64, 'base64');
 
+/** Page 3's text. The Glucose line is the one line that holds the value 96 as a whole token (SOURCE-TRACE-WIRE). */
+const PAGE_THREE_MATCH_LINE = 'Glucose 96 mg/dL 70-99';
+const PAGE_THREE_TEXT = `Comprehensive Metabolic Panel\n${PAGE_THREE_MATCH_LINE}\nSodium 140 mmol/L 136-145`;
+
 /** Answers every /api/v1 request from the fixtures above; records the rest. */
 async function mockApi(page: Page): Promise<string[]> {
   const unmocked: string[] = [];
@@ -161,11 +165,13 @@ async function mockApi(page: Page): Promise<string[]> {
       if (path === '/documents') return json([documentFixture]);
       if (path === '/documents/highlights/summary') return json([]);
       if (path === '/pinboards') return json([]);
+      // SOURCE-TRACE-WIRE: "Show source" on /interpret reads the document's file name.
+      if (path === `/documents/${DOCUMENT_ID}`) return json(documentFixture);
       if (path === `/documents/${DOCUMENT_ID}/entities`) return json([]);
       if (path === `/documents/${DOCUMENT_ID}/pages`) {
         return json([
           { page_number: 1, text: '', has_tables: false },
-          { page_number: 3, text: '', has_tables: false },
+          { page_number: 3, text: PAGE_THREE_TEXT, has_tables: false },
         ]);
       }
       if (/^\/documents\/[^/]+\/pages\/\d+\/image$/.test(path)) {
@@ -555,6 +561,115 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIPV-006 (Source Trace sheet part, SOURCE-TRACE-WIRE): stillnessProbe from the
+// "Show source" click on /interpret. The sheet's rows and the excerpt lines (which mount
+// once the document and its pages have been fetched) must be still from the opening click.
+// ---------------------------------------------------------------------------
+/** "Show source" has no aria-label, so it is picked out as the dialog trigger that is not a citation chip. */
+const SHOW_SOURCE_TRIGGER = 'button[aria-haspopup="dialog"]:not([aria-label^="Citation"])';
+const SOURCE_SHEET = '[role="dialog"]';
+test('HC-UIPV-006 the Source Trace sheet is still from its opening click (stillnessProbe)', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  await seedSession(page);
+  await page.goto('/interpret');
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  // Scroll the trigger into view before the probe starts, as the popover test does: the
+  // click would otherwise scroll the page and the probe would measure that scroll.
+  await showSource.scrollIntoViewIfNeeded();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  const report = await stillnessProbe(page, {
+    kind: 'overlay',
+    trigger: () => showSource.click(),
+    expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-012 (SOURCE-TRACE-WIRE, review round 2): the same probe with a 51-character file name, at
+// the default 1280 px (the side sheet; below 1024 px the sheet is held at its full height and
+// HC-STW-013 covers that size, so this case covers the side sheet). The name arrives with the lazy document GET; if it wrapped, every row below it (Location,
+// Result, ...) would move down at that moment. The stored name is the uploaded file's name
+// (api/documents.py:450), so a long one is real. Only the document route is answered here; mockApi
+// is not edited. The excerpt lines are probed too, so it also goes red if the JetBrains Mono swap
+// moves them (rect [878,317.3,172.2,15] -> [878,316.3,171.6,17] without the early font load).
+// ---------------------------------------------------------------------------
+const LONG_SOURCE_NAME = 'quarterly-metabolic-panel-lab-report-final-2026.pdf';
+test('HC-STW-012 the Source Trace sheet stays still when the file name is long', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  await page.route(new RegExp(`/api/v1/documents/${DOCUMENT_ID}$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...documentFixture, source: LONG_SOURCE_NAME }),
+    })
+  );
+  await seedSession(page);
+  await page.goto('/interpret');
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible({ timeout: 20_000 });
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+  await showSource.scrollIntoViewIfNeeded();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  const report = await stillnessProbe(page, {
+    kind: 'overlay',
+    trigger: () => showSource.click(),
+    expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet.getByText(LONG_SOURCE_NAME)).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-013 (SOURCE-TRACE-WIRE, review round 3): the same probe below 1024 px, where the sheet is
+// anchored to the bottom. The excerpt mounts when the lazy pages GET resolves; a bottom sheet that
+// grows with its content then moves every row above it up (measured at 390x844: the Result value
+// [136.5,515.2] -> [136.5,439.8] within 87 ms). The Sheet's own class keeps it at its full height
+// (min-h-[85dvh], which is the sheet's max-h) so nothing moves. 390x640 checks that a short phone is no different.
+// ---------------------------------------------------------------------------
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 390, height: 640 },
+]) {
+  test(`HC-STW-013 the Source Trace sheet stays still from its opening click at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const unmocked = await mockApi(page);
+    await seedSession(page);
+    await page.goto('/interpret');
+    const showSource = page.getByRole('button', { name: 'Show source' });
+    await expect(showSource).toBeVisible({ timeout: 20_000 });
+    await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+    await showSource.scrollIntoViewIfNeeded();
+    await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+    const report = await stillnessProbe(page, {
+      kind: 'overlay',
+      trigger: () => showSource.click(),
+      expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+    });
+    expect(report.postTriggerSamples).toBeGreaterThan(0);
+    const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+    expect(unmocked, 'every API request was mocked').toEqual([]);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // HC-UIPV-007: waitForSettled counts six fresh frames on every call. Its state used to live on
 // window across calls, so a second call on a replaced element returned on its first frame, and
 // frames counted before the element vanished survived its absence.
@@ -646,6 +761,80 @@ test('HC-UIPV-007 waitForSettled needs six fresh frames on every call', async ({
   const framesAfterReadd = result.total - (result.atReadd ?? result.total);
   console.log(`HC-UIPV-007 case2 framesAfterReadd=${framesAfterReadd}`);
   expect(framesAfterReadd, 'frames elapsed after the element came back').toBeGreaterThanOrEqual(6);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-005 (SOURCE-TRACE-WIRE): "Show source" on /interpret opens the Source Trace
+// sheet with the file, the page and the matching line from the report.
+// ---------------------------------------------------------------------------
+test('HC-STW-005 Show source on /interpret opens the Source Trace sheet with the file, the page and the matching line', async ({
+  page,
+}) => {
+  const unmocked = await mockApi(page);
+  await seedSession(page);
+  await page.goto('/interpret');
+
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible();
+  await showSource.click();
+
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('provenance-report.pdf');
+  await expect(sheet).toContainText('Page 3');
+  const matchRow = sheet.locator('li', { hasText: 'Matching line:' });
+  await expect(matchRow).toHaveCount(1);
+  await expect(matchRow).toContainText(PAGE_THREE_MATCH_LINE);
+  await expect(sheet).toContainText('This is what your report states.');
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-009 (SOURCE-TRACE-WIRE, review round 1 finding 2): on /interpret, with the matching line
+// on screen, "It matches, mark as checked" sends exactly one POST to the observation's verify
+// route, no interpretation route is written, and the card's interpreted text stays the same.
+// Functional, not timing.
+// ---------------------------------------------------------------------------
+test('HC-STW-009 verify on /interpret sends one verify POST and leaves the interpreted text alone', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  // Registered after mockApi, so it answers the verify POST first; mockApi is not edited.
+  await page.route(new RegExp(`/api/v1/observations/${OBSERVATION_ID}/verify$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...observation, user_verified: true }),
+    })
+  );
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'GET' && request.url().includes('/api/v1/')) {
+      writes.push(`${request.method()} ${new URL(request.url()).pathname.replace(/^.*\/api\/v1/, '')}`);
+    }
+  });
+  await seedSession(page);
+  await page.goto('/interpret');
+
+  const cardText = page.getByText(interpretation.interpretation_text).first();
+  // Generous: run alone, this is the first page the dev server compiles.
+  await expect(cardText).toBeVisible({ timeout: 20_000 });
+  const textBefore = await cardText.textContent();
+  expect(textBefore).toContain(interpretation.interpretation_text);
+
+  await page.getByRole('button', { name: 'Show source' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  // Opening the sheet wrote nothing.
+  expect(writes).toEqual([]);
+
+  const markChecked = sheet.getByRole('button', { name: 'It matches, mark as checked' });
+  await expect(markChecked).toBeEnabled();
+  await markChecked.click();
+  await expect(sheet).toContainText('You have marked this value as checked.');
+
+  expect(writes).toEqual([`POST /observations/${OBSERVATION_ID}/verify`]);
+  expect(writes.filter((write) => write.includes('/interpretations'))).toEqual([]);
+  expect(await cardText.textContent()).toBe(textBefore);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
 });
 
 // ---------------------------------------------------------------------------

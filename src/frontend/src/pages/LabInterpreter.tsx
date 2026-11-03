@@ -267,6 +267,7 @@ export function LabInterpreter() {
               refHigh={effectiveObservation?.ref_high}
               onRegenerate={handleGenerateInterpretation}
               isRegenerating={generateInterpretation.isPending}
+              observation={effectiveObservation ?? undefined}
             />
           ) : !interpLoading && effectiveObservation ? (
             <Card>
