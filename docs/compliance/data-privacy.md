@@ -59,7 +59,7 @@ Stored in master database (not encrypted by default).
 | Health data (PHI) | Indefinite | Delete via UI or API |
 | Audit logs | Indefinite | Archival recommended |
 | Backups | 30 days | Settings → Backup & restore, or `--retention-days`. `0` means never prune. Deleted with the profile. |
-| Pre-017 vault snapshot | Until the first vault open 30 days or more after it was made | One per profile, in its own folder, made once before migration 017 runs on an existing vault. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Deleted with the profile and by the synthetic-profile test reset. |
+| Pre-017 vault snapshot (and its aside copy) | Until the first vault open 30 days or more after it was made, and only once migration 017 has completed on that vault. A vault that cannot complete 017 keeps it past 30 days. | One per profile, in its own folder, made once before migration 017 runs on an existing vault. A snapshot that fails verification is moved aside to a second file instead of being overwritten, so a profile can briefly hold two full copies. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Both are deleted with the profile and by the synthetic-profile test reset. |
 | Request metrics | In-memory (session) | Cleared on restart |
 | AI model cache | Persistent | Manual cleanup via settings |
 
@@ -76,8 +76,9 @@ copy of the vault file.
   and never written as plain text. That holds with SQLCipher; in the
   local-development mode without it the vault is a plain SQLite file and the
   copy is exactly as plain as the vault.
-- **When.** Only when 017 has not yet run on a vault that already has tables. A
-  new empty vault, and a vault already at 017 or later, take none.
+- **When.** Only when 017 has not yet run on a vault that already holds a user
+  table. A new empty vault (a file with no table, or only the derived search
+  index), and a vault already at 017 or later, take none.
 - **Verified before it counts.** The write-ahead log is folded into the vault
   file first, the copy is written under a temporary name and flushed, opened
   with the same key, and `PRAGMA quick_check` must report `ok`. Only then is it
@@ -89,31 +90,57 @@ copy of the vault file.
   vault is opened, so a refused snapshot there loses the new code.
 - **A good snapshot is kept.** If one already verifies, it is kept and not
   copied again, so a retry after a failed upgrade cannot replace the original
-  with a copy of a partly cleaned vault. After a backup is restored over a vault
-  that holds a snapshot younger than 30 days, migration therefore takes no fresh
-  one; the restored backup is the recovery copy.
+  with a copy of a partly cleaned vault. A vault that has not completed 017 keeps
+  a snapshot that verifies at any age. After a backup is restored over a vault
+  that holds such a snapshot, and 017 has not completed on the restored vault,
+  migration therefore takes no fresh one; the restored backup is the recovery
+  copy.
+- **A snapshot that fails verification is moved aside, not replaced.** If the
+  snapshot is there but no longer opens with the key, or fails the integrity
+  check, it is moved, with any journal, WAL or shm files beside it, to
+  `vault.pre017.snapshot.aside` in the same folder, and a new snapshot is
+  taken. The aside file is the original file: same key, same bytes, never
+  decrypted. It follows the same 30-day rule, counted from the time the
+  original snapshot was made, not from the move. Because it is a full copy of
+  the vault as it was, a profile can for a while hold two full copies of its
+  patient data: the aside and the new snapshot. If the aside name is already
+  occupied, the migration is **refused**, the same way as a failed snapshot:
+  nothing is touched, the vault is not upgraded, and the patient sees the same
+  generic 500. The age purge cannot free the name, because it runs only after
+  017 has completed. The vault therefore stays closed until the aside file is
+  removed by hand or the profile is deleted.
 - **Deleted.** With the profile (the vault-folder sweep in step 4 below) and by
-  the synthetic-profile test reset.
+  the synthetic-profile test reset. Both remove the snapshot, the aside copy and
+  their journal, WAL and shm files.
 - **A document deleted afterwards stays in it.** The snapshot is a frozen copy
   of the vault as it was before 017. A document, entity quote or care-plan
   quote the patient deletes after the migration is gone from the live vault but
-  still readable in the snapshot until the purge below removes it, and that
-  purge waits for the next open of the vault on or after day 30. Deleting a
-  document does not touch the snapshot. See the known gap under
+  still readable in the snapshot, and in the aside copy if there is one, until
+  the purge below removes it, and that purge waits for the next open of the
+  vault on or after day 30, once 017 has completed on that vault. Deleting a
+  document does not touch the snapshot or the aside. See the known gap under
   [Document Deletion](#document-deletion).
 - **Purged by age.** On the first open of the vault 30 days or more after the
-  snapshot was made. The age is the snapshot's own time, not the vault's. A
-  session that is already open does not purge it until the vault is opened
-  again. A leftover temporary copy from an interrupted attempt is removed on
-  every open, at any age.
+  snapshot was made, and only once the vault is confirmed at revision 017 or
+  later. The open that completes 017 does not purge, because that same open has
+  just deleted rows; the next open does. A vault that cannot complete 017 (the
+  migration fails or is refused) keeps its snapshot and its aside copy past 30
+  days, for as long as it takes, until 017 completes or the profile is deleted.
+  This extends the retention of that data beyond 30 days on purpose: the
+  snapshot is the only copy of the rows 017 deletes. The snapshot and the aside
+  copy are each judged by their own time, which is the time the original
+  snapshot was made, not the vault's or the move's. A session that is already
+  open does not purge them until the vault is opened again. A leftover
+  temporary copy from an interrupted attempt is removed on every open, at any
+  age.
 - **Not purged when the password or recovery code changes.** Those re-seal the
   same data key and there is no re-keying path, so the snapshot is keyed by the
   same key as the live vault. An old password opens nothing without the old
   sealed key file, and whoever holds the data key can read the live vault too.
 - **Excluded from backups by name.** A backup copies the files ending in `.db`
-  and the four sealed-key files; neither the snapshot nor its temporary copy
-  ends in `.db`. A restore does not remove a snapshot; the 30-day purge covers
-  that.
+  and the four sealed-key files; none of the snapshot, its temporary copy and
+  its aside copy ends in `.db`. A restore does not remove a snapshot or an
+  aside copy; they survive it, and the 30-day purge covers them.
 
 ## Data Portability
 
@@ -190,7 +217,8 @@ recoverable state rather than a corrupt one:
    file survives. If the key cannot be destroyed, the operation aborts before
    the master row is touched, so the user can retry.
 4. Sweep the whole vault directory — database, WAL/SHM sidecars, encrypted
-   documents, and the pre-017 snapshot if one is still there. Failures here are
+   documents, and the pre-017 snapshot and its aside copy if they are still
+   there. Failures here are
    logged but do not abort: the data is already cryptographically erased, and a
    retry finishes the cleanup.
 5. Sweep the profile's backup directory (`<app_data>/backups/<profile_id>`) on
@@ -268,17 +296,20 @@ is. Tracked as `FEEDBACK-SNAP-001`.
 
 **Known gap (pre-017 snapshot).** On a vault that already held data when
 migration 017 ran, `vault.pre017.snapshot` is a full copy of the vault from
-before the migration, made automatically. Deleting a document afterwards does
-not reach it: the document, its extracted entities and quotes, and any
-care-plan quote stay readable in that copy until the snapshot is purged, on the
-first open of the vault 30 days or more after it was made (an already-open
-session does not purge it until the vault is opened again). The copy is
-encrypted with the same key as the vault, so it exposes nothing that the vault
-key did not already open; the gap is only that a deletion is not final until
-then, and the purge needs a vault open, so a vault that is never opened keeps
-the copy. Deleting the whole profile removes it at once. Deleting a document
-does not delete the snapshot (see
-[Pre-017 vault snapshot](#pre-017-vault-snapshot)).
+before the migration, made automatically. A snapshot that failed verification
+is kept as `vault.pre017.snapshot.aside`, another full copy, beside the new
+one. Deleting a document afterwards does not reach either: the document, its
+extracted entities and quotes, and any care-plan quote stay readable in those
+copies until they are purged, on the first open of the vault 30 days or more
+after the snapshot was made, once 017 has completed on that vault (an
+already-open session does not purge them until the vault is opened again). A
+vault that cannot complete 017 keeps them past 30 days, until it completes or
+the profile is deleted. The copies are encrypted with the same key as the
+vault, so they expose nothing that the vault key did not already open; the gap
+is only that a deletion is not final until then, and the purge needs a vault
+open, so a vault that is never opened keeps the copies. Deleting the whole
+profile removes them at once. Deleting a document does not delete the snapshot
+or the aside (see [Pre-017 vault snapshot](#pre-017-vault-snapshot)).
 
 ## Unverified Extracted Values
 
