@@ -163,6 +163,15 @@ plan was written from the delete path alone; the reprocess path had a second,
 unrelated reason to need that column. Reading the consumer before editing the
 producer is what caught it.
 
+A 2026-11-03 instance in UI-PG-REVIEW (#452): the Source Trace sheet's "It
+matches, mark as checked" verified through the sheet's own mutation, so the
+page's `markChecked` (the hold and the ink) never ran, and the refetch dropped
+the row and unmounted the open sheet. Nothing in the diff touched that path; it
+was found only because the implementer listed it as a known unknown and
+measured it on the default `/verify`, where it failed. Recheck: when a page
+adds behaviour to one way of doing an action, list every other component that
+performs the same action and run each.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
