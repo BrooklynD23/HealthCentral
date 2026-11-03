@@ -42,7 +42,7 @@ export function PanelInterpretationDashboard({
       <Card className={className}>
         <CardContent className="py-12">
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-accent" />
+            <Loader2 className="w-8 h-8 motion-safe:animate-spin text-accent" />
             <p className="text-sm text-ink-secondary">Generating panel interpretation...</p>
           </div>
         </CardContent>

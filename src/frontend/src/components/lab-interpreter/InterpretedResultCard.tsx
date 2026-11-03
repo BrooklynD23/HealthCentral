@@ -171,7 +171,7 @@ export function InterpretedResultCard({
                 ) : (
                   <ChevronDown className="w-4 h-4" />
                 )}
-                {expanded ? 'Hide' : 'Show'} Recommendations
+                {expanded ? 'Hide' : 'Show'} questions to ask
               </button>
               {expanded && (
                 <AdviceSection adviceText={interpretation.advice_text} />
@@ -209,7 +209,7 @@ export function InterpretedResultCard({
                 className="text-xs"
               >
                 {isRegenerating ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin" />
                 ) : (
                   'Regenerate'
                 )}

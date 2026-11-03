@@ -23,9 +23,12 @@ export function ReferenceRangeComparison({
 }: ReferenceRangeComparisonProps) {
   if (refLow === null || refHigh === null) return null;
 
-  const isLow = value < refLow;
-  const isHigh = value > refHigh;
-  const isNormal = !isLow && !isHigh;
+  // A verdict only on a scale that exists: with a non-finite value or bound every comparison is false, and "Normal"
+  // would be printed for a number that was never compared.
+  const finite = Number.isFinite(value) && Number.isFinite(refLow) && Number.isFinite(refHigh);
+  const isLow = finite && value < refLow;
+  const isHigh = finite && value > refHigh;
+  const isNormal = finite && !isLow && !isHigh;
 
   return (
     <div className={cn('space-y-2', className)}>

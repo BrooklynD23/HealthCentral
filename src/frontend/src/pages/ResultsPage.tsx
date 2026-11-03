@@ -99,16 +99,18 @@ function downloadFile(href: string, filename: string) {
   link.click();
 }
 
-function viewBoxSize(svg: SVGSVGElement): { width: number; height: number } {
-  const [, , width, height] = (svg.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
-  return width > 0 && height > 0 ? { width, height } : { width: 320, height: 160 };
+// The size comes from the exported markup, whose width and height serializeRangeRibbonSvg set from the svg's viewBox, so
+// the canvas and the file can never disagree and the viewBox is parsed in one place (RangeRibbon.tsx).
+function markupSize(markup: string): { width: number; height: number } {
+  const root = new DOMParser().parseFromString(markup, 'image/svg+xml').documentElement;
+  return { width: Number(root.getAttribute('width')), height: Number(root.getAttribute('height')) };
 }
 
 // The PNG is the ribbon's own markup with the tokens resolved (a standalone svg has no page CSS, so raw
 // XMLSerializer output would leave var(--token) and draw blank), on the page's surface colour.
 async function renderSvgToCanvas(svgElement: SVGSVGElement) {
   const markup = serializeRangeRibbonSvg(svgElement);
-  const { width: viewWidth, height: viewHeight } = viewBoxSize(svgElement);
+  const { width: viewWidth, height: viewHeight } = markupSize(markup);
   const scale = 2;
   const width = Math.ceil(viewWidth * scale);
   const height = Math.ceil(viewHeight * scale);
@@ -152,14 +154,27 @@ export function ResultsPage() {
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
   const [activeTab, setActiveTab] = useState(ALL);
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
 
   const location = useLocation();
   const openedWithExplain = (location.state as { explain?: boolean } | null)?.explain === true;
   const [explainOpen, setExplainOpen] = useState(openedWithExplain);
-  const [panelInterpretation, setPanelInterpretation] = useState<PanelInterpretationResponse | null>(null);
-  const [groundedSummary, setGroundedSummary] = useState<string | null>(null);
-  const [groundedValidation, setGroundedValidation] = useState<{ isValid: boolean; score: number } | null>(null);
+  // A panel interpretation belongs to the tab it was made on, a grounded explanation to the result it was made for:
+  // each is kept with its key and shown only while that key is the one on screen.
+  const [panelInterpretation, setPanelInterpretation] = useState<{
+    panel: string;
+    data: PanelInterpretationResponse;
+  } | null>(null);
+  const [grounded, setGrounded] = useState<{
+    observationId: string;
+    summary: string;
+    isValid: boolean;
+    score: number;
+  } | null>(null);
   const [withheldNotice, setWithheldNotice] = useState<{
     observationId: string;
     message: string;
@@ -175,6 +190,7 @@ export function ResultsPage() {
     if (requestedAnalyte) {
       setSelectedAnalyte(null);
       setActiveTab(ALL);
+      setPanelInterpretation(null);
     }
     if (openedWithExplain) setExplainOpen(true);
   }
@@ -271,13 +287,13 @@ export function ResultsPage() {
               message: data.full_response,
               physicianReview: data.withheld_physician_review === true,
             });
-            setGroundedSummary(null);
-            setGroundedValidation(null);
+            setGrounded(null);
             return;
           }
           setWithheldNotice(null);
-          setGroundedSummary(data.full_response);
-          setGroundedValidation({
+          setGrounded({
+            observationId,
+            summary: data.full_response,
             isValid: data.is_valid,
             score: data.verification.faithfulness_score,
           });
@@ -289,9 +305,15 @@ export function ResultsPage() {
   const handleGeneratePanelInterpretation = () => {
     const latestDate = observations?.[0]?.collected_at;
     if (!latestDate) return;
+    const panel = activeTab;
     generatePanelInterp.mutate(
-      { panelName: activeTab, collectedAt: latestDate },
-      { onSuccess: (data) => setPanelInterpretation(data) }
+      { panelName: panel, collectedAt: latestDate },
+      {
+        // A tab chosen while this was running is a different panel: the answer is for the one asked, so it is dropped.
+        onSuccess: (data) => {
+          if (activeTabRef.current === panel) setPanelInterpretation({ panel, data });
+        },
+      }
     );
   };
 
@@ -302,6 +324,16 @@ export function ResultsPage() {
   };
 
   const viewHeight = isDesktop ? DESKTOP_VIEW_HEIGHT : PHONE_VIEW_HEIGHT;
+
+  // The mutation is one object for every tab: its state counts here only for the tab it was started on.
+  const askedPanel = generatePanelInterp.variables?.panelName;
+  const panelShown = panelInterpretation?.panel === activeTab ? panelInterpretation : null;
+  const panelPending = generatePanelInterp.isPending && askedPanel === activeTab;
+  const panelFailed = generatePanelInterp.isError && askedPanel === activeTab;
+  // The ribbon is on the page: nothing to download before it is, and nothing is selected on an empty or loading panel.
+  const chartReady =
+    effectiveAnalyte !== undefined && !trendLoading && !trendError && (trendData?.data_points.length ?? 0) > 0;
+  const groundedShown = grounded && grounded.observationId === effectiveObservation?.id ? grounded : null;
 
   const shell = (
     <>
@@ -378,7 +410,7 @@ export function ResultsPage() {
     if (!effectiveAnalyte) {
       return (
         <div className="flex min-h-48 items-center justify-center">
-          <p className="text-ink-secondary">Choose a result to see its trend.</p>
+          <p className="text-ink-secondary">Nothing to chart on this tab.</p>
         </div>
       );
     }
@@ -419,12 +451,16 @@ export function ResultsPage() {
           <div className="flex items-start gap-3">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-ink-secondary" />
             <div>
-              <p data-t0 className="text-sm text-ink">
-                <strong>
-                  Latest value: {latestValue?.value} {trendData.unit}
-                  {latestValue && latestValue.user_verified !== true && ' (unverified)'}
-                </strong>
-              </p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <p data-t0 className="text-sm text-ink">
+                  <strong>
+                    Latest value: {latestValue?.value} {trendData.unit}
+                    {latestValue && latestValue.user_verified !== true && ' (unverified)'}
+                  </strong>
+                </p>
+                {latestValue && !latestValue.is_abnormal && <Badge variant="verified">Normal Range</Badge>}
+                {latestValue?.is_abnormal && <Badge variant="attention">Outside Range</Badge>}
+              </div>
               {trendData.summary && (
                 <p data-t0 className="mt-1 text-sm text-ink-secondary">
                   {trendData.summary}
@@ -495,11 +531,11 @@ export function ResultsPage() {
         </div>
       )}
 
-      {(panelInterpretation || generatePanelInterp.isPending) && (
+      {(panelShown || panelPending || panelFailed) && (
         <PanelInterpretationDashboard
-          interpretation={panelInterpretation ?? undefined}
-          isLoading={generatePanelInterp.isPending}
-          isError={generatePanelInterp.isError}
+          interpretation={panelShown?.data}
+          isLoading={panelPending}
+          isError={panelFailed}
         />
       )}
 
@@ -535,10 +571,13 @@ export function ResultsPage() {
                           <span className="block truncate text-sm font-medium text-ink">{obs.analyte_raw}</span>
                           <span data-t0 className="block text-xs text-ink-secondary">
                             {obs.value ?? obs.value_text} {obs.unit}
+                            {obs.collected_at === null && (
+                              <>
+                                {' · '}
+                                <span className="italic text-ink-tertiary">undated</span>
+                              </>
+                            )}
                           </span>
-                          {obs.collected_at === null && (
-                            <span className="block text-xs italic text-ink-tertiary">undated</span>
-                          )}
                         </span>
                         {obs.is_abnormal && (
                           <Badge variant="attention" className="px-1.5 py-0.5 text-[10px]" aria-label="Flagged on the report">
@@ -558,10 +597,12 @@ export function ResultsPage() {
           <Card>
             <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-4">
               <div className="flex items-start justify-between gap-2">
-                <CardTitle className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-lg sm:gap-x-3 sm:text-xl">
-                  <span>{trendData?.analyte_display_name || effectiveAnalyte}</span>
-                  {latestValue && !latestValue.is_abnormal && <Badge variant="verified">Normal Range</Badge>}
-                  {latestValue?.is_abnormal && <Badge variant="attention">Outside Range</Badge>}
+                {/* One line on a phone (DF-4): a long display name is cut with an ellipsis, and the ribbon's own label
+                    and the list row still carry it whole. The Normal/Outside badge sits with the latest value below. */}
+                <CardTitle className="flex min-w-0 items-center text-base sm:text-xl">
+                  <span className="min-w-0 truncate" title={trendData?.analyte_display_name || effectiveAnalyte}>
+                    {trendData?.analyte_display_name || effectiveAnalyte}
+                  </span>
                 </CardTitle>
                 <div className="flex shrink-0 items-center gap-1">
                   <Button
@@ -569,6 +610,7 @@ export function ResultsPage() {
                     size="sm"
                     className="gap-1.5 text-xs"
                     onClick={handleExportPNG}
+                    disabled={!chartReady}
                     aria-label="Download chart as PNG"
                   >
                     <ImageIcon className="h-3.5 w-3.5" />
@@ -579,6 +621,7 @@ export function ResultsPage() {
                     size="sm"
                     className="gap-1.5 text-xs"
                     onClick={handleExportSVG}
+                    disabled={!chartReady}
                     aria-label="Download chart as SVG"
                   >
                     <Download className="h-3.5 w-3.5" />
@@ -600,15 +643,17 @@ export function ResultsPage() {
           )}
 
           {!explainOpen ? (
-            <Card>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <p className="text-sm text-ink-secondary">Want this result explained in plain language?</p>
-                <Button onClick={() => setExplainOpen(true)} className="gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Explain this result
-                </Button>
-              </CardContent>
-            </Card>
+            effectiveObservation && (
+              <Card>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                  <p className="text-sm text-ink-secondary">Want this result explained in plain language?</p>
+                  <Button onClick={() => setExplainOpen(true)} className="gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Explain this result
+                  </Button>
+                </CardContent>
+              </Card>
+            )
           ) : interpretation ? (
             <InterpretedResultCard
               interpretation={interpretation}
@@ -679,21 +724,19 @@ export function ResultsPage() {
             </div>
           )}
 
-          {groundedSummary && (
+          {groundedShown && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center gap-3 text-base">
                   Grounded explanation
-                  {groundedValidation && (
-                    <Badge variant={groundedValidation.isValid ? 'verified' : 'caution'}>
-                      Grounded faithfulness: {(groundedValidation.score * 100).toFixed(0)}%
-                    </Badge>
-                  )}
+                  <Badge variant={groundedShown.isValid ? 'verified' : 'caution'}>
+                    Grounded faithfulness: {(groundedShown.score * 100).toFixed(0)}%
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div data-t0 className="space-y-2">
-                  {formatInterpretationText(groundedSummary).paragraphs.map((runs, i) => (
+                  {formatInterpretationText(groundedShown.summary).paragraphs.map((runs, i) => (
                     <p key={i} className="whitespace-pre-wrap text-sm text-ink-secondary">
                       {runs.map((run, j) =>
                         run.bold ? <strong key={j}>{run.text}</strong> : <span key={j}>{run.text}</span>
