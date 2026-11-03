@@ -71,7 +71,8 @@ export function DocumentInbox() {
   // Every import that resolved this visit, oldest first. The card shows one of them (see importCard below).
   const [imports, setImports] = useState<DocumentImportResponse[]>([]);
   const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
-  // `after` is how many imports had resolved when it failed: an import after that is a retry that came through.
+  // `after` is how many imports had resolved when it failed. An import after that lets the alert go; it is not known to
+  // be a retry of the same file (a later file of a multi-file pick does the same, so that failure goes unreported).
   const [importError, setImportError] = useState<{ message: string; fileName: string; after: number } | null>(null);
   const importsResolved = useRef(0);
   // Documents the patient removed in this visit: their import card and duplicate warning leave with their row.
@@ -114,9 +115,11 @@ export function DocumentInbox() {
     return removedIds.includes(id) ? Boolean(isFetching) && inList : inList || !isFetching;
   };
 
-  // An import is ready when its row has arrived, or the list has stopped fetching without it.
+  // An import is ready when its row has arrived, or the list has stopped fetching without it. One the patient removed
+  // stays ready through every later refresh: its row is not coming back, so waiting for it would make an older card, or
+  // the alert of a failure it retried past, the newest ready result and show it again.
   const importReady = (result: DocumentImportResponse): boolean =>
-    !isFetching || documents.some((doc) => doc.id === result.document.id);
+    !isFetching || removedIds.includes(result.document.id) || documents.some((doc) => doc.id === result.document.id);
 
   // The card is the newest import that is ready, so a second import keeps the first card until its own row is in the
   // list, and the two swap in one render (a card that left when the import resolved would move every row up, and the
@@ -480,7 +483,8 @@ export function DocumentInbox() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Recent Documents</span>
-            <Badge variant="default">{documents.length} total</Badge>
+            {/* A list that failed to load has no count: "0 total" would say the library is empty. */}
+            {!(error && documents.length === 0) && <Badge variant="default">{documents.length} total</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">

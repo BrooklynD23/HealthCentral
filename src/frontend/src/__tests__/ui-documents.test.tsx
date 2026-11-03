@@ -1142,9 +1142,9 @@ describe('HC-UIDOC-007 empty state', () => {
     [500, 'Failed to load documents'],
   ] as const) {
     it(`HC-UIDOC-007: a list that failed with ${status} says so and does not call the library empty`, async () => {
-      // Would not notice: the "0 total" badge, which still reads 0 (not changed here). The patient must not be told
-      // the library is empty when the list never loaded: the title, the sentence and the button are the empty
-      // state's, and the error card above them is the answer.
+      // Would not notice: a different wording of the count (it looks for "total" anywhere). The patient must not be
+      // told the library is empty when the list never loaded: the title, the sentence, the button and the "0 total"
+      // badge are the empty state's, and the error card above them is the answer.
       // RED before this round: the empty state showed beside the error.
       documents = [makeDoc()];
       apiGet.mockImplementation((async (path: string) => {
@@ -1158,6 +1158,7 @@ describe('HC-UIDOC-007 empty state', () => {
       expect(screen.queryByText('Your library is empty')).not.toBeInTheDocument();
       expect(screen.queryByText(/no documents yet/i)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Choose a file' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/\btotal\b/)).not.toBeInTheDocument();
     });
   }
 });

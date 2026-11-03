@@ -304,7 +304,9 @@ const SAFETY_RAIL = '[data-safety-rail]';
 const EXPECTED = [DATE, STATUS, CONFIDENCE];
 
 function rowByName(page: Page, name: string): Locator {
-  return page.locator(ROW).filter({ has: page.getByRole('heading', { name, exact: true }) });
+  // Not getByRole('heading'): it skips content an open AlertDialog hides from the accessibility tree, so a row that
+  // is still in the DOM would read as gone (toHaveCount(0)) while the dialog is up.
+  return page.locator(ROW).filter({ has: page.locator('h4').getByText(name, { exact: true }) });
 }
 
 function fileInput(page: Page): Locator {
@@ -1564,6 +1566,108 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
       await expect(page.getByRole('alert')).toHaveCount(0);
     });
     expect(docs.imports).toBe(2);
+  });
+
+  /**
+   * Two imports, then Remove on the newer one: the card and the row leave together, and every later list refresh
+   * (the next Remove, the next import) must not bring the older import's card back. Returns when the list is settled.
+   */
+  async function twoImportsThenRemoveSecond(page: Page) {
+    const { docs, release } = await inboxWithHeldImport(page);
+    release();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toBeVisible();
+    await waitForEffectiveOpacity(page, ROW);
+    const again = { ...NEW_FILE, name: AGAIN_NAME };
+    const releaseSecond = await startHeldImport(page, docs, again);
+    releaseSecond();
+    await expect(rowByName(page, AGAIN_NAME)).toBeVisible();
+    await expect(page.getByText(`Document imported: ${AGAIN_NAME}`)).toBeVisible();
+    await openDeleteDialog(page, AGAIN_NAME);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect(rowByName(page, AGAIN_NAME)).toHaveCount(0);
+    await expect(page.getByText('Document imported:')).toHaveCount(0);
+    await waitForEffectiveOpacity(page, ROW);
+    return docs;
+  }
+
+  /** A failed import, a retry that comes through, then Remove on the retried row. Returns when the list is settled. */
+  async function retryThenRemove(page: Page) {
+    const { docs, release } = await inboxWithHeldImport(page, { fail: { status: 400, detail: 'Unsupported file type' } });
+    release();
+    await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+    await waitForEffectiveOpacity(page, ROW);
+    docs.answer = {};
+    const releaseRetry = await startHeldImport(page, docs);
+    releaseRetry();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await expect(page.getByText(/Import failed:/)).toHaveCount(0);
+    await openDeleteDialog(page, NEW_NAME);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+    await expect(page.getByText(/Import failed:/)).toHaveCount(0);
+    await waitForEffectiveOpacity(page, ROW);
+    return docs;
+  }
+
+  test('HC-UIDOC-006 (q): two imports, Remove the newer, then Remove an old row: the older import card does not come back', async ({
+    page,
+  }) => {
+    // Would not notice: a stale card that shows for less than one animation frame (the sampler reads at frame rate);
+    // a stale card that is on screen for the whole refresh is read, as a third row position. The closing check
+    // reads only the settled page. Scroll is not covered (see the block header).
+    await twoImportsThenRemoveSecond(page);
+    await openDeleteDialog(page, SECOND_NAME);
+    await expectOneJump(page, 'Remove an old row after Remove of an import', async () => {
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+      await expect(rowByName(page, SECOND_NAME)).toHaveCount(0);
+    });
+    await expect(page.getByText('Document imported:')).toHaveCount(0);
+  });
+
+  test('HC-UIDOC-006 (r): two imports, Remove the newer, then a third import: its card arrives with its row, the older card does not', async ({
+    page,
+  }) => {
+    // Would not notice: the same limits as (q). The list answers 300 ms late, so a first-import card that shows while
+    // the list is still fetching holds a position of its own for about 300 ms, and is read.
+    const docs = await twoImportsThenRemoveSecond(page);
+    const third = { ...NEW_FILE, name: 'third-cbc-report.pdf' };
+    const release = await startHeldImport(page, docs, third);
+    await expectOneJump(page, 'import after Remove of an import', async () => {
+      release();
+      await expect(page.getByText(`Document imported: ${third.name}`)).toBeVisible();
+      await expect(rowByName(page, third.name)).toBeVisible();
+    });
+    await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toHaveCount(0);
+  });
+
+  test('HC-UIDOC-006 (s): a failed import, a retry, Remove the retried row, then Remove an old row: the failure alert does not come back', async ({
+    page,
+  }) => {
+    // Would not notice: the same limits as (q). The alert would be role=alert for a file the retry did import, so
+    // one that returns says something false as well as moving the rows.
+    await retryThenRemove(page);
+    await openDeleteDialog(page, SECOND_NAME);
+    await expectOneJump(page, 'Remove an old row after Remove of a retried import', async () => {
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+      await expect(rowByName(page, SECOND_NAME)).toHaveCount(0);
+    });
+    await expect(page.getByText(/Import failed:/)).toHaveCount(0);
+  });
+
+  test('HC-UIDOC-006 (t): a failed import, a retry, Remove the retried row, then a new import: the failure alert does not come back', async ({
+    page,
+  }) => {
+    // Would not notice: the same limits as (s).
+    const docs = await retryThenRemove(page);
+    const third = { ...NEW_FILE, name: 'third-cbc-report.pdf' };
+    const release = await startHeldImport(page, docs, third);
+    await expectOneJump(page, 'import after Remove of a retried import', async () => {
+      release();
+      await expect(rowByName(page, third.name)).toBeVisible();
+      await expect(page.getByText(`Document imported: ${third.name}`)).toBeVisible();
+    });
+    await expect(page.getByText(/Import failed:/)).toHaveCount(0);
   });
 
   test('HC-UIDOC-013: after Remove of the only row, keyboard focus on Import Document is inside the viewport at 320x640', async ({
