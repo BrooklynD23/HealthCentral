@@ -1,0 +1,21 @@
+### tracecmp-base
+- probe base: 1 of 3 over 40 ms (pooled); per batch b1:1/3; unmeasured 0; max 47
+  gaps: search=27 timeline=40 care=47
+  Ccmp.b1.tracecmp-base.base.probe.search	gap=27	gapStart=18	gapEnd=45	longtasks=-	load1=1.06/1.06
+  Ccmp.b1.tracecmp-base.base.probe.timeline	gap=40	gapStart=-7	gapEnd=33	longtasks=-	load1=1.3/1.43
+  Ccmp.b1.tracecmp-base.base.probe.care	gap=47	gapStart=-10	gapEnd=37	longtasks=-	load1=1.32/1.32
+
+### tracecmp-v1
+- probe variant: 1 of 3 over 40 ms (pooled); per batch b1:1/3; unmeasured 0; max 44
+  gaps: search=44 timeline=30 care=30
+  Ccmp.b1.tracecmp-v1.variant.probe.search	gap=44	gapStart=-3	gapEnd=41	longtasks=-	load1=1.3/1.3
+  Ccmp.b1.tracecmp-v1.variant.probe.timeline	gap=30	gapStart=39	gapEnd=69	longtasks=-	load1=1.43/1.43
+  Ccmp.b1.tracecmp-v1.variant.probe.care	gap=30	gapStart=38	gapEnd=68	longtasks=-	load1=1.32/1.29
+
+### tracecmp-bare
+- bare base: 0 of 3 over 40 ms (pooled); per batch b1:0/3; unmeasured 0; max 33
+  gaps: search=33 timeline=32 care=30
+  Ccmp.b1.tracecmp-bare.base.bare.search	gap=33	gapStart=15	gapEnd=48	longtasks=-	load1=1.3/1.3
+  Ccmp.b1.tracecmp-bare.base.bare.timeline	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.43/1.32
+  Ccmp.b1.tracecmp-bare.base.bare.care	gap=30	gapStart=38	gapEnd=67	longtasks=-	load1=1.29/1.29
+
