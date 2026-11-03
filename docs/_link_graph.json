@@ -2771,10 +2771,7 @@
     "src/frontend/src/pages/ExportPage.tsx": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
     ],
-    "src/frontend/src/pages/LabInterpreter.tsx": [
-      "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
-    ],
-    "src/frontend/src/pages/TrendsDashboard.tsx": [
+    "src/frontend/src/pages/ResultsPage.tsx": [
       "docs/plans/2026-05-15-cursor-lab-workflow-plan.md"
     ],
     "src/frontend/src/pages/VerificationWorkbench.tsx": [
@@ -3438,8 +3435,7 @@
       "src/frontend/src/services/documents.ts",
       "src/frontend/src/services/types.ts",
       "src/frontend/src/services/observations.ts",
-      "src/frontend/src/pages/TrendsDashboard.tsx",
-      "src/frontend/src/pages/LabInterpreter.tsx",
+      "src/frontend/src/pages/ResultsPage.tsx",
       "src/frontend/src/pages/ExplainAssistant.tsx",
       "src/backend/modules/interpret.py",
       "src/frontend/src/pages/ExportPage.tsx",
