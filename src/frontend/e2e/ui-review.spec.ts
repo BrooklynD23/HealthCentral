@@ -1487,3 +1487,127 @@ test('UI-PG-REVIEW finding 8: selecting a row on another page still loads it, an
   await expect(row(page, GLUCOSE_ID)).toHaveClass(/bg-accent-subtle/);
   await expect(page.locator('[data-page-image-overlay]')).toHaveCount(0);
 });
+
+// ---------------------------------------------------------------------------
+// The still toast's mount state (ruling 6604622632): `still` promises "enters with no motion", and sonner's base rule
+// starts every toast at opacity 0 and translateY(100%) until data-mounted turns true.
+// ---------------------------------------------------------------------------
+/** What the probe reads from a toast li at one instant. */
+interface ToastSample {
+  when: string;
+  mounted: string | null;
+  front: string | null;
+  opacity: number;
+  ty: number;
+  transform: string;
+  rect: { left: number; top: number; width: number; height: number };
+}
+
+/** Starts recording every sonner toast li: synchronously on insertion, on each data-mounted change and for 20 frames. */
+async function recordToasts(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const samples: unknown[] = [];
+    (window as unknown as { __toastSamples: unknown[] }).__toastSamples = samples;
+    const read = (li: Element, when: string, index: number) => {
+      const style = getComputedStyle(li);
+      const box = li.getBoundingClientRect();
+      samples.push({
+        when,
+        index,
+        mounted: li.getAttribute('data-mounted'),
+        front: li.getAttribute('data-front'),
+        opacity: parseFloat(style.opacity),
+        ty: new DOMMatrix(style.transform === 'none' ? undefined : style.transform).f,
+        transform: style.transform,
+        rect: { left: box.left, top: box.top, width: box.width, height: box.height },
+      });
+    };
+    const all = () => Array.from(document.querySelectorAll('[data-sonner-toast]'));
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (!(node instanceof Element)) return;
+          const lis = node.matches('[data-sonner-toast]') ? [node] : Array.from(node.querySelectorAll('[data-sonner-toast]'));
+          for (const li of lis) {
+            read(li, 'insert', all().indexOf(li));
+            let frames = 0;
+            const frame = () => {
+              read(li, 'frame', all().indexOf(li));
+              if (++frames < 20) requestAnimationFrame(frame);
+            };
+            requestAnimationFrame(frame);
+          }
+        });
+        if (mutation.type === 'attributes' && mutation.target instanceof Element && mutation.target.matches('[data-sonner-toast]')) {
+          read(mutation.target, 'attribute', all().indexOf(mutation.target));
+        }
+      }
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-mounted'] });
+  });
+}
+
+const toastSamples = (page: Page): Promise<ToastSample[]> =>
+  page.evaluate(() => (window as unknown as { __toastSamples: ToastSample[] }).__toastSamples.slice());
+
+// Written red first. On f7e03ea7 the first sample of a still toast was opacity 0 and 100 % below its place.
+// Blind spot: it uses the Verify toast, which is still; a plain toast starts the same way and is not asserted here
+// (ui-toast.spec.ts HC-TOAST-001 owns that). It reads computed style and rect, so a repaint-only change is not seen.
+test('UI-PG-REVIEW still toast: across its mount frame the toast has full opacity and does not move', async ({ page }) => {
+  await prepare(page);
+  await openReview(page);
+  await recordToasts(page);
+  await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(1);
+  await expect.poll(async () => (await toastSamples(page)).length, { message: 'the probe sampled frames' }).toBeGreaterThan(20);
+
+  const samples = await toastSamples(page);
+  const first = samples.find((sample) => sample.when === 'insert');
+  expect(first, 'the probe saw the insertion synchronously').toBeDefined();
+  expect(
+    samples.filter((sample) => sample.mounted === 'false').length,
+    'the probe saw data-mounted="false" on at least one sample, or this test passes vacuously'
+  ).toBeGreaterThan(0);
+  expect(first!.mounted, 'the insertion sample is the mount state').toBe('false');
+
+  for (const sample of samples) {
+    expect.soft(sample.opacity, `opacity at ${sample.when} (mounted=${sample.mounted})`).toBe(1);
+    expect.soft(sample.ty, `translateY at ${sample.when} (mounted=${sample.mounted}), transform ${sample.transform}`).toBe(0);
+    expect.soft(sample.rect, `rect at ${sample.when} (mounted=${sample.mounted}) against the insertion rect`).toEqual(first!.rect);
+  }
+});
+
+// PIN, named as one: green on f7e03ea7 and green after the fix. Two still toasts stack as they do today: the older one
+// is not the front, sits at its stack offset, and no inline --y was set (stacking reads --y from sonner's own rules).
+// Blind spot: two toasts only; the expanded (hovered) stack is not covered.
+test('UI-PG-REVIEW still toast: two still toasts stack, the older one at its offset with no inline --y', async ({ page }) => {
+  await prepare(page);
+  await openReview(page);
+  await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(1);
+  await row(page, A1C_ID).getByRole('button', { name: 'Verify observation' }).click();
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(2);
+  // Both are past their mount frame before the stack is read.
+  await expect(page.locator('[data-sonner-toast][data-mounted="true"]')).toHaveCount(2);
+
+  const stack = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-sonner-toast]')).map((li) => ({
+      text: li.textContent,
+      front: li.getAttribute('data-front'),
+      inlineY: li.style.getPropertyValue('--y'),
+      ty: new DOMMatrix(getComputedStyle(li).transform === 'none' ? undefined : getComputedStyle(li).transform).f,
+      scale: new DOMMatrix(getComputedStyle(li).transform === 'none' ? undefined : getComputedStyle(li).transform).d,
+    }))
+  );
+  const older = stack.find((toast) => toast.text?.includes('Glucose'))!;
+  const newer = stack.find((toast) => toast.text?.includes('Hemoglobin'))!;
+  expect(older, 'the Glucose toast is still on screen').toBeDefined();
+  expect(newer, 'the A1c toast is on screen').toBeDefined();
+  expect(older.front).toBe('false');
+  expect(newer.front).toBe('true');
+  expect(older.inlineY, 'no inline --y on the older toast').toBe('');
+  expect(newer.inlineY, 'no inline --y on the front toast').toBe('');
+  expect(newer.ty, 'the front toast sits at its place').toBe(0);
+  expect(older.ty, 'the older toast sits at its stack offset, off the front toast').not.toBe(0);
+  expect(Math.abs(older.scale), 'the older toast is scaled down behind the front one').toBeLessThan(1.2);
+  expect(Math.abs(older.scale)).not.toBe(1);
+});
