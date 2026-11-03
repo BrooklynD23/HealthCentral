@@ -68,9 +68,12 @@ export function DocumentInbox() {
   const [isDragging, setIsDragging] = useState(false);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Document | null>(null);
-  const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
+  // Every import that resolved this visit, oldest first. The card shows one of them (see importCard below).
+  const [imports, setImports] = useState<DocumentImportResponse[]>([]);
   const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
-  const [importError, setImportError] = useState<{ message: string; fileName: string } | null>(null);
+  // `after` is how many imports had resolved when it failed: an import after that is a retry that came through.
+  const [importError, setImportError] = useState<{ message: string; fileName: string; after: number } | null>(null);
+  const importsResolved = useRef(0);
   // Documents the patient removed in this visit: their import card and duplicate warning leave with their row.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +113,19 @@ export function DocumentInbox() {
     const inList = documents.some((doc) => doc.id === id);
     return removedIds.includes(id) ? Boolean(isFetching) && inList : inList || !isFetching;
   };
+
+  // An import is ready when its row has arrived, or the list has stopped fetching without it.
+  const importReady = (result: DocumentImportResponse): boolean =>
+    !isFetching || documents.some((doc) => doc.id === result.document.id);
+
+  // The card is the newest import that is ready, so a second import keeps the first card until its own row is in the
+  // list, and the two swap in one render (a card that left when the import resolved would move every row up, and the
+  // new row would move them down again). A removed import stays the newest ready one, so no older card comes back.
+  const readyAt = imports.map(importReady).lastIndexOf(true);
+  const importCard = readyAt >= 0 && importResultShown(imports[readyAt].document.id) ? imports[readyAt] : null;
+  // The alert stays until a retry has landed the same way, then it leaves in the render that adds the row.
+  const importErrorShown =
+    importError !== null && !imports.slice(importError.after).some(importReady) ? importError : null;
 
   const openPreview = (id: string, opener: HTMLElement) => {
     previewOpener.current = opener;
@@ -152,8 +168,8 @@ export function DocumentInbox() {
     
     try {
       const result = await importDocument.mutateAsync({ file, profileId });
-      setLastImport(result);
-      setImportError(null);
+      importsResolved.current += 1;
+      setImports((current) => [...current, result]);
       if (result.duplicate_warning) {
         setDuplicateWarnings((current) => [...current, result]);
       }
@@ -165,7 +181,7 @@ export function DocumentInbox() {
             ? 'This file is too large to import.'
             : err.message
           : 'Something went wrong while importing this file. Please try again.';
-      setImportError({ message, fileName: file.name });
+      setImportError({ message, fileName: file.name, after: importsResolved.current });
     }
   };
 
@@ -210,11 +226,15 @@ export function DocumentInbox() {
       onSuccess: () => setRemovedIds((current) => [...current, id]),
     });
     setDeleteTarget(null);
-    // preventScroll: the page scrolls smoothly (globals.css), and a focus() that scrolls it slides every row for 300 ms,
-    // then the removed row's height snaps the scroll back. The neighbour takes the removed row's place in the list.
-    requestAnimationFrame(() =>
-      (neighbour ? moreButtons.current.get(neighbour.id) : importButton.current)?.focus({ preventScroll: true })
-    );
+    // With a neighbour: preventScroll. The page scrolls smoothly (globals.css), and a focus() that scrolls it slides every
+    // row for 300 ms, then the removed row's height snaps the scroll back. The neighbour takes the removed row's place.
+    // Without one the Import Document button is at the top of the page, possibly far above the viewport, and no row is
+    // left to slide: the focus may scroll, or a keyboard user is left with focus they cannot see.
+    requestAnimationFrame(() => {
+      const next = neighbour ? moreButtons.current.get(neighbour.id) : undefined;
+      if (next) next.focus({ preventScroll: true });
+      else importButton.current?.focus();
+    });
   };
 
   return (
@@ -243,14 +263,14 @@ export function DocumentInbox() {
         />
       </div>
 
-      {importError && (
+      {importErrorShown && (
         <Card className="border-status-critical/30 bg-status-critical/5" role="alert" data-t0 data-inbox-error>
           <CardContent className="py-4 flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
               <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
               <div className="min-w-0 break-words">
-                <p className="font-medium text-ink">Import failed: {importError.fileName}</p>
-                <p className="text-sm text-ink-secondary mt-1">{importError.message}</p>
+                <p className="font-medium text-ink">Import failed: {importErrorShown.fileName}</p>
+                <p className="text-sm text-ink-secondary mt-1">{importErrorShown.message}</p>
               </div>
             </div>
             <Button
@@ -258,7 +278,7 @@ export function DocumentInbox() {
               variant="ghost"
               size="icon"
               className="shrink-0"
-              aria-label={`Dismiss import error for ${importError.fileName}`}
+              aria-label={`Dismiss import error for ${importErrorShown.fileName}`}
               onClick={() => setImportError(null)}
             >
               <X className="w-4 h-4" />
@@ -370,45 +390,45 @@ export function DocumentInbox() {
         </Card>
       )}
 
-      {lastImport && importResultShown(lastImport.document.id) && (
+      {importCard && (
         <Card className="border-accent/20 bg-accent-subtle/40">
           <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 space-y-1">
-              <p className="font-medium text-ink break-words">Document imported: {lastImport.document.source || 'Untitled document'}</p>
+              <p className="font-medium text-ink break-words">Document imported: {importCard.document.source || 'Untitled document'}</p>
               <p className="text-sm text-ink-secondary">
-                {lastImport.observations_extracted} values extracted · status {lastImport.document.status.replace(/_/g, ' ')}
+                {importCard.observations_extracted} values extracted · status {importCard.document.status.replace(/_/g, ' ')}
               </p>
-              {lastImport.import_summary && (
+              {importCard.import_summary && (
                 <p className="text-sm text-ink-secondary">
-                  Imported {lastImport.import_summary.observations_imported} lab results and{' '}
-                  {lastImport.import_summary.entities_imported} record mentions — all pending your
+                  Imported {importCard.import_summary.observations_imported} lab results and{' '}
+                  {importCard.import_summary.entities_imported} record mentions — all pending your
                   verification
                 </p>
               )}
-              {(lastImport.pages_without_text?.length ?? 0) > 0 && (
+              {(importCard.pages_without_text?.length ?? 0) > 0 && (
                 <p role="status" data-t0 data-inbox-scanned className="text-sm font-medium text-ink">
-                  {pagesWithoutTextNotice(lastImport.pages_without_text ?? [])}
+                  {pagesWithoutTextNotice(importCard.pages_without_text ?? [])}
                 </p>
               )}
-              {lastImport.observations_extracted > 0 && (
+              {importCard.observations_extracted > 0 && (
                 <p className="text-sm font-medium">
                   <Link
-                    to={`/verify?doc=${lastImport.document.id}&mode=all`}
+                    to={`/verify?doc=${importCard.document.id}&mode=all`}
                     data-t0
                     data-inbox-handoff
                     className="text-ink underline underline-offset-4 hover:text-accent-hover"
                   >
-                    {lastImport.observations_extracted}{' '}
-                    {lastImport.observations_extracted === 1 ? 'value' : 'values'} ready to review
+                    {importCard.observations_extracted}{' '}
+                    {importCard.observations_extracted === 1 ? 'value' : 'values'} ready to review
                   </Link>
                 </p>
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={(e) => openPreview(lastImport.document.id, e.currentTarget)}>
+              <Button variant="secondary" size="sm" onClick={(e) => openPreview(importCard.document.id, e.currentTarget)}>
                 Preview
               </Button>
-              <Button size="sm" onClick={() => navigate(`/verify?doc=${lastImport.document.id}&mode=all`)}>
+              <Button size="sm" onClick={() => navigate(`/verify?doc=${importCard.document.id}&mode=all`)}>
                 Review values
               </Button>
             </div>
@@ -464,12 +484,13 @@ export function DocumentInbox() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          {/* A list that failed to load is not an empty library: the error card above is the answer. */}
           {isLoading || highlightsLoading ? (
             <div className="p-8 text-center text-ink-secondary">
               <Loader2 className="w-6 h-6 motion-safe:animate-spin mx-auto mb-2" />
               Loading documents...
             </div>
-          ) : documents.length === 0 ? (
+          ) : documents.length === 0 && !error ? (
             <EmptyState
               icon={FileText}
               title="Your library is empty"

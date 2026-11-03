@@ -531,7 +531,7 @@ test.describe('UI-PALETTE', () => {
   test('HC-UIPAL-005 (G10, cold): the first open, with the chunk and the data still to fetch, is still too', async ({ page }) => {
     await openApp(page);
     // /inbox's rows carry data-t0 (UI-PG-DOCUMENTS), so an overlay probe that starts during the route's own entrance
-    // fade reads them at opacity 0.85-0.92. Wait for the fade as settleRoute (ui-shell.spec.ts) does: the same
+    // fade reads them at opacity 0.85-0.96. Wait for the fade as settleRoute (ui-shell.spec.ts) does: the same
     // condition, no fixed sleep. The selectors are gates.ts' ROUTE_CONTAINER_SELECTOR and ROUTE_FALLBACK_SELECTOR.
     await expect
       .poll(

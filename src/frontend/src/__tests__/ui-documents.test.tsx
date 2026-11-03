@@ -722,6 +722,85 @@ describe('HC-UIDOC-006 the import card commits with its row', () => {
     expect(screen.getByText('Failed to load documents')).toBeInTheDocument();
   });
 
+  it('HC-UIDOC-006: a second import keeps the first card until the list has the second row, then swaps them in one render', async () => {
+    // Would not notice: a card that is replaced by something other than the second import (the swap is read by the two
+    // file names). The first import has no card to replace, so the tests above cannot see this. Read in review on a
+    // production build: the old card left when the import resolved, and the rows moved up, then down again.
+    // RED before this round: the old card was gone the moment the second import resolved.
+    const user = userEvent.setup();
+    (await importWithHeldList(user)).open();
+    await screen.findByText(/document imported: fresh\.pdf/i);
+    apiUpload.mockResolvedValueOnce(importResponse({ doc: { id: 'new-2', source: 'second.pdf' } }) as never);
+    documents = [makeDoc({ id: 'new-2', source: 'second.pdf' }), ...documents];
+    const held = gate();
+    listGate = held.wait;
+    await upload(user, 'second.pdf');
+    await waitFor(() => expect(screen.queryByText('Importing document...')).not.toBeInTheDocument());
+    await act(async () => {});
+    expect(screen.getByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+    expect(screen.queryByText(/document imported: second\.pdf/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'second.pdf' })).not.toBeInTheDocument();
+    held.open();
+    await screen.findByText(/document imported: second\.pdf/i);
+    // In the same render as the new card: the row is there and the old card is gone.
+    expect(screen.getByRole('heading', { name: 'second.pdf' })).toBeInTheDocument();
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-006: a retry after a failed import keeps the alert until the list has the new row, then drops it in one render', async () => {
+    // Would not notice: an alert that is hidden by CSS (it looks for the role). The failed attempt resolves first, so
+    // the alert is on screen before the retry starts.
+    // RED before this round: the alert left when the retry resolved, a render before the row.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockRejectedValueOnce(new api.ApiError(400, 'Bad Request', 'Unsupported file type'));
+    await upload(user, 'fresh.pdf');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unsupported file type');
+    apiUpload.mockResolvedValueOnce(fresh() as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    const held = gate();
+    listGate = held.wait;
+    await upload(user, 'fresh.pdf');
+    await waitFor(() => expect(screen.queryByText('Importing document...')).not.toBeInTheDocument());
+    await act(async () => {});
+    expect(screen.getByRole('alert')).toHaveTextContent('Unsupported file type');
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+    held.open();
+    await screen.findByText(/document imported: fresh\.pdf/i);
+    expect(screen.getByRole('heading', { name: 'fresh.pdf' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-011: a retry that succeeds drops the alert even when the list refresh fails, and the result shows', async () => {
+    // Would not notice: a card that never shows. Conservative first: the alert says the import failed, and the
+    // retry worked, so once the refresh has ended (it failed) the alert goes and the result shows.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockRejectedValueOnce(new api.ApiError(400, 'Bad Request', 'Unsupported file type'));
+    await upload(user, 'fresh.pdf');
+    await screen.findByRole('alert');
+    apiUpload.mockResolvedValueOnce(fresh() as never);
+    listFails = true;
+    await upload(user, 'fresh.pdf');
+    expect(await screen.findByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+    expect(screen.queryByText(/import failed: fresh\.pdf/i)).not.toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-006: a second failed import replaces the alert and a failure after a success keeps the card', async () => {
+    // Would not notice: an alert that changes height with its text (the rects are read in the e2e half).
+    const user = userEvent.setup();
+    (await importWithHeldList(user)).open();
+    await screen.findByText(/document imported: fresh\.pdf/i);
+    apiUpload.mockRejectedValueOnce(new api.ApiError(400, 'Bad Request', 'Unsupported file type'));
+    await upload(user, 'bad.pdf');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unsupported file type');
+    expect(screen.getByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+    apiUpload.mockRejectedValueOnce(new api.ApiError(413, 'Too Large', 'big'));
+    await upload(user, 'bad2.pdf');
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('This file is too large to import.'));
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+  });
+
   it('HC-UIDOC-006: after Remove, focus moves to the neighbour without scrolling the page', async () => {
     // Would not notice: a scroll the browser starts for another reason. jsdom does not scroll, so this reads the
     // call: focus() must carry preventScroll, because the page scrolls smoothly (globals.css) and the scroll slides
@@ -746,6 +825,30 @@ describe('HC-UIDOC-006 the import card commits with its row', () => {
     expect(calls.every(([options]) => (options as FocusOptions).preventScroll === true)).toBe(true);
     const last = focus.mock.instances[focus.mock.calls.length - 1] as unknown as HTMLElement;
     expect(last.getAttribute('aria-label')).toBe('More options');
+  });
+
+  it('HC-UIDOC-006: removing the only row focuses Import Document and lets the page scroll to it', async () => {
+    // Would not notice: the scroll itself (jsdom does not scroll); the e2e HC-UIDOC-013 reads the position at 320x640.
+    // With no neighbour row nothing takes the removed row's place, so there is no slide to prevent, and a focus() that
+    // may not scroll leaves the button above the viewport (top -321 at scrollY 542, measured in review).
+    // RED before this round: the fallback focus carried preventScroll too.
+    documents = [makeDoc({ id: 'd1', source: 'one.pdf' })];
+    apiDelete.mockImplementation((async (path: string) => {
+      documents = documents.filter((d) => `/documents/${d.id}` !== path);
+    }) as never);
+    const user = userEvent.setup();
+    await renderLoaded('one.pdf');
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    await openRowMenu(user, rowOf('one.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    focus.mockClear();
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /import document/i })).toHaveFocus());
+    const onImport = focus.mock.calls.filter(
+      (_call, index) => (focus.mock.instances[index] as unknown as HTMLElement).textContent?.includes('Import Document')
+    );
+    expect(onImport.length).toBeGreaterThan(0);
+    expect(onImport.every(([options]) => (options as FocusOptions | undefined)?.preventScroll !== true)).toBe(true);
   });
 });
 
@@ -1033,6 +1136,30 @@ describe('HC-UIDOC-007 empty state', () => {
     await user.click(action);
     expect(clicks).toHaveBeenCalledTimes(1);
   });
+
+  for (const [status, text] of [
+    [403, 'Access denied'],
+    [500, 'Failed to load documents'],
+  ] as const) {
+    it(`HC-UIDOC-007: a list that failed with ${status} says so and does not call the library empty`, async () => {
+      // Would not notice: the "0 total" badge, which still reads 0 (not changed here). The patient must not be told
+      // the library is empty when the list never loaded: the title, the sentence and the button are the empty
+      // state's, and the error card above them is the answer.
+      // RED before this round: the empty state showed beside the error.
+      documents = [makeDoc()];
+      apiGet.mockImplementation((async (path: string) => {
+        if (path.startsWith('/documents/highlights/summary')) return [];
+        if (path.startsWith('/pinboards')) return [];
+        throw new api.ApiError(status, 'Failed', 'list failed');
+      }) as never);
+      renderInbox();
+      expect(await screen.findByText(new RegExp(text))).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument());
+      expect(screen.queryByText('Your library is empty')).not.toBeInTheDocument();
+      expect(screen.queryByText(/no documents yet/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Choose a file' })).not.toBeInTheDocument();
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

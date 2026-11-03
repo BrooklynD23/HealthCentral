@@ -50,6 +50,7 @@ const LONG_NAME =
 const SECOND_NAME = 'Alex Rivera lipid panel, August';
 const THIRD_NAME = 'Alex Rivera lab report, March';
 const NEW_NAME = 'new-cbc-report.pdf';
+const AGAIN_NAME = 'second-cbc-report.pdf';
 
 function makeDoc(over: Partial<Document>): Document {
   return {
@@ -243,13 +244,18 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
       });
       return;
     }
+    // Every import gets its own id, so a second import, or a retry after a failed one, is a different document from
+    // the first. A mock that answered every import with one document hid the three-position jump a second import
+    // made (the first is doc-new-0004, the second doc-new-0005). The first import keeps NEW_NAME whatever file was
+    // sent (the long-name tests send a name that is already a fixture row); a later one takes the uploaded name.
+    const uploaded = /filename="([^"]+)"/.exec(request.postData() ?? '')?.[1] ?? NEW_NAME;
     const document = makeDoc({
-      id: 'doc-new-0004',
-      source: NEW_NAME,
+      id: `doc-new-${String(3 + control.imports).padStart(4, '0')}`,
+      source: control.imports === 1 ? NEW_NAME : uploaded,
       doc_type: 'lab_pdf',
       status: 'parsed',
       extraction_confidence: 0.62,
-      imported_at: '2026-11-02T08:00:00Z',
+      imported_at: `2026-11-02T08:${String(control.imports).padStart(2, '0')}:00Z`,
     });
     control.rows.unshift(document);
     const body: DocumentImportResponse = {
@@ -405,6 +411,7 @@ function jumpFailures(run: FrameRun, options: { windowMs?: number } = {}): strin
     let seenAt = -1;
     let lostAt = -1;
     let badOpacity = '';
+    let returned = '';
     for (let i = 0; i < frames.length; i++) {
       const item = frames[i].items[name];
       if (!item) {
@@ -412,6 +419,10 @@ function jumpFailures(run: FrameRun, options: { windowMs?: number } = {}): strin
         continue;
       }
       if (seenAt < 0) seenAt = i;
+      if (lostAt >= 0 && !returned) {
+        // Gone and back is two moves, or a spinner where the list was: not a before and an after.
+        returned = `left the screen at ${(frames[lostAt].t - origin).toFixed(0)} ms and came back at ${(frames[i].t - origin).toFixed(0)} ms`;
+      }
       const at = `${(frames[i].t - origin).toFixed(0)} ms`;
       if (!badOpacity && Math.abs(item.opacity - 1) > OPACITY_EPSILON) {
         badOpacity = `effective opacity ${item.opacity.toFixed(2)} at ${at}`;
@@ -424,6 +435,7 @@ function jumpFailures(run: FrameRun, options: { windowMs?: number } = {}): strin
       }
     }
     if (badOpacity) failures.push(`${name}: ${badOpacity} (must be 1 on every sample: no fade)`);
+    if (returned) failures.push(`${name}: ${returned}`);
     // An item that was on screen when the event began holds a position before and one after. One that appears
     // during the event appears where it will stay.
     const allowed = seenAt === 0 ? 2 : 1;
@@ -1315,8 +1327,9 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
   // Would not notice, for all of them: (1) a motion shorter than one frame, which no sampler at frame rate can see;
   // (2) a gap the sampler could not fill: such a run fails closed, so a loaded box fails the run instead of passing
   // it, which is why these are timing gates; (3) scroll: rects are read relative to the viewport, a focus() that
-  // scrolls <main> moves every row at once, and that single move reads as the one allowed jump. The list here is
-  // three rows in 900 px, so no event scrolls; a long list is not covered; (4) a duplicate warning or a handoff card
+  // scrolls the page (the scroller is the window, not <main>) moves every row at once, and that single move reads as
+  // the one allowed jump. The list here is three rows in 900 px, so no event scrolls; a long list is not covered
+  // (HC-UIDOC-013 reads the focus position at 320x640, not the rows); (4) a duplicate warning or a handoff card
   // that moves while a row stays put is read only through the T0 hooks (alert, handoff, scanned): the duplicate
   // warning has no hook, so it is covered through the rows it pushes, not on its own; (5) rows that were never on
   // screen: only the three fixture rows and the one new row are tracked.
@@ -1510,6 +1523,86 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     });
   });
 
+  test('HC-UIDOC-006 (o): a second import in one visit jumps once: the new card replaces the old in the frame the new row arrives', async ({
+    page,
+  }) => {
+    // Would not notice: what (g) cannot see, a card that is replaced when the import resolves instead of when the
+    // list answers. (g) runs a first import, where there is no card to replace; here the old card leaves a frame
+    // early, the rows below it move up, and the new card and row move them down again: three positions.
+    // The mock gives each import its own id and name.
+    const { docs, release } = await inboxWithHeldImport(page);
+    release();
+    await expect(page.locator(HANDOFF)).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await waitForEffectiveOpacity(page, ROW);
+    const again = { ...NEW_FILE, name: AGAIN_NAME };
+    const releaseSecond = await startHeldImport(page, docs, again);
+    await expectOneJump(page, 'second import', async () => {
+      releaseSecond();
+      await expect(page.getByText(`Document imported: ${AGAIN_NAME}`)).toBeVisible();
+      await expect(rowByName(page, AGAIN_NAME)).toBeVisible();
+    });
+    expect(docs.imports).toBe(2);
+    await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toHaveCount(0);
+  });
+
+  test('HC-UIDOC-006 (p): a retry after a failed import jumps once: the alert leaves in the frame the new card and row arrive', async ({
+    page,
+  }) => {
+    // Would not notice: the same as (o), for the alert. The alert used to leave when the retry resolved, a frame before
+    // the row, so the rows moved up by the alert and down by the card and the row.
+    const { docs, release } = await inboxWithHeldImport(page, { fail: { status: 400, detail: 'Unsupported file type' } });
+    release();
+    await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+    await waitForEffectiveOpacity(page, ROW);
+    docs.answer = {};
+    const releaseRetry = await startHeldImport(page, docs);
+    await expectOneJump(page, 'retry after a failed import', async () => {
+      releaseRetry();
+      await expect(page.locator(HANDOFF)).toBeVisible();
+      await expect(rowByName(page, NEW_NAME)).toBeVisible();
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    });
+    expect(docs.imports).toBe(2);
+  });
+
+  test('HC-UIDOC-013: after Remove of the only row, keyboard focus on Import Document is inside the viewport at 320x640', async ({
+    page,
+  }) => {
+    // Would not notice: a focus that is on screen for a frame and scrolls away again (it polls until the smooth scroll
+    // the focus starts has ended, then reads once). Not a timing gate: the position is read after the scroll, not
+    // during it. The page is made tall by an import into an empty library with a scanned-page notice and a duplicate
+    // warning, then scrolled to the bottom, so the Import Document button at the top is above the viewport.
+    // RED before this round: Remove focused the button with preventScroll, so it stayed above the viewport (top -321
+    // at scrollY 542, measured in review).
+    await page.setViewportSize({ width: 320, height: 640 });
+    const { docs } = await setup(page, []);
+    docs.answer = { ...DUPLICATE, pages_without_text: [1, 2, 3] };
+    await openInbox(page, { empty: true });
+    await fileInput(page).setInputFiles(NEW_FILE);
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await expect(page.getByText('Possible duplicate upload')).toBeVisible();
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await waitForEffectiveOpacity(page, ROW);
+    const importButton = page.getByRole('button', { name: /import document/i });
+    const before = await importButton.evaluate((el) => el.getBoundingClientRect().bottom);
+    expect(before, 'the button starts above the viewport').toBeLessThan(0);
+    await openDeleteDialog(page, NEW_NAME);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+    await expect(importButton).toBeFocused();
+    await expect
+      .poll(
+        () =>
+          importButton.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            return box.top >= 0 && box.bottom <= window.innerHeight;
+          }),
+        { timeout: 5_000, message: 'Import Document has focus and is inside the viewport' }
+      )
+      .toBe(true);
+  });
+
   test('HC-UIDOC-012: a failing highlight summary still shows the rows, and the delay App.tsx retry: 1 adds is printed', async ({
     page,
   }) => {
@@ -1688,6 +1781,13 @@ test.describe('HC-UIDOC-006 jumpFailures (pure)', () => {
     expect(jumpFailures(run(stays))).toEqual([]);
     const moves = { ...stays, 'row new': [...Array<null>(5).fill(null), ...still(100, 10), ...still(150, 25)] };
     expect(jumpFailures(run(moves)).join('\n')).toMatch(/row new: held 2 positions \(at most 1\)/);
+  });
+
+  test('HC-UIDOC-006: a row that vanishes during the event and comes back fails', () => {
+    // Would not notice: a row that is hidden for less than one sample (a motion shorter than a frame). Found in review:
+    // a list that swaps to a spinner during the refetch used to pass, because the row came back at its old position.
+    const rows = { 'row a': [...still(100, 10), ...Array<null>(5).fill(null), ...still(100, 25)], 'row b': [...still(50, 5), ...still(90, 35)] };
+    expect(jumpFailures(run(rows)).join('\n')).toMatch(/row a: left the screen at \d+ ms and came back at \d+ ms/);
   });
 
   test('HC-UIDOC-006: a row that leaves with the jump holds one position and passes', () => {
