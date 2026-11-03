@@ -313,7 +313,12 @@ export function ProfileSetup() {
   }
 
   return (
-    <div data-setup-page="" className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16">
+    <div
+      data-setup-page=""
+      className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16"
+      // Once unlocked the page only waits to be lifted away: no focus, no input, in the unlock card or the create one.
+      {...(leavingProfiles ? { inert: '' } : {})}
+    >
       <div className="mx-auto w-full max-w-lg">
         {restoreNotice && (
           <div className="mb-6">
@@ -361,12 +366,7 @@ export function ProfileSetup() {
         </Card>
 
         {(hasProfiles || leavingProfiles) && !isCreating && (
-          <Card
-            ref={unlockPanelRef}
-            className="mb-6"
-            // Once unlocked the card only waits to be lifted away: no focus, no input.
-            {...(leavingProfiles ? { inert: '' } : {})}
-          >
+          <Card ref={unlockPanelRef} className="mb-6">
             <CardContent className="p-6 space-y-4">
               <h2 className="font-display text-xl font-semibold text-ink">
                 Unlock your profile
@@ -433,11 +433,13 @@ export function ProfileSetup() {
           </Card>
         )}
 
-        {profilesPending ? null : (
+        {/* While leaving, the create card and the footer stay as they were: a shorter page could clamp the scroll and
+            move the panel away from the rect the ghost copied. */}
+        {profilesPending && !leavingProfiles ? null : (
           <>
             <Card>
               <CardContent className="p-6 space-y-4">
-                {hasProfiles && !showCreate ? (
+                {(hasProfiles || leavingProfiles) && !showCreate ? (
                   <Button
                     variant="secondary"
                     size="lg"
@@ -485,7 +487,8 @@ export function ProfileSetup() {
                       <div className="relative pb-4">
                         <Input
                           id="profile-password"
-                          type={showPassword ? 'text' : 'password'}
+                          // The toggle is disabled for the whole request, so a revealed password must not stay readable meanwhile.
+                          type={showPassword && !isCreating ? 'text' : 'password'}
                           label="Password"
                           placeholder="Create a secure password"
                           value={password}

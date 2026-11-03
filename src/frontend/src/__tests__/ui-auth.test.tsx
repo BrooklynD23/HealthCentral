@@ -256,6 +256,32 @@ describe('HC-UIAUTH-002: no progress that is not tied to the real request', () =
     expect(await screen.findByTestId('recovery-code')).toHaveTextContent(CODE);
   });
 
+  it('a revealed password is hidden again while the POST is pending, and shown again if the request fails', async () => {
+    const user = userEvent.setup({ delay: null });
+    let rejectPost: (reason: unknown) => void = () => undefined;
+    vi.mocked(api.apiPost).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectPost = reject;
+      })
+    );
+    renderPage(<ProfileSetup />);
+    await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
+    const field = screen.getByPlaceholderText('Create a secure password');
+    await user.type(field, PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Show password' }));
+    expect(field).toHaveAttribute('type', 'text');
+
+    await user.click(screen.getByRole('button', { name: /create your profile/i }));
+    await screen.findByRole('button', { name: /creating your profile…/i });
+    // The toggle that would hide it is disabled for the whole request, so the field must not stay readable.
+    expect(field).toHaveAttribute('type', 'password');
+
+    rejectPost(new Error('Server unavailable'));
+    await screen.findByText(/server unavailable/i);
+    // The user's choice survives: the field is as they left it.
+    expect(field).toHaveAttribute('type', 'text');
+  });
+
   it('a failed request puts the link and the fields back, and the failure is a data-t0 alert', async () => {
     const user = userEvent.setup({ delay: null });
     vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Server unavailable'));
@@ -320,7 +346,7 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
   }
 
   /**
-   * Unlocks with navigate mocked (the page stays mounted), then unmounts the page the way the route swap does (the cache clear removes the panel earlier, which must not start it):
+   * Unlocks with navigate mocked (the page stays mounted), then unmounts the page the way the route swap does (the cache clear empties the profile list earlier, which must not start it):
    * the Lift starts when the page leaves the document.
    */
   async function unlock(user: ReturnType<typeof userEvent.setup>, options: { refetchPends?: boolean } = {}) {
@@ -376,6 +402,23 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
     // It is still a form with a password field, so it must not take input or focus any more.
     expect(heading.closest('[inert]')).not.toBeNull();
     expect(screen.getByLabelText('Unlock password')).toHaveValue('');
+  });
+
+  it('keeps the create card and the footer as they were, and locks the whole page, after the cache clear', async () => {
+    const user = userEvent.setup({ delay: null });
+    fakeAnimate();
+    await unlock(user, { refetchPends: true });
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.length).toBeGreaterThanOrEqual(2));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The page must not collapse under the ghost (a scroll clamp would move the panel away from the rect it
+    // copied), and the create card must not turn into the form (it would play S1 under the Lift).
+    const createButton = screen.getByRole('button', { name: 'Create a new profile' });
+    expect(screen.queryByRole('heading', { name: 'Set up your profile' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Profile Name')).not.toBeInTheDocument();
+    expect(screen.getByText(/your data is stored locally and never uploaded/i)).toBeInTheDocument();
+    // The whole page is inert, so the create card and its button take no input either.
+    expect(createButton.closest('[inert]')).not.toBeNull();
+    expect(createButton.closest('[inert]')).toBe(document.querySelector('[data-setup-page]'));
   });
 
   it('the ghost sits below the Safety Rail (z-30), the tab bar and the top bar (z-40), uses the plain card border and no shadow, and the motion tokens', async () => {

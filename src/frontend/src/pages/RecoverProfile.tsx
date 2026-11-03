@@ -154,7 +154,6 @@ export function RecoverProfile() {
 
                 {error && (
                   <p
-                    id="recover-error"
                     role="alert"
                     data-t0=""
                     className="text-sm text-status-critical"

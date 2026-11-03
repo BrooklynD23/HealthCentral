@@ -53,8 +53,9 @@ export function RecoveryCodeCard({
           print it, and keep it somewhere safe and private.
         </p>
 
-        {/* Groups of 4 never split across lines (no break-all); the line breaks only after a hyphen. textContent
-            stays the code exactly, hyphens included. T0: the code never moves. */}
+        {/* Groups of 4 never split across lines (no break-all): a line breaks only between groups, on either side of
+            a hyphen, so a line may begin with one. textContent stays the code exactly, hyphens included. T0: the
+            code never moves. */}
         <div
           className="rounded-xl bg-surface-muted p-4 font-mono text-lg tracking-wider select-all text-center"
           data-testid="recovery-code"
