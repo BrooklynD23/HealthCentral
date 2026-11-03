@@ -43,4 +43,15 @@ variant(
     ("    const t = Math.round(tx);\n",
      "    const t = Math.round(tx);\n    // VARIANT v5: a bare stamp push; no style, layout or DOM read\n    if (t >= 0) return { t, pathname: '', route: null, nodes: [], expectedHits: config.expected.map(() => false), dur: performance.now() - tx, n: 0 };\n"),
 )
+
+# Task 2 mutant: the navigation settle removed from stillnessProbe (Task 1's RED set must return). Skipped when the
+# base is a pre-fix gates.ts that has no settle (the RED copy), so Task 1's wraps still run from the same script.
+if "await settleStartPage(page)" in base:
+    variant(
+        "nosettle",
+        ("  if (kind === 'navigation') await settleStartPage(page);\n",
+         "  // VARIANT nosettle: the settle before startSampler removed (deliberate break)\n"),
+    )
+else:
+    open(f"{outdir}/gates.nosettle.ts", "w").write(base)
 print("ok")

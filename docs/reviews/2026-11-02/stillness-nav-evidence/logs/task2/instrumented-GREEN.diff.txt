@@ -1,0 +1,45 @@
+488a489,491
+>   /** MEASUREMENT ONLY: snapshot() duration in ms and [data-t0] nodes visited */
+>   dur?: number;
+>   n?: number;
+546c549,550
+<     const t = Math.round(performance.now());
+---
+>     const tx = performance.now(); // MEASUREMENT ONLY
+>     const t = Math.round(tx);
+581c585
+<     return { t, pathname: location.pathname, route, nodes, expectedHits };
+---
+>     return { t, pathname: location.pathname, route, nodes, expectedHits, dur: performance.now() - tx, n: nodes.length };
+793a798,799
+>   /** MEASUREMENT ONLY: [kind, Date.now(), url path] for every request event */
+>   events: Array<[string, number, string]>;
+802c808
+<   const tracker: NetworkTracker = { inFlight, lastEventAt: Date.now(), stop: () => undefined };
+---
+>   const tracker: NetworkTracker = { inFlight, lastEventAt: Date.now(), events: [], stop: () => undefined };
+804a811
+>     tracker.events.push(['start', tracker.lastEventAt, new URL(request.url()).pathname]); // MEASUREMENT ONLY
+808a816
+>     tracker.events.push(['end', tracker.lastEventAt, new URL(request.url()).pathname]); // MEASUREMENT ONLY
+893a902,903
+>   let measWall = 0; // MEASUREMENT ONLY
+>   let measEvents: Array<[string, number, string]> = []; // MEASUREMENT ONLY
+899a910
+>       measWall = triggeredWall; // MEASUREMENT ONLY
+915a927
+>       measEvents = network?.events ?? []; // MEASUREMENT ONLY
+926a939,951
+>   // MEASUREMENT ONLY: probe cost per run.
+>   {
+>     let mg = 0, gi = -1, maxDur = 0, maxN = 0, sumDur = 0, cnt = 0;
+>     snaps.forEach((s, i) => {
+>       if (s.t < triggeredAt) return;
+>       cnt++; sumDur += s.dur ?? 0;
+>       maxDur = Math.max(maxDur, s.dur ?? 0); maxN = Math.max(maxN, s.n ?? 0);
+>       if (i > 0 && s.t - snaps[i - 1].t > mg) { mg = s.t - snaps[i - 1].t; gi = i; }
+>     });
+>     const f = (x: number | undefined) => (x ?? NaN).toFixed(1);
+>     console.log(`PROBECOST\t${snaps[snaps.length - 1]?.pathname}\tmaxGap=${mg}\tdurBeforeGap=${f(gi > 0 ? snaps[gi - 1].dur : undefined)}\tdurAtGap=${f(gi >= 0 ? snaps[gi].dur : undefined)}\tmaxDur=${f(maxDur)}\tmeanDur=${f(cnt ? sumDur / cnt : 0)}\tnodesMax=${maxN}\tnodesAtGap=${gi >= 0 ? snaps[gi].n : -1}\tpostSamples=${cnt}\tgapStartsAtMs=${gi > 0 ? snaps[gi - 1].t - triggeredAt : -1}\tgapEndsAtMs=${gi >= 0 ? snaps[gi].t - triggeredAt : -1}\twindowMs=${snaps[snaps.length - 1].t - triggeredAt}\ttriggeredAt=${triggeredAt}`);
+>     console.log(`REQLOG\t${measEvents.map(([k, at, p]) => `${k}:${at - measWall}:${p}`).join(' ')}`);
+>   }

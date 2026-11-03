@@ -449,6 +449,14 @@ export class StillnessError extends Error {
   }
 }
 
+/** The start page of a navigation probe never settled (see settleStartPage). Its own name, so it is never read as a gap failure. */
+export class StillnessSettleError extends StillnessError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StillnessSettleError';
+  }
+}
+
 interface NodeSnap {
   id: number;
   label: string;
@@ -820,9 +828,63 @@ function trackRequests(page: Page): NetworkTracker {
 }
 
 /**
+ * Waits for the page a navigation starts from to settle: no request in flight for NETWORK_IDLE_MS and the route
+ * container's entrance fade done (settleRoute's condition in ui-gates.spec.ts), both true at the same moment.
+ * It runs before the sampler starts, so the start page's own pending render is not in the gap window. A page
+ * that does not settle within LAZY_IDLE_TIMEOUT_MS throws StillnessSettleError; it never proceeds.
+ *
+ * The tracker is attached first and then seeded from page.requests(): a listener only sees requests that start
+ * after it, and the start page's own fetches began before the probe. Known limits: page.requests() holds the
+ * last 100 requests only, and a seeded request counts as done once its response headers arrive, so a pre-probe
+ * request whose body never ends is not detected.
+ */
+async function settleStartPage(page: Page): Promise<void> {
+  const network = trackRequests(page);
+  try {
+    for (const request of await page.requests()) {
+      if (STREAMING_TYPES.has(request.resourceType()) || request.failure() !== null) continue;
+      network.inFlight.add(request);
+      void request
+        .response()
+        .catch(() => null)
+        .finally(() => {
+          if (network.inFlight.delete(request)) network.lastEventAt = Date.now();
+        });
+    }
+    const quiet = () => network.inFlight.size === 0 && Date.now() - network.lastEventAt >= NETWORK_IDLE_MS;
+    const deadline = Date.now() + LAZY_IDLE_TIMEOUT_MS;
+    let opacity = Number.NaN;
+    for (;;) {
+      if (quiet()) {
+        opacity = await page.evaluate(
+          ({ container, fallback }) => {
+            const el = document.querySelector(container) ?? document.querySelector(fallback);
+            return el ? parseFloat(getComputedStyle(el).opacity) : Number.NaN;
+          },
+          { container: ROUTE_CONTAINER_SELECTOR, fallback: ROUTE_FALLBACK_SELECTOR }
+        );
+        if (opacity >= SETTLED_OPACITY && quiet()) return;
+      }
+      if (Date.now() >= deadline) break;
+      await sleep(20);
+    }
+    const pending = [...network.inFlight].map((request) => request.url());
+    throw new StillnessSettleError(
+      `stillnessProbe: the start page did not settle within ${LAZY_IDLE_TIMEOUT_MS} ms ` +
+        `(needs no request in flight for ${NETWORK_IDLE_MS} ms and the route element at opacity >= ${SETTLED_OPACITY}); ` +
+        `in flight: ${pending.length > 0 ? pending.join(', ') : 'none'}; ` +
+        (Number.isNaN(opacity) ? 'no route element' : `last route opacity ${opacity}`)
+    );
+  } finally {
+    network.stop();
+  }
+}
+
+/**
  * Samples every STILLNESS_SAMPLE_MS on the page's clock while `trigger` runs and
  * for the window after it, then throws a StillnessError listing every failure.
- * Resolves with a summary when the page stays still.
+ * Resolves with a summary when the page stays still. A navigation first waits for its start page to settle
+ * (settleStartPage), so the start page's own pending render is not counted against the trigger.
  *
  * The sampler runs in the page, so a full document load ends it and the probe
  * then fails with "lost its sampler". Use the probe for interactions and for
@@ -831,6 +893,7 @@ function trackRequests(page: Page): NetworkTracker {
 export async function stillnessProbe(page: Page, options: StillnessOptions): Promise<StillnessReport> {
   const kind = options.kind ?? 'interaction';
   const windowMs = options.windowMs ?? STILLNESS_WINDOW_MS;
+  if (kind === 'navigation') await settleStartPage(page);
   await page.evaluate(startSampler, { expected: options.expected, intervalMs: STILLNESS_SAMPLE_MS });
 
   let dump: SamplerDump | null = null;

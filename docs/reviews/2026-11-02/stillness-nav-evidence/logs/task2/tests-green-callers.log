@@ -1,0 +1,472 @@
+(node:1904711) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1A[2K[2m[WebServer] [22mINFO:     Started server process [1905013]
+
+[1A[2K[2m[WebServer] [22mINFO:     Waiting for application startup.
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker triglycerides already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker glucose_fasting already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker wbc already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker platelets already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker tsh already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker creatinine already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Revised 0 installed biomarker text(s)
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Saturated Fat Intake for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Increase Soluble Fiber for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Quit Smoking for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Refined Carbohydrates for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Physical Activity for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Vitamin D Supplementation for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Safe Sun Exposure for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship total_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship hdl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship triglycerides -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship tsh -> free_t4 already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship glucose_fasting -> hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Seeding complete: {'biomarkers': 0, 'interventions': 0, 'relationships': 0}
+
+[1A[2K[2m[WebServer] [22mINFO:modules.backup_scheduler:Backup scheduler started
+
+[1A[2K[2m[WebServer] [22mINFO:modules.platform_notifications:Notification service initialized with desktop_notifier
+
+[1A[2K[2m[WebServer] [22mINFO:modules.notification_scheduler:Notification scheduler started
+[2m[WebServer] [22mINFO:     Application startup complete.
+
+[1A[2K[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+[1A[2K[2m[WebServer] [22mINFO:core.audit:AUDIT: profile.login - profile.login
+
+[1A[2K[2m[WebServer] [22mINFO:api.profiles:Profile logged in: fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Running profile database migrations for data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db...
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Context impl SQLiteImpl.
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Will assume non-transactional DDL.
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Profile database at data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db already at head revision 016_strict_safety_mode.
+
+[1A[2K[2m[WebServer] [22mINFO:core.profile_database:Opened encrypted database for profile fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.auth:Opened profile database for fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/login", "client_ip": "127.0.0.1", "status": 200, "duration_ms": 2747.34, "correlation_id": "62610a3f-81fb-42a8-aef6-925ac19b1069"}
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/test/reset", "client_ip": "127.0.0.1", "status": 204, "duration_ms": 731.01, "correlation_id": "8054fde5-ddfd-402a-a3db-dfd0632134b9"}
+
+
+Running 78 tests using 1 worker
+
+[1A[2K(node:1905475) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[1/78] [chromium] › e2e/ui-care.spec.ts:219:3 › HC-UIFU-002 and HC-UIFU-001 end to end › HC-UIFU-002: /care-tasks shows one h1 that reads "Follow-ups"
+[1A[2K[2/78] [chromium] › e2e/ui-care.spec.ts:230:3 › HC-UIFU-002 and HC-UIFU-001 end to end › HC-UIFU-001: Done shows the status toast; Undo restores the task and PATCHes the previous status
+[1A[2K[3/78] [chromium] › e2e/ui-care.spec.ts:254:3 › HC-UIFU-002 and HC-UIFU-001 end to end › HC-UIFU-001: Ignore on a task in review shows the toast; Undo PATCHes needs_review back
+[1A[2K[4/78] [chromium] › e2e/ui-care.spec.ts:279:3 › Gate G on /care-tasks › Gate G1 /care-tasks has no serious or critical axe violation in light or dark
+[1A[2K[5/78] [chromium] › e2e/ui-care.spec.ts:291:3 › Gate G on /care-tasks › Gate G2 /care-tasks: CLS stays under 0.1 over the load, the Done click and Undo
+[1A[2K[6/78] [chromium] › e2e/ui-care.spec.ts:306:3 › Gate G on /care-tasks › Gate G3 /care-tasks: the Done click and the Undo click each stay under 200 ms with CPU throttled x4
+[1A[2K[7/78] [chromium] › e2e/ui-care.spec.ts:325:3 › Gate G on /care-tasks › Gate G5 /care-tasks: no element has a transform 50 ms after the Done click or the Undo click under reduced motion
+[1A[2K[8/78] [chromium] › e2e/ui-care.spec.ts:348:5 › Gate G on /care-tasks › Gate G6 /care-tasks: no horizontal scroll at 390x844, before and after Done
+[1A[2K[9/78] [chromium] › e2e/ui-care.spec.ts:348:5 › Gate G on /care-tasks › Gate G6 /care-tasks: no horizontal scroll at 320x640, before and after Done
+[1A[2K[10/78] [chromium] › e2e/ui-care.spec.ts:363:3 › Gate G on /care-tasks › Gate G7 /care-tasks: no console error, no non-localhost request and no unmocked API call
+[1A[2K[11/78] [chromium] › e2e/ui-care.spec.ts:375:3 › Gate G on /care-tasks › Gate G9 /care-tasks: the Safety Rail is in the viewport at full opacity at first paint, after Done and after Undo
+[1A[2K[12/78] [chromium] › e2e/ui-care.spec.ts:400:3 › Gate G on /care-tasks › Gate G10 /care-tasks: the navigation to the page is still for the follow-up dates (stillnessProbe, navigation)
+[1A[2K[13/78] [chromium] › e2e/ui-care.spec.ts:423:3 › Gate G on /care-tasks › Gate G10 /care-tasks: the Done click is still for the follow-up dates (stillnessProbe, interaction)
+[1A[2K[14/78] [chromium] › e2e/ui-care.spec.ts:445:3 › Gate G on /care-tasks › Gate G10 /care-tasks: the Undo click is still for the follow-up dates (stillnessProbe, interaction)
+[1A[2K[15/78] [chromium] › e2e/ui-gates-sampler.spec.ts:70:1 › HC-UIG-007 (a) a 30 ms block inside one sampler read is not a sampling gap
+[1A[2K[chromium] › e2e/ui-gates-sampler.spec.ts:70:1 › HC-UIG-007 (a) a 30 ms block inside one sampler read is not a sampling gap
+HC-UIG-007 (a) report: {"samples":41,"postTriggerSamples":40,"maxGapMs":30,"elapsedMs":802,"nodes":1,"routeKey":null}
+
+[1A[2K[16/78] [chromium] › e2e/ui-gates-sampler.spec.ts:81:1 › HC-UIG-007 (b) a 60 ms block inside one sampler read is a sampling gap above 40 ms
+[1A[2K[chromium] › e2e/ui-gates-sampler.spec.ts:81:1 › HC-UIG-007 (b) a 60 ms block inside one sampler read is a sampling gap above 40 ms
+HC-UIG-007 (b) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 60 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+
+[1A[2K[17/78] [chromium] › e2e/ui-gates-sampler.spec.ts:128:1 › HC-UIG-007 (c) a ~55 ms block inside one sampler read during a navigation passes the 70 ms bound
+[1A[2K[chromium] › e2e/ui-gates-sampler.spec.ts:128:1 › HC-UIG-007 (c) a ~55 ms block inside one sampler read during a navigation passes the 70 ms bound
+HC-UIG-007 (c) report: {"samples":40,"postTriggerSamples":39,"maxGapMs":56,"elapsedMs":803,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[18/78] [chromium] › e2e/ui-gates-sampler.spec.ts:142:1 › HC-UIG-007 (d) a ~90 ms block during a navigation is a sampling gap above 70 ms
+[1A[2K[chromium] › e2e/ui-gates-sampler.spec.ts:142:1 › HC-UIG-007 (d) a ~90 ms block during a navigation is a sampling gap above 70 ms
+HC-UIG-007 (d) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 92 ms (must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms)
+
+[1A[2K[19/78] [chromium] › e2e/ui-gates-sampler.spec.ts:162:1 › HC-UIG-007 (e) a ~55 ms block inside one sampler read during an overlay open passes the 70 ms bound
+[1A[2K  1) [chromium] › e2e/ui-gates-sampler.spec.ts:162:1 › HC-UIG-007 (e) a ~55 ms block inside one sampler read during an overlay open passes the 70 ms bound 
+
+    StillnessError: stillnessProbe failed (1):
+      - only 8 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms
+
+       at support/gates.ts:944
+
+      942 |   const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
+      943 |   if (failures.length > 0) {
+    > 944 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+          |           ^
+      945 |   }
+      946 |   const last = snaps[snaps.length - 1];
+      947 |   return {
+        at stillnessProbe (/mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/support/gates.ts:944:11)
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates-sampler.spec.ts:166:18
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-callers/ui-gates-sampler-HC-UIG-00-b884d-open-passes-the-70-ms-bound-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-callers/ui-gates-sampler-HC-UIG-00-b884d-open-passes-the-70-ms-bound-chromium/error-context.md
+
+
+[1A[2K(node:1906886) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[20/78] [chromium] › e2e/ui-gates-sampler.spec.ts:176:1 › HC-UIG-007 (f) the same ~55 ms block with no kind (an interaction) still fails the 40 ms bound
+[1A[2K[chromium] › e2e/ui-gates-sampler.spec.ts:176:1 › HC-UIG-007 (f) the same ~55 ms block with no kind (an interaction) still fails the 40 ms bound
+HC-UIG-007 (f) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 57 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+
+[1A[2K[21/78] [chromium] › e2e/ui-gates-sampler.spec.ts:195:1 › HC-UIG-007 (g) a ~75 ms block during an overlay open is a sampling gap above 70 ms
+[1A[2K[chromium] › e2e/ui-gates-sampler.spec.ts:195:1 › HC-UIG-007 (g) a ~75 ms block during an overlay open is a sampling gap above 70 ms
+HC-UIG-007 (g) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 81 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)
+
+[1A[2K[22/78] [chromium] › e2e/ui-gates.spec.ts:105:1 › HC-UIG-001 noHorizontalScroll fails a 600 px block at 390 and passes a fitting one
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:105:1 › HC-UIG-001 noHorizontalScroll fails a 600 px block at 390 and passes a fitting one
+HC-UIG-001 600px block at 390: {"scrollWidth":600,"innerWidth":390,"ok":false}
+
+[1A[2KHC-UIG-001 300px block at 390: {"scrollWidth":390,"innerWidth":390,"ok":true}
+
+[1A[2K[23/78] [chromium] › e2e/ui-gates.spec.ts:130:1 › HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule ids
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:130:1 › HC-UIG-002 pre: /inbox renders under the mock API, and axe returns rule ids
+HC-UIG-002 pre served=3 unmocked=[]
+
+[1A[2KHC-UIG-002 pre axe rule ids: []
+
+[1A[2K[24/78] [chromium] › e2e/ui-gates.spec.ts:145:1 › HC-UIG-002 axeGate on /inbox reports no color-contrast
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:145:1 › HC-UIG-002 axeGate on /inbox reports no color-contrast
+HC-UIG-002 axe rule ids on /inbox: [] blocking=[]
+
+[1A[2K[25/78] [chromium] › e2e/ui-gates.spec.ts:195:1 › HC-UIG-003 pre: a nav click samples the route container and ends at opacity 1
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:195:1 › HC-UIG-003 pre: a nav click samples the route container and ends at opacity 1
+HC-UIG-003 pre samples (22): [[40,1],[88,1],[135,0.35],[160,0.570465],[201,0.920219],[240,0.977961],[280,0.995299],[320,0.99995],[361,1],[400,1],[440,1],[480,1],[520,1],[560,1],[600,1],[640,1],[680,1],[720,1],[760,1],[801,1],[841,1],[880,1]]
+
+[1A[2K[26/78] [chromium] › e2e/ui-gates.spec.ts:213:1 › HC-UIG-003 route container opacity after a nav click never drops below 0.3
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:213:1 › HC-UIG-003 route container opacity after a nav click never drops below 0.3
+HC-UIG-003 samples below 0.3 (0 of 21): []
+
+[1A[2K[27/78] [chromium] › e2e/ui-gates.spec.ts:231:1 › HC-UIG-004 consoleAndNetworkGuard fails a page that requests https://example.com
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:231:1 › HC-UIG-004 consoleAndNetworkGuard fails a page that requests https://example.com
+HC-UIG-004 guard report: {"consoleErrors":["Failed to load resource: net::ERR_FAILED"],"externalRequests":["https://example.com/pixel.png"],"unmockedApi":[]}
+
+[1A[2K[28/78] [chromium] › e2e/ui-gates.spec.ts:257:1 › HC-UIG-005 maxEventDuration returns a finite number for a click on /setup under CPU x4
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:257:1 › HC-UIG-005 maxEventDuration returns a finite number for a click on /setup under CPU x4
+HC-UIG-005 max event duration on /setup click at CPU x4: 136 ms
+
+[1A[2K[29/78] [chromium] › e2e/ui-gates.spec.ts:272:1 › HC-UIG-005 maxEventDuration reports a 120 ms busy click as >= 100 ms and ignores earlier events
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:272:1 › HC-UIG-005 maxEventDuration reports a 120 ms busy click as >= 100 ms and ignores earlier events
+HC-UIG-005 busy click: 136 ms; quick click after an earlier busy click: 32 ms
+
+[1A[2K[30/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (a) stillnessProbe fails: child of a container that fades from .35
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (a) stillnessProbe fails: child of a container that fades from .35
+HC-UIG-006 (a) rejected with: StillnessError: stillnessProbe failed (1):
+  - effective opacity 0.39 (must be 1) on [data-t0] p "Glucose 104 mg/dL" at 21 ms
+
+[1A[2K[31/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (b) stillnessProbe fails: inside a parent that translates 6 px
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (b) stillnessProbe fails: inside a parent that translates 6 px
+HC-UIG-006 (b) rejected with: StillnessError: stillnessProbe failed (1):
+  - getBoundingClientRect changed on [data-t0] p "Glucose 104 mg/dL": [0,16,1280,22.4] -> [0.7,16,1280,22.4] at 61 ms
+
+[1A[2K[32/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (c) stillnessProbe fails: popover that scales in from .96 (overlay rule)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (c) stillnessProbe fails: popover that scales in from .96 (overlay rule)
+HC-UIG-006 (c) rejected with: StillnessError: stillnessProbe failed (2):
+  - computed transform changed on [data-t0] div "Glucose 104 mg/dL": "none" -> "matrix(0.963344, 0, 0, 0.963344, 0, 0)" at 21 ms
+  - getBoundingClientRect changed on [data-t0] div "Glucose 104 mg/dL": [0,0,220,60] -> [4,1.1,211.9,57.8] at 21 ms
+
+[1A[2K[33/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (d) stillnessProbe fails: zero [data-t0] nodes while expected is non-empty
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (d) stillnessProbe fails: zero [data-t0] nodes while expected is non-empty
+HC-UIG-006 (d) rejected with: StillnessError: stillnessProbe failed (2):
+  - found zero [data-t0] nodes (the probe needs at least one)
+  - expected selector "[data-t0]" matched no [data-t0] node
+
+[1A[2K[34/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (e) stillnessProbe fails: one expected selector that matches nothing
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (e) stillnessProbe fails: one expected selector that matches nothing
+HC-UIG-006 (e) rejected with: StillnessError: stillnessProbe failed (1):
+  - expected selector ".missing-selector" matched no [data-t0] node
+
+[1A[2K[35/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (f) stillnessProbe fails: navigation whose route container translates during the fade
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (f) stillnessProbe fails: navigation whose route container translates during the fade
+HC-UIG-006 (f) rejected with: StillnessError: stillnessProbe failed (2):
+  - getBoundingClientRect changed on [data-t0] p "Route B": [0,22,1280,22.4] -> [0,21.5,1280,22.4] at 40 ms
+  - route container transform matrix(1, 0, 0, 1, 0, 6) at 0 ms (must stay none)
+
+[1A[2K[36/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (g) stillnessProbe fails: route fade that takes longer than 240 ms
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (g) stillnessProbe fails: route fade that takes longer than 240 ms
+HC-UIG-006 (g) rejected with: StillnessError: stillnessProbe failed (2):
+  - route container did not reach opacity 1 within 240 ms (reached at 396 ms)
+  - effective opacity 0.78 (must be 1) on [data-t0] p "Route B" at 280 ms
+
+[1A[2K[37/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (h) stillnessProbe fails: a [data-t0] node that re-fades after the route fade settled
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (h) stillnessProbe fails: a [data-t0] node that re-fades after the route fade settled
+HC-UIG-006 (h) rejected with: StillnessError: stillnessProbe failed (1):
+  - effective opacity 0.96 (must be 1) on [data-t0] p "Route B" at 481 ms
+
+[1A[2K[38/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (h2) stillnessProbe fails: the route container re-fades inside the 240 ms window, after it had settled
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (h2) stillnessProbe fails: the route container re-fades inside the 240 ms window, after it had settled
+HC-UIG-006 (h2) rejected with: StillnessError: stillnessProbe failed (2):
+  - route container opacity changed after settling (1 -> 0.86) at 160 ms
+  - effective opacity 0.97 (must be 1) on [data-t0] p "Route B" at 280 ms
+
+[1A[2K[39/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (i) stillnessProbe fails: count-up at fixed width (tabular-nums)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (i) stillnessProbe fails: count-up at fixed width (tabular-nums)
+HC-UIG-006 (i) rejected with: StillnessError: stillnessProbe failed (2):
+  - only 3 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms
+  - textContent changed on [data-t0] p "000": "000" -> "005" at 61 ms
+
+[1A[2K[40/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (j) stillnessProbe fails: colour pulse on a [data-t0] node
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (j) stillnessProbe fails: colour pulse on a [data-t0] node
+HC-UIG-006 (j) rejected with: StillnessError: stillnessProbe failed (1):
+  - computed color changed on [data-t0] p "Glucose 104 mg/dL": "rgb(0, 0, 0)" -> "rgb(28, 0, 0)" at 21 ms
+
+[1A[2K[41/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (k) stillnessProbe fails: clip-path reveal of a [data-t0] node
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (k) stillnessProbe fails: clip-path reveal of a [data-t0] node
+HC-UIG-006 (k) rejected with: StillnessError: stillnessProbe failed (1):
+  - computed clip-path changed on [data-t0] p "LDL 142 mg/dL": "none" -> "inset(0px 94.46% 0px 0px)" at 21 ms
+
+[1A[2K[42/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (l) stillnessProbe fails: nested 150 ms translate of a [data-t0] node inside the route-fade window
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (l) stillnessProbe fails: nested 150 ms translate of a [data-t0] node inside the route-fade window
+HC-UIG-006 (l) rejected with: StillnessError: stillnessProbe failed (2):
+  - computed transform changed on [data-t0] p "Route B": "matrix(1, 0, 0, 1, 0, 7.10912)" -> "matrix(1, 0, 0, 1, 0, 6.22027)" at 41 ms
+  - getBoundingClientRect changed on [data-t0] p "Route B": [0,23.1,1280,22.4] -> [0,22.2,1280,22.4] at 41 ms
+
+[1A[2K[43/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (m) stillnessProbe fails: lazy route: a fetch that starts after the trigger returns, then a [data-t0] transform after the 800 ms window
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (m) stillnessProbe fails: lazy route: a fetch that starts after the trigger returns, then a [data-t0] transform after the 800 ms window
+HC-UIG-006 (m) rejected with: StillnessError: stillnessProbe failed (2):
+  - computed transform changed on [data-t0] p "Glucose 104 mg/dL": "none" -> "matrix(1, 0, 0, 1, 0, 0)" at 1282 ms
+  - getBoundingClientRect changed on [data-t0] p "Glucose 104 mg/dL": [0,16,1280,22.4] -> [0.7,16,1280,22.4] at 1328 ms
+
+[1A[2K[44/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (n) stillnessProbe fails: the main thread blocks 150 ms during the trigger, so the sampler has a gap
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (n) stillnessProbe fails: the main thread blocks 150 ms during the trigger, so the sampler has a gap
+HC-UIG-006 (n) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 166 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+
+[1A[2K[45/78] [chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (o) stillnessProbe fails: a Safety Rail outside the route container fades with its wrapper during the route swap
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:527:3 › HC-UIG-006 (o) stillnessProbe fails: a Safety Rail outside the route container fades with its wrapper during the route swap
+HC-UIG-006 (o) rejected with: StillnessError: stillnessProbe failed (1):
+  - effective opacity 0.60 must be 1 on [data-t0] aside "Safety Rail" at 21 ms: the node is outside the route container, and only the container fades
+
+[1A[2K[46/78] [chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-1 stillnessProbe passes: still [data-t0] node beside an infinitely animated non-T0 sibling
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-1 stillnessProbe passes: still [data-t0] node beside an infinitely animated non-T0 sibling
+HC-UIG-006 pass-1 report: {"samples":41,"postTriggerSamples":40,"maxGapMs":24,"elapsedMs":802,"nodes":1,"routeKey":null}
+
+[1A[2K[47/78] [chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-2 stillnessProbe passes: navigation with a 200 ms opacity-only route fade, then stillness
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-2 stillnessProbe passes: navigation with a 200 ms opacity-only route fade, then stillness
+HC-UIG-006 pass-2 report: {"samples":41,"postTriggerSamples":40,"maxGapMs":25,"elapsedMs":804,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[48/78] [chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-3 stillnessProbe passes: lazy route: a fetch that starts after the trigger returns and takes 1200 ms, then stillness
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-3 stillnessProbe passes: lazy route: a fetch that starts after the trigger returns and takes 1200 ms, then stillness
+HC-UIG-006 pass-3 report: {"samples":132,"postTriggerSamples":131,"maxGapMs":25,"elapsedMs":2621,"nodes":1,"routeKey":null}
+
+[1A[2K[49/78] [chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-4 stillnessProbe passes: navigation whose Safety Rail sits outside a route container that fades (HC-UISH-009)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:632:3 › HC-UIG-006 pass-4 stillnessProbe passes: navigation whose Safety Rail sits outside a route container that fades (HC-UISH-009)
+HC-UIG-006 pass-4 report: {"samples":41,"postTriggerSamples":40,"maxGapMs":23,"elapsedMs":805,"nodes":2,"routeKey":"/gates/next"}
+
+[1A[2K[50/78] [chromium] › e2e/ui-gates.spec.ts:640:1 › HC-UIG-006 pass-2 passes in a fresh browser context (cold sampler, no earlier probe)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:640:1 › HC-UIG-006 pass-2 passes in a fresh browser context (cold sampler, no earlier probe)
+HC-UIG-006 pass-2 report: {"samples":41,"postTriggerSamples":40,"maxGapMs":23,"elapsedMs":809,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[51/78] [chromium] › e2e/ui-gates.spec.ts:653:1 › HC-UIG-006 sampling check rejects too few samples and a gap over 40 ms, and passes a 20 ms cadence
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:653:1 › HC-UIG-006 sampling check rejects too few samples and a gap over 40 ms, and passes a 20 ms cadence
+HC-UIG-006 sampling steady: {"failures":[],"maxGapMs":20,"postTriggerSamples":41}
+
+[1A[2KHC-UIG-006 sampling sparse: {"failures":["only 11 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms"],"maxGapMs":20,"postTriggerSamples":11}
+
+[1A[2KHC-UIG-006 sampling gapped: {"failures":["sampling gap of 180 ms (must be <= 40 ms; G10 samples every 16-40 ms)"],"maxGapMs":180,"postTriggerSamples":33}
+
+[1A[2K[52/78] [chromium] › e2e/ui-gates.spec.ts:676:1 › HC-UIG-008 sampling check bounds a page change at 70 ms, keeps 40 ms elsewhere, and keeps the 40 ms minimum
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:676:1 › HC-UIG-008 sampling check bounds a page change at 70 ms, keeps 40 ms elsewhere, and keeps the 40 ms minimum
+HC-UIG-008 navigation 70 ms: {"failures":[],"maxGapMs":70,"postTriggerSamples":38}
+
+[1A[2KHC-UIG-008 navigation 71 ms: {"failures":["sampling gap of 71 ms (must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms)"],"maxGapMs":71,"postTriggerSamples":38}
+
+[1A[2KHC-UIG-008 interaction 41 ms: {"failures":["sampling gap of 41 ms (must be <= 40 ms; G10 samples every 16-40 ms)"],"maxGapMs":41,"postTriggerSamples":39}
+
+[1A[2KHC-UIG-008 navigation sparse: {"failures":["only 12 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms"],"maxGapMs":70,"postTriggerSamples":12}
+
+[1A[2K[53/78] [chromium] › e2e/ui-gates.spec.ts:714:1 › HC-UIG-009 sampling check bounds an overlay open at 70 ms with its own text, keeps 40 ms elsewhere, and keeps the 40 ms minimum
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:714:1 › HC-UIG-009 sampling check bounds an overlay open at 70 ms with its own text, keeps 40 ms elsewhere, and keeps the 40 ms minimum
+HC-UIG-009 (a) overlay 55 ms: {"failures":[],"maxGapMs":55,"postTriggerSamples":39}
+
+[1A[2KHC-UIG-009 (b) interaction 55 ms: {"failures":["sampling gap of 55 ms (must be <= 40 ms; G10 samples every 16-40 ms)"],"maxGapMs":55,"postTriggerSamples":39}
+
+[1A[2KHC-UIG-009 (c) overlay 75 ms: {"failures":["sampling gap of 75 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)"],"maxGapMs":75,"postTriggerSamples":38}
+
+[1A[2KHC-UIG-009 (d) overlay 70 ms: {"failures":[],"maxGapMs":70,"postTriggerSamples":38}
+
+[1A[2KHC-UIG-009 (d) overlay 71 ms: {"failures":["sampling gap of 71 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)"],"maxGapMs":71,"postTriggerSamples":38}
+
+[1A[2KHC-UIG-009 (e) overlay sparse: {"failures":["only 12 sample(s) after the trigger; the 800 ms window needs at least 20 at one per 40 ms"],"maxGapMs":70,"postTriggerSamples":12}
+
+[1A[2K[54/78] [chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError
+HC-UIG-010 (a) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: http://localhost/gates/held; no route element
+
+[1A[2K[55/78] [chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle
+HC-UIG-010 (b) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: http://localhost/gates/held; no route element
+
+[1A[2K[56/78] [chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity
+HC-UIG-010 (c1) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: none; last route opacity 0.5
+
+[1A[2K[57/78] [chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError
+HC-UIG-010 (c2) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: none; no route element
+
+[1A[2K[58/78] [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+HC-UIG-010 (d) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 155 ms (must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms)
+
+[1A[2K[59/78] [chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+HC-UIG-010 (e) rejected with: StillnessError: stillnessProbe failed (2):
+  - computed transform changed on [data-t0] p "Glucose 104 mg/dL": "none" -> "matrix(0.96, 0, 0, 0.96, 0, 0)" at 21 ms
+  - getBoundingClientRect changed on [data-t0] p "Glucose 104 mg/dL": [0,16,220,22.4] -> [4.4,16.4,211.2,21.5] at 21 ms
+
+[1A[2K[60/78] [chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false)
+HC-UIG-010 (f) lazyRoute false: error=null report={"samples":41,"postTriggerSamples":40,"maxGapMs":21,"elapsedMs":803,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[61/78] [chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true)
+HC-UIG-010 (f) lazyRoute true: error=null report={"samples":66,"postTriggerSamples":65,"maxGapMs":21,"elapsedMs":1302,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[62/78] [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+HC-UIG-010 (g) interaction: null
+
+[1A[2K[63/78] [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+HC-UIG-010 (g) overlay: null
+
+[1A[2K[64/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications (light)
+[1A[2K  2) [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications (light) ───────
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('heading', { name: 'Medication Coach' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByRole('heading', { name: 'Medication Coach' })[22m
+
+
+      194 |     name: 'medications',
+      195 |     path: '/medications',
+    > 196 |     ready: async (page) => expect(page.getByRole('heading', { name: 'Medication Coach' })).toBeVisible(),
+          |                                                                                            ^
+      197 |     interact: openAndCloseDoseSheet,
+      198 |     from: '/settings',
+      199 |     trigger: (page) => nav(page, 'Medications').click(),
+        at Object.ready (/mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-meds.spec.ts:196:92)
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-meds.spec.ts:262:19
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-callers/ui-meds-UI-PG-MEDS-GATE-G1-G10-on-medications-light--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-callers/ui-meds-UI-PG-MEDS-GATE-G1-G10-on-medications-light--chromium/error-context.md
+
+
+[1A[2K(node:1909094) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[65/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications/med-fixture-1 (light)
+[1A[2K[66/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications?tab=reminders (light)
+[1A[2K[67/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /notifications (light)
+[1A[2K[68/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications (dark)
+[1A[2K[69/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications/med-fixture-1 (dark)
+[1A[2K[70/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications?tab=reminders (dark)
+[1A[2K[71/78] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /notifications (dark)
+[1A[2K[72/78] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /medications: no horizontal scroll at 390 and 320
+[1A[2K[73/78] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /medications/med-fixture-1: no horizontal scroll at 390 and 320
+[1A[2K[74/78] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /medications?tab=reminders: no horizontal scroll at 390 and 320
+[1A[2K[75/78] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /notifications: no horizontal scroll at 390 and 320
+[1A[2K[76/78] [chromium] › e2e/ui-meds.spec.ts:332:3 › HC-UIMED-002: the dose sheet › Escape closes it, Tab stays inside it, and focus returns to the Log button
+[1A[2K[77/78] [chromium] › e2e/ui-meds.spec.ts:353:3 › HC-UIMED-002: the dose sheet › the dose text passes the stillness probe from the Log click
+[1A[2K  3) [chromium] › e2e/ui-meds.spec.ts:353:3 › HC-UIMED-002: the dose sheet › the dose text passes the stillness probe from the Log click 
+
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 94 ms (must be <= 70 ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms)
+
+       at support/gates.ts:944
+
+      942 |   const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
+      943 |   if (failures.length > 0) {
+    > 944 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+          |           ^
+      945 |   }
+      946 |   const last = snaps[snaps.length - 1];
+      947 |   return {
+        at stillnessProbe (/mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/support/gates.ts:944:11)
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-meds.spec.ts:361:20
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-callers/ui-meds-HC-UIMED-002-the-d-75e62-ss-probe-from-the-Log-click-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-callers/ui-meds-HC-UIMED-002-the-d-75e62-ss-probe-from-the-Log-click-chromium/error-context.md
+
+
+[1A[2K(node:1910124) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[78/78] [chromium] › e2e/ui-meds.spec.ts:372:1 › HC-UIMED-004: /notifications redirects to the Reminders tab with the same settings
+[1A[2K  3 failed
+    [chromium] › e2e/ui-gates-sampler.spec.ts:162:1 › HC-UIG-007 (e) a ~55 ms block inside one sampler read during an overlay open passes the 70 ms bound 
+    [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications (light) ────────
+    [chromium] › e2e/ui-meds.spec.ts:353:3 › HC-UIMED-002: the dose sheet › the dose text passes the stillness probe from the Log click 
+  75 passed (7.1m)
+EXIT=1

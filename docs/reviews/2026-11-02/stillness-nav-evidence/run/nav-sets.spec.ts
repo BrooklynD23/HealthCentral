@@ -10,7 +10,7 @@
 //                viewport: a 20 ms setInterval pushing performance.now(), 100 ms wait, trigger, 1500 ms, max gap.
 //
 // Flags (case.flags) change ONE thing each from the baseline of their set; the plan's candidate numbers in brackets:
-//   gates:<name>  use e2e/support/gates.<name>.ts (make_variants.py): v1 [1], v4a/v4b [4], v5 [5]
+//   gates:<name>  use e2e/support/gates.<name>.ts (make_variants.py): v1 [1], v4a/v4b [4], v5 [5]; nosettle [Task 2 mutant: the navigation settle removed]
 //   lazy:false    probe without lazyRoute: no trackRequests listeners, no network-idle wait [2]
 //   noguard       probe without the consoleAndNetworkGuard listeners that openRoute attaches [3]
 //   guard         bare timer WITH those guard listeners [3, supplementary]
@@ -28,6 +28,7 @@ import * as gatesV1 from './e2e/support/gates.v1';
 import * as gatesV4a from './e2e/support/gates.v4a';
 import * as gatesV4b from './e2e/support/gates.v4b';
 import * as gatesV5 from './e2e/support/gates.v5';
+import * as gatesNosettle from './e2e/support/gates.nosettle';
 const { consoleAndNetworkGuard } = gatesBase;
 import { installMockApi, seedMockSession } from './e2e/support/mockApi';
 
@@ -112,6 +113,8 @@ function loadGates(name: string | undefined) {
       return gatesV4b;
     case 'v5':
       return gatesV5;
+    case 'nosettle':
+      return gatesNosettle;
     case undefined:
       return gatesBase;
     default:

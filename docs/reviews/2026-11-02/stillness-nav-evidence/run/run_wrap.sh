@@ -9,6 +9,8 @@
 #   C  trace: 10 cycles of the baseline probe with CDP Tracing (first 3 misses kept), then 5 runs counting
 #      DEBUG=pw:protocol messages in the probe window (the count failed in wrap C: unquoted path; redone in D)
 #   E  trace of /search only: 20 baseline probe runs, the first 3 misses kept
+#   P  Task 2 GREEN on vite preview: warm-up, then 3 batches of plan A's probe set (5 runs each) on :4173 (needs PREVIEW_DIST)
+#   M  Task 2 deliberate break on the dev server: warm-up, then 3 batches of the probe set with the settle removed (gates:nosettle)
 #   D  diagnostic: comparison traces (baseline probe, probe + candidate 1's wait, bare timer) and the CDP message count
 #
 # Before EACH batch: wait (bounded, 30 min) for the 1-minute load < 1.5, then log uptime, pgrep, ss with own PIDs marked.
@@ -128,6 +130,19 @@ A|B)
     run_batch warmA warmA 0 || exit $?
   fi
   for b in 1 2 3; do run_batch "$WRAP$b" "$WRAP" "$b" || exit $?; done
+  ;;
+P)
+  precheck "pre-start" || exit 75
+  [ -f "$DIST/index.html" ] || { echo "no preview build at $DIST"; exit 3; }
+  start_server preview 4173 ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir "$DIST" || exit 3
+  run_batch warmP warmP 0 || exit $?
+  for b in 1 2 3; do run_batch "P$b" P "$b" || exit $?; done
+  ;;
+M)
+  precheck "pre-start" || exit 75
+  start_server dev 3000 ./node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort || exit 3
+  run_batch warmM warmA 0 || exit $?
+  for b in 1 2 3; do run_batch "M$b" M "$b" || exit $?; done
   ;;
 C)
   precheck "pre-start" || exit 75

@@ -11,6 +11,9 @@ plans:
   Cs              /search-only trace: baseline probe, 20 runs, the first 3 misses kept
   Ccmp            comparison traces (diagnostic): baseline probe, probe with candidate 1's wait, bare timer; 3 routes each
   Ccdp            baseline probe, one pass over the 5 routes, with SNL-MARK lines for the DEBUG=pw:protocol count
+  warmP           Task 2: declared warm-up (uncounted) of the probe set on vite preview
+  P               Task 2: plan A's probe set on vite preview, 5 runs per batch
+  M               Task 2 mutant: plan A's probe set on the dev server with gates:nosettle, 5 runs per batch
 No randomness: the plan is reproducible from the committed copy.
 """
 import json
@@ -55,7 +58,13 @@ def block(wrap, batch, unit, role, st, flags, base):
 def main():
     plan, batch = sys.argv[1], int(sys.argv[2] if len(sys.argv) > 2 else 1)
     out = []
-    if plan in ('warmA', 'warmB'):
+    if plan == 'warmP':
+        out += [case('warmP', 0, 'warmup-4173', 'warmup', 'probe', [], PREVIEW, r) for r in ROUTES]
+    elif plan == 'P':
+        out += block('P', batch, 'baseline-preview', 'base', 'probe', [], PREVIEW)
+    elif plan == 'M':
+        out += block('M', batch, 'mutant-nosettle', 'base', 'probe', ['gates:nosettle'], DEV)
+    elif plan in ('warmA', 'warmB'):
         for base in ([DEV] if plan == 'warmA' else [DEV, PREVIEW, NOHMR]):
             for st in ('probe', 'bare'):
                 flags = ['wscount'] if base in (NOHMR, DEV) else []
