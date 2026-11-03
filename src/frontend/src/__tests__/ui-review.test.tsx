@@ -1775,3 +1775,115 @@ describe('EntityDetailView rows say it in words and show the marker too', () => 
     expect(entityRow('e-yes').querySelector('td')).toHaveAttribute('role', 'cell');
   });
 });
+
+describe('UI-PG-REVIEW finding 8: Verify keeps the selected row and its Source Preview', () => {
+  const REVIEW_ALL = '/verify?doc=doc-1&mode=all';
+  const PAGE_TEXT = 'Source page text one';
+  const pagesCalls = () =>
+    vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/documents/doc-1/pages').length;
+  const observationGets = () =>
+    vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length;
+  const isSelected = (id: string) => rowOf(id).className.includes('bg-accent-subtle');
+  const spinner = () => document.querySelector('svg.animate-spin.w-8.h-8');
+
+  beforeEach(() => {
+    window.history.pushState({}, '', REVIEW_ALL);
+    state.documents = [reportDoc];
+    state.pages = [{ page_number: 1, text: PAGE_TEXT, has_tables: false }];
+  });
+
+  async function openAndSelect(user: ReturnType<typeof userEvent.setup>, id: string, name: string) {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    // The first load selects the first row of the document and fetches its pages once.
+    await waitFor(() => expect(isSelected('obs-1')).toBe(true));
+    await screen.findByText(PAGE_TEXT);
+    if (id !== 'obs-1') {
+      await user.click(within(rowOf(id)).getByText(name));
+      await waitFor(() => expect(isSelected(id)).toBe(true));
+      await waitFor(() => expect(pagesCalls()).toBe(2));
+      await screen.findByText(PAGE_TEXT);
+    }
+  }
+
+  // RED on f7e03ea7: the effect re-ran handleRowSelect on every observations change, so a Verify made another
+  // GET /pages, swapped the preview for a spinner and moved the selection to obs-1.
+  // Blind spot: the mock answers /pages in the same batch, so on the old code the spinner and node-identity claims
+  // still held here (measured: only the request count and the selection fail). The spinner and the node are the
+  // e2e test's, where /pages takes a real round trip.
+  it('a Verify on a row that is not the first: no new /pages request, no spinner, same preview node, same selection', async () => {
+    const user = userEvent.setup();
+    await openAndSelect(user, 'obs-2', 'Hemoglobin A1c');
+    const preview = screen.getByText(PAGE_TEXT);
+    const before = pagesCalls();
+    const getsBefore = observationGets();
+
+    let spinnerSeen = false;
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (!(node instanceof Element)) return;
+          if (node.matches('svg.animate-spin.w-8.h-8') || node.querySelector('svg.animate-spin.w-8.h-8')) spinnerSeen = true;
+        });
+      }
+      if (spinner()) spinnerSeen = true;
+    });
+    observer.observe(document.body, { subtree: true, childList: true });
+
+    await user.click(within(rowOf('obs-2')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(observationGets()).toBeGreaterThan(getsBefore));
+    await waitFor(() => expect(rowOf('obs-2').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    observer.disconnect();
+
+    // Soft: each claim is checked even when an earlier one fails, so a RED run names every broken one.
+    expect.soft(pagesCalls(), 'no new GET /pages').toBe(before);
+    expect.soft(spinnerSeen, 'the spinner never showed').toBe(false);
+    expect.soft(screen.getByText(PAGE_TEXT), 'the same preview node').toBe(preview);
+    expect.soft(preview.isConnected, 'the preview node is still mounted').toBe(true);
+    expect.soft(isSelected('obs-2'), 'the selection stayed on obs-2').toBe(true);
+    expect.soft(isSelected('obs-1'), 'obs-1 was not re-selected').toBe(false);
+  });
+
+  // PIN, green before and after: the fix must not stop a click from loading the row it moved to.
+  // Blind spot: the mock serves the same pages for every row of the document.
+  it('clicking another row still selects it and fetches the pages', async () => {
+    const user = userEvent.setup();
+    await openAndSelect(user, 'obs-3', 'Ferritin');
+    expect(isSelected('obs-3')).toBe(true);
+    expect(isSelected('obs-1')).toBe(false);
+    expect(pagesCalls()).toBe(2);
+  });
+
+  // PIN, green before and after: first load selects, nothing selected yet.
+  it('first load selects the first row of the document and fetches its pages once', async () => {
+    const user = userEvent.setup();
+    await openAndSelect(user, 'obs-1', 'Glucose');
+    expect(pagesCalls()).toBe(1);
+    expect(isSelected('obs-1')).toBe(true);
+  });
+
+  // PIN, green before and after: Retry extraction issues new ids, so the selected row is gone and the first new
+  // row is selected again. Blind spot: only the id change; a reprocess that keeps ids is a plain refetch.
+  it('Retry extraction (new ids) selects the first new row', async () => {
+    const verifyEndpoint = vi.mocked(api.apiPost).getMockImplementation()!;
+    vi.mocked(api.apiPost).mockImplementation(async (url: string, body?: unknown) => {
+      if (url === '/documents/doc-1/reprocess') {
+        state.observations = [
+          { ...glucose, id: 'obs-new-1' },
+          { ...hba1c, id: 'obs-new-2' },
+        ];
+        return {};
+      }
+      return verifyEndpoint(url, body);
+    });
+    const user = userEvent.setup();
+    await openAndSelect(user, 'obs-2', 'Hemoglobin A1c');
+    const retry = await screen.findByRole('button', { name: 'Retry extraction' });
+    await waitFor(() => expect(retry).toBeEnabled());
+    await user.click(retry);
+    await waitFor(() => expect(rowOf('obs-new-1')).not.toBeNull());
+    await waitFor(() => expect(isSelected('obs-new-1')).toBe(true));
+    expect(isSelected('obs-new-2')).toBe(false);
+  });
+});
