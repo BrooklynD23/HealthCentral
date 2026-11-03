@@ -827,9 +827,16 @@ for (const [name, viewport] of [
       const rect = root.getBoundingClientRect();
       return {
         count: items.length,
-        wide: items.flatMap((li) => [li, ...Array.from(li.querySelectorAll('*'))])
-          .filter((el) => el.scrollWidth > el.clientWidth + 1)
-          .map((el) => `${el.tagName.toLowerCase()} ${el.scrollWidth}>${el.clientWidth}`),
+        // The line itself must not scroll, and its text (an inline span: clientWidth is 0, so its box is read) must end
+        // inside it. The sr-only "Matching line:" span is 1 px wide on purpose and is not a line.
+        wide: items.flatMap((li) => {
+          const text = li.querySelector('[data-t0]');
+          const box = li.getBoundingClientRect();
+          const out: string[] = [];
+          if (li.scrollWidth > li.clientWidth + 1) out.push(`li ${li.scrollWidth}>${li.clientWidth}`);
+          if (text && text.getBoundingClientRect().right > box.right + 0.5) out.push(`text ends at ${text.getBoundingClientRect().right} past ${box.right}`);
+          return out;
+        }),
         sheetWide: root.scrollWidth > root.clientWidth + 1,
         right: rect.right,
         vw,
