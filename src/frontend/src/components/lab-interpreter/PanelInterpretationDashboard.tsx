@@ -1,4 +1,3 @@
-import { m } from 'framer-motion';
 import {
   Loader2,
   AlertTriangle,
@@ -13,7 +12,6 @@ import {
   Badge,
 } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { CitationTooltip } from './CitationTooltip';
 import { AdviceSection } from './AdviceSection';
 import { DisclaimerBanner } from './DisclaimerBanner';
@@ -39,8 +37,6 @@ export function PanelInterpretationDashboard({
   isError,
   className,
 }: PanelInterpretationDashboardProps) {
-  const prefersReducedMotion = useReducedMotion();
-
   if (isLoading) {
     return (
       <Card className={className}>
@@ -72,10 +68,7 @@ export function PanelInterpretationDashboard({
   const variant = statusVariant[interpretation.overall_status] ?? 'default';
 
   return (
-    <m.div
-      initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-    >
+    <div>
       <Card className={cn('overflow-hidden', className)}>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -100,7 +93,7 @@ export function PanelInterpretationDashboard({
 
         <CardContent className="space-y-5">
           {/* Summary */}
-          <div className="p-4 rounded-xl bg-surface-muted">
+          <div data-t0 className="p-4 rounded-xl bg-surface-muted">
             <p className="text-sm text-ink leading-relaxed">
               {interpretation.summary_text}
             </p>
@@ -129,11 +122,9 @@ export function PanelInterpretationDashboard({
                 </div>
                 <div className="grid gap-2">
                   {interpretation.relationship_insights.map((insight, i) => (
-                    <m.div
+                    <div
                       key={i}
-                      initial={prefersReducedMotion ? {} : { opacity: 0, x: -4 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
+                      data-t0
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-xl',
                         'bg-surface-elevated border border-black/4'
@@ -153,7 +144,7 @@ export function PanelInterpretationDashboard({
                           {insight.interpretation}
                         </p>
                       </div>
-                    </m.div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -168,7 +159,7 @@ export function PanelInterpretationDashboard({
           <DisclaimerBanner />
 
           {/* Meta */}
-          <div className="flex items-center gap-3 text-xs text-ink-tertiary pt-2 border-t border-black/4">
+          <div data-t0 className="flex items-center gap-3 text-xs text-ink-tertiary pt-2 border-t border-black/4">
             <span>
               Collected: {new Date(interpretation.collected_at).toLocaleDateString()}
             </span>
@@ -178,6 +169,6 @@ export function PanelInterpretationDashboard({
           </div>
         </CardContent>
       </Card>
-    </m.div>
+    </div>
   );
 }

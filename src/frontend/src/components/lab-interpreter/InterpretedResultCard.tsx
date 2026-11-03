@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { m } from 'framer-motion';
 import {
   Brain,
   ChevronDown,
@@ -17,7 +16,6 @@ import {
   Button,
 } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { CitationTooltip } from './CitationTooltip';
 import { AdviceSection } from './AdviceSection';
 import { ReferenceRangeComparison } from './ReferenceRangeComparison';
@@ -62,16 +60,11 @@ export function InterpretedResultCard({
   observation,
 }: InterpretedResultCardProps) {
   const [expanded, setExpanded] = useState(true);
-  const prefersReducedMotion = useReducedMotion();
 
   const variant = severityVariant[interpretation.severity_level] ?? 'default';
 
   return (
-    <m.div
-      initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <div>
       <Card className={cn('overflow-hidden', className)}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -107,8 +100,8 @@ export function InterpretedResultCard({
             />
           )}
 
-          {/* Interpretation Text */}
-          <div className="p-4 rounded-xl bg-surface-muted">
+          {/* Interpretation Text. T0: the card appears at once and holds still (no fade, no slide). */}
+          <div data-t0 className="p-4 rounded-xl bg-surface-muted">
             <div className="space-y-2">
               {formatInterpretationText(interpretation.interpretation_text).paragraphs.map(
                 (runs, i) => (
@@ -153,7 +146,7 @@ export function InterpretedResultCard({
           {/* Physician Review Reason */}
           {interpretation.requires_physician_review &&
             interpretation.physician_review_reason && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-status-attention-subtle border border-status-attention/20">
+              <div data-t0 className="flex items-start gap-2 p-3 rounded-xl bg-status-attention-subtle border border-status-attention/20">
                 <AlertTriangle className="w-4 h-4 text-status-attention shrink-0 mt-0.5" />
                 <p className="text-sm text-ink">
                   {interpretation.physician_review_reason}
@@ -225,6 +218,6 @@ export function InterpretedResultCard({
           </div>
         </CardContent>
       </Card>
-    </m.div>
+    </div>
   );
 }
