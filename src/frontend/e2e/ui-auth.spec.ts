@@ -8,7 +8,8 @@
  *
  * Timing gates (G2, G3, G5, G10, and the Lift timing of HC-UIAUTH-003) are measurements: run them on a quiet box
  * only. Their titles end in "(timing)". `--grep '\(timing\)'` selects them; `--grep-invert '\(timing\)'` is the
- * functional run (no describe title carries the word, so nothing leaves the functional run by accident).
+ * functional run. Grep matches the full title, describe included: the describe 'HC-UIAUTH-005: stillness (timing)'
+ * therefore holds timing tests only, and a functional test must never be added inside it.
  *
  * G3 is measured on a production build (plan section 6), against the real backend. Preview must therefore sit on
  * port 3000: the backend's local CORS list is http://127.0.0.1:3000 and http://localhost:3000 only
@@ -17,8 +18,7 @@
  * instead of starting the dev server, and starts the backend itself. From the repo root, build first (heavy; the
  * quiet box does not need to be quiet for it), then measure:
  *
- *   cd src/frontend
- *   VITE_API_URL=http://127.0.0.1:8000/api/v1 ../../scripts/pyslot.sh npm run build
+ *   (cd src/frontend && VITE_API_URL=http://127.0.0.1:8000/api/v1 ../../scripts/pyslot.sh npm run build)
  *   /tmp/claude-1000/quiet_run.sh bash -c '
  *     cd src/frontend
  *     npx vite preview --host 127.0.0.1 --port 3000 --strictPort & PV=$!
@@ -375,6 +375,34 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
       await page.getByRole('button', { name: /create your profile/i }).click();
     });
     expect(offenders, 'G5 /setup submit').toEqual([]);
+  });
+
+  test('G5 reduced motion: no transform 50 ms into a pending create, while the loading label shows (timing)', async ({
+    page,
+  }) => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/profiles/', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await held;
+      return route.fallback();
+    });
+    try {
+      await openCreateForm(page);
+      await fillCreateForm(page);
+      const offenders = await reducedMotionSnapshot(page, async () => {
+        await page.getByRole('button', { name: /create your profile/i }).click();
+        await expect(page.getByRole('button', { name: /creating your profile/i })).toBeVisible();
+      });
+      // The request is still held here, so the label was on screen for the whole sample.
+      await expect(page.getByRole('button', { name: /creating your profile/i })).toBeVisible();
+      expect(offenders, 'G5 /setup pending create').toEqual([]);
+    } finally {
+      release();
+    }
+    await expect(page.getByTestId('recovery-code')).toBeVisible({ timeout: 30000 });
   });
 
   test('G5 reduced motion: no transform 50 ms after opening the create form (timing)', async ({ page }) => {
