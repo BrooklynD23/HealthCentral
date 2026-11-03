@@ -58,7 +58,7 @@ test.describe('RAG Assistant Feature', () => {
     await input.fill('What is my glucose level?');
 
     // Click send button
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Send question' }).click();
 
     // Wait for response - should show insufficient context or error
     // With no documents, the assistant should indicate it doesn't have enough
@@ -82,7 +82,7 @@ test.describe('RAG Assistant Feature', () => {
     // Ask a question
     const input = page.getByPlaceholder(/ask about your results/i);
     await input.fill('What is my hemoglobin?');
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Send question' }).click();
 
     // When no LLM is available, the backend returns a 200 graceful fallback
     // instead of a 501 error: the agent path abstains with the fixed
@@ -159,7 +159,7 @@ test.describe('RAG Assistant Feature', () => {
 
     const input = page.getByPlaceholder(/ask about your results/i);
     await input.fill('Show me my imaging results.');
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Send question' }).click();
 
     const chatRequestPayload = (await assistantRequest).postDataJSON() as Record<string, unknown>;
     expect(chatRequestPayload).toMatchObject({
@@ -217,10 +217,10 @@ test.describe('Assistant UI Components', () => {
     await input.fill('Test question');
 
     // Start sending (click send button)
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Send question' }).click();
 
     // Should show loading indicator
-    await expect(page.getByText(/searching documents|generating response/i)).toBeVisible();
+    await expect(page.getByText(/reading your verified results/i)).toBeVisible();
   });
 
   test('Displays user message after sending', async ({ page, request }) => {
@@ -233,7 +233,7 @@ test.describe('Assistant UI Components', () => {
     // Type and send
     const input = page.getByPlaceholder(/ask about your results/i);
     await input.fill(testQuestion);
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Send question' }).click();
 
     // User message should appear
     await expect(page.getByText(testQuestion)).toBeVisible();
@@ -246,7 +246,7 @@ test.describe('Assistant UI Components', () => {
 
     const input = page.getByPlaceholder(/ask about your results/i);
     await input.fill('Test question');
-    await page.getByRole('button').filter({ has: page.locator('svg') }).last().click();
+    await page.getByRole('button', { name: 'Send question' }).click();
 
     // Input should be cleared
     await expect(input).toHaveValue('');
@@ -258,7 +258,7 @@ test.describe('Assistant UI Components', () => {
     await expect(page.getByText(/explain assistant/i)).toBeVisible({ timeout: 10000 });
 
     // Find send button (last button with svg icon)
-    const sendButton = page.getByRole('button').filter({ has: page.locator('svg') }).last();
+    const sendButton = page.getByRole('button', { name: 'Send question' });
 
     // Should be disabled with empty input
     await expect(sendButton).toBeDisabled();

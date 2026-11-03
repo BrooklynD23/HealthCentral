@@ -1,31 +1,48 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen } from 'lucide-react';
-import { SourceTrace, type TraceSource } from '@/components/results/SourceTrace';
+import { ObservationSourceTrace, SourceTrace, type TraceSource } from '@/components/results/SourceTrace';
 import { Popover } from '@/components/ui/Popover';
 import { cn } from '@/utils/cn';
-import type { Citation } from '@/services/types';
+import type { Citation, Observation } from '@/services/types';
 
 export interface CitationTooltipProps {
   citation: Citation;
   index: number;
   /**
-   * The observation behind this citation, when the caller has one. Without it the
-   * popover shows the quote only: a knowledge-base reference has no page, and the
-   * popover never invents one.
+   * The observation and its source text, for a caller that already has both: "Open source" then opens the sheet
+   * from them. With neither `source` nor `traceObservation` the popover shows the quote only, with no "Open source":
+   * a knowledge-base reference has no page, and the popover never invents one.
    */
   source?: TraceSource;
+  /**
+   * The observation behind this citation, for a caller that has the record but not its source text. "Open source"
+   * then opens the Source Trace sheet through ObservationSourceTrace, which fetches the document and its pages only
+   * once the sheet is open. Callers pass it only for an observation with a `doc_id`: without one the sheet would wait
+   * for a file name that never comes. `source` wins if both are given.
+   */
+  traceObservation?: Observation;
+  /**
+   * The title line, shown exactly as given: no case change, so a file name such as "Quest_Lab_Report.pdf" reads as
+   * it is. Omit it and the line is the citation's machine type with its first underscore read as a space
+   * ("knowledge_base" reads "KNOWLEDGE BASE"), as every other caller shows it.
+   */
+  title?: string;
 }
+
+// min-h-target: on a phone this is the only way to the source, so it is a 44 px target like "Show source".
+const OPEN_SOURCE_CLASS =
+  'inline-flex min-h-target items-center text-sm font-medium text-accent underline underline-offset-4';
 
 /**
  * A citation chip. Click, tap or Enter opens its quote; hover alone does not
  * (UI-PROVENANCE, HC-UIPV-001). The popover holds a quote, so it is `still` (M0).
  */
-export function CitationTooltip({ citation, index, source }: CitationTooltipProps) {
+export function CitationTooltip({ citation, index, source, traceObservation, title }: CitationTooltipProps) {
   const [open, setOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const chipRef = useRef<HTMLButtonElement>(null);
   const sourceWasOpen = useRef(false);
-  const page = source?.observation.source_page ?? null;
+  const page = (source?.observation ?? traceObservation)?.source_page ?? null;
 
   // SourceTrace is controlled and has no trigger, so Radix has nothing to return focus to.
   // Return it to the chip once the sheet has closed. Not in the close handler: the sheet's
@@ -69,10 +86,17 @@ export function CitationTooltip({ citation, index, source }: CitationTooltipProp
         <div className="flex items-start gap-2">
           <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-ink-tertiary" aria-hidden="true" />
           <div className="min-w-0 space-y-1">
-            <p data-t0="" className="text-xs font-medium uppercase tracking-wider text-ink-secondary">
-              {citation.type.replace('_', ' ')}
+            <p
+              data-t0=""
+              className={cn(
+                'text-xs font-medium text-ink-secondary [overflow-wrap:anywhere]',
+                // A given title is a name (often a file name): shown as it is. Only the machine type is set in caps.
+                title === undefined && 'uppercase tracking-wider'
+              )}
+            >
+              {title ?? citation.type.replace('_', ' ')}
             </p>
-            <p data-t0="" className="leading-relaxed text-ink">
+            <p data-t0="" className="leading-relaxed text-ink [overflow-wrap:anywhere]">
               {citation.text}
             </p>
             {page !== null ? (
@@ -87,10 +111,21 @@ export function CitationTooltip({ citation, index, source }: CitationTooltipProp
                   setOpen(false);
                   setSourceOpen(true);
                 }}
-                className="pt-1 text-sm font-medium text-accent underline underline-offset-4"
+                className={OPEN_SOURCE_CLASS}
               >
                 Open source
               </button>
+            ) : traceObservation ? (
+              // Rendered inside the popover so the sheet has a trigger to return focus to. The popover stays open
+              // under the modal sheet: Escape closes the sheet (focus back on this button), the next Escape the popover.
+              <ObservationSourceTrace
+                observation={traceObservation}
+                trigger={
+                  <button type="button" className={OPEN_SOURCE_CLASS}>
+                    Open source
+                  </button>
+                }
+              />
             ) : null}
           </div>
         </div>

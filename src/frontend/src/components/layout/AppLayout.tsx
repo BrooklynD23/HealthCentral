@@ -1,15 +1,19 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { lazy, Suspense, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useLocation, useOutlet } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { AppToaster } from '@/components/ui/toast';
 import { duration, ease } from '@/motion/tokens';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { MobileTabBar } from './MobileTabBar';
+import { PaletteMount } from './paletteEvents';
 import { SafetyRail } from './SafetyRail';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 
 const EASE_OUT: [number, number, number, number] = [...ease.out];
+
+// The command palette is its own chunk, fetched on the first open (plan §3.3, UI-PALETTE).
+const CommandPalette = lazy(() => import('./CommandPalette'));
 
 // Keeps the page that was rendered when this wrapper mounted. The route container
 // is keyed by pathname, so it remounts on each navigation and this captures the
@@ -101,6 +105,11 @@ export function AppLayout() {
       </div>
 
       <MobileTabBar />
+      <PaletteMount>
+        <Suspense fallback={null}>
+          <CommandPalette />
+        </Suspense>
+      </PaletteMount>
       <AppToaster />
     </div>
   );
