@@ -251,7 +251,8 @@ _SHAPES = (
     ["Critical high", "Yes", "Positive", "Elevated",
      # Near-misses of the normal set and the owner's own example: only the
      # exact words NORMAL, N, WNL, NO, FALSE, 0 count as normal, never a
-     # substring or a negation; NEG is not one of them. A padded word is kept as stored, whatever its case.
+     # substring or a negation; NEG is not one of them. A padded word is
+     # kept as stored, whatever its case.
      "Negative", "NEG", "Normal range", "Non-critical", " High "],
 )
 @pytest.mark.parametrize("shape", _SHAPES, ids=[s[0] for s in _SHAPES])

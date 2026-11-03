@@ -75,10 +75,10 @@ def verify_observation_access(observation: Observation, session: Session) -> Non
 router = APIRouter()
 
 # Words (after strip().upper()) that mean "within range". A plain Verify
-# recalculates a row whose stored flag is one of these, or that has no flag;
-# any other stored flag is kept, even one that disagrees with the number.
-# NO, FALSE and 0 are the plain negative of an `abnormal` column
-# (modules/import_structured.py:540).
+# recalculates a row with a value whose stored flag is one of these, or that
+# has no flag; any other stored flag is kept, even one that disagrees with
+# the number. NO, FALSE and 0 are the plain negative of an `abnormal` column
+# (modules/import_structured.py:115, the `abnormal` alias).
 _NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
 
 
