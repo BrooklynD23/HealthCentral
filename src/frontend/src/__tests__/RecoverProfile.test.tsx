@@ -143,4 +143,20 @@ describe('RCC-2: RecoverProfile secret retention', () => {
       expect(cachedMutationsContaining(queryClient, ROTATED)).toBe(0);
     });
   });
+
+  it('HC-RECOV401-001: the recover call is marked reauth, so a wrong code (401) cannot log the patient out', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('That recovery code is not valid.'));
+    renderPage();
+
+    await fill(user);
+    await user.click(screen.getByRole('button', { name: /unlock my records/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/not valid/i);
+
+    // Pins only the option; api.ts is mocked here. E2E-RECOV-003 covers the real 401.
+    const call = vi.mocked(api.apiPost).mock.calls[0];
+    expect(call[0]).toMatch(/\/profiles\/profile-1\/recover$/);
+    expect(call[2]).toMatchObject({ reauth: true });
+    expect((call[2] as { signal?: unknown }).signal).toBeInstanceOf(AbortSignal);
+  });
 });

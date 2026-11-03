@@ -1,0 +1,165 @@
+(node:1920031) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1A[2K[2m[WebServer] [22mINFO:     Started server process [1920361]
+
+[1A[2K[2m[WebServer] [22mINFO:     Waiting for application startup.
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker triglycerides already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker glucose_fasting already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker wbc already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker platelets already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker tsh already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker creatinine already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Revised 0 installed biomarker text(s)
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Saturated Fat Intake for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Increase Soluble Fiber for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Quit Smoking for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Refined Carbohydrates for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Physical Activity for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Vitamin D Supplementation for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Safe Sun Exposure for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship total_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship hdl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship triglycerides -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship tsh -> free_t4 already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship glucose_fasting -> hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Seeding complete: {'biomarkers': 0, 'interventions': 0, 'relationships': 0}
+
+[1A[2K[2m[WebServer] [22mINFO:modules.backup_scheduler:Backup scheduler started
+
+[1A[2K[2m[WebServer] [22mINFO:modules.platform_notifications:Notification service initialized with desktop_notifier
+
+[1A[2K[2m[WebServer] [22mINFO:modules.notification_scheduler:Notification scheduler started
+
+[1A[2K[2m[WebServer] [22mINFO:     Application startup complete.
+
+[1A[2K[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+[1A[2K[2m[WebServer] [22mINFO:core.audit:AUDIT: profile.login - profile.login
+
+[1A[2K[2m[WebServer] [22mINFO:api.profiles:Profile logged in: fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Running profile database migrations for data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db...
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Context impl SQLiteImpl.
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Will assume non-transactional DDL.
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Profile database at data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db already at head revision 016_strict_safety_mode.
+
+[1A[2K[2m[WebServer] [22mINFO:core.profile_database:Opened encrypted database for profile fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.auth:Opened profile database for fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/login", "client_ip": "127.0.0.1", "status": 200, "duration_ms": 987.87, "correlation_id": "f4712c77-9f7e-47ab-b358-3ee9752860ac"}
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/test/reset", "client_ip": "127.0.0.1", "status": 204, "duration_ms": 188.48, "correlation_id": "c9d50706-4eaf-4e0c-b92a-a0fea7a1375d"}
+
+
+Running 2 tests using 1 worker
+
+[1A[2K(node:1920524) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[1/2] [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+HC-UIG-010 (g) interaction: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: http://localhost/gates/held; no route element
+
+[1A[2K  1) [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle 
+
+    Error: interaction must not raise the settle error
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: not [32m"StillnessSettleError"[39m
+
+      975 |     const { error } = await settleProbe(page, { kind });
+      976 |     console.log(`HC-UIG-010 (g) ${kind}: ${String(error)}`);
+    > 977 |     expect(error?.name, `${kind} must not raise the settle error`).not.toBe(SETTLE_ERROR_NAME);
+          |                                                                        ^
+      978 |     expect(error, `${kind} on a still page must pass`).toBeNull();
+      979 |     expect(await wasStarted(page), 'the trigger ran').toBe(true);
+      980 |   });
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:977:72
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-mut2/ui-gates-HC-UIG-010-g-the--05fbb-or-the-start-page-to-settle-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-mut2/ui-gates-HC-UIG-010-g-the--05fbb-or-the-start-page-to-settle-chromium/error-context.md
+
+
+[1A[2K(node:1921201) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[2/2] [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+HC-UIG-010 (g) overlay: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: http://localhost/gates/held; no route element
+
+[1A[2K  2) [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle 
+
+    Error: overlay must not raise the settle error
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mnot[2m.[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: not [32m"StillnessSettleError"[39m
+
+      975 |     const { error } = await settleProbe(page, { kind });
+      976 |     console.log(`HC-UIG-010 (g) ${kind}: ${String(error)}`);
+    > 977 |     expect(error?.name, `${kind} must not raise the settle error`).not.toBe(SETTLE_ERROR_NAME);
+          |                                                                        ^
+      978 |     expect(error, `${kind} on a still page must pass`).toBeNull();
+      979 |     expect(await wasStarted(page), 'the trigger ran').toBe(true);
+      980 |   });
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:977:72
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-mut2/ui-gates-HC-UIG-010-g-the--1a48d-or-the-start-page-to-settle-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-mut2/ui-gates-HC-UIG-010-g-the--1a48d-or-the-start-page-to-settle-chromium/error-context.md
+
+
+[1A[2K  2 failed
+    [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle 
+    [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle 
+EXIT=1
