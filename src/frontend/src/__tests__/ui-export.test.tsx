@@ -6,7 +6,7 @@
  * (`git diff origin/main -- src/frontend/src/services/export.ts src/backend` is empty), so these bodies must not move.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -389,5 +389,158 @@ describe('UI-PG-EXPORT keeps behaviour: what clears a generated file (green toda
     await user.click(consentBoxes()[1]);
     expect(screen.queryByText('Bundle ready')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download bundle/i })).toBeDisabled();
+  });
+});
+
+const REDACTION_COPY =
+  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted.';
+
+describe('HC-UIEXP-001: Full Preview opens a Sheet with the summary', () => {
+  // Blind spot: jsdom applies no CSS and runs no motion, so this cannot see the sheet's size, its slide, or that it
+  // sits above the page; e2e/ui-export.spec.ts checks those in a real browser. The inline-style check below catches a
+  // missing `still` only because framer writes a sheet's initial transform inline.
+  it('is disabled until a summary exists', () => {
+    setupApi();
+    renderPage();
+
+    expect(screen.getByRole('button', { name: /full preview/i })).toBeDisabled();
+  });
+
+  it('opens a dialog named by its title that holds the summary values, and Escape closes it', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await user.click(screen.getByRole('button', { name: /full preview/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Full summary preview' });
+    expect(within(dialog).getByText('Health Summary Report')).toBeInTheDocument();
+    expect(within(dialog).getByText('All time')).toBeInTheDocument();
+    expect(within(dialog).getByText(/1 abnormal/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Hemoglobin A1c: 6.5% (H)')).toBeInTheDocument();
+    expect(within(dialog).getByText('Glucose: 95.0 mg/dL (normal)')).toBeInTheDocument();
+    expect(within(dialog).getByText(/This is not medical advice/)).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('shows the clinician questions in the sheet when they were asked for', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await user.click(screen.getByRole('button', { name: /full preview/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Full summary preview' });
+    expect(within(dialog).getByText(questionItems[0].question)).toBeInTheDocument();
+  });
+
+  it('is still (M0): the sheet carries no inline opacity or transform', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await user.click(screen.getByRole('button', { name: /full preview/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Full summary preview' });
+    expect(dialog.style.opacity).toBe('');
+    expect(dialog.style.transform).toBe('');
+  });
+});
+
+describe('HC-UIEXP-002: no native unstyled checkbox on the page', () => {
+  // Blind spot: counts DOM nodes and roles. It cannot see that a Checkbox is drawn, that it has a visible focus
+  // ring, or that the row's hit area is large enough; the dark axe pass and the screenshots in e2e do.
+  it('has no visible native checkbox input, and every checkbox row is a Checkbox button', async () => {
+    setupApi({ withDocuments: true });
+    const { container } = renderPage();
+    await screen.findByRole('checkbox', { name: /Quest Diagnostics/ });
+
+    const native = container.querySelectorAll('input[type="checkbox"]:not([aria-hidden="true"])');
+    expect(native.length).toBe(0);
+
+    // 4 export sections + 5 packet sections + 2 attachable documents + 2 consent boxes.
+    const boxes = screen.getAllByRole('checkbox');
+    expect(boxes).toHaveLength(13);
+    expect(boxes.every((box) => box.tagName === 'BUTTON')).toBe(true);
+  });
+
+  it('the Include Sections rows are named checkboxes that report their state', async () => {
+    setupApi();
+    renderPage();
+
+    expect(screen.getByRole('checkbox', { name: 'Results Summary' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Trend Analysis' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Flagged Values' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Questions for Clinician' })).not.toBeChecked();
+  });
+
+  it('clicking a row label toggles its checkbox, and the two "questions" sections stay separate', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    const exportQuestions = screen.getByRole('checkbox', { name: 'Questions for Clinician' });
+    const packetQuestions = screen.getByRole('checkbox', { name: 'Questions for your provider' });
+    await user.click(screen.getByText('Questions for Clinician'));
+    expect(exportQuestions).toBeChecked();
+    expect(packetQuestions).toBeChecked();
+    await user.click(screen.getByText('Questions for your provider'));
+    expect(exportQuestions).toBeChecked();
+    expect(packetQuestions).not.toBeChecked();
+  });
+
+  it('every id is unique and every label points at an element that exists', async () => {
+    setupApi({ withDocuments: true });
+    const { container } = renderPage();
+    await screen.findByRole('checkbox', { name: /Quest Diagnostics/ });
+
+    const ids = Array.from(container.querySelectorAll('[id]')).map((el) => el.id);
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+    const dangling = Array.from(container.querySelectorAll('label[for]'))
+      .map((label) => label.getAttribute('for') as string)
+      .filter((id) => !container.querySelector(`[id="${id}"]`));
+    expect(dangling).toEqual([]);
+  });
+});
+
+describe('HC-UIEXP-004: the redaction level is shown as read-only text', () => {
+  // Blind spot: jsdom checks that the text exists, carries data-t0 and sits in no control. It cannot prove the
+  // sentence is true: strict is pattern-based (owner-gated gap O-3) and the CSV and JSON exports are exempt (D3),
+  // which is why the copy says so. The stillness probe in e2e covers the data-t0 behaviour.
+  it('is present before any summary exists, with data-t0, in no control', () => {
+    setupApi();
+    renderPage();
+
+    const text = screen.getByText(REDACTION_COPY);
+    expect(text).toHaveAttribute('data-t0');
+    expect(text.closest('input, select, textarea, button, form, [role]')).toBeNull();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  });
+
+  it('says CSV and JSON are not redacted', () => {
+    setupApi();
+    renderPage();
+
+    expect(screen.getByText(/CSV and JSON downloads are your own full copy and are not redacted\./)).toBeInTheDocument();
+  });
+
+  it('is repeated in the Full Preview sheet', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await user.click(screen.getByRole('button', { name: /full preview/i }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Full summary preview' });
+    expect(within(dialog).getByText(REDACTION_COPY)).toHaveAttribute('data-t0');
   });
 });
