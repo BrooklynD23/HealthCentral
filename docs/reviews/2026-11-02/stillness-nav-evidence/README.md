@@ -638,6 +638,18 @@ P.b3.baseline-preview.base.probe.med	gap=22	gapStart=38	gapEnd=60	longtasks=-	lo
 P.b3.baseline-preview.base.probe.notif	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.04/1.04
 P.b3.baseline-preview.base.probe.care	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.04/1.12
 
+### GREEN preview, second wrap P on the same head `41747d19` (verify-stage runner), `logs/task2/wrap-P-green-verify-runner/` (EXIT=0)
+
+Review round 1 ran wrap P again on the quiet box (`quiet_run.sh` prechecks passed after 0 s; head `41747d19`, same `PREVIEW_DIST` build). Result, from the raw `P1.jsonl`..`P3.jsonl` (nothing re-run by me; both sets are kept):
+
+- probe base: 1 of 15 over 40 ms (pooled); per batch b1:1/5 b2:0/5 b3:0/5; max 43
+  gaps: timeline=34 search=35 med=29 notif=43 care=35 timeline=24 search=32 med=23 notif=22 care=37 timeline=24 search=34 med=26 notif=28 care=31
+- the miss is `/notifications` in batch P1: gap 43 ms, `gapStart=-2`, `gapEnd=41`, load1 1.06.
+
+So wrap P on the preview server has two measurements of one head: 15 of 15 at 37 ms or less (first set above) and 14 of 15 with one 43 ms (this set). The acceptance bar is 15 of 15 on each server, so on the preview server it is **not shown**. The same runner's dev wrap A on `41747d19` gave 0 of 15 over 40 ms (max 38), and its mutant wrap M gave 5 of 15 (max 55). Not re-run, no bound changed, nothing dropped; the miss is not called flaky. A re-run or a ruling on how to read two preview sets needs L0.
+
+What the 43 ms run says about the mechanism: its gap opens at -2 ms, before the trigger, so some work still sits at the start of the window after the settle. Which work is not traced; I do not claim it is the start page's render or anything else.
+
 ### Mutant (settle removed): wrap M on `35b98098`, `logs/task2/wrap-M-mutant/` (EXIT=0)
 
 - probe base: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:1/5 b3:2/5; unmeasured 0; max 51
@@ -676,7 +688,7 @@ The mutant came in at 4 of 15, under the 5 of 15 the brief asked for, and equal 
 
 The fix is consistent with those misses but does not explain their size (largest local gap 65 ms, CI 71-77 ms). The after-merge count of 60 E2E attempts stays the test, and the row is not closed before it.
 
-## DRAFT owner question (for L0 to ask; not a recommendation, and no bound has changed)
+## DRAFT owner question (ON HOLD: the second preview set was 14 of 15, see above; the quoted 15 of 15 holds for the first sets only. For L0 to ask only if L0 rules the acceptance met; not a recommendation, and no bound has changed)
 
 Marked DRAFT: wording for L0 to put to the owner, lifted into the PR body by the verify stage.
 
