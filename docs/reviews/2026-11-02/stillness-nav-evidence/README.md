@@ -515,3 +515,178 @@ Notes: the warm-up rows are uncounted. **A3**: the load rose from 1.21 (precheck
 - `l0-2026-10-27/`: the recovered L0 evidence and `RECOVERY.md`.
 - `run/`: `nav-sets.spec.ts` (both sets and all flags), `gates.instrumented.ts`, `build_instrumented.py`, `make_variants.py`, `gen_plan.py`, `run_wrap.sh`, `playwright.config.ts`, `tally.py`, `verdict.py`, `trace_summary.py`, `cdp_count.awk`, and the diff pastes. Task 2's RED runs from here: the script copies `run/` to a scratch directory with `node_modules` and `src` symlinked, and writes only to its log directory.
 - `logs/`: per wrap, per batch `*.jsonl` (one JSON row per run), `*.log` (Playwright output, `PROBECOST`/`REQLOG`/`RESULT` lines), `*.precheck.log`, `tally.txt`, plus `wrap-B/verdict.txt`, the trace summaries and the six gzipped miss traces.
+
+
+# Task 2: the navigation probe starts from a settled start page (STILLNESS-NAV-LATE)
+
+PRODUCT (e2e harness), no app code. L0 ruling on #469, 2026-11-02: candidate 1 is accepted (the start page's own pending render is in the gap window; the trigger's work is not). Licensed: `src/frontend/e2e/support/gates.ts`, `stillnessProbe` only, plus tests for this one purpose in `e2e/ui-gates.spec.ts` (additions only).
+
+**Measured head: `35b98098115dd81804137ba970e80b4d852f11c1`.** Its `gates.ts` is the one committed in `7d1f726c`; the commits after that touch only this directory. Wrap A, P and M below print that head in their first line. The RED wrap A printed head `b56cf152` (before any `gates.ts` edit).
+
+## What changed
+
+- `StillnessSettleError extends StillnessError` (own name, never read as a gap failure).
+- `settleStartPage(page)`, private, called once, `if (kind === 'navigation') await settleStartPage(page);` before `startSampler`. It attaches `trackRequests` first, seeds the tracker from `page.requests()`, then loops until, at the same moment, no request has been in flight for `NETWORK_IDLE_MS` (500 ms) and the route element's computed opacity is at least `SETTLED_OPACITY` (0.99; the route element is `ROUTE_CONTAINER_SELECTOR`, else `ROUTE_FALLBACK_SELECTOR`, as `settleRoute` reads it). No fixed sleep (a 20 ms poll). It throws `StillnessSettleError` after `LAZY_IDLE_TIMEOUT_MS` (15 s; no new constant), naming the limit, the in-flight URLs and the last opacity (or "no route element"). The tracker is stopped in `finally`, before the sampler starts.
+- Unchanged: overlay and interaction probes, the sampler, window, interval, gap arithmetic, `checkSampling`, `snapshot` (including its `Math.round`), `trackRequests`, `waitUntil`, every bound constant. `git diff origin/main...HEAD -- src/frontend/e2e/support/gates.ts` has no changed bound constant.
+- Tests: `HC-UIG-010 (a)` to `(g)` appended to `ui-gates.spec.ts` (additions only: `git diff origin/main...HEAD -- src/frontend/e2e/ui-gates.spec.ts | grep -c '^-[^-]'` prints 0). `ui-gates-sampler.spec.ts` and `ui-shell.spec.ts` are untouched.
+
+## The trap (why the settle is not built on `trackRequests` alone)
+
+Scratch Playwright 1.58.1 script (fulfilled routes), by L1 before this task:
+
+- A, a request held from page load: a `page.on('request')` listener attached late saw `[]`; `page.requests()` listed it with `response()` pending; `waitForLoadState('networkidle')` timed out at 1500 ms.
+- B, a request started after the first networkidle, just before the probe: the late listener saw `[]`; `page.requests()` listed it, `response()` pending; `waitForLoadState('networkidle')` RESOLVED after 1 ms.
+- C, finished and aborted requests: `page.requests()` lists both (`response()` set for the finished one, null with `failure()` set for the aborted one).
+
+So a tracker attached at probe start is blind to the start page's own fetch (which began before the probe), and `waitForLoadState` misses case B. The settle seeds from `page.requests()`. `HC-UIG-010 (b)` is that case B: a settle built on `trackRequests` alone fails it.
+
+## Known limits (also in the code comment)
+
+- `page.requests()` holds only the last 100 requests.
+- A seeded pre-probe request counts as done once its response headers arrive. A request whose headers arrived but whose body never ends is not detected.
+- `grep` found no `EventSource` or `getReader` in `src/frontend/src`, and the shortest poller is `refetchInterval` 2000 (`modelSettings.ts:195`), so a 500 ms quiet period is reachable on the app's pages.
+- The 15 s limit is the existing `LAZY_IDLE_TIMEOUT_MS`; the ruling names no value. L0 may overrule.
+
+## Test results, per `HC-UIG-010` id (build lane, `logs/task2/`)
+
+| id | RED on today's probe (`tests-red.log`, `tests-red-de-rerun.log`) | GREEN with the settle (`tests-green.log`) | settle removed (`tests-mutant-nosettle.log`) |
+|---|---|---|---|
+| (a) request held from load | FAIL: rejected with a gap error, not `StillnessSettleError` | pass: `StillnessSettleError ... in flight: http://localhost/gates/held` | FAIL |
+| (b) request begun just before the probe | FAIL | pass, same error | FAIL |
+| (c1) route stuck at opacity .5 | FAIL | pass: `last route opacity 0.5` | FAIL |
+| (c2) no route element | FAIL | pass: `no route element` | FAIL |
+| (d) main thread blocked after the trigger | FAIL on `__sawDone` (today's probe triggers at once) | pass: `sampling gap of 187 ms (must be <= 70 ms ...)`, `__sawDone` true | FAIL |
+| (e) T0 node moved after the trigger | FAIL on `__sawDone` | pass: `computed transform changed on [data-t0] p "Glucose 104 mg/dL"`, `__sawDone` true | FAIL |
+| (f) normal 200 ms fade, lazyRoute false | FAIL on `__sawDone` | pass: 41 samples, max gap 22 ms | FAIL |
+| (f) normal 200 ms fade, lazyRoute true | FAIL on `__sawDone` | pass: 66 samples, max gap 23 ms | FAIL |
+| (g) interaction, overlay do not settle | pass (green today, by design) | pass | pass |
+
+(g) is a guard and is green on today's probe. Its RED is the mutant "the settle runs for every kind" (`tests-mutant-allkinds.log`): both (g) tests fail with `StillnessSettleError ... in flight: http://localhost/gates/held`. Deliberate break: `if (kind === 'navigation') await settleStartPage(page);` replaced by a comment gives 8 failed, 2 passed, the same set as RED; restored with `git checkout` (empty `git diff`), never committed.
+
+Callers (read-only, lane): `ui-gates.spec.ts` HC-UIG-001..009 unedited; `ui-shell.spec.ts -g HC-UISH-009`: 40 passed (`tests-green-shell009.log`). `ui-gates-sampler.spec.ts`, `ui-meds.spec.ts`, `ui-care.spec.ts` on the lane (`tests-green-callers.log`): 75 passed, 3 failed, none a `StillnessSettleError`: HC-UIG-007 (e) (overlay kind, "only 8 sample(s) after the trigger"), `UI-PG-MEDS GATE G1-G10 on /medications (light)` (first test, 5 s heading wait on a cold dev server) and `HC-UIMED-002` dose-sheet probe (overlay kind, gap 94 ms). Those are timing tests under lane load; they are not called flaky. The same files under `quiet_run.sh`: `quiet-selftests.log` (ui-gates + ui-gates-sampler) 49 passed; `quiet-callers-meds-care.log` (ui-meds + ui-care) 29 passed.
+
+## Instrumented copy
+
+`run/gates.instrumented.ts` is regenerated from the new `gates.ts`. RED copy diff: `logs/task2/instrumented-RED.diff.txt`. GREEN copy diff: `logs/task2/instrumented-GREEN.diff.txt` (logging lines only; the settle call and `settleStartPage` are identical in both files). `run/` gained wrap `P` (plan A's probe set on `vite preview`, started by `run_wrap.sh` after `quiet_run.sh`'s precheck, PREVIEW_DIST=/tmp/claude-1000/snl-dist-t2 built under the lane with `VITE_API_URL=http://127.0.0.1:8000/api/v1`), wrap `M` (probe set on dev with `gates:nosettle`), and the `nosettle` variant in `make_variants.py` (anchor matches once; it falls back to the base on a pre-fix copy so Task 1's wraps still run).
+
+## Tallies (quiet box, `quiet_run.sh --max-wait 10000`; a miss is a maximum gap over 40 ms; nothing re-run, nothing dropped)
+
+### RED: wrap A on `b56cf152` (today's probe), `logs/task2/wrap-A-red/`
+
+- probe base: 4 of 15 over 40 ms (pooled); per batch b1:0/5 b2:1/5 b3:3/5; unmeasured 0; max 51
+  gaps: timeline=40 search=37 med=32 notif=26 care=28 timeline=31 search=51 med=40 notif=30 care=33 timeline=43 search=42 med=43 notif=34 care=33
+
+A.b1.baseline.base.probe.timeline	gap=40	gapStart=18	gapEnd=58	longtasks=-	load1=1.29/1.26
+A.b1.baseline.base.probe.search	gap=37	gapStart=19	gapEnd=56	longtasks=-	load1=1.26/1.26
+A.b1.baseline.base.probe.med	gap=32	gapStart=62	gapEnd=94	longtasks=-	load1=1.26/1.26
+A.b1.baseline.base.probe.notif	gap=26	gapStart=19	gapEnd=45	longtasks=-	load1=1.26/1.32
+A.b1.baseline.base.probe.care	gap=28	gapStart=24	gapEnd=52	longtasks=-	load1=1.32/1.32
+A.b2.baseline.base.probe.timeline	gap=31	gapStart=23	gapEnd=54	longtasks=-	load1=1.19/1.19
+A.b2.baseline.base.probe.search	gap=51	gapStart=-6	gapEnd=45	longtasks=-	load1=1.19/1.5
+A.b2.baseline.base.probe.med	gap=40	gapStart=57	gapEnd=97	longtasks=-	load1=1.5/1.5
+A.b2.baseline.base.probe.notif	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.5/1.94
+A.b2.baseline.base.probe.care	gap=33	gapStart=21	gapEnd=54	longtasks=-	load1=1.94/1.94
+A.b3.baseline.base.probe.timeline	gap=43	gapStart=16	gapEnd=59	longtasks=-	load1=2.42/2.62
+A.b3.baseline.base.probe.search	gap=42	gapStart=31	gapEnd=73	longtasks=-	load1=2.62/2.62
+A.b3.baseline.base.probe.med	gap=43	gapStart=-10	gapEnd=33	longtasks=-	load1=2.62/2.57
+A.b3.baseline.base.probe.notif	gap=34	gapStart=15	gapEnd=49	longtasks=-	load1=2.57/2.57
+A.b3.baseline.base.probe.care	gap=33	gapStart=22	gapEnd=55	longtasks=-	load1=2.57/2.57
+
+The bare-timer set in the same wrap: bare base: 1 of 15 over 40 ms (pooled); per batch b1:1/5 b2:0/5 b3:0/5; unmeasured 0; max 44.
+
+### GREEN dev: wrap A on `35b98098`, `logs/task2/wrap-A-green/` (EXIT=0)
+
+- probe base: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 35
+  gaps: timeline=30 search=21 med=25 notif=33 care=26 timeline=35 search=27 med=26 notif=33 care=32 timeline=34 search=22 med=31 notif=33 care=29
+
+A.b1.baseline.base.probe.timeline	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.5/1.5
+A.b1.baseline.base.probe.search	gap=21	gapStart=18	gapEnd=39	longtasks=-	load1=1.5/1.78
+A.b1.baseline.base.probe.med	gap=25	gapStart=39	gapEnd=64	longtasks=-	load1=1.78/1.78
+A.b1.baseline.base.probe.notif	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=1.78/1.8
+A.b1.baseline.base.probe.care	gap=26	gapStart=18	gapEnd=44	longtasks=-	load1=1.8/1.8
+A.b2.baseline.base.probe.timeline	gap=35	gapStart=-2	gapEnd=33	longtasks=-	load1=1.4/1.29
+A.b2.baseline.base.probe.search	gap=27	gapStart=-2	gapEnd=25	longtasks=-	load1=1.29/1.29
+A.b2.baseline.base.probe.med	gap=26	gapStart=39	gapEnd=65	longtasks=-	load1=1.29/1.19
+A.b2.baseline.base.probe.notif	gap=33	gapStart=-1	gapEnd=32	longtasks=-	load1=1.19/1.19
+A.b2.baseline.base.probe.care	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=1.19/1.09
+A.b3.baseline.base.probe.timeline	gap=34	gapStart=18	gapEnd=52	longtasks=-	load1=1.16/1.16
+A.b3.baseline.base.probe.search	gap=22	gapStart=18	gapEnd=40	longtasks=-	load1=1.16/1.06
+A.b3.baseline.base.probe.med	gap=31	gapStart=38	gapEnd=69	longtasks=-	load1=1.06/1.06
+A.b3.baseline.base.probe.notif	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=1.06/0.98
+A.b3.baseline.base.probe.care	gap=29	gapStart=18	gapEnd=47	longtasks=-	load1=0.98/0.98
+
+The bare-timer set in the same wrap: bare base: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 38.
+
+### GREEN preview: wrap P on `35b98098`, `logs/task2/wrap-P-green/` (EXIT=0)
+
+- probe base: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 37
+  gaps: timeline=24 search=33 med=22 notif=34 care=30 timeline=26 search=37 med=23 notif=33 care=31 timeline=32 search=34 med=22 notif=30 care=37
+
+P.b1.baseline-preview.base.probe.timeline	gap=24	gapStart=18	gapEnd=42	longtasks=-	load1=1.29/1.19
+P.b1.baseline-preview.base.probe.search	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=1.19/1.19
+P.b1.baseline-preview.base.probe.med	gap=22	gapStart=40	gapEnd=62	longtasks=-	load1=1.19/1.09
+P.b1.baseline-preview.base.probe.notif	gap=34	gapStart=-1	gapEnd=33	longtasks=-	load1=1.09/1.09
+P.b1.baseline-preview.base.probe.care	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.09/1.09
+P.b2.baseline-preview.base.probe.timeline	gap=26	gapStart=19	gapEnd=45	longtasks=-	load1=1.15/1.15
+P.b2.baseline-preview.base.probe.search	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.15/1.05
+P.b2.baseline-preview.base.probe.med	gap=23	gapStart=-2	gapEnd=21	longtasks=-	load1=1.05/1.05
+P.b2.baseline-preview.base.probe.notif	gap=33	gapStart=-1	gapEnd=32	longtasks=-	load1=1.05/0.97
+P.b2.baseline-preview.base.probe.care	gap=31	gapStart=-2	gapEnd=29	longtasks=-	load1=0.97/0.97
+P.b3.baseline-preview.base.probe.timeline	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.05/1.13
+P.b3.baseline-preview.base.probe.search	gap=34	gapStart=-2	gapEnd=32	longtasks=-	load1=1.13/1.13
+P.b3.baseline-preview.base.probe.med	gap=22	gapStart=38	gapEnd=60	longtasks=-	load1=1.13/1.04
+P.b3.baseline-preview.base.probe.notif	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.04/1.04
+P.b3.baseline-preview.base.probe.care	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.04/1.12
+
+### Mutant (settle removed): wrap M on `35b98098`, `logs/task2/wrap-M-mutant/` (EXIT=0)
+
+- probe base: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:1/5 b3:2/5; unmeasured 0; max 51
+  gaps: timeline=35 search=51 med=30 notif=32 care=32 timeline=39 search=37 med=28 notif=45 care=33 timeline=45 search=29 med=27 notif=38 care=46
+
+M.b1.mutant-nosettle.base.probe.timeline	gap=35	gapStart=17	gapEnd=52	longtasks=-	load1=0.9/0.9
+M.b1.mutant-nosettle.base.probe.search	gap=51	gapStart=19	gapEnd=70	longtasks=-	load1=0.9/0.9
+M.b1.mutant-nosettle.base.probe.med	gap=30	gapStart=59	gapEnd=89	longtasks=-	load1=0.9/1.15
+M.b1.mutant-nosettle.base.probe.notif	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.15/1.15
+M.b1.mutant-nosettle.base.probe.care	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.15/1.05
+M.b2.mutant-nosettle.base.probe.timeline	gap=39	gapStart=16	gapEnd=55	longtasks=-	load1=1.19/1.18
+M.b2.mutant-nosettle.base.probe.search	gap=37	gapStart=18	gapEnd=55	longtasks=-	load1=1.18/1.18
+M.b2.mutant-nosettle.base.probe.med	gap=28	gapStart=59	gapEnd=87	longtasks=-	load1=1.18/1.18
+M.b2.mutant-nosettle.base.probe.notif	gap=45	gapStart=-3	gapEnd=42	longtasks=-	load1=1.18/1.4
+M.b2.mutant-nosettle.base.probe.care	gap=33	gapStart=22	gapEnd=55	longtasks=-	load1=1.4/1.4
+M.b3.mutant-nosettle.base.probe.timeline	gap=45	gapStart=-40	gapEnd=5	longtasks=-	load1=1.38/1.38
+M.b3.mutant-nosettle.base.probe.search	gap=29	gapStart=13	gapEnd=42	longtasks=-	load1=1.38/1.38
+M.b3.mutant-nosettle.base.probe.med	gap=27	gapStart=58	gapEnd=85	longtasks=-	load1=1.38/1.27
+M.b3.mutant-nosettle.base.probe.notif	gap=38	gapStart=19	gapEnd=57	longtasks=-	load1=1.27/1.27
+M.b3.mutant-nosettle.base.probe.care	gap=46	gapStart=-10	gapEnd=36	longtasks=-	load1=1.27/1.27
+
+The mutant came in at 4 of 15, under the 5 of 15 the brief asked for, and equal to today's probe (RED, 4 of 15). It was not re-run. Its worst gap is 51 ms on `/search`, as in RED. With 15 runs per set at a miss rate near 0.3, such a count is within the spread Task 1 recorded (1 of 15 to 8 of 15 between units on the same code), so this wrap alone does not show the settle is what removed the misses. What it does show: with the settle, 30 of 30 runs (dev and preview) are 37 ms or less; without it, 4 of 15 are over 40 ms. L0 decides whether that is enough.
+
+## Box state (quiet runs; 1-minute load at each batch's precheck)
+
+| batch | precheck time | load 1/5/15 | pgrep (playwright, vite, pytest, chrom, cargo, rustc) | listeners on 3000/4173/5173/8000 | other processes listed |
+|---|---|---|---|---|---|
+| A-red warm / A1 / A2 / A3 | 20:13:49 / 20:14:49 / 20:15:24 / 20:16:31 | 1.09 / 1.34 / 1.20 / 1.40 (1-min) | foreign wrappers listed (see below) | only the wrap's own dev server | 7 or 8 [FOREIGN] lines |
+| A-green warm / A1 / A2 / A3 | 21:40:31 / 21:41:17 / 21:41:56 / 21:42:33 | 1.39 / 1.36 / 1.47 / 1.09 | foreign wrappers listed (see below) | only own | 7 |
+| P warm / P1 / P2 / P3 | 21:43:15 / 21:43:43 / 21:44:09 / 21:44:32 | 1.45 / 1.35 / 1.09 / 0.97 | foreign wrappers listed (see below) | only own preview server | 7 |
+| M warm / M1 / M2 / M3 | 21:45:36 / 21:46:21 / 21:46:44 / 21:47:09 | 1.16 / 0.87 / 1.05 / 1.40 | foreign wrappers listed (see below) | only own dev server | 7, then 10 |
+
+`quiet_run.sh` waited 129 s before the GREEN wrap A (other quiet-box work ahead), 0 s before P and M. Per-run `load1` values range 0.90 to 1.80 across the GREEN and mutant runs. No wrap stopped midway; exit 75 never occurred in Task 2. Every precheck listed [FOREIGN] processes (full lists in each `*.precheck.log`): other sessions' Claude shell wrappers, and `scripts/pyslot.sh` wrappers from other worktrees running pytest or Playwright (for example `hc-ui-pg-export`, `hc-ui-pg-documents`, `hc-c-p6`). `quiet_run.sh` holds the pytest slots, so I infer those wrappers were queued behind the hold, not running; the evidence is the load (1-minute 0.87 to 1.47 at the prechecks, per-run 0.90 to 1.80), and I did not check each process's state. The 1-minute load stayed under the wrapper's 1.5 gate at every batch. Wrap M's M1 to M3 prechecks list 10 such lines instead of 7.
+
+## NAV70-CI-MISS
+
+The fix is consistent with those misses but does not explain their size (largest local gap 65 ms, CI 71-77 ms). The after-merge count of 60 E2E attempts stays the test, and the row is not closed before it.
+
+## DRAFT owner question (for L0 to ask; not a recommendation, and no bound has changed)
+
+Marked DRAFT: wording for L0 to put to the owner, lifted into the PR body by the verify stage.
+
+> With the navigation probe now starting from a settled start page, the instrumented page-change set (5 routes) measured a maximum gap of 35 ms on the dev server and 37 ms on `vite preview`, 15 of 15 runs at or under 40 ms on each, on a quiet box. Should page changes return to the 40 ms bound that every other kind of change keeps (STILLNESS-NAV-70 currently allows 70 ms for a page change)? CI, which measured 71 to 77 ms before this change, has not yet run with it; the count of 60 E2E attempts after merge is still open, and until it is read the 70 ms bound stands.
+
+## Deviations and things L0 should know (Task 2)
+
+- `settleStartPage` repeats `settleRoute`'s opacity condition (`ui-gates.spec.ts:172`, 0.99 via `expect.poll`) and adds the network condition; it does not import it, because `settleRoute` lives in a spec file and uses `expect`.
+- Playwright config note: running specs under the lane needs `HC_E2E_BACKEND_PYTHON=/home/danny/venvs/asclexis-311/bin/python`, or the repo config's backend `webServer` stops with "no candidate Python can import FastAPI/Uvicorn".
+- Test-file line numbers in `tests-red.log` differ by a few lines from the committed spec: (d) and (e) gained their `__sawDone` assertion after that first RED run; their RED with the assertion is `tests-red-de-rerun.log`.
+- A first lane run of the callers used a `--grep-invert` that did not select what was meant; it was killed after a few tests and its log removed, not counted. The callers were then run as listed above.
+- Mutant sets: only the probe set was run for the mutant (wrap M), not the bare set.
+- Task 2 logs: `logs/task2/` (the `logs/` directory is ignored by git; the files were added with `git add -f`, as in Task 1).
