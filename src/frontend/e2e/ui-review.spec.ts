@@ -340,6 +340,12 @@ async function settle(page: Page): Promise<void> {
 
 const row = (page: Page, id: string): Locator => page.locator(`#observation-row-${id}`);
 
+/** The computed clip-path of a row's ink layer: shut while pencil, open once ink (the 360 ms reveal has ended). */
+const inkClip = (target: Locator): Promise<string> =>
+  target.locator('[data-ink-layer]').evaluate((el) => getComputedStyle(el).clipPath);
+const INK_SHUT = /circle\(0(%|px)/;
+const INK_OPEN = /circle\(75%/;
+
 async function openReview(page: Page, path = REVIEW_ALL, readyId = GLUCOSE_ID) {
   await page.goto(path);
   await expect(page.getByRole('heading', { name: 'Verification Workbench' })).toBeVisible();
@@ -567,12 +573,18 @@ test('UI-PG-REVIEW Ink: the marker goes from pencil to ink with the chip, and a 
 
   await expect(glucose.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'pencil');
   await expect(glucose.locator('[data-state="not-checked"]')).toHaveText('Not yet checked');
+  expect(await inkClip(glucose), 'the ink layer is shut while pencil').toMatch(INK_SHUT);
 
   await glucose.getByRole('button', { name: 'Verify observation' }).click();
 
   await expect(glucose.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
   await expect(glucose.locator('[data-state="checked-by-you"]')).toHaveText('Checked by you');
   await expect(glucose.locator('[data-state="not-checked"]')).toHaveCount(0);
+  // The reveal itself: the computed clip-path ends open (the vitest suite cannot see a CSS engine).
+  await expect.poll(() => inkClip(glucose), { message: 'the ink layer opens' }).toMatch(INK_OPEN);
+  // Finding 7: the Verify button left with the commit, so focus moves to the row's Edit button, and the page did not scroll.
+  await expect(glucose.getByRole('button', { name: 'Edit value' })).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
   // The other rows stay pencil.
   await expect(row(page, A1C_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'pencil');
@@ -603,6 +615,7 @@ test('UI-PG-REVIEW Ink on the default /verify: a verified row stays in place as 
 
   await expect(glucose.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
   await expect(glucose.locator('[data-state="checked-by-you"]')).toHaveText('Checked by you');
+  await expect.poll(() => inkClip(glucose), { message: 'the ink layer opens on the default list too' }).toMatch(INK_OPEN);
   expect(await order()).toEqual(before);
   await expect(page.locator('[data-sonner-toast]')).toContainText('Glucose, Apr 10, 2026 is now marked as checked');
 });
@@ -625,6 +638,25 @@ test('HC-UIREV-002: the value text passes stillnessProbe from the Verify click t
   });
   expect(report.nodes).toBeGreaterThan(0);
   await expect(row(page, GLUCOSE_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+});
+
+// The hold only acts on the default list, where the API drops a verified row, so the probe runs there too (finding 12).
+test('HC-UIREV-002: the value text passes stillnessProbe through the Ink animation on the default /verify', async ({
+  page,
+}) => {
+  await prepare(page);
+  await openReview(page, '/verify');
+  const report = await stillnessProbe(page, {
+    trigger: () => row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click(),
+    expected: [
+      `#observation-row-${GLUCOSE_ID} span[data-t0]`,
+      `#observation-row-${GLUCOSE_ID} [data-state="checked-by-you"]`,
+    ],
+    kind: 'interaction',
+  });
+  expect(report.nodes).toBeGreaterThan(0);
+  await expect(row(page, GLUCOSE_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect.poll(() => inkClip(row(page, GLUCOSE_ID))).toMatch(INK_OPEN);
 });
 
 // ---------------------------------------------------------------------------
@@ -658,16 +690,44 @@ test('HC-UIREV-003: the Edit dialog is labelled, traps focus, closes on Escape a
   await expect(opener).toBeFocused();
 });
 
-test('HC-UIREV-003: a comma decimal shows the alert and the failed save keeps the dialog open (FE-VERIFY-NUMERIC)', async ({
+test('HC-UIREV-003: a comma decimal shows the alert, and a failed save keeps the dialog open (FE-VERIFY-NUMERIC)', async ({
   page,
 }) => {
-  await prepare(page);
+  const mock = await prepare(page);
   await openReview(page);
   await row(page, GLUCOSE_ID).getByRole('button', { name: 'Edit value' }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit Value' });
-  await dialog.getByRole('textbox', { name: /Glucose/ }).fill('7,5');
+  const input = dialog.getByRole('textbox', { name: /Glucose/ });
+  await input.fill('7,5');
   await expect(dialog.getByRole('alert')).toContainText('Use a dot for decimals');
   await expect(dialog.getByRole('button', { name: /save & verify/i })).toBeDisabled();
+
+  // The failed save (a 500 from the server): the dialog stays open, says so, and nothing is marked as checked.
+  mock.review.failVerify = true;
+  await input.fill('99');
+  await dialog.getByRole('button', { name: /save & verify/i }).click();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  expect(mock.review.requests).toContain(`POST /observations/${GLUCOSE_ID}/verify`);
+  await expect(row(page, GLUCOSE_ID).locator('[data-state="checked-by-you"]')).toHaveCount(0);
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+
+  // And it can be retried: the next save goes through and closes the dialog.
+  mock.review.failVerify = false;
+  await dialog.getByRole('button', { name: /save & verify/i }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(row(page, GLUCOSE_ID).locator('[data-state="checked-by-you"]')).toBeVisible();
+});
+
+// A failed Verify from the row (finding 9): a still error toast, and the row stays unchecked.
+test('UI-PG-REVIEW a failed Verify shows an error toast and the row stays unchecked', async ({ page }) => {
+  const mock = await prepare(page);
+  await openReview(page);
+  mock.review.failVerify = true;
+  await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
+  await expect(page.locator('[data-sonner-toast]')).toContainText('Could not mark Glucose as checked. Try again.');
+  await expect(row(page, GLUCOSE_ID).locator('[data-state="not-checked"]')).toHaveText('Not yet checked');
+  await expect(row(page, GLUCOSE_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'pencil');
 });
 
 // ---------------------------------------------------------------------------
@@ -958,6 +1018,14 @@ test('UI-PG-REVIEW Gate G7 and Gate G9 on /verify: no console error, local only,
   const afterVerify = await safetyVisible(page);
   expect(afterVerify.found && afterVerify.inViewport && afterVerify.effectiveOpacity >= 0.99, `G9 ${JSON.stringify(afterVerify)}`).toBe(true);
 
+  // The Edit dialog open and closed (Escape returns focus to its button).
+  await row(page, A1C_ID).getByRole('button', { name: 'Edit value' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit Value' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const afterDialog = await safetyVisible(page);
+  expect(afterDialog.found && afterDialog.inViewport && afterDialog.effectiveOpacity >= 0.99, `G9 ${JSON.stringify(afterDialog)}`).toBe(true);
+
   // HC-UIREV-006: the Source Trace sheet open (its GETs run) and closed.
   await showSource(page, SOURCED_ID).click();
   await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toBeVisible();
@@ -1017,18 +1085,29 @@ test('UI-PG-REVIEW Gate G3 INP proxy under 200 ms for Verify, the Edit dialog an
   expect(inp, 'G3 /verify').toBeLessThan(200);
 });
 
-test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after Verify or the Edit dialog opens', async ({
+test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dialog opens or after Verify', async ({
   page,
 }, testInfo) => {
   await prepare(page);
   await openReview(page);
-  const offenders = await reducedMotionSnapshot(page, async () => {
+
+  // Snapshot 1: the Edit dialog open (its screenshot is taken while it is still open).
+  const dialogOffenders = await reducedMotionSnapshot(page, async () => {
     await row(page, A1C_ID).getByRole('button', { name: 'Edit value' }).click();
     await expect(page.getByRole('dialog', { name: 'Edit Value' })).toBeVisible();
-    await page.keyboard.press('Escape');
+  });
+  expect(dialogOffenders, 'G5 /verify, Edit dialog open').toEqual([]);
+  const dialogShot = testInfo.outputPath('verify-dialog-reduced.png');
+  await page.screenshot({ path: dialogShot, fullPage: false });
+  testInfo.annotations.push({ type: 'gate-g5-screenshot', description: dialogShot });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // Snapshot 2: after Verify.
+  const offenders = await reducedMotionSnapshot(page, async () => {
     await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
   });
-  expect(offenders, 'G5 /verify').toEqual([]);
+  expect(offenders, 'G5 /verify, after Verify').toEqual([]);
   const shot = testInfo.outputPath('verify-reduced.png');
   await page.screenshot({ path: shot, fullPage: false });
   testInfo.annotations.push({ type: 'gate-g5-screenshot', description: shot });

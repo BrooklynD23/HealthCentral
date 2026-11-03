@@ -201,9 +201,20 @@ export function VerificationWorkbench() {
   // The confirmation waits for the commit that flips the row, so the toast never says "checked" over a row that
   // still reads "Not yet checked".
   const [justChecked, setJustChecked] = useState<Observation | null>(null);
+  // The row whose Verify button just left the DOM with its commit: focus would fall to <body> (finding 7).
+  const focusEditAfterVerifyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!justChecked) return;
     announceChecked(justChecked);
+    if (focusEditAfterVerifyRef.current === justChecked.id) {
+      focusEditAfterVerifyRef.current = null;
+      const rowElement = document.getElementById(`observation-row-${justChecked.id}`);
+      const active = document.activeElement;
+      // Only when focus was lost with the button. A user who moved on during the save keeps their place.
+      if (rowElement && (!active || active === document.body || rowElement.contains(active))) {
+        rowElement.querySelector<HTMLElement>('button[aria-label="Edit value"]')?.focus({ preventScroll: true });
+      }
+    }
     setJustChecked(null);
   }, [justChecked]);
 
@@ -255,11 +266,17 @@ export function VerificationWorkbench() {
   };
 
   const handleVerify = async (observation: Observation) => {
-    const saved = await verifyMutation.mutateAsync({
-      observationId: observation.id,
-      data: {},
-    });
-    markChecked(observation, saved);
+    try {
+      const saved = await verifyMutation.mutateAsync({
+        observationId: observation.id,
+        data: {},
+      });
+      focusEditAfterVerifyRef.current = observation.id;
+      markChecked(observation, saved);
+    } catch {
+      // Nothing was saved, so the row is not held and nothing says "checked". Still, like the success toast (T0 on screen).
+      notify({ message: `Could not mark ${observation.analyte_raw} as checked. Try again.`, still: true });
+    }
   };
 
   const handleMarkAllVerifiedClick = async () => {

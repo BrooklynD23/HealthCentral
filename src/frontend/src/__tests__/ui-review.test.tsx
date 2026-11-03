@@ -922,6 +922,66 @@ describe('HC-UIREV-006: "Show source" on a row opens the Source Trace sheet for 
   });
 });
 
+describe('Verify commit: focus, and a failed Verify (review round 3, findings 7 and 9)', () => {
+  const editOf = (id: string) => within(rowOf(id)).getByRole('button', { name: 'Edit value' });
+
+  // Finding 7. RED on the old code: the Verify button unmounted with the commit and focus fell to <body>.
+  // Blind spot: jsdom's focus; whether a screen reader announces the move is not tested.
+  it('after a keyboard Verify, focus moves to that row\'s Edit button, without scrolling', async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }).focus();
+    focus.mockClear();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(editOf('obs-1')).toHaveFocus());
+    const moved = focus.mock.contexts.findIndex((node) => node === editOf('obs-1'));
+    expect(moved, 'Edit was focused by the page').toBeGreaterThanOrEqual(0);
+    expect(focus.mock.calls[moved][0]).toEqual({ preventScroll: true });
+    focus.mockRestore();
+  });
+
+  // Blind spot: the user moved on during the save. Focus that already went elsewhere is left alone.
+  it('does not take focus that the user already moved to another field', async () => {
+    let finish: (saved: unknown) => void = () => undefined;
+    vi.mocked(api.apiPost).mockImplementation(
+      () => new Promise((resolve) => { finish = resolve; })
+    );
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    const other = within(rowOf('obs-2')).getByRole('button', { name: 'Expand details' });
+    other.focus();
+    state.observations = [{ ...glucose, user_verified: true }, hba1c, ferritin, ldlUnflagged];
+    finish({ ...glucose, user_verified: true });
+    await waitFor(() => expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    expect(other).toHaveFocus();
+  });
+
+  // Finding 9. RED on the old code: the rejection was unhandled (vitest fails the run on it) and nothing told the user.
+  // Blind spot: a 500 from the mocked api module; the ApiError wording belongs to services/api.
+  it('a failed Verify shows one still error toast, never "marked as checked", and the row stays unchecked', async () => {
+    vi.mocked(api.apiPost).mockRejectedValue(new api.ApiError(500, 'Internal Server Error', 'could not save'));
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(notify).mock.calls[0][0]).toEqual({
+      message: 'Could not mark Glucose as checked. Try again.',
+      still: true,
+    });
+    expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'pencil');
+    expect(rowOf('obs-1').querySelector('[data-state="not-checked"]')).not.toBeNull();
+    // Verify is usable again, and the row did not enter the held list.
+    expect(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' })).toBeEnabled();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('page rules shared with every T0 page', () => {
   // Blind spot: only inline style is read. A CSS class animation would not show here; the next test scans classes.
   it('rows have no entrance motion (M6 never sits on a list of T0 items)', async () => {
