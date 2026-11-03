@@ -16,6 +16,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { VerificationWorkbench } from '@/pages/VerificationWorkbench';
 import { EntityDetailView } from '@/components/documents/EntityDetailView';
+import { SourceTrace } from '@/components/results/SourceTrace';
+import type { Observation } from '@/services/types';
 import * as api from '@/services/api';
 import { notify } from '@/components/ui/toast';
 import { useAuthStore } from '@/stores/authStore';
@@ -168,6 +170,8 @@ const state = {
   pages: [] as unknown[],
   /** When set, GET /documents (the list) waits for it, like a slow server. */
   holdDocuments: null as Promise<void> | null,
+  /** When set, GET /observations/ waits for it and then reads the stored rows, like a refetch that is slow to answer. */
+  holdObservations: null as Promise<void> | null,
 };
 
 /**
@@ -226,6 +230,7 @@ function mockApi() {
     }
     if (url.startsWith('/documents')) return [];
     if (url.startsWith('/observations')) {
+      if (state.holdObservations) await state.holdObservations;
       const rows = state.observations as { user_verified: boolean }[];
       return params?.needs_verification === 'true' ? rows.filter((row) => !row.user_verified) : rows;
     }
@@ -237,13 +242,14 @@ function renderWorkbench() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  const utils = render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <VerificationWorkbench />
       </BrowserRouter>
     </QueryClientProvider>
   );
+  return { ...utils, queryClient };
 }
 
 const rowOf = (id: string) => document.getElementById(`observation-row-${id}`) as HTMLElement;
@@ -276,6 +282,7 @@ beforeEach(() => {
   state.documents = [];
   state.pages = [];
   state.holdDocuments = null;
+  state.holdObservations = null;
   mockApi();
   mockVerifyEndpoint();
   setReducedMotion(false);
@@ -919,6 +926,286 @@ describe('HC-UIREV-006: "Show source" on a row opens the Source Trace sheet for 
     for (const name of ['Edit value', 'Verify observation', 'Expand details', 'Show source']) {
       expect(within(rowOf('obs-1')).getByRole('button', { name })).toBeInTheDocument();
     }
+  });
+});
+
+/**
+ * "It matches, mark as checked" inside the Source Trace sheet on the default /verify (L0 ruling 6602430522).
+ * The sheet verifies through SourceTrace's own mutation, so the page's Verify handler never runs. Without a hold
+ * the refetch drops the row (needs_verification), the open sheet unmounts, and there is no ink.
+ */
+describe('HC-UIREV-006 and HC-UIREV-002: verifying from the Source Trace sheet on the default /verify', () => {
+  const sheetGlucose = { ...glucose, source_page: 1 };
+  const sheetPotassium = { ...criticalInRange, source_page: 1 };
+  // One matching line per analyte, so each sheet has an excerpt and the button is enabled.
+  const reportPage = [
+    { page_number: 1, text: 'Glucose 95 mg/dL 70-100\nPotassium 4.2 mmol/L 3.5-5.1', has_tables: false },
+  ];
+  const MARK = 'It matches, mark as checked';
+  const CHECKED_TEXT = 'You have marked this value as checked.';
+
+  function deferred() {
+    let release: () => void = () => undefined;
+    const promise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return { promise, release };
+  }
+
+  // Reads through document, not within(): while the sheet is open Radix hides the page behind it from the a11y tree.
+  const inkState = (id: string) =>
+    document.getElementById(`observation-row-${id}`)?.querySelector('[data-ink-marker]')?.getAttribute('data-state') ??
+    'row is gone';
+  const chipStateOf = (id: string) =>
+    document
+      .getElementById(`observation-row-${id}`)
+      ?.querySelector('[data-state="not-checked"], [data-state="checked-by-you"]')
+      ?.getAttribute('data-state') ?? 'row is gone';
+  const rangeWordsOf = (id: string) =>
+    document.getElementById(`observation-row-${id}`)?.querySelector('[data-state$="-range"]')?.textContent ?? null;
+  const valueNodeOf = (id: string) =>
+    document.getElementById(`observation-row-${id}`)?.querySelector('span[data-t0].font-mono') ?? null;
+  const tintOf = (id: string) =>
+    ['text-status-attention', 'text-status-caution', 'text-ink'].find((cls) => valueNodeOf(id)?.classList.contains(cls));
+  const observationGets = () => vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length;
+  const verifyPosts = () => vi.mocked(api.apiPost).mock.calls.filter(([url]) => /\/verify$/.test(String(url))).length;
+  const toastMessages = () => vi.mocked(notify).mock.calls.map(([toast]) => (toast as { message: string }).message);
+  const pause = (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  beforeEach(() => {
+    state.observations = [sheetGlucose, hba1c, ferritin, ldlUnflagged];
+    state.pages = reportPage;
+  });
+
+  /** Opens the sheet from the row's Show source, and waits until the excerpt is on screen and the button is enabled. */
+  async function openSheet(user: ReturnType<typeof userEvent.setup>, id = 'obs-1', name = 'Glucose') {
+    const trigger = within(rowOf(id)).getByRole('button', { name: 'Show source' });
+    await user.click(trigger);
+    const dialog = await screen.findByRole('dialog', { name: `Source for ${name}` });
+    await within(dialog).findByText('This is what your report states.');
+    const button = within(dialog).getByRole('button', { name: MARK });
+    await waitFor(() => expect(button).toBeEnabled());
+    return { trigger, dialog, button };
+  }
+
+  /** The server commits at the POST and answers when `gate` opens, so a refetch can land in between. */
+  function mockVerifyAnsweringAfter(gate: Promise<void>) {
+    vi.mocked(api.apiPost).mockImplementation(async (url: string) => {
+      const id = /\/observations\/([^/]+)\/verify$/.exec(url)?.[1];
+      const rows = state.observations as Row[];
+      const current = rows.find((row) => row.id === id);
+      if (!current) throw new Error(`not stubbed: ${url}`);
+      const saved = verifyLikeApi(current);
+      state.observations = rows.map((row) => (row.id === id ? saved : row));
+      await gate;
+      return saved;
+    });
+  }
+
+  async function settled(queryClient: { isFetching: () => number }) {
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    await pause();
+  }
+
+  // RED on the old code: the refetch dropped the row and unmounted the sheet, and nothing was held. Blind spot: the
+  // mocks answer in the order this test sets; a real browser's network order is the "order" tests below, by gate.
+  it('the row stays, held, with its ink; the sheet stays open and says it is checked; the value shows throughout', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const { trigger, dialog, button } = await openSheet(user);
+    expect(inkState('obs-1')).toBe('pencil');
+    const before = observationGets();
+    await user.click(button);
+    await waitFor(() => expect(inkState('obs-1')).toBe('ink'));
+    await waitFor(() => expect(observationGets()).toBeGreaterThan(before));
+    await settled(queryClient);
+    // The refetch (needs_verification) no longer has obs-1: the held copy is what is on screen.
+    expect(inkState('obs-1')).toBe('ink');
+    expect(chipStateOf('obs-1')).toBe('checked-by-you');
+    expect(valueNodeOf('obs-1')).toHaveTextContent('95');
+    // The same sheet node, still open, and it shows the checked state in place of the button.
+    expect(dialog.isConnected).toBe(true);
+    expect(screen.getByRole('dialog', { name: 'Source for Glucose' })).toBe(dialog);
+    expect(within(dialog).getByText(CHECKED_TEXT)).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: MARK })).toBeNull();
+    // Closing it does not take the row away: the normal hold rule.
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(inkState('obs-1')).toBe('ink');
+    expect(valueNodeOf('obs-1')).toHaveTextContent('95');
+    expect(rowOf('obs-1').contains(trigger)).toBe(true);
+  });
+
+  // Order (a). Blind spot: the hold is a deferred promise standing in for a slow GET. Real timing is not tested.
+  it('(a) order: the invalidation refetch answers only after the POST has resolved, and the row survives it', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const { dialog, button } = await openSheet(user);
+    const refetch = deferred();
+    state.holdObservations = refetch.promise;
+    const before = observationGets();
+    await user.click(button);
+    // The POST has answered and its refetch is in flight but held: only onVerified can have put the ink here.
+    await waitFor(() => expect(observationGets()).toBeGreaterThan(before));
+    expect(verifyPosts()).toBe(1);
+    await waitFor(() => expect(inkState('obs-1')).toBe('ink'));
+    expect(within(dialog).getByText(CHECKED_TEXT)).toBeInTheDocument();
+    // Now the refetch answers, without the row.
+    refetch.release();
+    await settled(queryClient);
+    expect(inkState('obs-1')).toBe('ink');
+    expect(dialog.isConnected).toBe(true);
+    expect(within(dialog).getByText(CHECKED_TEXT)).toBeInTheDocument();
+    expect(toastMessages()).toHaveLength(1);
+  });
+
+  // Order (b): the dangerous one. A refetch that was already in flight when the POST was sent answers after the server
+  // committed and before the POST response arrives. Blind spot: it needs a refetch to be in flight at the click (focus
+  // refetch, another invalidation); this test starts one by hand.
+  it('(b) order: a refetch already in flight answers without the row before the POST resolves, and the row is still held', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const { dialog, button } = await openSheet(user);
+    const earlierRefetch = deferred();
+    state.holdObservations = earlierRefetch.promise;
+    const before = observationGets();
+    void queryClient.invalidateQueries({ queryKey: ['observations'] });
+    await waitFor(() => expect(observationGets()).toBeGreaterThan(before));
+    const post = deferred();
+    mockVerifyAnsweringAfter(post.promise);
+    await user.click(button);
+    await waitFor(() => expect(verifyPosts()).toBe(1));
+    // The server has committed. The older GET now answers and the row is gone from the fetched list.
+    earlierRefetch.release();
+    await pause();
+    // Only now does the POST answer.
+    post.release();
+    await settled(queryClient);
+    expect(inkState('obs-1')).toBe('ink');
+    expect(chipStateOf('obs-1')).toBe('checked-by-you');
+    expect(valueNodeOf('obs-1')).toHaveTextContent('95');
+    expect(dialog.isConnected).toBe(true);
+    expect(within(dialog).getByText(CHECKED_TEXT)).toBeInTheDocument();
+    expect(toastMessages()).toHaveLength(1);
+  });
+
+  // RED on the old code (the prop did not exist, so the sheet's failure had no page effect to compare). A failure
+  // must never show checked. Blind spot: one 500 from the mocked api module; a network error takes the same path.
+  it('a failed verify from the sheet: no hold, no ink, nothing says checked, no toast, and the sheet shows its own error', async () => {
+    vi.mocked(api.apiPost).mockRejectedValue(new api.ApiError(500, 'Internal Server Error', 'could not save'));
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const { dialog, button } = await openSheet(user);
+    await user.click(button);
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('It could not be marked as checked. Try again.');
+    // A refetch afterwards: the server never stored anything, so the row is the same unverified row.
+    await queryClient.invalidateQueries({ queryKey: ['observations'] });
+    await settled(queryClient);
+    expect(inkState('obs-1')).toBe('pencil');
+    expect(chipStateOf('obs-1')).toBe('not-checked');
+    expect(rowOf('obs-1').textContent).not.toMatch(/checked by you/i);
+    expect(within(dialog).queryByText(CHECKED_TEXT)).toBeNull();
+    expect(within(dialog).getByRole('button', { name: MARK })).toBeEnabled();
+    expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  // RED on a page that announces too: markChecked sets justChecked, whose effect is a second notify beside the sheet's.
+  // Blind spot: notify is mocked and counted; the toast's own rendering and a toast arriving after this window are not.
+  it('exactly one toast across the whole flow, including after the refetch settles and the sheet closes', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const { button } = await openSheet(user);
+    await user.click(button);
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    await settled(queryClient);
+    expect(notify).toHaveBeenCalledTimes(1);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await pause(100);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(toastMessages()[0]).toMatch(/Glucose.* is now marked as checked$/);
+    expect(vi.mocked(notify).mock.calls[0][0]).toMatchObject({ still: true });
+  });
+
+  // Blind spot: Radix hands focus back to the trigger it was opened from. The page's own focus code
+  // (focusEditAfterVerifyRef) must not run on this path, because focus belongs to the sheet.
+  it('focus returns to "Show source" when the sheet closes, not to Edit or the body', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const { trigger, button } = await openSheet(user);
+    await user.click(button);
+    await waitFor(() => expect(inkState('obs-1')).toBe('ink'));
+    await settled(queryClient);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(within(rowOf('obs-1')).getByRole('button', { name: 'Edit value' })).not.toHaveFocus();
+  });
+
+  // VERIFY-FLAG-WORDS. The POST answer must differ from the copy the row had, or a page that recomputes (or reuses the
+  // old copy) could not be told from one that reads the answer. Blind spot: the real API echoes the stored flag; a
+  // response that differs from the row is a contrivance that only tells the two sources apart.
+  it.each([
+    ['L before, H in the response', 'L', 'H', "Below the report's range", "Above the report's range", 'text-status-attention'],
+    ['H before, CRITICAL in the response', 'H', 'CRITICAL', "Above the report's range", null, 'text-ink'],
+  ])(
+    'the held row reads the flag the server answered with (%s)',
+    async (_label, copyFlag, responseFlag, wordsBefore, wordsAfter, tintAfter) => {
+      const copy = { ...sheetPotassium, flag: copyFlag };
+      state.observations = [sheetGlucose, copy];
+      vi.mocked(api.apiPost).mockImplementation(async () => {
+        const saved = { ...copy, flag: responseFlag, is_abnormal: true, user_verified: true };
+        state.observations = [sheetGlucose, saved];
+        return saved;
+      });
+      const user = userEvent.setup();
+      const { queryClient } = renderWorkbench();
+      await screen.findByText('Potassium');
+      expect(rangeWordsOf('obs-c')).toBe(wordsBefore);
+      const { button } = await openSheet(user, 'obs-c', 'Potassium');
+      await user.click(button);
+      await waitFor(() => expect(inkState('obs-c')).toBe('ink'));
+      await settled(queryClient);
+      expect(rangeWordsOf('obs-c')).toBe(wordsAfter);
+      expect(tintOf('obs-c')).toBe(tintAfter);
+      expect(valueNodeOf('obs-c')).toHaveTextContent('4.2');
+    }
+  );
+
+  // Not RED on the old code, by design: it pins today's behaviour for the callers that do not pass the prop
+  // (CitationTooltip, InterpretedResultCard). Blind spot: it renders SourceTrace alone; those two callers' own
+  // tests are source-trace-wire and ui-provenance.
+  it('a SourceTrace with no onVerified still verifies, shows the checked state, and toasts once', async () => {
+    vi.mocked(api.apiPost).mockResolvedValue({ ...sheetGlucose, user_verified: true });
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <SourceTrace
+            observation={sheetGlucose as unknown as Observation}
+            excerptLines={['Glucose 95 mg/dL 70-100']}
+            matchIndex={0}
+            open
+            onOpenChange={() => undefined}
+          />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: MARK }));
+    expect(await screen.findByText(CHECKED_TEXT)).toBeInTheDocument();
+    await pause();
+    expect(verifyPosts()).toBe(1);
+    expect(toastMessages()).toHaveLength(1);
+    expect(toastMessages()[0]).toMatch(/Glucose.* is now marked as checked$/);
   });
 });
 
