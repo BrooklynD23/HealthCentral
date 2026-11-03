@@ -7,7 +7,8 @@
 #   A  baseline: warm-up (declared, uncounted), then 3 batches of probe set + bare-timer set (5 + 5 runs each)
 #   B  variants: warm-up, then 3 batches of 16 units x (5 control + 5 variant runs)
 #   C  trace: 10 cycles of the baseline probe with CDP Tracing (first 3 misses kept), then 5 runs counting
-#      DEBUG=pw:protocol messages in the probe window
+#      DEBUG=pw:protocol messages in the probe window (the count failed in wrap C: unquoted path; redone in D)
+#   D  diagnostic: comparison traces (baseline probe, probe + candidate 1's wait, bare timer) and the CDP message count
 #
 # Before EACH batch: wait (bounded, 30 min) for the 1-minute load < 1.5, then log uptime, pgrep, ss with own PIDs marked.
 # The run/ directory is copied to a scratch dir with node_modules and src symlinked in; nothing is written in the tree
@@ -90,10 +91,12 @@ precheck() { # label
   echo "(own server pids: $(cat "$MYPIDS_FILE" | tr '\n' ' '))"
 }
 
+cdp_filter() { awk -f "$HERE/cdp_count.awk"; }
+
 run_batch() { # label plan-name batch [extra env...]
   local label=$1 plan=$2 batch=$3; shift 3
-  local pf="$SCR/plan-$label.json" out="$LOGDIR/$label" filter="cat"
-  [ "$plan" = Ccdp ] && filter="awk -f $HERE/cdp_count.awk"
+  local pf="$SCR/plan-$label.json" out="$LOGDIR/$label" filter=cat
+  [ "$plan" = Ccdp ] && filter=cdp_filter
   python3 "$HERE/gen_plan.py" "$plan" "$batch" > "$pf" || return 2
   : > "$out.jsonl"
   precheck "$label" > "$out.precheck.log" 2>&1; local rc=$?
@@ -131,6 +134,13 @@ C)
   run_batch warmC warmA 0 || exit $?
   run_batch C1 C 1 MEAS_TRACE_KEEP_MAX=3 || exit $?
   run_batch C2 Ccdp 1 DEBUG=pw:protocol || exit $?
+  ;;
+D)
+  precheck "pre-start" || exit 75
+  start_server dev 3000 ./node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort || exit 3
+  run_batch warmD warmA 0 || exit $?
+  run_batch D1 Ccmp 1 MEAS_TRACE_KEEP_MAX=9 MEAS_TRACE_KEEP_OVER_MS=-1 || exit $?
+  run_batch D2 Ccdp 1 DEBUG=pw:protocol || exit $?
   ;;
 *) echo "unknown wrap $WRAP"; exit 2 ;;
 esac

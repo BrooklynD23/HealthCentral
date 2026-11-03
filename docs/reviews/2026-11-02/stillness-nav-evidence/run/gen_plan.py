@@ -8,6 +8,7 @@ plans:
   B               variants: per batch, for every unit a control block and a variant block (5 routes each),
                   alternating which goes first; the unit order rotates by batch
   C               trace: baseline probe, 10 cycles over the 5 routes, CDP Tracing on (keeps the first 3 misses)
+  Ccmp            comparison traces (diagnostic): baseline probe, probe with candidate 1's wait, bare timer; 3 routes each
   Ccdp            baseline probe, one pass over the 5 routes, with SNL-MARK lines for the DEBUG=pw:protocol count
 No randomness: the plan is reproducible from the committed copy.
 """
@@ -75,6 +76,13 @@ def main():
         for cycle in range(10):
             for r in ROUTES:
                 out.append(case('C', 1, 'trace', 'base', 'probe', ['trace'], DEV, r, f'.c{cycle + 1}'))
+    elif plan == 'Ccmp':
+        # Diagnostic comparison for the trace finding (not a rule input): the same three routes traced under the baseline
+        # probe, the probe with candidate 1's 100 ms wait, and the bare timer. Kept whatever their gap (KEEP_OVER_MS=-1).
+        for r in ['/search', '/timeline', '/care-tasks']:
+            out.append(case('Ccmp', 1, 'tracecmp-base', 'base', 'probe', ['trace'], DEV, r))
+            out.append(case('Ccmp', 1, 'tracecmp-v1', 'variant', 'probe', ['trace', 'gates:v1'], DEV, r))
+            out.append(case('Ccmp', 1, 'tracecmp-bare', 'base', 'bare', ['trace'], DEV, r))
     elif plan == 'Ccdp':
         out += block('Ccdp', 1, 'cdpcount', 'base', 'probe', ['cdpcount'], DEV)
     else:

@@ -49,6 +49,7 @@ const TRACE_KEEP_MAX = Number(process.env.MEAS_TRACE_KEEP_MAX || '3');
 /** A trace is kept only when the run's maximum gap is over this (ms). Lowered only by the harness smoke test. */
 const TRACE_KEEP_OVER_MS = Number(process.env.MEAS_TRACE_KEEP_OVER_MS || '40');
 let tracesKept = 0;
+const TRACE_CATEGORIES = ['-*', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute', 'blink.user_timing', 'toplevel'];
 let configPrinted = false;
 
 // ---- helpers copied from e2e/ui-shell.spec.ts (not imported: importing that spec would register its tests) ----
@@ -250,7 +251,7 @@ for (const c of PLAN) {
           await browser.startTracing(page, {
             path: tracePath,
             screenshots: false,
-            categories: ['-*', 'devtools.timeline', 'disabled-by-default-devtools.timeline', 'v8.execute', 'blink.user_timing', 'toplevel'],
+            categories: TRACE_CATEGORIES,
           });
           anchorPage = await page.evaluate(() => { performance.mark('snl-anchor'); return performance.now(); });
         }
@@ -305,6 +306,13 @@ for (const c of PLAN) {
         }
       } else {
         // L0's bare timer, with an observer and the gap end added.
+        const bBrowser = page.context().browser();
+        const bTracePath = traced ? `${TRACE_DIR}/${c.id.replace(/[^A-Za-z0-9_.-]/g, '_')}.json` : '';
+        let bAnchor = -1;
+        if (traced && bBrowser) {
+          await bBrowser.startTracing(page, { path: bTracePath, screenshots: false, categories: TRACE_CATEGORIES });
+          bAnchor = await page.evaluate(() => { performance.mark('snl-anchor'); return performance.now(); });
+        }
         await page.evaluate(() => {
           const w = window as unknown as { __ticks: number[]; __timer: number };
           w.__ticks = [];
@@ -331,8 +339,18 @@ for (const c of PLAN) {
             path: location.pathname,
           };
         }, t0);
+        if (traced && bBrowser) await bBrowser.stopTracing();
         const obs = await readObservers(page, t0);
-        Object.assign(result, { measured: true, ...r, triggeredAt: Math.round(t0), ...obs, guardProblems: guard ? guard.report().consoleErrors.length + guard.report().externalRequests.length + guard.report().unmockedApi.length : null });
+        Object.assign(result, { measured: true, ...r, triggeredAt: Math.round(t0), anchorPage: bAnchor, ...obs, guardProblems: guard ? guard.report().consoleErrors.length + guard.report().externalRequests.length + guard.report().unmockedApi.length : null });
+        if (traced) {
+          if (r.maxGap > TRACE_KEEP_OVER_MS) {
+            tracesKept += 1;
+            result.tracePath = bTracePath;
+          } else {
+            fs.rmSync(bTracePath, { force: true });
+            result.tracePath = null;
+          }
+        }
       }
     } catch (e) {
       result.measured = false;
