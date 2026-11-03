@@ -249,8 +249,8 @@ export function VerificationWorkbench() {
     });
   };
 
-  /** The server said yes: show the row as checked now, ahead of (and surviving) the refetch, then say so. */
-  const markChecked = (observation: Observation, saved: Observation | undefined) => {
+  /** Keep the row on screen as checked, ahead of (and surviving) the refetch that drops it from the needs_verification list. */
+  const holdChecked = (observation: Observation, saved: Observation | undefined): Observation => {
     const checked: Observation = { ...observation, ...saved, user_verified: true };
     const index = Math.max(0, observations?.findIndex((row) => row.id === observation.id) ?? 0);
     setHeld((prev) => ({
@@ -262,7 +262,12 @@ export function VerificationWorkbench() {
         { observation: checked, index },
       ],
     }));
-    setJustChecked(checked);
+    return checked;
+  };
+
+  /** The server said yes: hold the row, then say so once the commit has flipped it. */
+  const markChecked = (observation: Observation, saved: Observation | undefined) => {
+    setJustChecked(holdChecked(observation, saved));
   };
 
   const handleVerify = async (observation: Observation) => {
@@ -816,6 +821,8 @@ export function VerificationWorkbench() {
                             <span role="presentation" className="inline-flex" onClick={(e) => e.stopPropagation()}>
                               <ObservationSourceTrace
                                 observation={observation}
+                                // The sheet toasts for itself and keeps focus, so this holds the row and nothing else.
+                                onVerified={(saved) => holdChecked(observation, saved)}
                                 trigger={
                                   <button
                                     type="button"

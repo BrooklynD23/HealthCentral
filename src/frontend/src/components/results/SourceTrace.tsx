@@ -102,6 +102,12 @@ export interface SourceTraceProps extends TraceSource {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: ReactNode;
+  /**
+   * Called with the server's answer when "It matches, mark as checked" succeeds, before the toast. A page whose list
+   * drops a verified row (/verify, needs_verification) uses it to hold the row, because the sheet verifies through
+   * its own mutation and the page's handler never runs. Callers that omit it behave as before.
+   */
+  onVerified?: (saved: Observation) => void;
 }
 
 function analyteName(observation: Observation): string {
@@ -155,6 +161,7 @@ export function SourceTrace({
   open,
   onOpenChange,
   trigger,
+  onVerified,
 }: SourceTraceProps) {
   const name = analyteName(observation);
   const date = formatCollected(observation.collected_at);
@@ -184,8 +191,9 @@ export function SourceTrace({
     verify.mutate(
       { observationId, data: {} },
       {
-        onSuccess: () => {
+        onSuccess: (saved) => {
           setCheckedId(observationId);
+          onVerified?.(saved);
           notify({
             message: `${[name, date].filter(Boolean).join(', ')} is now marked as checked`,
             still: true,
@@ -369,9 +377,11 @@ export function excerptFromPage(
 export function ObservationSourceTrace({
   observation,
   trigger,
+  onVerified,
 }: {
   observation: Observation;
   trigger: ReactNode;
+  onVerified?: (saved: Observation) => void;
 }) {
   const [open, setOpen] = useState(false);
   // The excerpt is set in JetBrains Mono (font-display: swap). Loading it now, not when the sheet opens,
@@ -403,6 +413,7 @@ export function ObservationSourceTrace({
       sourceStatus={sourceStatus}
       sourceFileLoading={documentQuery.isPending}
       excerptLoading={pagesQuery.isPending}
+      onVerified={onVerified}
     />
   );
 }

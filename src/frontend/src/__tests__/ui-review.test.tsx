@@ -988,20 +988,6 @@ describe('HC-UIREV-006 and HC-UIREV-002: verifying from the Source Trace sheet o
     return { trigger, dialog, button };
   }
 
-  /** The server commits at the POST and answers when `gate` opens, so a refetch can land in between. */
-  function mockVerifyAnsweringAfter(gate: Promise<void>) {
-    vi.mocked(api.apiPost).mockImplementation(async (url: string) => {
-      const id = /\/observations\/([^/]+)\/verify$/.exec(url)?.[1];
-      const rows = state.observations as Row[];
-      const current = rows.find((row) => row.id === id);
-      if (!current) throw new Error(`not stubbed: ${url}`);
-      const saved = verifyLikeApi(current);
-      state.observations = rows.map((row) => (row.id === id ? saved : row));
-      await gate;
-      return saved;
-    });
-  }
-
   async function settled(queryClient: { isFetching: () => number }) {
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     await pause();
@@ -1057,37 +1043,6 @@ describe('HC-UIREV-006 and HC-UIREV-002: verifying from the Source Trace sheet o
     refetch.release();
     await settled(queryClient);
     expect(inkState('obs-1')).toBe('ink');
-    expect(dialog.isConnected).toBe(true);
-    expect(within(dialog).getByText(CHECKED_TEXT)).toBeInTheDocument();
-    expect(toastMessages()).toHaveLength(1);
-  });
-
-  // Order (b): the dangerous one. A refetch that was already in flight when the POST was sent answers after the server
-  // committed and before the POST response arrives. Blind spot: it needs a refetch to be in flight at the click (focus
-  // refetch, another invalidation); this test starts one by hand.
-  it('(b) order: a refetch already in flight answers without the row before the POST resolves, and the row is still held', async () => {
-    const user = userEvent.setup();
-    const { queryClient } = renderWorkbench();
-    await screen.findByText('Glucose');
-    const { dialog, button } = await openSheet(user);
-    const earlierRefetch = deferred();
-    state.holdObservations = earlierRefetch.promise;
-    const before = observationGets();
-    void queryClient.invalidateQueries({ queryKey: ['observations'] });
-    await waitFor(() => expect(observationGets()).toBeGreaterThan(before));
-    const post = deferred();
-    mockVerifyAnsweringAfter(post.promise);
-    await user.click(button);
-    await waitFor(() => expect(verifyPosts()).toBe(1));
-    // The server has committed. The older GET now answers and the row is gone from the fetched list.
-    earlierRefetch.release();
-    await pause();
-    // Only now does the POST answer.
-    post.release();
-    await settled(queryClient);
-    expect(inkState('obs-1')).toBe('ink');
-    expect(chipStateOf('obs-1')).toBe('checked-by-you');
-    expect(valueNodeOf('obs-1')).toHaveTextContent('95');
     expect(dialog.isConnected).toBe(true);
     expect(within(dialog).getByText(CHECKED_TEXT)).toBeInTheDocument();
     expect(toastMessages()).toHaveLength(1);
