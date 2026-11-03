@@ -1072,19 +1072,30 @@ describe('HC-UIRES-009 the page draws the ribbon taller below lg', () => {
     expect(heightOf()).toBe(160);
   });
 
-  it('HC-UIRES-009: the height is chosen in the first render: the svg gets its viewBox once, never a default and then a correction', async () => {
-    setDesktop(false);
-    const sets: string[] = [];
-    const original = Element.prototype.setAttribute;
-    vi.spyOn(Element.prototype, 'setAttribute').mockImplementation(function (this: Element, name: string, value: string) {
-      if (name === 'viewBox' && this.getAttribute('role') === 'slider') sets.push(value);
-      return original.call(this, name, value);
+  // The height comes from a useState initialiser, so the svg is created once at its final height. A height read in an
+  // effect draws once at a default and then again, so each orientation is checked: below lg and at lg.
+  for (const desktop of [false, true]) {
+    it(`HC-UIRES-009: the height is chosen in the first render (${desktop ? 'lg' : 'below lg'}): the svg gets its viewBox once, never a default and then a correction`, async () => {
+      setDesktop(desktop);
+      const sets: string[] = [];
+      const original = Element.prototype.setAttribute;
+      vi.spyOn(Element.prototype, 'setAttribute').mockImplementation(function (this: Element, name: string, value: string) {
+        if (name === 'viewBox' && this.getAttribute('role') === 'slider') sets.push(value);
+        return original.call(this, name, value);
+      });
+      // The cache holds the observations and the trend already, so the very first commit holds the svg. With the
+      // data still to arrive, an effect would have run before the svg existed and the test could not see it.
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      client.setQueryData(['observations', { profile_id: 'profile-123' }], OBSERVATIONS);
+      client.setQueryData(['observations', 'trends', 'hemoglobin', undefined, undefined], trendFor('hemoglobin', 'HEMOGLOBIN'));
+      await renderPage({ client });
+      await pageLoaded();
+      expect(sets).toHaveLength(1);
+      const height = Number(sets[0].split(' ')[3]);
+      if (desktop) expect(height).toBe(160);
+      else expect(height).toBeGreaterThanOrEqual(288);
     });
-    await renderPage();
-    await pageLoaded();
-    expect(sets).toHaveLength(1);
-    expect(Number(sets[0].split(' ')[3])).toBeGreaterThanOrEqual(288);
-  });
+  }
 
   it('HC-UIRES-009: crossing lg re-draws the ribbon at the other height (the listener is wired)', async () => {
     let listener: ((event: { matches: boolean }) => void) | null = null;
