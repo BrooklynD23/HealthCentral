@@ -1812,7 +1812,7 @@ describe('UI-PG-REVIEW finding 8: Verify keeps the selected row and its Source P
   const observationGets = () =>
     vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length;
   const isSelected = (id: string) => rowOf(id).className.includes('bg-accent-subtle');
-  const spinner = () => document.querySelector('svg.animate-spin.w-8.h-8');
+  const spinner = () => document.querySelector('svg.lucide-loader2.w-8.h-8');
 
   beforeEach(() => {
     window.history.pushState({}, '', REVIEW_ALL);
@@ -1851,7 +1851,7 @@ describe('UI-PG-REVIEW finding 8: Verify keeps the selected row and its Source P
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
           if (!(node instanceof Element)) return;
-          if (node.matches('svg.animate-spin.w-8.h-8') || node.querySelector('svg.animate-spin.w-8.h-8')) spinnerSeen = true;
+          if (node.matches('svg.lucide-loader2.w-8.h-8') || node.querySelector('svg.lucide-loader2.w-8.h-8')) spinnerSeen = true;
         });
       }
       if (spinner()) spinnerSeen = true;

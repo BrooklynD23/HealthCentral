@@ -1356,6 +1356,48 @@ test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after Save & Verif
   expect(offenders, 'G5 /verify, Save & Verify pending').toEqual([]);
 });
 
+// The row-select spinner (loadingSource, svg.lucide-loader2.w-8.h-8) and the Retry extraction spinner (w-4 h-4) were not
+// in any snapshot. Both requests are held here, by routes local to this test (registered after prepare(), so they run
+// first), until the end of the test. The empty-state Retry (needsRetry and no rows) is the same class and has no
+// snapshot of its own.
+// Blind spot: it reads the transform only. It does not see a spinner on a page state this fixture does not reach.
+test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms with the row-select and Retry spinners on screen', async ({
+  page,
+}) => {
+  await prepare(page);
+  await openReview(page);
+  let releasePages: () => void = () => undefined;
+  let releaseReprocess: () => void = () => undefined;
+  const pagesHeld = new Promise<void>((resolve) => (releasePages = resolve));
+  const reprocessHeld = new Promise<void>((resolve) => (releaseReprocess = resolve));
+  let pagesArrived = 0;
+  let reprocessArrived = 0;
+  await page.route(`**/api/v1/documents/${DOC_ID}/pages`, async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    pagesArrived += 1;
+    await pagesHeld;
+    return route.fallback();
+  });
+  await page.route(`**/api/v1/documents/${DOC_ID}/reprocess`, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    reprocessArrived += 1;
+    await reprocessHeld;
+    return route.fallback();
+  });
+  const offenders = await reducedMotionSnapshot(page, async () => {
+    await selectRow(page, SOURCED_ID, 'Creatinine');
+    await page.getByRole('button', { name: 'Retry extraction' }).click();
+    await expect.poll(() => [pagesArrived, reprocessArrived]).toEqual([1, 1]);
+    await twoFrames(page);
+  });
+  // Both spinners are on screen, so the snapshot saw the pending states and not finished ones.
+  await expect(page.locator('svg.lucide-loader2.w-8.h-8')).toBeAttached();
+  await expect(page.getByRole('button', { name: 'Retry extraction' }).locator('svg.lucide-loader2')).toBeAttached();
+  releasePages();
+  releaseReprocess();
+  expect(offenders, 'G5 /verify, row-select and Retry spinners').toEqual([]);
+});
+
 test('UI-PG-REVIEW Gate G10 stillness on /verify: every [data-t0] node stays still from the nav click', async ({
   page,
 }, testInfo) => {
@@ -1473,7 +1515,7 @@ test('UI-PG-REVIEW finding 8: a Verify on a row that is not the first keeps the 
 
   // Tag the live nodes and watch every mutation and every frame from here until the end of the Verify.
   await page.evaluate(() => {
-    const SPINNER = 'svg.animate-spin.w-8.h-8';
+    const SPINNER = 'svg.lucide-loader2.w-8.h-8';
     const w = window as unknown as { __f8: Record<string, unknown> };
     const img = document.querySelector('[data-page-image-overlay] img');
     // The page text itself, not its box: the loading, loaded and empty boxes are all one div, which React reuses.
