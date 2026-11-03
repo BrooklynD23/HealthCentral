@@ -162,7 +162,8 @@ function visibleNav(page: Page) {
 /** Navigates the way a user does: a nav link, the search form, or the profile menu. */
 async function navigateTo(page: Page, route: string): Promise<void> {
   if (route === '/search') {
-    await page.getByRole('banner').getByRole('searchbox').fill('migraine');
+    await page.getByRole('banner').getByRole('button', { name: /search/i }).click();
+    await page.getByRole('dialog', { name: 'Command palette' }).getByRole('combobox').fill('migraine');
     await page.keyboard.press('Enter');
     return;
   }
@@ -633,8 +634,7 @@ test.describe('HC-UISH-004 and HC-UISH-006 round 2: phone top bar and toggle lab
       await openRoute(page, '/inbox');
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
       const banner = page.getByRole('banner');
-      await expect(banner.getByRole('search')).toBeVisible();
-      await expect(banner.getByRole('searchbox', { name: 'Search health records' })).toBeVisible();
+      await expect(banner.getByRole('button', { name: /search/i })).toBeVisible();
       await expect(banner.getByRole('link', { name: 'Search', exact: true })).toBeHidden();
     });
   }
