@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import {
@@ -63,6 +63,9 @@ function docTypeWords(doc: Document): string {
   return DOC_TYPE_WORDS[doc.doc_type] ?? 'Document';
 }
 
+/** How long an import result waits for the list refresh to settle before it shows without the new row (INBOX-ROW-JUMP). */
+const IMPORT_RESULT_WAIT_MS = 3000;
+
 export function DocumentInbox() {
   const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
@@ -75,6 +78,10 @@ export function DocumentInbox() {
   // be a retry of the same file (a later file of a multi-file pick does the same, so that failure goes unreported).
   const [importError, setImportError] = useState<{ message: string; fileName: string; after: number } | null>(null);
   const importsResolved = useRef(0);
+  // Positions in `imports` whose IMPORT_RESULT_WAIT_MS timer has fired. The timers are cleared on unmount.
+  const [waitedOut, setWaitedOut] = useState<number[]>([]);
+  const waitTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => waitTimers.current.forEach(clearTimeout), []);
   // Documents the patient removed in this visit: their import card and duplicate warning leave with their row.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,26 +116,31 @@ export function DocumentInbox() {
   // The import card and a duplicate warning appear in the same frame as the new row they describe, and leave in the same
   // frame as its row (HC-UIDOC-006: rows move once). The import resolves before the invalidated list answers, so shown
   // from the result alone they would land first and push every row down, and the row would push them down again. They
-  // wait for the list. Once it has stopped fetching they show anyway, so a failed refresh never hides the result.
-  const importResultShown = (id: string): boolean => {
+  // wait for the list, but not for ever: once it has settled (success or failure), or IMPORT_RESULT_WAIT_MS after the
+  // import resolved, whichever comes first, they show. If the timer won, the row arrives later as a second step: an
+  // event the patient was waiting on, and each step is still one instant jump (INBOX-ROW-JUMP).
+  const importResultShown = (id: string, at: number): boolean => {
     const inList = documents.some((doc) => doc.id === id);
-    return removedIds.includes(id) ? Boolean(isFetching) && inList : inList || !isFetching;
+    return removedIds.includes(id) ? Boolean(isFetching) && inList : inList || !isFetching || waitedOut.includes(at);
   };
 
-  // An import is ready when its row has arrived, or the list has stopped fetching without it. One the patient removed
-  // stays ready through every later refresh: its row is not coming back, so waiting for it would make an older card, or
-  // the alert of a failure it retried past, the newest ready result and show it again.
-  const importReady = (result: DocumentImportResponse): boolean =>
-    !isFetching || removedIds.includes(result.document.id) || documents.some((doc) => doc.id === result.document.id);
+  // An import is ready when its row has arrived, the list has stopped fetching without it, or its timer has fired. One
+  // the patient removed stays ready through every later refresh and timer: its row is not coming back, so waiting for it
+  // would make an older card, or the alert of a failure it retried past, the newest ready result and show it again.
+  const importReady = (result: DocumentImportResponse, at: number): boolean =>
+    !isFetching ||
+    waitedOut.includes(at) ||
+    removedIds.includes(result.document.id) ||
+    documents.some((doc) => doc.id === result.document.id);
 
   // The card is the newest import that is ready, so a second import keeps the first card until its own row is in the
   // list, and the two swap in one render (a card that left when the import resolved would move every row up, and the
   // new row would move them down again). A removed import stays the newest ready one, so no older card comes back.
   const readyAt = imports.map(importReady).lastIndexOf(true);
-  const importCard = readyAt >= 0 && importResultShown(imports[readyAt].document.id) ? imports[readyAt] : null;
-  // The alert stays until a retry has landed the same way, then it leaves in the render that adds the row.
+  const importCard = readyAt >= 0 && importResultShown(imports[readyAt].document.id, readyAt) ? imports[readyAt] : null;
+  // The alert stays until a retry has landed the same way, then it leaves in the render that adds the row (or at the timer).
   const importErrorShown =
-    importError !== null && !imports.slice(importError.after).some(importReady) ? importError : null;
+    importError !== null && !imports.some((result, at) => at >= importError.after && importReady(result, at)) ? importError : null;
 
   const openPreview = (id: string, opener: HTMLElement) => {
     previewOpener.current = opener;
@@ -171,8 +183,10 @@ export function DocumentInbox() {
     
     try {
       const result = await importDocument.mutateAsync({ file, profileId });
+      const at = importsResolved.current;
       importsResolved.current += 1;
       setImports((current) => [...current, result]);
+      waitTimers.current.push(setTimeout(() => setWaitedOut((current) => [...current, at]), IMPORT_RESULT_WAIT_MS));
       if (result.duplicate_warning) {
         setDuplicateWarnings((current) => [...current, result]);
       }
@@ -439,7 +453,7 @@ export function DocumentInbox() {
         </Card>
       )}
 
-      {duplicateWarnings.filter((importResult) => importResultShown(importResult.document.id)).map((importResult) => (
+      {duplicateWarnings.filter((importResult) => importResultShown(importResult.document.id, imports.indexOf(importResult))).map((importResult) => (
         <Card
           key={importResult.document.id}
           className="border-status-caution/30 bg-status-caution/5"
