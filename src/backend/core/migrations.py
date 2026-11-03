@@ -394,8 +394,10 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
         _unlink_quietly(_with_sidecars(tmp))
         raise _refuse("pre-017 snapshot", step, exc) from None
     # No audit row exists for this copy, so this line is the only trace that the
-    # retention rule started. Event words only: no path, no key.
-    logger.info("Pre-017 snapshot created and verified; it is purged on the first open 30 days or more later")
+    # retention rule started. WARNING, not INFO: alembic.ini sets root to WARN and
+    # nothing raises this logger, so an INFO line never reaches the log in the
+    # running app. Event words only: no path, no key.
+    logger.warning("Pre-017 snapshot created and verified; it is purged on the first open 30 days or more later")
 
 
 def purge_pre017_snapshot(vault_path: Path) -> None:
@@ -433,7 +435,7 @@ def _purge_expired_snapshot(vault_path: Path) -> None:
         if utcnow() - made >= _SNAPSHOT_MAX_AGE:
             for old in _with_sidecars(snap):
                 old.unlink(missing_ok=True)
-            logger.info("Pre-017 snapshot purged after 30 days")
+            logger.warning("Pre-017 snapshot purged after 30 days")  # WARNING: see _ensure_pre017_snapshot
     except OSError as exc:
         logger.warning("Pre-017 snapshot purge failed (%s)", type(exc).__name__)
 

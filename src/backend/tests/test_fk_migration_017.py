@@ -984,7 +984,9 @@ def _rev(path: Path, key: bytes = KEY):
 @pytest.fixture
 def mig_log():
     """Records of ``core.migrations``. env.py's fileConfig() strips root handlers
-    on every migration run, so a handler on the logger itself is what survives."""
+    on every migration run, so a handler on the logger itself is what survives.
+    The level is NOT raised: a record reaches the list only if the app's own
+    logging configuration lets it through (recurring failure 1)."""
     records: list[logging.LogRecord] = []
 
     class _Collect(logging.Handler):
@@ -992,12 +994,10 @@ def mig_log():
             records.append(record)
 
     logger = logging.getLogger(MIGRATIONS_LOGGER)
-    handler, level = _Collect(), logger.level
+    handler = _Collect()
     logger.addHandler(handler)
-    logger.setLevel(logging.DEBUG)
     yield records
     logger.removeHandler(handler)
-    logger.setLevel(level)
 
 
 def _assert_refusal_leaks_nothing(path: Path, exc, records, *, step_words, error_class):
@@ -1553,8 +1553,19 @@ def test_hc_fks_007c_a_failing_purge_does_not_block_the_open(tmp_path, monkeypat
     assert not [r for r in mig_log if r.levelno >= logging.ERROR]
 
 
+def _apply_alembic_ini_logging() -> None:
+    """The level the running app has: alembic.ini's fileConfig (root WARN), as
+    env.py applies it on every migration run. No setLevel anywhere in the tests."""
+    ini = migrations._get_alembic_config("profile").config_file_name
+    logging.config.fileConfig(ini, disable_existing_loggers=False)
+    assert logging.getLogger(MIGRATIONS_LOGGER).isEnabledFor(logging.WARNING)
+    assert not logging.getLogger(MIGRATIONS_LOGGER).isEnabledFor(logging.INFO)
+
+
 def _event_infos(records) -> list[str]:
-    return [r.getMessage() for r in records if r.levelno == logging.INFO and "napshot" in r.getMessage()]
+    """Snapshot event lines. WARNING, because INFO never reaches the log in the
+    running app (root is WARN in alembic.ini and nothing raises core.migrations)."""
+    return [r.getMessage() for r in records if r.levelno == logging.WARNING and "napshot" in r.getMessage()]
 
 
 def test_hc_fks_014_a_made_snapshot_is_logged_without_a_path(vault016, mig_log):
@@ -1562,6 +1573,7 @@ def test_hc_fks_014_a_made_snapshot_is_logged_without_a_path(vault016, mig_log):
     the only trace that the retention rule started. Event words only."""
     path, _cfg = vault016
     _seed(path, ["P2"])
+    _apply_alembic_ini_logging()
 
     migrations.run_profile_migration(path, KEY)
 
@@ -1578,6 +1590,7 @@ def test_hc_fks_015_a_purged_snapshot_is_logged_without_a_path(tmp_path, monkeyp
     snap.write_bytes(b"an old snapshot")
     os.utime(snap, (_utc_ts(MADE_AT), _utc_ts(MADE_AT)))
     monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + timedelta(days=30))
+    _apply_alembic_ini_logging()
 
     migrations.run_profile_migration(vault, KEY)
 
