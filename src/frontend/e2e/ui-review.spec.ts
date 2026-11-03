@@ -1657,6 +1657,8 @@ test('UI-PG-REVIEW still toast: two still toasts stack, the older one at its off
   expect(newer.inlineY, 'no inline --y on the front toast').toBe('');
   expect(newer.ty, 'the front toast sits at its place').toBe(0);
   expect(older.ty, 'the older toast sits at its stack offset, off the front toast').not.toBe(0);
-  // sonner's stack scale is --toasts-before * 0.05 + 1 (dist/styles.css:298-299): one toast in front gives 1.05.
-  expect(Math.abs(older.scale), 'the older toast has sonner\'s stack scale (1.05 for one toast in front)').toBeCloseTo(1.05, 2);
+  // sonner's stack scale (dist/styles.css:298-299): --scale is `var(--toasts-before) * 0.05 + 1` and the toast takes
+  // scale(calc(-1 * var(--scale))), which calc reads as -1 * toasts-before * 0.05 + 1. One toast in front gives 0.95
+  // (measured), not 1.05: the older toast is scaled down by 5 % per toast in front of it.
+  expect(Math.abs(older.scale), 'the older toast is scaled down 5 % behind the one toast in front of it').toBeCloseTo(0.95, 2);
 });
