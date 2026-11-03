@@ -32,6 +32,8 @@ import { FIXTURE_PROFILE_ID, installMockApi, seedMockSession } from './support/m
 import type { DocumentEntityResponse } from '../src/services/documentCategories';
 import type { Observation } from '../src/services/types';
 
+// Set when the run targets a production build (vite preview) through HC_E2E_BASE_URL; unset on the dev server CI runs.
+const PREVIEW = Boolean(process.env.HC_E2E_BASE_URL);
 const DOC_ID = 'doc-fixture-0002';
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
@@ -1245,7 +1247,16 @@ test('UI-PG-REVIEW Gate G3 INP proxy under 200 ms for Verify, the Edit dialog an
     { cpuRate: 4 }
   );
   console.log(`UI-PG-REVIEW G3 INP proxy /verify (CPU x4): ${inp} ms`);
-  expect(inp, 'G3 /verify').toBeLessThan(200);
+  // The plan defines G3 on a production build. The dev server (what CI runs) serves unbundled source, and on it this
+  // test measured 144 ms, then 232-320 ms, on one head. L0 ruling 6607786566: the bound stays at 200, asserted on
+  // preview only.
+  // Blind spot: on the dev server this test can no longer fail on time, so CI does not enforce G3 on /verify. L0's
+  // quiet-box run on vite preview does.
+  if (PREVIEW) {
+    expect(inp, 'G3 /verify').toBeLessThan(200);
+  } else {
+    console.log(`UI-PG-REVIEW G3 /verify: ${inp} ms not asserted on the dev server (the plan defines G3 on a production build; set HC_E2E_BASE_URL to a vite preview to assert < 200 ms)`);
+  }
 });
 
 test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dialog opens, after Verify, with the Source Trace sheet open or after It matches', async ({
