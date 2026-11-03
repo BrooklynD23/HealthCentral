@@ -504,6 +504,34 @@ for (const flagCase of FLAG_CASES) {
 }
 
 // ---------------------------------------------------------------------------
+// L0 ruling on review round 3, finding 3: the last unverified value verified. The row stays as ink (HC-UIREV-002
+// needs it on screen), the end-of-queue state shows above the list, and Mark All Verified is disabled.
+// ---------------------------------------------------------------------------
+test('UI-PG-REVIEW Ink on the default /verify: verifying the last row shows the end of the queue above the held row', async ({
+  page,
+}) => {
+  await prepare(page, DESKTOP, { rows: [initialObservations[0]] });
+  await openReview(page, '/verify');
+  const markAll = page.getByRole('button', { name: 'Mark All Verified' });
+  await expect(markAll).toBeEnabled();
+  await expect(page.getByText('All observations verified')).toHaveCount(0);
+  const top = () => row(page, GLUCOSE_ID).evaluate((el) => el.getBoundingClientRect().y + window.scrollY);
+  const topBefore = await top();
+
+  await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
+  await expect(page.getByText('All observations verified')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+
+  await expect(row(page, GLUCOSE_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(markAll).toBeDisabled();
+  const done = await page.getByText('All observations verified').boundingBox();
+  const held = await row(page, GLUCOSE_ID).boundingBox();
+  expect(done!.y, 'the end of the queue sits above the held row').toBeLessThan(held!.y);
+  // Recorded, not asserted: the list moves down by the height of this block (candidate bullet for L0).
+  console.log(`UI-PG-REVIEW last row: the held row moved ${Math.round((await top()) - topBefore)} px when the end of the queue mounted`);
+});
+
+// ---------------------------------------------------------------------------
 // L0 ruling on review round 3, finding 4: the page does not move when /documents answers late. The "Reviewing:
 // <file>" line is reserved in document review mode. Layout only (no clock), so it runs on any box.
 // ---------------------------------------------------------------------------

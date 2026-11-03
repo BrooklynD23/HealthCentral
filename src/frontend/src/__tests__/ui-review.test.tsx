@@ -768,7 +768,7 @@ describe('the end of the queue shows while the last row is held as ink (L0 rulin
     const done = screen.getByText('All observations verified');
     expect(done.compareDocumentPosition(rowOf('obs-1')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
-    expect(screen.queryByText(/items need review/)).toBeNull();
+    expect(screen.queryByText(/^\d+ items need review$/)).toBeNull();
   });
 
   it('with an import that needs attention it shows "Documents needing attention" above the list', async () => {

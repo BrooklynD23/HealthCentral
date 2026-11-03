@@ -90,10 +90,21 @@ interface HeldRow {
 }
 const NO_HELD_ROWS: HeldRow[] = [];
 
-function withHeldRows(fetched: Observation[] | undefined, held: HeldRow[]): Observation[] | undefined {
+/**
+ * `fetched` with the held rows laid over it. A fetched row that is verified wins: the server has it, and it may
+ * differ from the copy held here. A row the fetch no longer has comes back only on the needs_verification list,
+ * where the API drops a row once it is verified. On any other list a missing row is gone for a reason (a document
+ * that was reprocessed deletes its rows and makes new ids), and putting it back would show a ghost.
+ */
+function withHeldRows(
+  fetched: Observation[] | undefined,
+  held: HeldRow[],
+  reinsertMissing: boolean
+): Observation[] | undefined {
   if (!fetched || held.length === 0) return fetched;
   const heldById = new Map(held.map((entry) => [entry.observation.id, entry.observation]));
-  const rows = fetched.map((row) => heldById.get(row.id) ?? row);
+  const rows = fetched.map((row) => (row.user_verified ? row : (heldById.get(row.id) ?? row)));
+  if (!reinsertMissing) return rows;
   const present = new Set(fetched.map((row) => row.id));
   // Back at the place each one had on screen, lowest first, so the list reads as it did before the refetch.
   for (const entry of [...held].sort((a, b) => a.index - b.index)) {
@@ -172,17 +183,20 @@ export function VerificationWorkbench() {
   // assistant was willing to ground an answer on it — so the default
   // needs_verification filter would never contain it. Widen to the whole
   // document when following a citation.
-  const observationFilters =
-    documentReviewMode || citedObservationId || citedEntityId
-      ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
-      : { profile_id: profileId || '', needs_verification: true };
+  const needsVerificationList = !(documentReviewMode || citedObservationId || citedEntityId);
+  const observationFilters = needsVerificationList
+    ? { profile_id: profileId || '', needs_verification: true }
+    : { profile_id: profileId || '', doc_id: selectedDocId || undefined };
   const { data: fetchedObservations, isLoading, isError, error } = useObservations(observationFilters);
   // Rows verified in this visit stay on screen as ink. They belong to one filter: another document, another
   // profile or a citation starts clean.
   const filterKey = JSON.stringify(observationFilters);
   const [held, setHeld] = useState<{ key: string; rows: HeldRow[] }>({ key: '', rows: NO_HELD_ROWS });
   const heldRows = held.key === filterKey ? held.rows : NO_HELD_ROWS;
-  const observations = useMemo(() => withHeldRows(fetchedObservations, heldRows), [fetchedObservations, heldRows]);
+  const observations = useMemo(
+    () => withHeldRows(fetchedObservations, heldRows, needsVerificationList),
+    [fetchedObservations, heldRows, needsVerificationList]
+  );
   // The confirmation waits for the commit that flips the row, so the toast never says "checked" over a row that
   // still reads "Not yet checked".
   const [justChecked, setJustChecked] = useState<Observation | null>(null);
@@ -199,6 +213,9 @@ export function VerificationWorkbench() {
   const verifyMutation = useVerifyObservation();
   const verifyDocumentMutation = useVerifyDocument();
   const reprocessMutation = useReprocessDocument();
+  // Reprocessing deletes the document's rows and makes new ones, so nothing held here describes the record any more.
+  const retryExtraction = (docId: string) =>
+    reprocessMutation.mutate(docId, { onSuccess: () => setHeld({ key: '', rows: NO_HELD_ROWS }) });
   const selectedDocument = selectedDocId
     ? allDocuments.find((d) => d.id === selectedDocId) ?? null
     : null;
@@ -429,6 +446,73 @@ export function VerificationWorkbench() {
 
   // Count unverified items
   const unverifiedCount = observations?.filter((o) => !o.user_verified).length ?? 0;
+  // On the default list no unverified row is left: the queue has ended, even while the rows verified in this
+  // visit are still held on screen as ink (L0 ruling on review round 3, finding 3).
+  const queueDone = needsVerificationList && unverifiedCount === 0;
+
+  // What follows the last unverified value: the documents that still need follow-up, or the all-clear.
+  const attentionDocuments = documentsLoading
+    ? []
+    : allDocuments.filter((d) => DOCUMENT_ATTENTION_STATUSES.has(d.status));
+  const queueEnd = (
+    <>
+      {documentsLoading ? (
+        <Card>
+          <CardContent className="py-16 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-accent" aria-hidden />
+            <span className="sr-only">Loading documents…</span>
+          </CardContent>
+        </Card>
+      ) : attentionDocuments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-status-attention" />
+              Documents needing attention
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-ink-secondary">
+              There are no lab values waiting in the verification queue. These imports still need
+              follow-up (OCR, extraction, or document-level review).
+            </p>
+            <ul className="divide-y divide-black/6 rounded-xl border border-black/6 bg-surface-muted/30">
+              {attentionDocuments.map((doc) => (
+                <li key={doc.id} className="p-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink truncate">{doc.source || 'Untitled document'}</p>
+                    <p className="text-xs text-ink-secondary mt-0.5">
+                      {doc.doc_type.replace(/_/g, ' ')} · {doc.status.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                  <p className="text-xs text-ink-secondary sm:max-w-md shrink-0">
+                    {documentAttentionHint(doc)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-ink-secondary">
+              Open{' '}
+              <Link to="/inbox" className="text-accent font-medium hover:underline">
+                Inbox
+              </Link>{' '}
+              to preview files or re-import. In Settings, check Document import (OCR) if scans are not readable.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-16">
+            <div className="text-center">
+              <CheckCircle className="w-12 h-12 text-status-verified mx-auto mb-3" />
+              <p className="text-lg font-medium text-ink mb-1">All observations verified</p>
+              <p className="text-ink-secondary">No items need review at this time.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
 
   // Loading state
   if (isLoading) {
@@ -530,7 +614,7 @@ export function VerificationWorkbench() {
               <div className="flex flex-wrap gap-2">
                 {needsRetry && (
                   <Button
-                    onClick={() => reprocessMutation.mutate(selectedDocument.id)}
+                    onClick={() => retryExtraction(selectedDocument.id)}
                     disabled={reprocessMutation.isPending}
                     className="gap-2"
                   >
@@ -554,10 +638,6 @@ export function VerificationWorkbench() {
       );
     }
 
-    const attentionDocuments = documentsLoading
-      ? []
-      : allDocuments.filter((d) => DOCUMENT_ATTENTION_STATUSES.has(d.status));
-
     return (
       <div className="space-y-6">
         <div>
@@ -569,61 +649,7 @@ export function VerificationWorkbench() {
           </p>
         </div>
 
-        {documentsLoading ? (
-          <Card>
-            <CardContent className="py-16 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-accent" aria-hidden />
-              <span className="sr-only">Loading documents…</span>
-            </CardContent>
-          </Card>
-        ) : attentionDocuments.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-status-attention" />
-                Documents needing attention
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-ink-secondary">
-                There are no lab values waiting in the verification queue. These imports still need
-                follow-up (OCR, extraction, or document-level review).
-              </p>
-              <ul className="divide-y divide-black/6 rounded-xl border border-black/6 bg-surface-muted/30">
-                {attentionDocuments.map((doc) => (
-                  <li key={doc.id} className="p-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink truncate">{doc.source || 'Untitled document'}</p>
-                      <p className="text-xs text-ink-secondary mt-0.5">
-                        {doc.doc_type.replace(/_/g, ' ')} · {doc.status.replace(/_/g, ' ')}
-                      </p>
-                    </div>
-                    <p className="text-xs text-ink-secondary sm:max-w-md shrink-0">
-                      {documentAttentionHint(doc)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-sm text-ink-secondary">
-                Open{' '}
-                <Link to="/inbox" className="text-accent font-medium hover:underline">
-                  Inbox
-                </Link>{' '}
-                to preview files or re-import. In Settings, check Document import (OCR) if scans are not readable.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <CheckCircle className="w-12 h-12 text-status-verified mx-auto mb-3" />
-                <p className="text-lg font-medium text-ink mb-1">All observations verified</p>
-                <p className="text-ink-secondary">No items need review at this time.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {queueEnd}
       </div>
     );
   }
@@ -667,6 +693,7 @@ export function VerificationWorkbench() {
             onClick={() => void handleMarkAllVerifiedClick()}
             disabled={
               !observations?.length ||
+              queueDone ||
               verifyMutation.isPending ||
               verifyDocumentMutation.isPending
             }
@@ -679,7 +706,7 @@ export function VerificationWorkbench() {
               type="button"
               variant="secondary"
               className="gap-2"
-              onClick={() => reprocessMutation.mutate(selectedDocument.id)}
+              onClick={() => retryExtraction(selectedDocument.id)}
               disabled={reprocessMutation.isPending}
             >
               {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -698,6 +725,8 @@ export function VerificationWorkbench() {
           to may have been deleted, or its document re-extracted.
         </div>
       )}
+
+      {queueDone && !documentsLoading ? queueEnd : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
