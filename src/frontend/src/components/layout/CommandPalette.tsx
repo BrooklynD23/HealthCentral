@@ -52,10 +52,10 @@ interface Group {
   entries: Entry[];
 }
 
-const RECORD_LINK: Record<SearchRecordType, { icon: LucideIcon; to: string; kind: string }> = {
-  document: { icon: FileText, to: '/inbox', kind: 'Document' },
-  entity: { icon: Tags, to: '/verify', kind: 'Extracted detail' },
-  observation: { icon: FlaskConical, to: '/trends', kind: 'Observation' },
+const RECORD_LINK: Record<SearchRecordType, { icon: LucideIcon; to: string }> = {
+  document: { icon: FileText, to: '/inbox' },
+  entity: { icon: Tags, to: '/verify' },
+  observation: { icon: FlaskConical, to: '/trends' },
 };
 
 /** /trends names its analyte with ?analyte= (the page reads it; without it the chart is the first analyte's). */
