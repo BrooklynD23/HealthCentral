@@ -85,6 +85,7 @@ class InterpretationSafetyGuard:
         "sodium": {"critical_low": 120, "critical_high": 160},
         "platelets": {"critical_low": 50, "critical_high": 1000},
         "wbc": {"critical_low": 2.0, "critical_high": 30.0},
+        "white_blood_cells": {"critical_low": 2.0, "critical_high": 30.0},
     }
 
     def __init__(self):
