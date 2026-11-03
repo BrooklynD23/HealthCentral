@@ -467,6 +467,20 @@ describe('HC-UIREV-001 and HC-UIREV-002 across Verify (L0 ruling on review round
     expect(verifyLikeApi({ ...base, id: 'x', value: 4.2, flag: 'N', is_abnormal: false }).flag).toBeNull();
     expect(verifyLikeApi({ ...base, id: 'x', value: 9, flag: null, is_abnormal: false }).flag).toBe('H');
   });
+
+  // VERIFY-EDIT-NO-RANGE (#479): a real edit of a flagged row with no range keeps the report's own flag, because
+  // there is nothing to recalculate against. A normal word still recalculates, so N does not stick.
+  // Blind spot: it pins the mock to the rule; the backend itself is HC-VKF's.
+  it('the verify mock keeps H on a real edit with no range, and recalculates N', () => {
+    const noRange = { ref_low: null, ref_high: null, user_verified: false };
+    const keptH = verifyLikeApi({ ...noRange, id: 'x', value: 4.2, flag: 'H', is_abnormal: true }, { value: 9 });
+    expect(keptH.value).toBe(9);
+    expect(keptH.flag).toBe('H');
+    expect(keptH.is_abnormal).toBe(true);
+    const recalculatedN = verifyLikeApi({ ...noRange, id: 'x', value: 4.2, flag: 'N', is_abnormal: false }, { value: 9 });
+    expect(recalculatedN.flag).toBeNull();
+    expect(recalculatedN.is_abnormal).toBe(false);
+  });
 });
 
 describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the chip to checked by you', () => {
