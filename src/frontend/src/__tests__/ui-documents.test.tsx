@@ -853,6 +853,158 @@ describe('HC-UIDOC-006 the import card commits with its row', () => {
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIDOC-014..017: the import result waits for the list, but not for ever. A list refresh that has not settled after
+// 3 s no longer hides the card, the scanned-page notice, the duplicate warning or the alert (L0 ruling on PR #464,
+// comment 6606938809). The row may arrive later as a second step; each step is one instant jump (INBOX-ROW-JUMP).
+// These tests run on real timers: the page's timer is 3 s.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-014 the import result does not wait for a list refresh for ever', () => {
+  const fresh = (over: Partial<DocumentImportResponse> = {}) =>
+    importResponse({ observations_extracted: 3, doc: { id: 'new-1', source: 'fresh.pdf' }, ...over });
+  const TIMER_WAIT = { timeout: 4500 };
+
+  /** Uploads fresh.pdf with the list refetch held; returns once the import has resolved and the refetch is waiting. */
+  async function importWithHeldList(user: ReturnType<typeof userEvent.setup>, response = fresh()) {
+    await renderLoaded();
+    apiUpload.mockResolvedValueOnce(response as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    const held = gate();
+    listGate = held.wait;
+    await upload(user, 'fresh.pdf');
+    await waitFor(() => expect(screen.queryByText('Importing document...')).not.toBeInTheDocument());
+    return held;
+  }
+
+  it('HC-UIDOC-014: a list refresh that never answers still shows the card, the scanned-page notice and the duplicate warning after 3 s, and not before', async () => {
+    // Would not notice: the exact tick (the timer is 3000 ms; this reads "not at 1 s, there by 4.5 s"); or a result
+    // that shows for another reason, since the list is held for the whole test and never answers.
+    // RED at fb6e7ef2: the list was held and the card, the notice and the warning never showed (reviewer: all null at 2 s).
+    const user = userEvent.setup();
+    await importWithHeldList(
+      user,
+      fresh({
+        pages_without_text: [2],
+        duplicate_warning: { match_type: 'content_hash', document_id: 'doc-a', title: 'a.pdf' },
+      })
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    });
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/document imported: fresh\.pdf/i, {}, TIMER_WAIT)).toBeInTheDocument();
+    expect(screen.getByText(/page 2 has no readable text, so its values were not read/i)).toBeInTheDocument();
+    expect(screen.getByText(/possible duplicate upload/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '3 values ready to review' })).toBeInTheDocument();
+    // The list never answered, so the new row is not there: the row is the second step.
+    expect(screen.queryByRole('heading', { name: 'fresh.pdf' })).not.toBeInTheDocument();
+  }, 12000);
+
+  it('HC-UIDOC-014: when the list answers after the timer the row arrives as a second step and the card stays', async () => {
+    // Would not notice: that the two steps are each one jump (the e2e HC-UIDOC-006 (u) samples the rects); this reads the
+    // order and that the card does not go and come back.
+    const user = userEvent.setup();
+    const held = await importWithHeldList(user);
+    await screen.findByText(/document imported: fresh\.pdf/i, {}, TIMER_WAIT);
+    expect(screen.queryByRole('heading', { name: 'fresh.pdf' })).not.toBeInTheDocument();
+    held.open();
+    await screen.findByRole('heading', { name: 'fresh.pdf' });
+    expect(screen.getByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '3 values ready to review' })).toBeInTheDocument();
+  }, 12000);
+
+  it('HC-UIDOC-015: a refresh that is held past 3 s and then fails shows the result at the timer, and keeps it', async () => {
+    // Would not notice: a plain failing refresh (HC-UIDOC-011 above pins that; it is GREEN at fb6e7ef2 because
+    // !isFetching covers it). Only a failure held past the timer is RED at fb6e7ef2: the card waited for the failure.
+    const user = userEvent.setup();
+    const held = await importWithHeldList(user);
+    listFails = true;
+    await screen.findByText(/document imported: fresh\.pdf/i, {}, TIMER_WAIT);
+    expect(screen.queryByText('Failed to load documents')).not.toBeInTheDocument();
+    held.open();
+    expect(await screen.findByText('Failed to load documents')).toBeInTheDocument();
+    expect(screen.getByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+  }, 12000);
+
+  it('HC-UIDOC-016: a failed import, then a retry whose refresh is held: the alert leaves with the card at the timer', async () => {
+    // Would not notice: an alert that leaves and a card that shows in two different renders (the swap is read by
+    // looking for the card the moment the alert is gone).
+    // RED at fb6e7ef2: the alert stayed for ever, because it reads the same readiness as the card.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockRejectedValueOnce(new api.ApiError(400, 'Bad Request', 'Unsupported file type'));
+    await upload(user, 'fresh.pdf');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unsupported file type');
+    apiUpload.mockResolvedValueOnce(fresh() as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    const held = gate();
+    listGate = held.wait;
+    await upload(user, 'fresh.pdf');
+    await waitFor(() => expect(screen.queryByText('Importing document...')).not.toBeInTheDocument());
+    await act(async () => {});
+    expect(screen.getByRole('alert')).toHaveTextContent('Unsupported file type');
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument(), TIMER_WAIT);
+    expect(screen.getByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+  }, 12000);
+
+  it('HC-UIDOC-017: Remove of an import before its timer fires: the card does not come back when it fires, or on a later refresh', async () => {
+    // Would not notice: a card that comes back for less than a render (this reads the settled page after the timer
+    // and after a later Remove). Recurring failure 17's chain: the removed branch of importResultShown comes first.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockResolvedValueOnce(fresh() as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    apiDelete.mockImplementation((async (path: string) => {
+      documents = documents.filter((d) => `/documents/${d.id}` !== path);
+    }) as never);
+    await upload(user, 'fresh.pdf');
+    await screen.findByRole('link', { name: '3 values ready to review' });
+    await openRowMenu(user, rowOf('fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'fresh.pdf' })).not.toBeInTheDocument());
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+    // The import resolved about a second ago: let its 3 s timer fire.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+    });
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /ready to review/i })).not.toBeInTheDocument();
+    // A later refresh: Remove the other row.
+    await openRowMenu(user, rowOf('a.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'a.pdf' })).not.toBeInTheDocument());
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+  }, 15000);
+
+  it('HC-UIDOC-017: a failed import, a retry, Remove of the retried row before the timer fires: the alert does not come back', async () => {
+    // Would not notice: the same limits as the test above. The alert says a file failed that the retry did import.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockRejectedValueOnce(new api.ApiError(400, 'Bad Request', 'Unsupported file type'));
+    await upload(user, 'fresh.pdf');
+    await screen.findByRole('alert');
+    apiUpload.mockResolvedValueOnce(fresh() as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    apiDelete.mockImplementation((async (path: string) => {
+      documents = documents.filter((d) => `/documents/${d.id}` !== path);
+    }) as never);
+    await upload(user, 'fresh.pdf');
+    await screen.findByRole('link', { name: '3 values ready to review' });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await openRowMenu(user, rowOf('fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'fresh.pdf' })).not.toBeInTheDocument());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+  }, 15000);
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIDOC-006: the rows wait for the highlight summary on a cold load, so chips never arrive after the rows and push
 // the rows below them down. The e2e half navigates /verify to /inbox under stillnessProbe with the summary held.
 // ---------------------------------------------------------------------------

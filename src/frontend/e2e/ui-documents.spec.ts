@@ -1684,6 +1684,104 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     await expect(page.getByText(/Import failed:/)).toHaveCount(0);
   });
 
+  // HC-UIDOC-014..017: the import result waits for the list refresh, but not for ever. After 3 s (a constant in
+  // DocumentInbox.tsx) the card, the notices, the warning and the alert show without the new row, and the row arrives
+  // when the list answers: a second step, each step one instant jump (L0 ruling on PR #464, comment 6606938809).
+
+  test('HC-UIDOC-014: a list refresh that never answers still shows the card, the scanned-page notice and the duplicate warning, without the new row', async ({
+    page,
+  }) => {
+    // Would not notice: the exact tick (3000 ms; this waits up to 8 s and prints the time it took), or a timer that fires
+    // early: the first check runs the moment the import has resolved. The list is held for the whole test.
+    // RED at fb6e7ef2: none of them ever showed (reviewer: card, link, scanned notice and warning all null at 2 s).
+    const { docs, release } = await inboxWithHeldImport(page, { ...DUPLICATE, pages_without_text: [2] });
+    docs.holdList();
+    release();
+    await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeHidden();
+    const resolvedAt = Date.now();
+    await expect(page.locator(HANDOFF)).toBeHidden();
+    await expect(page.locator(HANDOFF)).toBeVisible({ timeout: 8_000 });
+    console.log(`HC-UIDOC-014: the card showed ${Date.now() - resolvedAt} ms after the import resolved (list never answered)`);
+    await expect(page.locator(SCANNED_WARNING)).toBeVisible();
+    await expect(page.getByText('Possible duplicate upload')).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+  });
+
+  test('HC-UIDOC-006 (u) HC-UIDOC-014: a refresh that has not settled after 3 s shows the card in one step, and the row arrives in a second one', async ({
+    page,
+  }) => {
+    // Would not notice: the same limits as (g). Two windows, each read by jumpFailures unchanged: rows hold two
+    // positions in each (before and after the step), the card appears once, and nothing is half-faded. The wait for the
+    // card is inside the first window, so the window is about 3 s plus STILLNESS_WINDOW_MS.
+    const { docs, release } = await inboxWithHeldImport(page);
+    const releaseList = docs.holdList();
+    await expectOneJump(page, 'card at the timer', async () => {
+      release();
+      await expect(page.locator(HANDOFF)).toBeVisible({ timeout: 8_000 });
+    });
+    await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+    await expectOneJump(page, 'row after the timer', async () => {
+      releaseList();
+      await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    });
+    await expect(page.locator(HANDOFF)).toBeVisible();
+  });
+
+  test('HC-UIDOC-006 (v) HC-UIDOC-014: with an ordinary list answer the 3 s timer changes nothing: rows hold two positions across the import and past the timer', async ({
+    page,
+  }) => {
+    // Would not notice: a timer that fires early, in the first 300 ms: the card would then show before its row and the
+    // rows would hold three positions, which is what this reads. The window runs 3.5 s after the import, past the timer.
+    const { release } = await inboxWithHeldImport(page);
+    await expectOneJump(page, 'import completed, then the timer fires', async () => {
+      release();
+      await expect(page.locator(HANDOFF)).toBeVisible();
+      await expect(rowByName(page, NEW_NAME)).toBeVisible();
+      await page.waitForTimeout(3_500);
+    });
+  });
+
+  test('HC-UIDOC-016: a failed import, then a retry whose refresh never answers: the alert leaves and the card shows at the timer', async ({
+    page,
+  }) => {
+    // Would not notice: the swap happening in one frame (HC-UIDOC-006 (p) reads that for an ordinary list).
+    // RED at fb6e7ef2: the alert stayed for ever.
+    const { docs, release } = await inboxWithHeldImport(page, { fail: { status: 400, detail: 'Unsupported file type' } });
+    release();
+    await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+    docs.answer = {};
+    const releaseRetry = await startHeldImport(page, docs);
+    docs.holdList();
+    releaseRetry();
+    await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeHidden();
+    await expect(page.getByRole('alert')).toHaveCount(1);
+    await expect(page.locator(HANDOFF)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
+
+  test('HC-UIDOC-017: Remove of an import before its timer fires: the card and the alert do not come back when it fires or on a later refresh', async ({
+    page,
+  }) => {
+    // Would not notice: a card that returns for less than a frame (HC-UIDOC-006 (q) to (t) sample at frame rate; this
+    // reads the settled page 3.5 s after the Remove). Recurring failure 17's chain, with the timer in it.
+    const { docs, release } = await inboxWithHeldImport(page);
+    release();
+    await expect(page.locator(HANDOFF)).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await openDeleteDialog(page, NEW_NAME);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+    await expect(page.locator(HANDOFF)).toHaveCount(0);
+    await page.waitForTimeout(3_500);
+    await expect(page.locator(HANDOFF)).toHaveCount(0);
+    await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toHaveCount(0);
+    await openDeleteDialog(page, SECOND_NAME);
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect(rowByName(page, SECOND_NAME)).toHaveCount(0);
+    await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toHaveCount(0);
+    expect(docs.deletes).toEqual(['doc-new-0004', 'doc-second-0002']);
+  });
+
   test('HC-UIDOC-013: after Remove of the only row, keyboard focus on Import Document is inside the viewport at 320x640', async ({
     page,
   }) => {
