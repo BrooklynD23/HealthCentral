@@ -272,6 +272,8 @@ function setReducedMotion(reduce: boolean) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks keeps implementations: one test's notify spy must not run in the next test.
+  vi.mocked(notify).mockReset();
   localStorage.clear();
   useAuthStore.getState().setAuth({
     token: 'test-token',
@@ -1203,8 +1205,9 @@ describe('HC-UIREV-006 and HC-UIREV-002: verifying from the Source Trace sheet o
 
   // Order (a) is the order the earlier tests already cover; this adds focus. While the sheet is open the page must not
   // reach behind the modal: the "It matches" button unmounts, so activeElement can read body for a moment, and the page's
-  // focus move for order (b) must not take it to the row behind. Blind spot: jsdom's Radix FocusScope pulls focus back to
-  // the dialog on its own, so this cannot tell the page's dialog-open check from FocusScope's; the browser test can.
+  // focus move for order (b) must not take it to the row behind. Checked by mutation: with the page's dialog-open check
+  // removed this test fails (the effect found activeElement on <body> and focused the trigger). Blind spot: jsdom's
+  // timing of Radix's FocusScope is not Chromium's; e2e test 8 covers the sheet staying open in a browser.
   it('(a) order: focus stays inside the open sheet and is not taken to the row behind it', async () => {
     const user = userEvent.setup();
     const { queryClient } = renderWorkbench();

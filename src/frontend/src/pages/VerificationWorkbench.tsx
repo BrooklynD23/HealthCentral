@@ -218,6 +218,24 @@ export function VerificationWorkbench() {
     setJustChecked(null);
   }, [justChecked]);
 
+  // The row whose Source Trace sheet verified it. If a refetch dropped the row first, the sheet unmounted with it and
+  // focus went to <body>; once the hold re-inserts the row, focus goes to its new "Show source". Apart from
+  // `justChecked` because this path must not announce (the sheet toasts).
+  const focusShowSourceAfterVerifyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = focusShowSourceAfterVerifyRef.current;
+    if (!id) return;
+    focusShowSourceAfterVerifyRef.current = null;
+    // A sheet still open keeps focus (its "It matches" button unmounts, so activeElement can read <body> for a moment).
+    if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+    const active = document.activeElement;
+    // Only when focus was lost. A user who moved on during the save keeps their place.
+    if (active && active !== document.body) return;
+    Array.from(document.getElementById(`observation-row-${id}`)?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent?.trim() === 'Show source')
+      ?.focus({ preventScroll: true });
+  }, [held]);
+
   const { data: allDocuments = [], isLoading: documentsLoading } = useDocuments({
     profile_id: profileId || '',
   });
@@ -822,7 +840,10 @@ export function VerificationWorkbench() {
                               <ObservationSourceTrace
                                 observation={observation}
                                 // The sheet toasts for itself and keeps focus, so this holds the row and nothing else.
-                                onVerified={(saved) => holdChecked(observation, saved)}
+                                onVerified={(saved) => {
+                                  focusShowSourceAfterVerifyRef.current = observation.id;
+                                  holdChecked(observation, saved);
+                                }}
                                 trigger={
                                   <button
                                     type="button"

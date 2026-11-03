@@ -186,21 +186,23 @@ export function SourceTrace({
 
   // No unverify endpoint exists (be/api/observations.py:384 is verify only), so the
   // confirmation has no Undo.
-  const markChecked = () => {
+  // mutateAsync, not a mutate-level onSuccess: that callback is dropped when this sheet unmounts mid-POST (a refetch that
+  // answered without the row), and the row would be verified on the server with no hold and no toast. The callbacks stay
+  // outside the try, so a throw from the page's callback never reads as a failed verify.
+  const markChecked = async () => {
     const observationId = observation.id;
-    verify.mutate(
-      { observationId, data: {} },
-      {
-        onSuccess: (saved) => {
-          setCheckedId(observationId);
-          onVerified?.(saved);
-          notify({
-            message: `${[name, date].filter(Boolean).join(', ')} is now marked as checked`,
-            still: true,
-          });
-        },
-      }
-    );
+    let saved: Observation;
+    try {
+      saved = await verify.mutateAsync({ observationId, data: {} });
+    } catch {
+      return; // verify.isError renders the alert below; nothing says checked.
+    }
+    onVerified?.(saved);
+    setCheckedId(observationId);
+    notify({
+      message: `${[name, date].filter(Boolean).join(', ')} is now marked as checked`,
+      still: true,
+    });
   };
 
   return (
