@@ -226,6 +226,8 @@ const EMPTY_FEEDBACK = {
   tagsOpen: false,
   correctionOpen: false,
   correction: '',
+  // The last correction that "Submit feedback" stored. A thumb click resends this, never the draft in the textarea.
+  savedCorrection: '',
   submitting: false,
   submitted: false,
   selectedTags: [] as FeedbackTag[],
@@ -313,12 +315,11 @@ export function ExplainAssistant() {
   const handleFeedback = async (msg: Message, rating: 1 | -1) => {
     if (!msg.turnId || !currentSessionId) return;
     const fs = getFeedbackState(msg.id);
-    const newRating = fs.rating === rating ? null : rating; // toggle
+    // The pressed thumb stays pressed: there is no request that withdraws a rating, so clearing it on screen would
+    // show a state the stored row does not have.
+    if (fs.rating === rating) return;
+    const newRating = rating;
     updateFeedbackState(msg.id, { rating: newRating, submitting: true });
-    if (newRating === null) {
-      updateFeedbackState(msg.id, { submitting: false });
-      return;
-    }
     // Open correction textarea on thumbs-down
     if (newRating === -1) {
       updateFeedbackState(msg.id, { tagsOpen: true, correctionOpen: true });
@@ -331,7 +332,9 @@ export function ExplainAssistant() {
           rating: newRating,
           response_text: msg.content,
           feedback_tags: fs.selectedTags.length > 0 ? fs.selectedTags : undefined,
-          correction_text: fs.correction.trim() || undefined,
+          // Only what was submitted: the draft in the textarea is not the patient's answer until they press Submit.
+          // Left out, the upsert would erase a correction already stored.
+          correction_text: fs.savedCorrection || undefined,
         },
       });
       updateFeedbackState(msg.id, { submitting: false, submitted: true });
@@ -355,7 +358,13 @@ export function ExplainAssistant() {
           correction_text: fs.correction.trim() || undefined,
         },
       });
-      updateFeedbackState(msg.id, { submitting: false, submitted: true, correctionOpen: false, tagsOpen: false });
+      updateFeedbackState(msg.id, {
+        submitting: false,
+        submitted: true,
+        correctionOpen: false,
+        tagsOpen: false,
+        savedCorrection: fs.correction.trim(),
+      });
     } catch {
       updateFeedbackState(msg.id, { submitting: false });
     }

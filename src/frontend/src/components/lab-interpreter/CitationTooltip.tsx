@@ -9,9 +9,9 @@ export interface CitationTooltipProps {
   citation: Citation;
   index: number;
   /**
-   * The observation behind this citation, when the caller has one. Without it the
-   * popover shows the quote only: a knowledge-base reference has no page, and the
-   * popover never invents one.
+   * The observation and its source text, for a caller that already has both: "Open source" then opens the sheet
+   * from them. With neither `source` nor `traceObservation` the popover shows the quote only, with no "Open source":
+   * a knowledge-base reference has no page, and the popover never invents one.
    */
   source?: TraceSource;
   /**
@@ -22,13 +22,16 @@ export interface CitationTooltipProps {
    */
   traceObservation?: Observation;
   /**
-   * The title line, shown exactly as given. Omit it and the line is the citation's machine type with its first
-   * underscore read as a space ("knowledge_base" reads "knowledge base"), as every other caller shows it.
+   * The title line, shown exactly as given: no case change, so a file name such as "Quest_Lab_Report.pdf" reads as
+   * it is. Omit it and the line is the citation's machine type with its first underscore read as a space
+   * ("knowledge_base" reads "KNOWLEDGE BASE"), as every other caller shows it.
    */
   title?: string;
 }
 
-const OPEN_SOURCE_CLASS = 'pt-1 text-sm font-medium text-accent underline underline-offset-4';
+// min-h-target: on a phone this is the only way to the source, so it is a 44 px target like "Show source".
+const OPEN_SOURCE_CLASS =
+  'inline-flex min-h-target items-center text-sm font-medium text-accent underline underline-offset-4';
 
 /**
  * A citation chip. Click, tap or Enter opens its quote; hover alone does not
@@ -83,7 +86,14 @@ export function CitationTooltip({ citation, index, source, traceObservation, tit
         <div className="flex items-start gap-2">
           <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-ink-tertiary" aria-hidden="true" />
           <div className="min-w-0 space-y-1">
-            <p data-t0="" className="text-xs font-medium uppercase tracking-wider text-ink-secondary [overflow-wrap:anywhere]">
+            <p
+              data-t0=""
+              className={cn(
+                'text-xs font-medium text-ink-secondary [overflow-wrap:anywhere]',
+                // A given title is a name (often a file name): shown as it is. Only the machine type is set in caps.
+                title === undefined && 'uppercase tracking-wider'
+              )}
+            >
               {title ?? citation.type.replace('_', ' ')}
             </p>
             <p data-t0="" className="leading-relaxed text-ink [overflow-wrap:anywhere]">
