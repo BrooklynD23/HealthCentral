@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Preview T4 (HC-UISH-009 desktop + phone + popover M0, HC-UIG-006) x3 on the branch's own spec and config, read-only.
+M=/tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer
+cd "/mnt/e/Programming/Github Repo/hc-ui-shell/src/frontend" || exit 2
+echo "=== preview T4 $(date +%T)"; uptime; echo pgrep:; pgrep -fa "playwright|vitest|pytest" | grep -v -e pgrep -e t4_preview
+HC_E2E_BASE_URL=http://127.0.0.1:4190 HC_E2E_BACKEND_PYTHON=$HOME/venvs/asclexis-311/bin/python \
+  /tmp/claude-1000/hold_slots.sh npx playwright test e2e/ui-shell.spec.ts e2e/ui-gates.spec.ts --project=chromium \
+  -g "HC-UISH-009|HC-UIG-006" --repeat-each=3 --reporter=line --output $M/pw-out-preview
+echo "exit=$?"
+#!/usr/bin/env bash
+# Usage: run_batch.sh RUN   (RUN=0 is warm-up). Runs one interleaved batch of the bare timer, wrapped in hold_slots.sh.
+M=/tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer
+RUN=$1
+export MEAS_PLAN=$(python3 - "$RUN" <<'PY'
+import json, sys
+run = int(sys.argv[1])
+routes = ['/timeline', '/search', '/medications/med-fixture-1', '/notifications', '/care-tasks']
+trees = [('main-dev', 'http://127.0.0.1:3001'), ('branch-dev', 'http://127.0.0.1:3000'), ('branch-preview', 'http://127.0.0.1:4190')]
+if run % 2 == 0:  # alternate which tree goes first
+    trees = [trees[1], trees[0], trees[2]]
+print(json.dumps([{'tree': t, 'base': b, 'route': r, 'run': run} for r in routes for t, b in trees]))
+PY
+)
+echo "=== batch $RUN $(date +%T)"; uptime; echo "pgrep:"; pgrep -fa "playwright|vitest|pytest" | grep -v -e pgrep -e run_batch
+cd "$M" && /tmp/claude-1000/hold_slots.sh ./node_modules/.bin/playwright test -c playwright.config.ts 2>&1 | grep -E "MEAS|passed|failed|Error" 
+      1       - sampling gap of 44 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+      1       - sampling gap of 47 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+      1     ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out-preview/ui-shell-HC-UISH-003-route-f1bde-gh-the-navigation-to-trends-chromium-repeat2/test-failed-1.png
+      1     ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out-preview/ui-shell-HC-UISH-003-route-fd733-gh-the-navigation-to-export-chromium-repeat1/test-failed-1.png
+      2     > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+      2     StillnessError: stillnessProbe failed (1):
+      1   - sampling gap of 153 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+      1   - sampling gap of 154 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+      1   - sampling gap of 157 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+      1   190 passed (6.2m)
+      1   2 failed
+      1 === preview T4 22:09:21
+      3 HC-UIG-006 (a) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (b) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (c) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (d) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (e) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (f) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (g) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (h) rejected with: StillnessError: stillnessProbe failed (1):
+      1 HC-UIG-006 (h2) rejected with: StillnessError: stillnessProbe failed (1):
+      2 HC-UIG-006 (h2) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (i) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (j) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (k) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (l) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (m) rejected with: StillnessError: stillnessProbe failed (2):
+      3 HC-UIG-006 (n) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 (o) rejected with: StillnessError: stillnessProbe failed (1):
+      3 HC-UIG-006 sampling gapped: {"failures":["sampling gap of 180 ms (must be <= 40 ms; G10 samples every 16-40 ms)"],"maxGapMs":180,"postTriggerSamples":33}
+
+(node:1216238) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[182/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /timeline
+[183/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /search
+[184/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /interpret
+[185/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /medications
+[186/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /medications/med-fixture-1
+[187/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /notifications
+[188/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /care-tasks
+[189/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /pinboards
+[190/192] [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /export
+[191/192] [chromium] › e2e/ui-shell.spec.ts:338:3 › HC-UISH-009 phone toggle label stays still › HC-UISH-009: at 390 the Safety Rail and the toggle label stay still through a tab-bar navigation
+[192/192] [chromium] › e2e/ui-shell.spec.ts:870:3 › Inherited stillness and focus halves (L0 rulings #363, #364, #365) › HC-UISH-009: the safety-toggle popover mounts with no motion at 390 (M0)
+  2 failed
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /export 
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /trends 
+  190 passed (6.2m)
+exit=1

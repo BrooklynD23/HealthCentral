@@ -1,6 +1,6 @@
 # CI & Quality Gates
 
-**Last Updated:** 2026-11-01 (HARNESS-SPEEDUP: `changes` job, docs-only skips, two new docs-lint steps)
+**Last Updated:** 2026-11-02 (RSI Replay is a required check); 2026-11-01 (HARNESS-SPEEDUP: `changes` job, docs-only skips, two new docs-lint steps)
 **Owner:** Project Lead
 **Refresh Trigger:** A CI job is added, removed, or changes what it blocks on
 
@@ -38,11 +38,11 @@ flowchart TD
     FE --> MERGE
     SEC --> MERGE
     EVAL --> MERGE
+    RSI --> MERGE
 
     LINT --> REPORTED["reported, not required"]
     LEGACY --> REPORTED
     E2E --> REPORTED
-    RSI --> REPORTED
 
     style EVAL fill:#4a148c,stroke:#ba68c8,color:#fff
     style SEC fill:#4a148c,stroke:#ba68c8,color:#fff
@@ -61,10 +61,10 @@ flowchart TD
 | `agent-evals` | yes | Any failed golden case or missed bar: groundedness, citation, abstention and injection_resistance == 1.0; advice_leakage and phi_leakage == 0. Agent path only | Injection and leakage resistance are regression-tested guarantees, not one-time reviews |
 | `legacy-evals` | no | Any missed bar in `scripts/legacy_eval_gate.py`: served_invalid, uncited_served, leaked and persisted_mismatch == 0; abstention, escalation and answer_rate == 1.0. Legacy (non-agent) chat path only, scored over HTTP | The legacy path is the only one that calls a model, and an invalid answer used to be served (owner decision G-B5). `api.assistant._legacy_serve_or_abstain` now replaces any `is_valid=False` result with `ABSTAIN_TEMPLATE` |
 | `e2e-tests` | no | Playwright failures | Runs after backend and frontend jobs pass |
-| `rsi-replay` | no | A failing `claude plugin validate` or replay case in `.claude/mods/asclexis-rsi/rsi.test.ts` | RSI rule changes are replayed on every PR (owner RRSI-OQ-4); not a required check |
+| `rsi-replay` | yes | A failing `claude plugin validate` or replay case in `.claude/mods/asclexis-rsi/rsi.test.ts` | RSI rule changes are replayed on every PR (owner RRSI-OQ-4); a required check since 2026-11-02 (queue row RSI-REPLAY-REQUIRED) |
 | `npm-audit` (separate workflow `.github/workflows/npm-audit.yml`) | no (scheduled, not a PR check) | `npm audit` high+critical > 0 on `src/frontend/package-lock.json`, or no report (registry error). Runs weekly (Mon 06:23 UTC) and on `workflow_dispatch`; fails its own run only | Reports; never blocks a PR (no PR trigger), never runs `npm audit fix` or writes the lockfile |
 
-The Required column is the owner's branch-protection setting on `main`, measured 2026-10-21 with `gh api repos/BrooklynD23/HealthCentral/branches/main --jq .protection.required_status_checks`: Documentation Lint, Backend Tests, Frontend Tests, Agent Eval Gate, Security Scan. Only the owner changes it; this doc records it, it does not set it.
+The Required column is the owner's branch-protection setting on `main`, measured 2026-11-02 with `gh api repos/BrooklynD23/HealthCentral/branches/main/protection/required_status_checks --jq .contexts`: Documentation Lint, Backend Tests, Frontend Tests, Agent Eval Gate, Security Scan, RSI Replay. Only the owner changes it; this doc records it, it does not set it.
 
 The two purple gates are the ones that encode product-safety claims rather than
 correctness. `agent-evals` in particular holds an absolute bar: **any** injection

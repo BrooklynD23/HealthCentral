@@ -74,6 +74,13 @@ def verify_observation_access(observation: Observation, session: Session) -> Non
 
 router = APIRouter()
 
+# Words (after strip().upper()) that mean "within range". A plain Verify
+# recalculates a row with a value whose stored flag is one of these, or that
+# has no flag; any other stored flag is kept, even one that disagrees with
+# the number. NO, FALSE and 0 are the plain negative of an `abnormal` column
+# (modules/import_structured.py:115, the `abnormal` alias).
+_NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
+
 
 # Panel definitions - maps panel IDs to canonical analyte names
 PANEL_DEFINITIONS = {
@@ -463,8 +470,20 @@ async def verify_observation(
     observation.verified_at = utcnow()
     observation.version += 1
 
-    # Recalculate abnormal status
-    if observation.value is not None:
+    # Recalculate abnormal status when this request really changed value,
+    # ref_low or ref_high, or when the row has no flag or a normal word
+    # (_NORMAL_FLAGS). A plain Verify keeps any other stored flag and its
+    # is_abnormal exactly, even one that disagrees with the number; a real
+    # edit of the numbers still rewrites it.
+    numbers_changed = any(
+        f in changes and changes[f]["old"] != changes[f]["new"]
+        for f in ("value", "ref_low", "ref_high")
+    )
+    keeps_flag = (
+        observation.flag is not None
+        and observation.flag.strip().upper() not in _NORMAL_FLAGS
+    )
+    if (numbers_changed or not keeps_flag) and observation.value is not None:
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"

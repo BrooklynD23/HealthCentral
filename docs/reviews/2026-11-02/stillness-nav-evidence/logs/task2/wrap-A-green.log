@@ -1,0 +1,89 @@
+hold_slots: holding pytest slots 1-8, TMPDIR=/dev/shm
+quiet_run: prechecks passed after 129s
+ 21:40:28 up 2 days, 11:21,  1 user,  load average: 1.43, 10.41, 22.37
+pgrep: (empty)  ss 3000/4173/5173/8000: (empty)
+=== wrap A start 2026-11-02T21:40:28-08:00 host=Danny-PC head=35b98098115dd81804137ba970e80b4d852f11c1 base=05eabb49f3b1ff6546b6b3b68b0484a010603351
+ 21:40:29 up 2 days, 11:21,  1 user,  load average: 1.39, 10.25, 22.25
+ok
+gates diff lines vs src: 31
+<     const t = Math.round(performance.now());
+<     return { t, pathname: location.pathname, route, nodes, expectedHits };
+<   const tracker: NetworkTracker = { inFlight, lastEventAt: Date.now(), stop: () => undefined };
+--- precheck before pre-start at 2026-11-02T21:40:29-08:00
+ 21:40:29 up 2 days, 11:21,  1 user,  load average: 1.39, 10.25, 22.25
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1922413 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925302 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925303 bash scripts/pyslot.sh bash /tmp/claude-1000/ask/run-e2e.sh e2e/ui-ask.spec.ts --project=chromium --reporter=list -g HC-UIPV-004
+[FOREIGN] 1925305 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925602 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925607 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925608 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh env PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-export.spec.ts --projec
+ss (3000|4173|5173|8000):
+(own server pids: )
+server dev up on :3000 pid=1926196 (mine)
+--- precheck before warmA at 2026-11-02T21:40:31-08:00
+ 21:40:31 up 2 days, 11:21,  1 user,  load average: 1.39, 10.25, 22.25
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1922413 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925302 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925303 bash scripts/pyslot.sh bash /tmp/claude-1000/ask/run-e2e.sh e2e/ui-ask.spec.ts --project=chromium --reporter=list -g HC-UIPV-004
+[FOREIGN] 1925305 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925602 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925607 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925608 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh env PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-export.spec.ts --projec
+[mine] 1926196 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1926196,fd=30))
+(own server pids: 1926196 )
+batch warmA done: 5 RESULT lines; 10 jsonl rows
+--- precheck before A1 at 2026-11-02T21:41:17-08:00
+ 21:41:17 up 2 days, 11:22,  1 user,  load average: 1.36, 9.15, 21.37
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1922413 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925302 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925303 bash scripts/pyslot.sh bash /tmp/claude-1000/ask/run-e2e.sh e2e/ui-ask.spec.ts --project=chromium --reporter=list -g HC-UIPV-004
+[FOREIGN] 1925305 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925602 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925607 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925608 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh env PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-export.spec.ts --projec
+[mine] 1926196 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1926196,fd=30))
+(own server pids: 1926196 )
+batch A1 done: 5 RESULT lines; 10 jsonl rows
+--- precheck before A2 at 2026-11-02T21:41:56-08:00
+ 21:41:56 up 2 days, 11:22,  1 user,  load average: 1.47, 8.22, 20.54
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1922413 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925302 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925303 bash scripts/pyslot.sh bash /tmp/claude-1000/ask/run-e2e.sh e2e/ui-ask.spec.ts --project=chromium --reporter=list -g HC-UIPV-004
+[FOREIGN] 1925305 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925602 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925607 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925608 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh env PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-export.spec.ts --projec
+[mine] 1926196 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1926196,fd=30))
+(own server pids: 1926196 )
+batch A2 done: 4 RESULT lines; 10 jsonl rows
+--- precheck before A3 at 2026-11-02T21:42:33-08:00
+ 21:42:33 up 2 days, 11:23,  1 user,  load average: 1.09, 7.38, 19.81
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1922413 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925302 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925303 bash scripts/pyslot.sh bash /tmp/claude-1000/ask/run-e2e.sh e2e/ui-ask.spec.ts --project=chromium --reporter=list -g HC-UIPV-004
+[FOREIGN] 1925305 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925602 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925607 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925608 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh env PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-export.spec.ts --projec
+[mine] 1926196 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1926196,fd=30))
+(own server pids: 1926196 )
+batch A3 done: 5 RESULT lines; 10 jsonl rows
+=== all batches done
+=== cleanup: stopping own servers: 1926196 
+=== wrap A end 2026-11-02T21:43:12-08:00
+ 21:43:12 up 2 days, 11:23,  1 user,  load average: 1.40, 6.76, 19.14
+EXIT=0

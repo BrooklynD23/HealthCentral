@@ -1388,7 +1388,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
 
-Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -3439,6 +3439,18 @@ Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22
 Plan: QWEN3-4B-TIER. Queue row: queue.md (`QWEN3-4B-TIER`). Judge context: judge research. Baseline for the KV and MM-4 prompts: kv-prefix-measure.md and kv-numctx-verify.
 
 Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-27`
+
+## `docs/reviews/2026-11-02/stillness-nav-evidence/README.md`
+
+**STILLNESS-NAV-LATE Task 1: why page changes run late under the stillness probe (MEASURE)**
+
+Row: STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "STILLNESS-NAV-LATE", Task 1) with NAV70-CI-MISS folded in (docs/plans/2026-10-30-followups-plan.md). Draft PR #469, branch…
+
+## `docs/reviews/2026-11-02/stillness-nav-evidence/l0-2026-10-27/RECOVERY.md`
+
+**L0 2026-10-27 evidence copy: recovery note and sha256 check**
+
+Task 1 step 1 of STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "Evidence to keep").
 
 ## `docs/reviews/README.md`
 
