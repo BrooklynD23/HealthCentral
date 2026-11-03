@@ -62,7 +62,7 @@ const documents = [
     profile_id: FIXTURE_PROFILE_ID,
     doc_type: 'lab_report',
     source: 'Lipid panel, August',
-    status: 'needs_review',
+    status: 'parsed',
     page_count: 1,
     collection_date: '2026-08-02',
     imported_at: '2026-08-03T07:41:00Z',
@@ -193,8 +193,19 @@ async function expectRail(page: Page, when: string): Promise<void> {
   expect(rail.found && rail.inViewport && rail.effectiveOpacity >= 0.99, `G9 ${when} ${JSON.stringify(rail)}`).toBe(true);
 }
 
-async function axeBlocking(page: Page, theme: Theme): Promise<string[]> {
-  const axe = await axeGate(page, { theme });
+/**
+ * Applies a theme, then waits for the colour transitions it starts (transition-colors, 200 ms) to end, so axe and the
+ * screenshots do not sample a half-faded page.
+ */
+async function applyTheme(page: Page, theme: Theme): Promise<void> {
+  await setTheme(page, theme);
+  // Two frames so the style change has started its transitions before they are counted.
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await page.waitForFunction(() => document.getAnimations().filter((a) => a instanceof CSSTransition).length === 0);
+}
+
+async function axeBlocking(page: Page): Promise<string[]> {
+  const axe = await axeGate(page);
   return axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 }
 
@@ -280,17 +291,21 @@ test.describe('HC-UIEXP e2e', () => {
   });
 
   for (const theme of THEMES) {
-    test(`G1 axe on /export, empty and generated and with the sheet open (${theme})`, async ({ page }) => {
+    test(`G1 axe on /export: empty, text typed in the reason box, generated, sheet open (${theme})`, async ({ page }) => {
       await openExport(page);
-      await setTheme(page, theme);
+      await applyTheme(page, theme);
 
-      expect(await axeBlocking(page, theme), `G1 empty ${theme}`).toEqual([]);
+      expect(await axeBlocking(page), `G1 empty ${theme}`).toEqual([]);
+
+      // Typed text takes the textarea's text colour; an empty box only shows the placeholder.
+      await page.getByLabel('Reason for visit (optional)').fill('Persistent headaches for two weeks');
+      expect(await axeBlocking(page), `G1 reason typed ${theme}`).toEqual([]);
 
       await generate(page);
-      expect(await axeBlocking(page, theme), `G1 generated ${theme}`).toEqual([]);
+      expect(await axeBlocking(page), `G1 generated ${theme}`).toEqual([]);
 
       await openPreview(page);
-      expect(await axeBlocking(page, theme), `G1 sheet open ${theme}`).toEqual([]);
+      expect(await axeBlocking(page), `G1 sheet open ${theme}`).toEqual([]);
     });
   }
 
@@ -348,24 +363,35 @@ test.describe('HC-UIEXP e2e', () => {
 // ---------------------------------------------------------------------------------------------------------------
 test.describe('QUIET-BOX UI-PG-EXPORT timing gates', () => {
   for (const theme of THEMES) {
-    test(`QUIET-BOX G2 and G3 on /export (${theme})`, async ({ page }) => {
+    test(`QUIET-BOX G2 on /export (${theme})`, async ({ page }) => {
+      // The summary response is held back 700 ms so its shift lands outside the 500 ms hadRecentInput window after
+      // the click; with an instant mock the browser would discount it and G2 could not see it.
       await page.setViewportSize(DESKTOP);
       await installMockApi(page);
-      await mockExportApi(page);
+      await mockExportApi(page, { summaryDelayMs: 700 });
       await seedMockSession(page);
       await page.goto('/export');
       await expect(page.getByRole('heading', { name: 'Export Summary', level: 1 })).toBeVisible();
       await settle(page);
 
-      // G2: layout shift over the load.
+      // G2: layout shift over the load and the page's interactions, in the theme under test.
       const cls = await measureCls(page, async () => {
         await page.goto('/export');
+        await expect(page.getByRole('heading', { name: 'Export Summary', level: 1 })).toBeVisible();
+        await settle(page);
+        await applyTheme(page, theme);
+        await page.getByRole('checkbox', { name: 'Questions for Clinician' }).click();
+        await generate(page);
+        await openPreview(page);
+        await page.keyboard.press('Escape');
+        await expect(previewDialog(page)).toHaveCount(0);
       });
       expect(cls, `G2 ${theme}`).toBeLessThan(0.1);
-      await expect(page.getByRole('heading', { name: 'Export Summary', level: 1 })).toBeVisible();
-      await settle(page);
-      // The reload above put the page back to light; apply the theme for the interactions.
-      await setTheme(page, theme);
+    });
+
+    test(`QUIET-BOX G3 on /export (${theme})`, async ({ page }) => {
+      await openExport(page);
+      await applyTheme(page, theme);
 
       // G3: the worst Event Timing duration over the page's interactions, CPU x4.
       const inp = await maxEventDuration(
@@ -385,7 +411,7 @@ test.describe('QUIET-BOX UI-PG-EXPORT timing gates', () => {
     test(`QUIET-BOX G5 on /export (${theme})`, async ({ page }, testInfo) => {
       // The response is held back so the spinners are on screen when the snapshot samples, 50 ms after the click.
       await openExport(page, { summaryDelayMs: 600 });
-      await setTheme(page, theme);
+      await applyTheme(page, theme);
 
       const spinning = await reducedMotionSnapshot(page, () => page.getByRole('button', { name: 'Generate Summary' }).click());
       expect(spinning, `G5 while generating ${theme}`).toEqual([]);
@@ -406,7 +432,7 @@ test.describe('QUIET-BOX UI-PG-EXPORT timing gates', () => {
       const guard = consoleAndNetworkGuard(page);
       await page.goto('/settings');
       await settle(page);
-      await setTheme(page, theme);
+      await applyTheme(page, theme);
 
       // Navigation to /export: the redaction note is T0 and must stay still through the route fade.
       const navReport = await stillnessProbe(page, {
