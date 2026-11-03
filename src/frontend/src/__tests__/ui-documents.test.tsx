@@ -91,6 +91,21 @@ function importResponse(over: Partial<DocumentImportResponse> & { doc?: Partial<
 
 let documents: Document[] = [];
 let highlights: DocumentHighlightSummary[] = [];
+/** While set, GET /documents waits for it (the refetch an import or a delete starts). */
+let listGate: Promise<void> | null = null;
+let listFails = false;
+/** While set, GET /documents/highlights/summary waits for it, or fails. */
+let summaryGate: Promise<void> | null = null;
+let summaryFails = false;
+
+/** A gate the test opens by calling the returned function. */
+function gate(): { wait: Promise<void>; open: () => void } {
+  let open!: () => void;
+  const wait = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { wait, open };
+}
 
 /** Resolvers for the requests the test keeps in flight. */
 let finishUpload: (value: DocumentImportResponse) => void = () => {};
@@ -166,13 +181,25 @@ async function openRowMenu(user: ReturnType<typeof userEvent.setup>, row: HTMLEl
 beforeEach(() => {
   documents = [makeDoc()];
   highlights = [];
+  listGate = null;
+  listFails = false;
+  summaryGate = null;
+  summaryFails = false;
   orb.mounts = 0;
   orb.sizes = [];
   setReducedMotion(false);
   apiGet.mockImplementation((async (path: string) => {
-    if (path.startsWith('/documents/highlights/summary')) return highlights;
+    if (path.startsWith('/documents/highlights/summary')) {
+      if (summaryGate) await summaryGate;
+      if (summaryFails) throw new api.ApiError(500, 'Server Error', 'summary failed');
+      return highlights;
+    }
     if (path.startsWith('/pinboards')) return [];
-    if (path.startsWith('/documents')) return documents;
+    if (path.startsWith('/documents')) {
+      if (listGate) await listGate;
+      if (listFails) throw new api.ApiError(500, 'Server Error', 'list failed');
+      return documents;
+    }
     throw new Error(`unmocked GET ${path}`);
   }) as never);
   apiPost.mockResolvedValue({} as never);
@@ -583,6 +610,135 @@ describe('HC-UIDOC-005 delete through AlertDialog', () => {
     await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(screen.queryByRole('link', { name: /ready to review/i })).not.toBeInTheDocument());
     expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIDOC-006 (vitest half): the import card and the duplicate warning commit with their row, and leave with it, so
+// the rows below move once (owner INBOX-ROW-JUMP). The e2e half samples the rects at frame rate.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-006 the import card commits with its row', () => {
+  const fresh = () => importResponse({ observations_extracted: 3, doc: { id: 'new-1', source: 'fresh.pdf' } });
+
+  /** Uploads fresh.pdf with the list refetch held; returns once the import has resolved and the refetch is waiting. */
+  async function importWithHeldList(user: ReturnType<typeof userEvent.setup>, response = fresh()) {
+    await renderLoaded();
+    apiUpload.mockResolvedValueOnce(response as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    const held = gate();
+    listGate = held.wait;
+    await upload(user, 'fresh.pdf');
+    await waitFor(() => expect(screen.queryByText('Importing document...')).not.toBeInTheDocument());
+    return held;
+  }
+
+  it('HC-UIDOC-006: the card is not shown before the list has the new row, and both appear in one render', async () => {
+    // Would not notice: a card that shows for a reason other than the list (the fallback test below owns that). The
+    // import has resolved when "Importing document..." is gone, so the absence checked first is not a state the page
+    // has not reached yet.
+    // RED before this round: the card showed when the import resolved, a frame before the new row.
+    const user = userEvent.setup();
+    const held = await importWithHeldList(user);
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'fresh.pdf' })).not.toBeInTheDocument();
+    held.open();
+    await screen.findByText(/document imported: fresh\.pdf/i);
+    // Found in the same render as the card: the row is already there.
+    expect(screen.getByRole('heading', { name: 'fresh.pdf' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '3 values ready to review' })).toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-006: a duplicate warning waits for the list the same way', async () => {
+    // Would not notice: a warning that shows in the same render as the card but a render before the row; the first
+    // test reads the card, this one the warning.
+    const user = userEvent.setup();
+    const held = await importWithHeldList(
+      user,
+      importResponse({
+        doc: { id: 'new-1', source: 'fresh.pdf' },
+        duplicate_warning: { match_type: 'content_hash', document_id: 'doc-a', title: 'a.pdf' },
+      })
+    );
+    expect(screen.queryByText(/possible duplicate upload/i)).not.toBeInTheDocument();
+    held.open();
+    await screen.findByText(/possible duplicate upload/i);
+    expect(screen.getByRole('heading', { name: 'fresh.pdf' })).toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-011: when the list refresh fails the patient still sees the import result', async () => {
+    // Would not notice: a card that appears after a delay the test does not time. Conservative first: the card is
+    // there once the refetch has failed, and so is the list error.
+    // RED if the card waits for the list for ever: it never shows.
+    const user = userEvent.setup();
+    const held = await importWithHeldList(user);
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+    listFails = true;
+    held.open();
+    expect(await screen.findByText(/document imported: fresh\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText('Failed to load documents')).toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-006: Remove keeps the card until the list drops the row, then both go in one render', async () => {
+    // Would not notice: a card that waits for the list but stays after it (the old test above, "clears the values
+    // ready to review card", owns that end state). The first check runs after the DELETE has resolved.
+    // RED before this round: the card went when the DELETE resolved, a frame before the row.
+    const user = userEvent.setup();
+    (await importWithHeldList(user)).open();
+    await screen.findByRole('link', { name: '3 values ready to review' });
+    await openRowMenu(user, rowOf('fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    const held = gate();
+    listGate = held.wait;
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    expect(screen.getByRole('link', { name: '3 values ready to review' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'fresh.pdf' })).toBeInTheDocument();
+    documents = documents.filter((d) => d.id !== 'new-1');
+    held.open();
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'fresh.pdf' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('link', { name: /ready to review/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/document imported: fresh\.pdf/i)).not.toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-011: when the refresh after a Remove fails, the card for the removed document is gone', async () => {
+    // Would not notice: a stale row. The list keeps its old data after a failed refetch, so the row stays; only the
+    // card, which would link to a deleted document, goes.
+    const user = userEvent.setup();
+    (await importWithHeldList(user)).open();
+    await screen.findByRole('link', { name: '3 values ready to review' });
+    await openRowMenu(user, rowOf('fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    listFails = true;
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: /ready to review/i })).not.toBeInTheDocument());
+    expect(screen.getByText('Failed to load documents')).toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-006: after Remove, focus moves to the neighbour without scrolling the page', async () => {
+    // Would not notice: a scroll the browser starts for another reason. jsdom does not scroll, so this reads the
+    // call: focus() must carry preventScroll, because the page scrolls smoothly (globals.css) and the scroll slides
+    // every row. The e2e Remove tests measure the slide.
+    // RED before this round: focus() was called with no options.
+    documents = [makeDoc({ id: 'd1', source: 'one.pdf' }), makeDoc({ id: 'd2', source: 'two.pdf' })];
+    apiDelete.mockImplementation((async (path: string) => {
+      documents = documents.filter((d) => `/documents/${d.id}` !== path);
+    }) as never);
+    const user = userEvent.setup();
+    await renderLoaded('one.pdf');
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    await openRowMenu(user, rowOf('two.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    focus.mockClear();
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() =>
+      expect(within(rowOf('one.pdf')).getByRole('button', { name: 'More options' })).toHaveFocus()
+    );
+    const calls = focus.mock.calls.filter(([options]) => options !== undefined);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every(([options]) => (options as FocusOptions).preventScroll === true)).toBe(true);
+    const last = focus.mock.instances[focus.mock.calls.length - 1] as unknown as HTMLElement;
+    expect(last.getAttribute('aria-label')).toBe('More options');
   });
 });
 

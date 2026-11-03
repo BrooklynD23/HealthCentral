@@ -71,6 +71,8 @@ export function DocumentInbox() {
   const [lastImport, setLastImport] = useState<DocumentImportResponse | null>(null);
   const [duplicateWarnings, setDuplicateWarnings] = useState<DocumentImportResponse[]>([]);
   const [importError, setImportError] = useState<{ message: string; fileName: string } | null>(null);
+  // Documents the patient removed in this visit: their import card and duplicate warning leave with their row.
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
   const importButton = useRef<HTMLButtonElement>(null);
@@ -80,7 +82,7 @@ export function DocumentInbox() {
   const profileId = useAuthStore((state) => state.profileId) || '';
   
   // Fetch documents from API
-  const { data: documents = [], isLoading, error } = useDocuments({ profile_id: profileId });
+  const { data: documents = [], isLoading, isFetching, error } = useDocuments({ profile_id: profileId });
   const importDocument = useImportDocument();
   const deleteDocument = useDeleteDocument();
   const reprocessDocument = useReprocessDocument();
@@ -97,6 +99,15 @@ export function DocumentInbox() {
     : reprocessDocument.isPending
       ? (documents.find((d) => d.id === reprocessDocument.variables)?.source || 'document')
       : null;
+
+  // The import card and a duplicate warning appear in the same frame as the new row they describe, and leave in the same
+  // frame as its row (HC-UIDOC-006: rows move once). The import resolves before the invalidated list answers, so shown
+  // from the result alone they would land first and push every row down, and the row would push them down again. They
+  // wait for the list. Once it has stopped fetching they show anyway, so a failed refresh never hides the result.
+  const importResultShown = (id: string): boolean => {
+    const inList = documents.some((doc) => doc.id === id);
+    return removedIds.includes(id) ? Boolean(isFetching) && inList : inList || !isFetching;
+  };
 
   const openPreview = (id: string, opener: HTMLElement) => {
     previewOpener.current = opener;
@@ -192,14 +203,16 @@ export function DocumentInbox() {
     const at = documents.findIndex((d) => d.id === id);
     const neighbour = documents[at + 1] ?? documents[at - 1];
     deleteDocument.mutate(id, {
-      // A card that offers "N values ready to review" must not link to a document that no longer exists.
-      onSuccess: () => {
-        setLastImport((current) => (current?.document.id === id ? null : current));
-        setDuplicateWarnings((current) => current.filter((warning) => warning.document.id !== id));
-      },
+      // A card that offers "N values ready to review" must not link to a document that no longer exists. It goes when
+      // the list drops the row (importResultShown), not before, so the two leave in one frame.
+      onSuccess: () => setRemovedIds((current) => [...current, id]),
     });
     setDeleteTarget(null);
-    requestAnimationFrame(() => (neighbour ? moreButtons.current.get(neighbour.id) : importButton.current)?.focus());
+    // preventScroll: the page scrolls smoothly (globals.css), and a focus() that scrolls it slides every row for 300 ms,
+    // then the removed row's height snaps the scroll back. The neighbour takes the removed row's place in the list.
+    requestAnimationFrame(() =>
+      (neighbour ? moreButtons.current.get(neighbour.id) : importButton.current)?.focus({ preventScroll: true })
+    );
   };
 
   return (
@@ -254,7 +267,7 @@ export function DocumentInbox() {
 
       {/* The running state lives in the drop zone's own slot: the idle block stays in the grid cell (hidden) so the
           cell keeps its height, and the page below does not move when an import STARTS (HC-UIDOC-006, G6). When it
-          ENDS, the handoff card and the new row are inserted above the rows: that is the pinned G10 case. The ring
+          ENDS, the handoff card and the new row are inserted above the rows in one frame: the one allowed jump. The ring
           is lifted above the opaque card (z-10), or the card would paint over it. */}
       <BeamBorder active={processingName !== null} className="rounded-2xl [&>span]:z-10">
         <Card
@@ -355,7 +368,7 @@ export function DocumentInbox() {
         </Card>
       )}
 
-      {lastImport && (
+      {lastImport && importResultShown(lastImport.document.id) && (
         <Card className="border-accent/20 bg-accent-subtle/40">
           <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0 space-y-1">
@@ -401,7 +414,7 @@ export function DocumentInbox() {
         </Card>
       )}
 
-      {duplicateWarnings.map((importResult) => (
+      {duplicateWarnings.filter((importResult) => importResultShown(importResult.document.id)).map((importResult) => (
         <Card
           key={importResult.document.id}
           className="border-status-caution/30 bg-status-caution/5"
