@@ -4,8 +4,8 @@
  * and the orb while an import is in flight, static under reduced motion), HC-UIDOC-004 (an alert stays outside the
  * beam), HC-UIDOC-005 (delete through the AlertDialog, with the real Radix focus and pointer-events checks),
  * HC-UIDOC-006 (stillnessProbe across an import into an empty list with a scanned-page warning, across a failed
- * import, and across the preview Sheet; an import, completed or failed, into a list that has rows is a pinned
- * displacement, see the two G10 cases), and Gate G on
+ * import, across the start of an import, plain navigation onto /inbox and the preview Sheet; on the events the patient
+ * caused, into a list that has rows, rows jump once: see "one instant jump" below), and Gate G on
  * /inbox: G1 axe in light and dark, G2 CLS, G3 INP with CPU x4, G5 reduced motion, G6 phone and small phone widths,
  * G7 console and network, G9 the Safety Rail, G10 stillness.
  *
@@ -35,7 +35,9 @@ import {
   safetyVisible,
   setTheme,
   stillnessProbe,
-  StillnessError,
+  RECT_TOLERANCE_PX,
+  STILLNESS_MAX_GAP_MS,
+  STILLNESS_WINDOW_MS,
 } from './support/gates';
 
 // ---------------------------------------------------------------------------
@@ -137,6 +139,14 @@ interface DocsControl {
   /** The next GET /documents waits until the returned function is called (the page shows its loading state). */
   holdList(): () => void;
   answer: ImportAnswer;
+  /** Every GET /documents waits this long before it answers (the refetch after an import or a delete). Default 0. */
+  listDelayMs: number;
+  /** Every GET /documents answers 500 (the refetch fails). */
+  listFails: boolean;
+  /** The next GET /documents/highlights/summary waits until the returned function is called. */
+  holdSummary(): () => void;
+  /** Every GET /documents/highlights/summary the page sent. */
+  summaryRequests: number;
   /** Wall-clock ms when the last GET /documents was fulfilled. */
   lastListFulfilledAt: number;
 }
@@ -148,12 +158,25 @@ interface DocsControl {
 async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl> {
   let gate: Promise<void> | null = null;
   let listGate: Promise<void> | null = null;
+  let summaryGate: Promise<void> | null = null;
   const control: DocsControl = {
     rows: [...rows],
     deletes: [],
     imports: 0,
     answer: {},
+    listDelayMs: 0,
+    listFails: false,
+    summaryRequests: 0,
     lastListFulfilledAt: 0,
+    holdSummary() {
+      let release!: () => void;
+      summaryGate = new Promise<void>((resolve) => {
+        release = () => {
+          resolve();
+        };
+      });
+      return release;
+    },
     hold() {
       let release!: () => void;
       gate = new Promise<void>((resolve) => {
@@ -178,12 +201,20 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
     if (request.method() !== 'GET') return route.fallback();
     if (listGate) await listGate;
     listGate = null;
+    if (control.listDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, control.listDelayMs));
+    if (control.listFails) {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'list failed' }) });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(control.rows) });
     control.lastListFulfilledAt = Date.now();
   });
 
   await page.route(/\/api\/v1\/documents\/highlights\/summary\/?(\?.*)?$/, async (route, request) => {
     if (request.method() !== 'GET') return route.fallback();
+    control.summaryRequests += 1;
+    if (summaryGate) await summaryGate;
+    summaryGate = null;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(HIGHLIGHTS) });
   });
 
@@ -300,6 +331,166 @@ async function openInbox(page: Page, options: { empty?: boolean } = {}): Promise
   }
   await page.evaluate(() => document.fonts.ready);
   await waitForEffectiveOpacity(page, 'h1');
+}
+
+// ---------------------------------------------------------------------------
+// HC-UIDOC-006: one instant jump (owner INBOX-ROW-JUMP, L0 ruling on PR #464).
+//
+// On an event the patient caused or was waiting on (an import completed or failed, an alert or a warning dismissed,
+// Remove), a row may move once, in one step, with no slide and no fade. stillnessProbe allows no displacement at all
+// and is not relaxed; plain navigation onto /inbox, the start of an import and opening the preview Sheet keep using it.
+// This helper is the assertion for the events: it samples every row at animation-frame rate across the event and
+// requires each row to hold at most two positions, before and after, with no sample in between.
+// ---------------------------------------------------------------------------
+
+/** Every GET /documents the event triggers answers this late (what a real server costs). The instant mock hides a split commit. */
+const LIST_HOLD_MS = 300;
+/** A row's opacity is read as the product of its own and every ancestor's. */
+const OPACITY_EPSILON = 0.01;
+
+interface FrameItem {
+  rect: [number, number, number, number];
+  opacity: number;
+}
+interface Frame {
+  /** performance.now() in the page */
+  t: number;
+  items: Record<string, FrameItem>;
+}
+interface FrameRun {
+  frames: Frame[];
+  /** Frames sampled before the trigger started. */
+  preCount: number;
+}
+
+/**
+ * Pure. One message per failure. It fails closed: too few samples after the trigger, a gap between two samples over
+ * STILLNESS_MAX_GAP_MS (a slide could hide inside it and read as a jump), or an event that changed nothing it tracks
+ * (it measured nothing) is a failure, not a pass.
+ */
+function jumpFailures(run: FrameRun, options: { windowMs?: number } = {}): string[] {
+  const { frames, preCount } = run;
+  const windowMs = options.windowMs ?? STILLNESS_WINDOW_MS;
+  const failures: string[] = [];
+
+  const minimumAfter = Math.floor(windowMs / STILLNESS_MAX_GAP_MS);
+  if (preCount < 2) failures.push(`only ${preCount} sample(s) before the event; a "before" position needs at least 2`);
+  if (frames.length - preCount < minimumAfter) {
+    failures.push(
+      `only ${frames.length - preCount} sample(s) after the event; a ${windowMs} ms window needs at least ${minimumAfter} at one per ${STILLNESS_MAX_GAP_MS} ms`
+    );
+  }
+  let maxGap = 0;
+  for (let i = 1; i < frames.length; i++) maxGap = Math.max(maxGap, frames[i].t - frames[i - 1].t);
+  if (maxGap > STILLNESS_MAX_GAP_MS) {
+    failures.push(
+      `a ${maxGap.toFixed(1)} ms gap between two samples is over ${STILLNESS_MAX_GAP_MS} ms: a slide could hide in it and read as a jump`
+    );
+  }
+  if (frames.length === 0) return failures;
+
+  const names = Array.from(new Set(frames.flatMap((frame) => Object.keys(frame.items))));
+  const origin = frames[0].t;
+  let changed = false;
+  for (const name of names) {
+    let anchor: FrameItem['rect'] | null = null;
+    const positions: string[] = [];
+    let seenAt = -1;
+    let lostAt = -1;
+    let badOpacity = '';
+    for (let i = 0; i < frames.length; i++) {
+      const item = frames[i].items[name];
+      if (!item) {
+        if (seenAt >= 0 && lostAt < 0) lostAt = i;
+        continue;
+      }
+      if (seenAt < 0) seenAt = i;
+      const at = `${(frames[i].t - origin).toFixed(0)} ms`;
+      if (!badOpacity && Math.abs(item.opacity - 1) > OPACITY_EPSILON) {
+        badOpacity = `effective opacity ${item.opacity.toFixed(2)} at ${at}`;
+      }
+      // Drift is measured from the position the item last held, not from the previous sample, so a slow slide of
+      // 0.3 px a frame adds up to a change instead of passing under the tolerance each frame.
+      if (!anchor || item.rect.some((value, index) => Math.abs(value - anchor![index]) > RECT_TOLERANCE_PX)) {
+        anchor = item.rect;
+        positions.push(`[${item.rect.map((value) => Math.round(value * 10) / 10)}] at ${at}`);
+      }
+    }
+    if (badOpacity) failures.push(`${name}: ${badOpacity} (must be 1 on every sample: no fade)`);
+    // An item that was on screen when the event began holds a position before and one after. One that appears
+    // during the event appears where it will stay.
+    const allowed = seenAt === 0 ? 2 : 1;
+    if (positions.length > allowed) {
+      failures.push(`${name}: held ${positions.length} positions (at most ${allowed}): ${positions.join(' -> ')}`);
+    }
+    if (positions.length > 1 || seenAt > 0 || lostAt >= 0) changed = true;
+  }
+  if (!changed) failures.push('nothing the sampler tracks changed during the event, so it measured nothing');
+  if (Object.keys(frames[frames.length - 1].items).length === 0) failures.push('no row or event element on screen at the end');
+  return failures;
+}
+
+/**
+ * Samples every inbox row (named by its title) and the event elements once per animation frame, runs the trigger, keeps
+ * sampling for STILLNESS_WINDOW_MS more, and returns the frames. The wait is the sampling window, read off the page's
+ * own clock.
+ */
+async function sampleFrames(page: Page, trigger: () => Promise<void>): Promise<FrameRun> {
+  const tracked = { alert: ERROR_ALERT, handoff: HANDOFF, scanned: SCANNED_WARNING };
+  await page.evaluate(
+    ({ row, extra }) => {
+      const state = { running: true, frames: [] as unknown[] };
+      (window as unknown as { __hcFrames?: typeof state }).__hcFrames = state;
+      const read = (el: Element) => {
+        const box = el.getBoundingClientRect();
+        let opacity = 1;
+        for (let node: Element | null = el; node; node = node.parentElement) {
+          opacity *= parseFloat(getComputedStyle(node).opacity);
+        }
+        return { rect: [box.x, box.y, box.width, box.height], opacity };
+      };
+      const frame = () => {
+        if (!state.running) return;
+        const items: Record<string, unknown> = {};
+        document.querySelectorAll(row).forEach((el) => {
+          items[`row ${el.querySelector('h4')?.textContent ?? '?'}`] = read(el);
+        });
+        for (const [name, selector] of Object.entries(extra)) {
+          const el = document.querySelector(selector);
+          if (el) items[name] = read(el);
+        }
+        state.frames.push({ t: performance.now(), items });
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    },
+    { row: ROW, extra: tracked }
+  );
+  await page.waitForFunction(() => ((window as unknown as { __hcFrames: { frames: unknown[] } }).__hcFrames.frames.length >= 3), undefined, {
+    polling: 'raf',
+  });
+  const preCount = await page.evaluate(() => (window as unknown as { __hcFrames: { frames: unknown[] } }).__hcFrames.frames.length);
+  await trigger();
+  const until = await page.evaluate((windowMs) => performance.now() + windowMs, STILLNESS_WINDOW_MS);
+  await page.waitForFunction((end) => performance.now() >= end, until, { polling: 'raf' });
+  const frames = await page.evaluate(() => {
+    const state = (window as unknown as { __hcFrames?: { running: boolean; frames: unknown[] } }).__hcFrames;
+    if (!state) return null;
+    state.running = false;
+    return state.frames as Frame[];
+  });
+  if (frames === null) throw new Error('the frame sampler is gone: the document was replaced during the event');
+  return { frames, preCount };
+}
+
+/** Runs the event and asserts one instant jump (see jumpFailures). Prints the figures so the log carries them. */
+async function expectOneJump(page: Page, label: string, trigger: () => Promise<void>): Promise<void> {
+  const run = await sampleFrames(page, trigger);
+  const gaps = run.frames.slice(1).map((frame, index) => frame.t - run.frames[index].t);
+  console.log(
+    `HC-UIDOC-006 ${label}: ${run.frames.length} frames (${run.preCount} before), max gap ${Math.max(...gaps).toFixed(1)} ms`
+  );
+  expect(jumpFailures(run), label).toEqual([]);
 }
 
 /** Starts an import with the request held, and waits until the beam card is on screen. Returns the release. */
@@ -931,7 +1122,7 @@ test.describe('Gate G on /inbox', () => {
       page,
     }) => {
       // Would not notice: a name that moves the page only after the import ends (the rows move for the new row, which
-      // is G10's pinned case). The longest name a file system allows is 255 characters; the status line is clamped,
+      // HC-UIDOC-006 (g) covers). The longest name a file system allows is 255 characters; the status line is clamped,
       // so the running block must not be taller than the idle block.
       // RED today: 255 characters move the first row by 80 px at 390 and 100 px at 320 (measured in review).
       await page.setViewportSize(viewport);
@@ -1005,7 +1196,7 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
   }) => {
     // Would not notice: a new row that fades or slides in (M0 is the rule), a handoff that counts up, or a card that
     // shifts a row after it appeared. Rows that were already on screen cannot exist in this state: the list starts
-    // empty, so the displacement of existing rows is measured separately, by the two pinned cases further down (an
+    // empty, so the displacement of existing rows is measured separately, by the jump cases further down (an
     // import that completes, and an import that fails, both into a list that has rows).
     // The import reports two pages without text, so the scanned-page warning (section 2.7) is expected too.
     // RED today: no node carries data-t0 (the probe fails with "zero [data-t0] nodes").
@@ -1034,8 +1225,8 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
   }) => {
     // Would not notice: an alert that fades in or slides (M0 is the rule), or one that loses its data-t0 (the probe
     // fails when the expected selector matches nothing). The list starts empty so that no row sits below the alert:
-    // the alert is inserted above the drop zone, and a row below it would move. That is the pinned
-    // failed-import case further down, which starts with rows.
+    // the alert is inserted above the drop zone, and a row below it would move. That is the
+    // failed-import jump case further down, which starts with rows.
     // RED today: the alert carries no data-t0.
     const { docs } = await setup(page, []);
     docs.answer = { fail: { status: 400, detail: 'Unsupported file type' } };
@@ -1095,88 +1286,231 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     expect(report.nodes).toBeGreaterThan(0);
   });
 
-  /**
-   * Runs the real stillnessProbe and PINS its current result for a list that has rows: the probe must fail, and the
-   * failure must be a StillnessError that names a moved rect. A timeout, a missing selector, a lost sampler or any
-   * other error fails the test, so it cannot be mistaken for the expected result. The text is printed and attached,
-   * so L0 reads the figures in the log whether the test passes or fails. The probe is not loosened or special-cased.
-   * When the ruling lands: delete `pinMoved`, call stillnessProbe directly and assert that it passes.
-   */
-  async function pinMoved(
-    testInfo: { attach: (name: string, options: { body: string; contentType: string }) => Promise<void> },
-    name: string,
-    run: () => Promise<unknown>
-  ): Promise<void> {
-    let message: string | null = null;
-    try {
-      await run();
-    } catch (error) {
-      if (error instanceof StillnessError && error.message.includes('getBoundingClientRect changed')) {
-        message = error.message;
-      } else {
-        throw error;
-      }
-    }
-    if (message !== null) {
-      console.log(`${name}: ${message}`);
-      await testInfo.attach(name, { body: message, contentType: 'text/plain' });
-    }
-    expect(message, `${name}: the probe is expected to report a moved rect until L0 or the owner rules`).not.toBeNull();
+  // The events below are the ones the owner allows one instant jump on (INBOX-ROW-JUMP). Each holds the list refetch
+  // for LIST_HOLD_MS, because the instant mock answers in the same frame and hides a card that commits before its row.
+  // The summary does not refetch: the import and the delete invalidate ['documents'], the summary is ['highlights'].
+  // Would not notice, for all of them: (1) a motion shorter than one frame, which no sampler at frame rate can see;
+  // (2) a gap the sampler could not fill: such a run fails closed, so a loaded box fails the run instead of passing
+  // it, which is why these are timing gates; (3) scroll: rects are read relative to the viewport, a focus() that
+  // scrolls <main> moves every row at once, and that single move reads as the one allowed jump. The list here is
+  // three rows in 900 px, so no event scrolls; a long list is not covered; (4) a duplicate warning or a handoff card
+  // that moves while a row stays put is read only through the T0 hooks (alert, handoff, scanned): the duplicate
+  // warning has no hook, so it is covered through the rows it pushes, not on its own; (5) rows that were never on
+  // screen: only the three fixture rows and the one new row are tracked.
+
+  /** A held import into the three-row list: the beam card is up, the request waits for the returned release. */
+  async function inboxWithHeldImport(page: Page, answer: ImportAnswer = {}) {
+    const { docs } = await setup(page);
+    docs.answer = answer;
+    await openInbox(page);
+    docs.listDelayMs = LIST_HOLD_MS;
+    const release = await startHeldImport(page, docs);
+    return { docs, release };
   }
 
-  test('GATE G10 /inbox: an import that completes into a NON-EMPTY list moves the rows already on screen (pinned; needs an L0 or owner ruling)', async ({
+  const DUPLICATE: ImportAnswer = {
+    duplicate_warning: { match_type: 'content_hash', document_id: 'doc-third-0003', title: THIRD_NAME },
+  };
+
+  async function openDeleteDialog(page: Page, name: string): Promise<void> {
+    await rowByName(page, name).getByRole('button', { name: 'More options' }).click();
+    await page.getByRole('menuitem', { name: /delete/i }).click();
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+  }
+
+  test('HC-UIDOC-006 (d): the start of an import into a list with rows moves nothing (stillnessProbe, interaction)', async ({
     page,
-  }, testInfo) => {
-    // The list is newest first (api/documents.py:1093), so when the import completes the handoff card, the
-    // duplicate warning (if any) and the new row are inserted above the rows already on screen and push them down.
-    // Measured at 1440: 222.2 px in total. How much of it is the handoff card and how much the new row is not
-    // measured: the failure text printed by this test lists the moved rects. stillnessProbe allows no displacement.
-    // The start of the import moves nothing (the running state lives in the drop zone's slot). Which of the
-    // handoff card, the new row, the import-failed alert and the duplicate warning may displace rows is an L0 or
-    // owner ruling; a probe exemption for an inserted row alone would not be enough.
-    // Would not notice: a displacement that happens at the start of the import (G6 covers that) or a probe failure of
-    // another kind (pinMoved fails the test on those).
+  }) => {
+    // Would not notice: a displacement that happens when the import ends (the jump tests below own that), or one on a
+    // row the probe cannot read: it reads the rows' dates, status words and confidence words.
     const { docs } = await setup(page);
     await openInbox(page);
     const release = docs.hold();
     try {
-      await pinMoved(testInfo, 'g10-non-empty-import', () =>
-        stillnessProbe(page, {
-          kind: 'interaction',
-          expected: [...EXPECTED, HANDOFF],
-          trigger: async () => {
-            await fileInput(page).setInputFiles(NEW_FILE);
-            await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
-            release();
-            await expect(page.locator(HANDOFF)).toBeVisible();
-            await expect(rowByName(page, NEW_NAME)).toBeVisible();
-          },
-        })
-      );
+      const report = await stillnessProbe(page, {
+        kind: 'interaction',
+        expected: EXPECTED,
+        trigger: async () => {
+          await fileInput(page).setInputFiles(NEW_FILE);
+          await expect(page.getByText(`Reading ${NEW_NAME}`)).toBeVisible();
+        },
+      });
+      expect(report.nodes).toBeGreaterThan(0);
+    } finally {
+      release();
+    }
+    await expect(page.locator(HANDOFF)).toBeVisible();
+  });
+
+  test('HC-UIDOC-006 (e): plain navigation onto /inbox moves nothing (stillnessProbe, navigation)', async ({ page }) => {
+    // Would not notice: a late arrival that the instant mock never produces (the next test holds the highlights). The
+    // start page is /verify, so the click is a real route change.
+    await setup(page);
+    await page.goto('/verify');
+    await expect(page.locator(SAFETY_RAIL)).toBeVisible({ timeout: 15_000 });
+    const report = await stillnessProbe(page, {
+      kind: 'navigation',
+      lazyRoute: true,
+      expected: EXPECTED,
+      trigger: () => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Documents', exact: true }).click(),
+    });
+    expect(report.nodes).toBeGreaterThan(0);
+  });
+
+  test('HC-UIDOC-006 (f): highlights that arrive after the rows do not move the rows on a plain navigation (stillnessProbe, navigation)', async ({
+    page,
+  }) => {
+    // The documents answer at once and the highlight summary 300 ms later. A row that rendered without its chips and
+    // then grew would push every row below it. Would not notice: a stale summary that is cached for five minutes
+    // (App.tsx staleTime) and refetches in the background. isLoading is false on a background refetch, so the rows are
+    // not held for it, and chips could still be inserted; this test navigates with no cached summary, so it does not
+    // cover that case.
+    const { docs } = await setup(page);
+    await page.goto('/verify');
+    await expect(page.locator(SAFETY_RAIL)).toBeVisible({ timeout: 15_000 });
+    await page.waitForLoadState('networkidle');
+    const release = docs.holdSummary();
+    try {
+      const report = await stillnessProbe(page, {
+        kind: 'navigation',
+        expected: EXPECTED,
+        trigger: async () => {
+          await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Documents', exact: true }).click();
+          await expect.poll(() => docs.summaryRequests).toBeGreaterThan(0);
+          // The summary is late by this much; the list has answered long before.
+          await page.evaluate((ms) => new Promise((resolve) => setTimeout(resolve, ms)), LIST_HOLD_MS);
+          release();
+          await expect(page.locator(ROW).first()).toBeVisible();
+        },
+      });
+      expect(report.nodes).toBeGreaterThan(0);
     } finally {
       release();
     }
   });
 
-  test('GATE G10 /inbox: a FAILED import into a NON-EMPTY list moves the rows already on screen (pinned; needs an L0 or owner ruling)', async ({
+  test('HC-UIDOC-006 (g): an import that completes into a list with rows jumps once: the handoff card and the new row come together', async ({
     page,
-  }, testInfo) => {
-    // The import-failed alert is inserted above the drop zone, so every row moves down by the height of the alert
-    // (measured in review: 108.4 px at 1440). Same ruling as the completed import; same pin.
-    // Would not notice: see pinMoved. The alert carries data-t0, so the probe also reads the alert itself.
+  }) => {
+    const { release } = await inboxWithHeldImport(page);
+    await expectOneJump(page, 'import completed', async () => {
+      release();
+      await expect(page.locator(HANDOFF)).toBeVisible();
+      await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    });
+  });
+
+  test('HC-UIDOC-006 (h): an import with a duplicate warning jumps once: the card, the warning and the new row come together', async ({
+    page,
+  }) => {
+    const { release } = await inboxWithHeldImport(page, DUPLICATE);
+    await expectOneJump(page, 'import completed with a duplicate warning', async () => {
+      release();
+      await expect(page.getByText('Possible duplicate upload')).toBeVisible();
+      await expect(page.locator(HANDOFF)).toBeVisible();
+      await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    });
+  });
+
+  test('HC-UIDOC-006 (i): a failed import jumps once: the alert pushes the rows down in one step', async ({ page }) => {
+    const { release } = await inboxWithHeldImport(page, { fail: { status: 400, detail: 'Unsupported file type' } });
+    await expectOneJump(page, 'import failed', async () => {
+      release();
+      await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+    });
+  });
+
+  test('HC-UIDOC-006 (j): dismissing the import-failed alert jumps once', async ({ page }) => {
+    const { release } = await inboxWithHeldImport(page, { fail: { status: 400, detail: 'Unsupported file type' } });
+    release();
+    await expect(page.getByRole('alert')).toContainText('Unsupported file type');
+    await waitForEffectiveOpacity(page, ROW);
+    await expectOneJump(page, 'alert dismissed', async () => {
+      await page.getByRole('button', { name: `Dismiss import error for ${NEW_NAME}` }).click();
+      await expect(page.getByRole('alert')).toBeHidden();
+    });
+  });
+
+  test('HC-UIDOC-006 (k): dismissing the duplicate warning jumps once', async ({ page }) => {
+    const { release } = await inboxWithHeldImport(page, DUPLICATE);
+    release();
+    await expect(page.getByText('Possible duplicate upload')).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await waitForEffectiveOpacity(page, ROW);
+    await expectOneJump(page, 'duplicate warning dismissed', async () => {
+      await page.getByRole('button', { name: `Dismiss duplicate warning for ${THIRD_NAME}` }).click();
+      await expect(page.getByText('Possible duplicate upload')).toBeHidden();
+    });
+  });
+
+  test('HC-UIDOC-006 (l): Remove on a row with no card jumps once: the rows below close up in one step', async ({ page }) => {
     const { docs } = await setup(page);
-    docs.answer = { fail: { status: 400, detail: 'Unsupported file type' } };
     await openInbox(page);
-    await pinMoved(testInfo, 'g10-failed-import-with-rows', () =>
-      stillnessProbe(page, {
-        kind: 'interaction',
-        expected: [ERROR_ALERT, ...EXPECTED],
-        trigger: async () => {
-          await fileInput(page).setInputFiles({ ...NEW_FILE, name: 'bad.pdf' });
-          await expect(page.getByRole('alert')).toContainText('Unsupported file type');
-        },
-      })
-    );
+    docs.listDelayMs = LIST_HOLD_MS;
+    await openDeleteDialog(page, SECOND_NAME);
+    await waitForEffectiveOpacity(page, ROW);
+    await expectOneJump(page, 'Remove', async () => {
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+      await expect(rowByName(page, SECOND_NAME)).toHaveCount(0);
+    });
+    expect(docs.deletes).toEqual(['doc-second-0002']);
+  });
+
+  test('HC-UIDOC-006 (m): Remove on the row the handoff card is for jumps once: the card leaves with its row', async ({ page }) => {
+    const { docs, release } = await inboxWithHeldImport(page);
+    release();
+    await expect(page.locator(HANDOFF)).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await waitForEffectiveOpacity(page, ROW);
+    await openDeleteDialog(page, NEW_NAME);
+    await expectOneJump(page, 'Remove of the imported document', async () => {
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+      await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+      await expect(page.locator(HANDOFF)).toHaveCount(0);
+    });
+    expect(docs.deletes).toEqual(['doc-new-0004']);
+  });
+
+  test('HC-UIDOC-006 (n): Remove on a row with a duplicate warning jumps once: the card and the warning leave with it', async ({
+    page,
+  }) => {
+    const { release } = await inboxWithHeldImport(page, DUPLICATE);
+    release();
+    await expect(page.getByText('Possible duplicate upload')).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await waitForEffectiveOpacity(page, ROW);
+    await openDeleteDialog(page, NEW_NAME);
+    await expectOneJump(page, 'Remove of a duplicate-warned import', async () => {
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+      await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+      await expect(page.getByText('Possible duplicate upload')).toHaveCount(0);
+    });
+  });
+
+  test('HC-UIDOC-011: when the list refresh after an import fails, the patient still sees the import result', async ({ page }) => {
+    // Would not notice: a result that shows too early (HC-UIDOC-006 (g) owns the timing). Here the refetch answers 500,
+    // and App.tsx retry: 1 holds the page one second before it gives up, so the card comes after that delay.
+    const { docs, release } = await inboxWithHeldImport(page, DUPLICATE);
+    docs.listFails = true;
+    release();
+    await expect(page.locator(HANDOFF)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Possible duplicate upload')).toBeVisible();
+    await expect(page.getByText('Failed to load documents')).toBeVisible();
+  });
+
+  test('HC-UIDOC-011: when the list refresh after a Remove fails, a card for the removed document does not stay', async ({ page }) => {
+    // Would not notice: a card that hides on a refetch that never ends. The refetch here fails, and the card goes
+    // when it does.
+    const { docs, release } = await inboxWithHeldImport(page);
+    release();
+    await expect(page.locator(HANDOFF)).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await openDeleteDialog(page, NEW_NAME);
+    docs.listFails = true;
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect.poll(() => docs.deletes).toEqual(['doc-new-0004']);
+    await expect(page.getByText('Failed to load documents')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(HANDOFF)).toHaveCount(0);
   });
 
   test('INBOX-DATA-RENDER: the longest task between the documents response and the first row, recorded (no assertion)', async ({
@@ -1219,5 +1553,91 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     const line = `INBOX-DATA-RENDER longest busy run between documents response and first row: ${longest.toFixed(1)} ms (window ${(visibleAt - fulfilledAt).toFixed(0)} ms)`;
     console.log(line);
     await testInfo.attach('inbox-data-render', { body: line, contentType: 'text/plain' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIDOC-006: the jump assertion itself, on synthetic samples (no browser, no timing).
+// ---------------------------------------------------------------------------
+test.describe('HC-UIDOC-006 jumpFailures (pure)', () => {
+  /** Rows by name: one y per frame, or null while the row is not on screen. Frames are `gap` ms apart. */
+  function run(
+    rows: Record<string, Array<number | null>>,
+    options: { gap?: number; pre?: number; opacity?: (name: string, frame: number) => number } = {}
+  ): FrameRun {
+    const gap = options.gap ?? 16;
+    const length = Math.max(...Object.values(rows).map((ys) => ys.length));
+    const frames: Frame[] = [];
+    for (let i = 0; i < length; i++) {
+      const items: Frame['items'] = {};
+      for (const [name, ys] of Object.entries(rows)) {
+        const y = ys[i];
+        if (y !== null && y !== undefined) items[name] = { rect: [0, y, 100, 50], opacity: options.opacity?.(name, i) ?? 1 };
+      }
+      frames.push({ t: 1000 + i * gap, items });
+    }
+    return { frames, preCount: options.pre ?? 3 };
+  }
+  const still = (y: number, n: number) => Array<number>(n).fill(y);
+
+  test('HC-UIDOC-006: one step from a position to another passes', () => {
+    // Would not notice: a step that is a slide faster than the sample rate (a 16 ms slide is one sample).
+    expect(jumpFailures(run({ 'row a': [...still(100, 5), ...still(300, 35)] }))).toEqual([]);
+  });
+
+  test('HC-UIDOC-006: a slide between the two positions fails', () => {
+    const slide = [...still(100, 5), 140, 180, 220, 260, ...still(300, 35)];
+    expect(jumpFailures(run({ 'row a': slide })).join('\n')).toMatch(/row a: held 6 positions/);
+  });
+
+  test('HC-UIDOC-006: one sample between the two positions fails', () => {
+    expect(jumpFailures(run({ 'row a': [...still(100, 5), 200, ...still(300, 35)] })).join('\n')).toMatch(/held 3 positions/);
+  });
+
+  test('HC-UIDOC-006: a slide sampled too sparsely to see it fails closed, not as a jump', () => {
+    // 64 ms apart the slide has no sample inside it and reads as a clean jump. The gap is what fails it.
+    const failures = jumpFailures(run({ 'row a': [...still(100, 5), ...still(300, 35)] }, { gap: 64 }));
+    expect(failures.join('\n')).toMatch(/64\.0 ms gap between two samples is over 40 ms/);
+  });
+
+  test('HC-UIDOC-006: too few samples after the event fails closed', () => {
+    expect(jumpFailures(run({ 'row a': [...still(100, 5), ...still(300, 10)] })).join('\n')).toMatch(/only 12 sample\(s\) after the event/);
+  });
+
+  test('HC-UIDOC-006: too few samples before the event fails closed', () => {
+    expect(jumpFailures(run({ 'row a': [...still(100, 5), ...still(300, 35)] }, { pre: 1 })).join('\n')).toMatch(/only 1 sample\(s\) before/);
+  });
+
+  test('HC-UIDOC-006: a fade of one frame fails', () => {
+    const failures = jumpFailures(
+      run({ 'row a': [...still(100, 5), ...still(300, 35)] }, { opacity: (_name, frame) => (frame === 7 ? 0.6 : 1) })
+    );
+    expect(failures.join('\n')).toMatch(/row a: effective opacity 0\.60 at 112 ms/);
+  });
+
+  test('HC-UIDOC-006: a row that moves and comes back fails (two moves are not before and after)', () => {
+    const there = [...still(100, 5), ...still(300, 10), ...still(100, 25)];
+    expect(jumpFailures(run({ 'row a': there })).join('\n')).toMatch(/held 3 positions/);
+  });
+
+  test('HC-UIDOC-006: a drift of 0.3 px a frame adds up and fails', () => {
+    const drift = Array.from({ length: 40 }, (_, i) => 100 + 0.3 * i);
+    expect(jumpFailures(run({ 'row a': drift })).join('\n')).toMatch(/row a: held \d+ positions/);
+  });
+
+  test('HC-UIDOC-006: an event that changes nothing the sampler tracks fails (it measured nothing)', () => {
+    expect(jumpFailures(run({ 'row a': still(100, 40) })).join('\n')).toMatch(/measured nothing/);
+  });
+
+  test('HC-UIDOC-006: a row that appears with the jump holds one position; one that then moves fails', () => {
+    const stays = { 'row a': [...still(100, 5), ...still(300, 35)], 'row new': [...Array<null>(5).fill(null), ...still(100, 35)] };
+    expect(jumpFailures(run(stays))).toEqual([]);
+    const moves = { ...stays, 'row new': [...Array<null>(5).fill(null), ...still(100, 10), ...still(150, 25)] };
+    expect(jumpFailures(run(moves)).join('\n')).toMatch(/row new: held 2 positions \(at most 1\)/);
+  });
+
+  test('HC-UIDOC-006: a row that leaves with the jump holds one position and passes', () => {
+    const rows = { 'row a': [...still(100, 5), ...still(300, 35)], 'row gone': [...still(200, 5), ...Array<null>(35).fill(null)] };
+    expect(jumpFailures(run(rows))).toEqual([]);
   });
 });
