@@ -97,6 +97,8 @@ let listFails = false;
 /** While set, GET /documents/highlights/summary waits for it, or fails. */
 let summaryGate: Promise<void> | null = null;
 let summaryFails = false;
+/** What GET /pinboards answers. */
+let pinboards: Array<{ id: string; name: string; created_at: string; updated_at: string }> = [];
 /** How many GET /documents have answered with the list. */
 let listAnswers = 0;
 
@@ -188,6 +190,7 @@ beforeEach(() => {
   summaryGate = null;
   summaryFails = false;
   listAnswers = 0;
+  pinboards = [];
   orb.mounts = 0;
   orb.sizes = [];
   setReducedMotion(false);
@@ -197,7 +200,7 @@ beforeEach(() => {
       if (summaryFails) throw new api.ApiError(500, 'Server Error', 'summary failed');
       return highlights;
     }
-    if (path.startsWith('/pinboards')) return [];
+    if (path.startsWith('/pinboards')) return pinboards;
     if (path.startsWith('/documents')) {
       if (listGate) await listGate;
       if (listFails) throw new api.ApiError(500, 'Server Error', 'list failed');
@@ -783,6 +786,59 @@ describe('HC-UIDOC-006 rows wait for the highlights', () => {
     const row = rowOf('a.pdf');
     expect(within(row).queryByText(new RegExp(HIGHLIGHT_LABELS.abnormal_value))).not.toBeInTheDocument();
     expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIDOC-010 (cont.): the Add to pinboard menu is the row menu's twin: same surface tokens, modal off, a spinner
+// that stops under reduced motion.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-010 the Add to pinboard menu', () => {
+  it('HC-UIDOC-010: the open pin menu uses the theme surface and the row menu tokens, not bg-white or black/8', async () => {
+    // Would not notice: a value computed in a stylesheet (jsdom loads none), so this is a class contract; the axe scan
+    // of the open pin menu in light and dark is e2e GATE G1. modal={false} is read in the e2e scan (aria-hidden-focus),
+    // not here: a modal menu hides the page with aria-hidden, which is the test below.
+    // RED today: bg-white with border-black/8.
+    pinboards = [{ id: 'pb1', name: 'Cardiology', created_at: '2026-07-01T00:00:00', updated_at: '2026-07-01T00:00:00' }];
+    const user = userEvent.setup();
+    await renderLoaded();
+    await user.click(within(rowOf('a.pdf')).getByRole('button', { name: 'Add to pinboard' }));
+    const menu = await screen.findByRole('menu');
+    const tokens = menu.className.split(/\s+/);
+    for (const token of ['border-border', 'bg-surface-elevated', 'text-ink']) expect(tokens).toContain(token);
+    expect(tokens).not.toContain('bg-white');
+    expect(tokens.filter((t) => /^border-black\/\d+$/.test(t))).toEqual([]);
+  });
+
+  it('HC-UIDOC-010: with the pin menu open the rest of the page is not aria-hidden (modal off)', async () => {
+    // Would not notice: a page hidden by another mechanism (inert, display). aria-hidden is what axe reads
+    // (aria-hidden-focus), and it is what a modal Radix menu sets on every sibling of its portal.
+    // RED today: the row's other buttons sit under an aria-hidden ancestor while the trigger keeps focus.
+    pinboards = [{ id: 'pb1', name: 'Cardiology', created_at: '2026-07-01T00:00:00', updated_at: '2026-07-01T00:00:00' }];
+    const user = userEvent.setup();
+    await renderLoaded();
+    await user.click(within(rowOf('a.pdf')).getByRole('button', { name: 'Add to pinboard' }));
+    await screen.findByRole('menu');
+    expect(document.querySelector('[aria-hidden="true"][data-aria-hidden]')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'a.pdf' }).closest('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('HC-UIDOC-010: the pin spinner spins only under motion-safe', async () => {
+    // Would not notice: a spinner class set from somewhere else (the Button, a wrapper). The spinner is found by its
+    // lucide class inside the trigger while the add is in flight, and every animate-spin token on it must carry the
+    // motion-safe: prefix. Loaders keep running under reduced motion elsewhere (globals.css); this one is the row's.
+    // RED today: a bare animate-spin.
+    pinboards = [{ id: 'pb1', name: 'Cardiology', created_at: '2026-07-01T00:00:00', updated_at: '2026-07-01T00:00:00' }];
+    apiPost.mockImplementation((() => new Promise(() => {})) as never);
+    const user = userEvent.setup();
+    await renderLoaded();
+    const trigger = within(rowOf('a.pdf')).getByRole('button', { name: 'Add to pinboard' });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitem', { name: 'Cardiology' }));
+    await waitFor(() => expect(trigger.querySelector('svg.lucide-loader2')).not.toBeNull());
+    const spinner = trigger.querySelector('svg') as SVGElement;
+    const spin = (spinner.getAttribute('class') ?? '').split(/\s+/).filter((t) => t.includes('animate-spin'));
+    expect(spin).toEqual(['motion-safe:animate-spin']);
   });
 });
 

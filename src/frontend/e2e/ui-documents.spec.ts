@@ -943,6 +943,24 @@ test.describe('Gate G on /inbox', () => {
     }
   });
 
+  test('GATE G1 /inbox: the open Add to pinboard menu has no serious or critical axe violation in light or dark', async ({
+    page,
+  }) => {
+    // Would not notice: a violation in the menu's contents with pinboards to list: the mock lists none, so the menu
+    // holds its one disabled "Create a pinboard first" item. The row menu is scanned by the test above.
+    // RED today: a modal DropdownMenu sets aria-hidden on the page while its trigger keeps focus (aria-hidden-focus),
+    // the same failure the row menu had; the menu surface is bg-white with a black/8 border.
+    await setup(page);
+    await openInbox(page);
+    await setTheme(page, 'light');
+    await rowByName(page, THIRD_NAME).getByRole('button', { name: 'Add to pinboard' }).click();
+    await expect(page.getByRole('menu')).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Create a pinboard first' })).toBeVisible();
+    for (const theme of ['light', 'dark'] as const) {
+      expect(blockingIds(await axeSettled(page, theme)), `open pin menu, ${theme}`).toEqual([]);
+    }
+  });
+
   test('GATE G2 /inbox: CLS stays under 0.1 over the load, an import, the preview Sheet and a delete', async ({ page }) => {
     // Would not notice: a layout shift in a state the sequence skips. The sequence covers the card, the handoff,
     // the new row, the Sheet and the row removal.
