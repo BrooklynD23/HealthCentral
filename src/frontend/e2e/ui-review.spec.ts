@@ -1383,3 +1383,107 @@ test('HC-UIREV-002: an entity value passes stillnessProbe from the entity Verify
   expect(report.nodes).toBeGreaterThan(0);
   await expect(page.locator('#entity-row-ent-review-long [data-ink-marker]')).toHaveAttribute('data-state', 'ink');
 });
+
+// ---------------------------------------------------------------------------
+// Finding 8: a Verify keeps the selected row and its Source Preview (ruling 6604622632).
+// ---------------------------------------------------------------------------
+const pagesRequests = (requests: readonly string[]): number =>
+  requests.filter((request) => request === `GET /documents/${DOC_ID}/pages`).length;
+const selectRow = (page: Page, id: string, name: string) => row(page, id).locator('span.font-medium', { hasText: name }).click();
+
+// Functional (no timing threshold). Written red first: on f7e03ea7 the effect re-ran handleRowSelect on every
+// observations change, so a Verify fetched /pages again, swapped the preview for a spinner and selected the first row.
+// Blind spot: it samples with a MutationObserver and a frame loop, so a spinner that lives and dies inside one task
+// with no frame and no mutation record cannot happen (React commits are mutations); it watches the one document.
+test('UI-PG-REVIEW finding 8: a Verify on a row that is not the first keeps the selection, the Source Preview node and the /pages count', async ({
+  page,
+}) => {
+  const mock = await prepare(page);
+  await openReview(page);
+  await selectRow(page, SOURCED_ID, 'Creatinine');
+  await expect(row(page, SOURCED_ID)).toHaveClass(/bg-accent-subtle/);
+  const image = page.locator('[data-page-image-overlay] img');
+  await expect(image).toBeVisible();
+  await expect(page.locator('p.font-mono', { hasText: 'Creatinine 0.9 mg/dL' })).toBeVisible();
+  await settle(page);
+
+  const pagesBefore = pagesRequests(mock.review.requests);
+  const getsBefore = mock.review.requests.filter((request) => request === 'GET /observations').length;
+  expect(pagesBefore, 'the first load and the click each fetched the pages').toBe(2);
+
+  // Tag the live nodes and watch every mutation and every frame from here until the end of the Verify.
+  await page.evaluate(() => {
+    const SPINNER = 'svg.animate-spin.w-8.h-8';
+    const w = window as unknown as { __f8: Record<string, unknown> };
+    const img = document.querySelector('[data-page-image-overlay] img');
+    // The page text itself, not its box: the loading, loaded and empty boxes are all one div, which React reuses.
+    const preview = document.querySelector('p.font-mono');
+    const probe = { img, preview, spinnerSeen: 0, detached: 0, stop: false };
+    w.__f8 = probe;
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof Element && (node.matches(SPINNER) || node.querySelector(SPINNER))) probe.spinnerSeen += 1;
+        });
+        mutation.removedNodes.forEach((node) => {
+          if (node === img || node === preview || (node instanceof Element && (node.contains(img) || node.contains(preview)))) {
+            probe.detached += 1;
+          }
+        });
+      }
+    }).observe(document.body, { subtree: true, childList: true });
+    const frame = () => {
+      if (document.querySelector(SPINNER)) probe.spinnerSeen += 1;
+      if (!probe.stop) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+
+  await row(page, SOURCED_ID).getByRole('button', { name: 'Verify observation' }).click();
+  await expect(row(page, SOURCED_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect.poll(() => mock.review.requests.filter((request) => request === 'GET /observations').length).toBeGreaterThan(getsBefore);
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(300);
+
+  const seen = await page.evaluate(() => {
+    const probe = (window as unknown as { __f8: { img: Element; preview: Element; spinnerSeen: number; detached: number; stop: boolean } }).__f8;
+    probe.stop = true;
+    return {
+      spinnerSeen: probe.spinnerSeen,
+      detached: probe.detached,
+      sameImage: document.querySelector('[data-page-image-overlay] img') === probe.img && probe.img.isConnected,
+      samePreview: document.querySelector('p.font-mono') === probe.preview && probe.preview.isConnected,
+    };
+  });
+  expect.soft(pagesRequests(mock.review.requests), 'no new GET /pages').toBe(pagesBefore);
+  expect.soft(seen.spinnerSeen, 'the Source Preview spinner never showed').toBe(0);
+  expect.soft(seen.detached, 'the preview and the image were never removed from the page').toBe(0);
+  expect.soft(seen.sameImage, 'the page image is the same element').toBe(true);
+  expect.soft(seen.samePreview, 'the preview page text is the same element').toBe(true);
+  await expect.soft(row(page, SOURCED_ID), 'the selection stayed on the verified row').toHaveClass(/bg-accent-subtle/);
+  await expect.soft(row(page, GLUCOSE_ID), 'the first row was not selected').not.toHaveClass(/bg-accent-subtle/);
+});
+
+// PIN, green before and after the fix (it guards against a fix that stops re-selecting): a click on a row on another
+// page still selects it and loads its page. Blind spot: the mock serves PAGES_BODY for the one document, so a
+// second document is not covered here.
+test('UI-PG-REVIEW finding 8: selecting a row on another page still loads it, and selecting back drops it', async ({ page }) => {
+  const mock = await prepare(page);
+  const imageRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/pages\/\d+\/image/.test(request.url())) imageRequests.push(new URL(request.url()).pathname);
+  });
+  await openReview(page);
+  await expect(row(page, GLUCOSE_ID)).toHaveClass(/bg-accent-subtle/);
+  await expect(page.locator('[data-page-image-overlay]')).toHaveCount(0);
+
+  await selectRow(page, SOURCED_ID, 'Creatinine');
+  await expect(row(page, SOURCED_ID)).toHaveClass(/bg-accent-subtle/);
+  await expect(page.locator('[data-page-image-overlay] img')).toBeVisible();
+  expect(imageRequests.some((path) => path.endsWith(`/documents/${DOC_ID}/pages/3/image`))).toBe(true);
+  expect(pagesRequests(mock.review.requests)).toBe(2);
+
+  await selectRow(page, GLUCOSE_ID, 'Glucose');
+  await expect(row(page, GLUCOSE_ID)).toHaveClass(/bg-accent-subtle/);
+  await expect(page.locator('[data-page-image-overlay]')).toHaveCount(0);
+});
