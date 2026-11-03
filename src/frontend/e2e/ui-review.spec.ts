@@ -1217,6 +1217,8 @@ test('UI-PG-REVIEW Gate G2 CLS under 0.1 over load (a late /documents), Verify, 
     await page.keyboard.press('Escape');
     await showSource(page, SOURCED_ID).click();
     await expect(page.locator(`${SHEET} li`, { hasText: 'Matching line:' })).toBeVisible();
+    await page.getByRole('dialog', { name: 'Source for Creatinine' }).getByRole('button', { name: MARK_CHECKED }).click();
+    await expect(page.getByText(SHEET_CHECKED)).toBeVisible();
     await page.keyboard.press('Escape');
   });
   console.log(`UI-PG-REVIEW G2 CLS /verify: ${cls}`);
@@ -1244,7 +1246,7 @@ test('UI-PG-REVIEW Gate G3 INP proxy under 200 ms for Verify, the Edit dialog an
   expect(inp, 'G3 /verify').toBeLessThan(200);
 });
 
-test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dialog opens or after Verify', async ({
+test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dialog opens, after Verify, with the Source Trace sheet open or after It matches', async ({
   page,
 }, testInfo) => {
   await prepare(page);
@@ -1270,7 +1272,26 @@ test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dia
   const shot = testInfo.outputPath('verify-reduced.png');
   await page.screenshot({ path: shot, fullPage: false });
   testInfo.annotations.push({ type: 'gate-g5-screenshot', description: shot });
-});
+
+  // Snapshot 3: the Source Trace sheet open (its screenshot is taken while it is still open).
+  const sheetOffenders = await reducedMotionSnapshot(page, async () => {
+    await showSource(page, SOURCED_ID).click();
+    await expect(page.locator(`${SHEET} li`, { hasText: 'Matching line:' })).toBeVisible();
+  });
+  expect(sheetOffenders, 'G5 /verify, Source Trace sheet open').toEqual([]);
+  const sheetShot = testInfo.outputPath('verify-sheet-reduced.png');
+  await page.screenshot({ path: sheetShot, fullPage: false });
+  testInfo.annotations.push({ type: 'gate-g5-screenshot', description: sheetShot });
+
+  // Snapshot 4: after It matches, with the sheet still open and saying so.
+  const checkedOffenders = await reducedMotionSnapshot(page, async () => {
+    await page.getByRole('dialog', { name: 'Source for Creatinine' }).getByRole('button', { name: MARK_CHECKED }).click();
+    await expect(page.getByText(SHEET_CHECKED)).toBeVisible();
+  });
+  expect(checkedOffenders, 'G5 /verify, after It matches in the sheet').toEqual([]);
+  const checkedShot = testInfo.outputPath('verify-sheet-checked-reduced.png');
+  await page.screenshot({ path: checkedShot, fullPage: false });
+  testInfo.annotations.push({ type: 'gate-g5-screenshot', description: checkedShot });
 });
 
 test('UI-PG-REVIEW Gate G10 stillness on /verify: every [data-t0] node stays still from the nav click', async ({
