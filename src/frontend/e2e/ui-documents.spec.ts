@@ -19,6 +19,11 @@
  *   npx playwright test e2e/ui-documents.spec.ts --project=chromium --grep-invert 'GATE G(2|3|5|10)|HC-UIDOC-006|INBOX-DATA-RENDER'
  * The quiet box runs the timing set on the dev server, then on a `vite preview` build (HC_E2E_BASE_URL):
  *   npx playwright test e2e/ui-documents.spec.ts --project=chromium --grep 'GATE G(2|3|5|10)|HC-UIDOC-006|INBOX-DATA-RENDER'
+ *
+ * GATE G3 on /inbox asserts only on a production build (HC_E2E_BASE_URL set, PREVIEW below). On the dev server it
+ * prints the three figures and asserts no bound, because React's dev build puts a View click at 216 ms on CI. So CI
+ * (dev server) no longer enforces G3 on /inbox; the quiet-box run on `vite preview` does. A dev-server pass was never
+ * a G3 pass.
  */
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -117,6 +122,9 @@ const PAGE_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAZAAAABkCAIAAAAnqfEgAAABDUlEQVR42u3UQREAAAzCMPyrRQI6tksk9NEU4IhIABgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYwF8DXxGNujLHPvkAAAAASUVORK5CYII=',
   'base64'
 );
+
+/** Set when the run points at a `vite preview` build (HC_E2E_BASE_URL), the pattern of ui-toast.spec.ts. */
+const PREVIEW = Boolean(process.env.HC_E2E_BASE_URL);
 
 const NEW_FILE = { name: NEW_NAME, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') };
 
@@ -1003,19 +1011,25 @@ test.describe('Gate G on /inbox', () => {
   }) => {
     // Would not notice: an interaction the list does not have (the import is a file chooser event, not a click).
     // Returns 0 when no event reaches 16 ms, so a dead observer also passes; the bound is the gate's, unchanged.
-    // Count only on a production build (vite preview); the dev server carries React's dev cost.
+    // The bound counts only on a production build (vite preview, HC_E2E_BASE_URL set): the dev server carries React's
+    // dev cost (CI measured View 216, 248 and Delete 200 on this head). On the dev server this test prints the three
+    // figures and asserts nothing about them, so CI no longer enforces G3 on /inbox, and the quiet-box run on vite
+    // preview does. A dev-server pass is not a G3 pass. It still clicks, and still checks the dialog closes.
     await setup(page);
     await openInbox(page);
     const row = rowByName(page, THIRD_NAME);
     const view = await maxEventDuration(page, () => row.getByRole('button', { name: 'View document' }).click());
-    expect(view, 'View document click').toBeLessThan(200);
+    if (PREVIEW) expect(view, 'View document click').toBeLessThan(200);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toBeHidden();
 
     const menu = await maxEventDuration(page, () => row.getByRole('button', { name: 'More options' }).click());
-    expect(menu, 'More options click').toBeLessThan(200);
+    if (PREVIEW) expect(menu, 'More options click').toBeLessThan(200);
     const del = await maxEventDuration(page, () => page.getByRole('menuitem', { name: /delete/i }).click());
-    expect(del, 'Delete click').toBeLessThan(200);
+    if (PREVIEW) expect(del, 'Delete click').toBeLessThan(200);
+    console.log(
+      `GATE G3 /inbox (${PREVIEW ? 'production build, bound 200 ms' : 'dev server, no bound asserted'}): View ${view} ms, More options ${menu} ms, Delete ${del} ms`
+    );
   });
 
   test('GATE G5 /inbox: no element has a transform 50 ms after View document, Delete or an import starts, under reduced motion', async ({
