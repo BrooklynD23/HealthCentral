@@ -1296,6 +1296,55 @@ test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dia
   testInfo.annotations.push({ type: 'gate-g5-screenshot', description: checkedShot });
 });
 
+/**
+ * Headless Chromium starts a CSS animation at the first frame after it mounts, and an idle page can make that frame late
+ * (seen once in the dialog case: every spinner read the identity at 50 ms and a rotation 300 ms later). Two frames put the
+ * start before the 50 ms the gate waits, so a spinning svg is seen as the rotation it is.
+ */
+async function twoFrames(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+}
+
+// Review round 1 (major): the unheld G5 snapshot passes only because the mock answers inside 50 ms. A real server is
+// slower, and then the Verify button of every unverified row shows its spinner (the mutation's pending flag is shared),
+// and under reduced motion a rotating svg has a non-identity transform. The pending spinners breathe instead.
+// Blind spot: it reads the transform only. It does not see that the pulse is visible, nor a spinner elsewhere on the page.
+test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after Verify while the server is still answering', async ({
+  page,
+}) => {
+  const mock = await prepare(page);
+  await openReview(page);
+  mock.review.holdVerify();
+  const offenders = await reducedMotionSnapshot(page, async () => {
+    await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
+    await expect.poll(() => mock.review.requests.filter((request) => request.startsWith('POST ')).length).toBe(1);
+    await twoFrames(page);
+  });
+  // The spinner is on screen, so the snapshot saw the pending state and not a finished one.
+  await expect(page.locator('button[aria-label="Verify observation"] svg.lucide-loader2').first()).toBeAttached();
+  mock.review.releaseVerify();
+  expect(offenders, 'G5 /verify, Verify pending').toEqual([]);
+});
+
+test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after Save & Verify while the server is still answering', async ({
+  page,
+}) => {
+  const mock = await prepare(page);
+  await openReview(page);
+  await row(page, A1C_ID).getByRole('button', { name: 'Edit value' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Edit Value' });
+  await expect(dialog).toBeVisible();
+  mock.review.holdVerify();
+  const offenders = await reducedMotionSnapshot(page, async () => {
+    await dialog.getByRole('button', { name: /save & verify/i }).click();
+    await expect.poll(() => mock.review.requests.filter((request) => request.startsWith('POST ')).length).toBe(1);
+    await twoFrames(page);
+  });
+  await expect(dialog.locator('svg.lucide-loader2')).toBeAttached();
+  mock.review.releaseVerify();
+  expect(offenders, 'G5 /verify, Save & Verify pending').toEqual([]);
+});
+
 test('UI-PG-REVIEW Gate G10 stillness on /verify: every [data-t0] node stays still from the nav click', async ({
   page,
 }, testInfo) => {
@@ -1608,6 +1657,6 @@ test('UI-PG-REVIEW still toast: two still toasts stack, the older one at its off
   expect(newer.inlineY, 'no inline --y on the front toast').toBe('');
   expect(newer.ty, 'the front toast sits at its place').toBe(0);
   expect(older.ty, 'the older toast sits at its stack offset, off the front toast').not.toBe(0);
-  expect(Math.abs(older.scale), 'the older toast is scaled down behind the front one').toBeLessThan(1.2);
-  expect(Math.abs(older.scale)).not.toBe(1);
+  // sonner's stack scale is --toasts-before * 0.05 + 1 (dist/styles.css:298-299): one toast in front gives 1.05.
+  expect(Math.abs(older.scale), 'the older toast has sonner\'s stack scale (1.05 for one toast in front)').toBeCloseTo(1.05, 2);
 });

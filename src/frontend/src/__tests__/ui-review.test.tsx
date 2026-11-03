@@ -460,6 +460,34 @@ describe('HC-UIREV-001 and HC-UIREV-002 across Verify (L0 ruling on review round
     expect((state.observations as Row[]).find((row) => row.id === 'obs-nh')?.flag).toBe('H');
   });
 
+  // Review round 1 (minor): the page, not only the mock. A real edit of a flagged row with no range goes through the
+  // Edit dialog; the server keeps the report's own H (VERIFY-EDIT-NO-RANGE, #479), so the row shows the new value
+  // with the same words and the same tint, and does not turn into "no flag".
+  // Blind spot: jsdom has no CSS engine, so the tint is the class, not the colour; the backend itself is HC-VKF's.
+  it('(g) H with no range, edited through the Edit dialog: the new value, the same words and the same tint', async () => {
+    state.observations = [glucose, highNoRange];
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const before = { words: chipWordsOf(rowOf('obs-h')), tint: tintOf(rowOf('obs-h')) };
+    expect(before).toEqual({ words: "Above the report's range", tint: 'text-status-attention' });
+
+    await user.click(within(rowOf('obs-h')).getByRole('button', { name: 'Edit value' }));
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('textbox');
+    await user.clear(input);
+    await user.type(input, '0.09');
+    await user.click(within(dialog).getByRole('button', { name: /save & verify/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(rowOf('obs-h').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(valueNodeOf(rowOf('obs-h')).textContent).toBe('0.09');
+    expect({ words: chipWordsOf(rowOf('obs-h')), tint: tintOf(rowOf('obs-h')) }).toEqual(before);
+    expect((state.observations as Row[]).find((row) => row.id === 'obs-h')?.flag).toBe('H');
+  });
+
   // Blind spot: it pins the mock to the backend rules above; the backend itself is HC-VKF's. Without it, a mock
   // that erased every flag would make (a) and (b) fail for the wrong reason.
   it('the verify mock keeps CRITICAL and H, and recalculates N and no flag', () => {
