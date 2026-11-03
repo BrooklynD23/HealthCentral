@@ -16,7 +16,7 @@
  *
  * Timing gates (G2, G3, G5, G10, HC-UIDOC-006, INBOX-DATA-RENDER) need a quiet box (load < 1.5, no foreign test
  * process). The build lane runs everything else:
- *   npx playwright test e2e/ui-documents.spec.ts --project=chromium --grep-invert 'GATE G(2|3|5|10)|HC-UIDOC-006'
+ *   npx playwright test e2e/ui-documents.spec.ts --project=chromium --grep-invert 'GATE G(2|3|5|10)|HC-UIDOC-006|INBOX-DATA-RENDER'
  * The quiet box runs the timing set on the dev server, then on a `vite preview` build (HC_E2E_BASE_URL):
  *   npx playwright test e2e/ui-documents.spec.ts --project=chromium --grep 'GATE G(2|3|5|10)|HC-UIDOC-006|INBOX-DATA-RENDER'
  */
@@ -1060,21 +1060,19 @@ test.describe('Gate G on /inbox', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await openInbox(page, { empty: true });
     await expect(page.getByRole('button', { name: 'Choose a file' })).toBeVisible();
-    await testInfo.attach('empty-state-reduced-motion', {
-      body: await page.screenshot({ fullPage: true }),
-      contentType: 'image/png',
-    });
+    // Each picture is attached and also written under the test's output directory, with g5 in its name and a
+    // 'gate-g5-screenshot' annotation (as ui-palette.spec.ts does), so `find <output> -name '*.png' -path '*g5*'` collects them.
+    const keep = async (name: string, take: (path: string) => Promise<Buffer>) => {
+      const path = testInfo.outputPath(`g5-${name}.png`);
+      await testInfo.attach(name, { body: await take(path), contentType: 'image/png' });
+      testInfo.annotations.push({ type: 'gate-g5-screenshot', description: path });
+    };
+    await keep('empty-state-reduced-motion', (path) => page.screenshot({ path, fullPage: true }));
 
     const release = await startHeldImport(page, docs);
     await expect(page.locator(`${BEAM} canvas`)).toBeAttached();
-    await testInfo.attach('s2-s3-beam-and-orb-reduced-motion', {
-      body: await page.locator(BEAM).screenshot(),
-      contentType: 'image/png',
-    });
-    await testInfo.attach('inbox-importing-reduced-motion', {
-      body: await page.screenshot({ fullPage: true }),
-      contentType: 'image/png',
-    });
+    await keep('s2-s3-beam-and-orb-reduced-motion', (path) => page.locator(BEAM).screenshot({ path }));
+    await keep('inbox-importing-reduced-motion', (path) => page.screenshot({ path, fullPage: true }));
     release();
     await expect(page.locator(HANDOFF)).toBeVisible();
   });
@@ -1579,26 +1577,34 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     const visibleAt = Date.now();
     const { profile } = await session.send('Profiler.stop');
 
-    const idleIds = new Set(
-      profile.nodes.filter((n) => ['(idle)', '(program)'].includes(n.callFrame.functionName)).map((n) => n.id)
-    );
     const fulfilledAt = docs.lastListFulfilledAt || startedAt;
-    let t = 0;
-    let longest = 0;
-    let run = 0;
-    profile.samples.forEach((id, i) => {
-      const delta = (profile.timeDeltas[i] ?? 0) / 1000;
-      t += delta;
-      const wall = startedAt + t;
-      const busy = !idleIds.has(id);
-      if (busy && wall >= fulfilledAt && wall <= visibleAt) {
-        run += delta;
-        longest = Math.max(longest, run);
-      } else {
-        run = 0;
-      }
-    });
-    const line = `INBOX-DATA-RENDER longest busy run between documents response and first row: ${longest.toFixed(1)} ms (window ${(visibleAt - fulfilledAt).toFixed(0)} ms)`;
+    // The longest run of busy samples inside the window. '(program)' is native browser work that is not script: it is
+    // counted as idle in the first figure and as busy in the second, and both are printed (round 3 read 14.8-22.4 ms
+    // against 22.7-31.2 ms on the same profiles). Neither is asserted.
+    const longestRun = (idleNames: string[]) => {
+      const idleIds = new Set(profile.nodes.filter((n) => idleNames.includes(n.callFrame.functionName)).map((n) => n.id));
+      let t = 0;
+      let longest = 0;
+      let run = 0;
+      (profile.samples ?? []).forEach((id, i) => {
+        const delta = ((profile.timeDeltas ?? [])[i] ?? 0) / 1000;
+        t += delta;
+        const wall = startedAt + t;
+        const busy = !idleIds.has(id);
+        if (busy && wall >= fulfilledAt && wall <= visibleAt) {
+          run += delta;
+          longest = Math.max(longest, run);
+        } else {
+          run = 0;
+        }
+      });
+      return longest;
+    };
+    const programIdle = longestRun(['(idle)', '(program)']);
+    const programBusy = longestRun(['(idle)']);
+    const line =
+      `INBOX-DATA-RENDER longest busy run between documents response and first row: ${programIdle.toFixed(1)} ms with (program) counted as idle, ` +
+      `${programBusy.toFixed(1)} ms with (program) counted as busy (window ${(visibleAt - fulfilledAt).toFixed(0)} ms)`;
     console.log(line);
     await testInfo.attach('inbox-data-render', { body: line, contentType: 'text/plain' });
   });
