@@ -183,7 +183,7 @@ async def test_hc_vkf_007_edited_range_flags_unchanged_value(profile_db):
 
 
 @pytest.mark.asyncio
-async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(profile_db):
+async def test_hc_vkf_008_no_flag_or_normal_word_row_is_recalculated_by_plain_verify(profile_db):
     # The extractor never derives a flag from the range, and ingest sets
     # is_abnormal = flag is not None. A report line with no printed flag but a
     # value outside its printed range must still be flagged by a plain Verify
@@ -229,13 +229,6 @@ async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(
         w = await _verify_and_load(profile_db, w_id, {})
         assert (w.flag, w.is_abnormal) == (want_flag, want_abn), (word, value)
 
-    # Any word that is not a normal word is kept, whatever its case or padding.
-    hw_id = await _seed_obs(profile_db, flag=" High ", is_abnormal=True,
-                            value=14.0, ref_low=12.0, ref_high=16.0)
-    hw = await _verify_and_load(profile_db, hw_id, {})
-    assert hw.flag == " High "
-    assert hw.is_abnormal is True
-
 
 # --- L0 ruling (#463): a plain Verify keeps any flag except a normal word ----
 
@@ -248,7 +241,14 @@ _SHAPES = (
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("word", ["Critical high", "Yes", "Positive", "Elevated"])
+@pytest.mark.parametrize(
+    "word",
+    ["Critical high", "Yes", "Positive", "Elevated",
+     # Near-misses of the normal set and the owner's own example: only the
+     # exact words NORMAL, N, WNL count as normal, never a substring or a
+     # negation. A padded word is kept as stored, whatever its case.
+     "Negative", "Normal range", "Non-critical", " High "],
+)
 @pytest.mark.parametrize("shape", _SHAPES, ids=[s[0] for s in _SHAPES])
 async def test_hc_vkf_009_unknown_words_are_kept(profile_db, word, shape):
     _, value, ref_low, ref_high = shape
@@ -283,7 +283,7 @@ async def test_hc_vkf_010_normal_words_are_recalculated(profile_db, word):
 @pytest.mark.parametrize(
     "word", ["H", "L", "HH", "LL", "A", "HIGH", "LOW", "ABNORMAL", "CRITICAL"]
 )
-@pytest.mark.parametrize("shape", _SHAPES[:2], ids=[s[0] for s in _SHAPES[:2]])
+@pytest.mark.parametrize("shape", _SHAPES, ids=[s[0] for s in _SHAPES])
 async def test_hc_vkf_011_all_coded_words_are_kept(profile_db, word, shape):
     # Green on 3f9bfee7, red on the origin/main route (which recalculated).
     _, value, ref_low, ref_high = shape
@@ -310,7 +310,7 @@ async def test_hc_vkf_012_every_extractor_flag_word_is_kept(profile_db):
     assert words, "no flag words derived from ExtractModule.FLAG_PATTERN"
     assert {"HH", "LL"} <= words, words
     for word in sorted(words):
-        for _, value, ref_low, ref_high in _SHAPES[:2]:
+        for _, value, ref_low, ref_high in _SHAPES:
             obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
                                      value=value, ref_low=ref_low, ref_high=ref_high)
             obs = await _verify_and_load(profile_db, obs_id, {})
@@ -343,3 +343,15 @@ async def test_hc_vkf_013_kept_word_beside_the_real_change_rule(profile_db):
                              value=14.0, ref_low=12.0, ref_high=16.0)
     yes = await _verify_and_load(profile_db, yes_id, {})
     assert (yes.flag, yes.is_abnormal) == ("Yes", False)
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_014_blank_flag_is_kept_like_any_other_flag(profile_db):
+    # Pin of the L0 ruling (#463): a whitespace-only flag (reachable through a
+    # FHIR interpretation.text of spaces) is "any other flag", not "no flag",
+    # and is kept exactly. Review round 1 asked L0 to re-confirm this choice;
+    # if L0 rules blank = no flag, this test flips with the code.
+    obs_id = await _seed_obs(profile_db, flag="   ", is_abnormal=True,
+                             value=14.0, ref_low=12.0, ref_high=16.0)
+    obs = await _verify_and_load(profile_db, obs_id, {})
+    assert (obs.flag, obs.is_abnormal) == ("   ", True)
