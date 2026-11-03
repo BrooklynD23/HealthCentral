@@ -390,6 +390,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
       return route.fallback();
     });
     try {
+      // Reduced motion must be on before the form mounts: flipping it with S1 mounted moves the fields.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       await openCreateForm(page);
       await fillCreateForm(page);
       const offenders = await reducedMotionSnapshot(page, async () => {
