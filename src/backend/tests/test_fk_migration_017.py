@@ -1556,3 +1556,206 @@ def test_hc_fks_007d_public_purge_removes_everything_and_raises_on_failure(tmp_p
     assert sorted(p.name for p in tmp_path.iterdir()) == ["vault.db", SNAP_NAME], (
         "one failure must not stop the other files from being removed"
     )
+
+
+# --------------------------------------------------------------------------
+# HC-FKB: an unversioned vault is stamped at the revision it matches (P6-STAMP)
+# --------------------------------------------------------------------------
+
+REV_010 = "010_entity_source_spans"
+
+
+@pytest.fixture(scope="module")
+def reference_fingerprints():
+    """The throwaway-vault walk, run once for the module (several seconds)."""
+    started = time.perf_counter()
+    refs = migrations._reference_fingerprints()
+    refs_seconds = time.perf_counter() - started
+    return refs, refs_seconds
+
+
+@pytest.fixture
+def fast_references(monkeypatch, reference_fingerprints):
+    """Reuse the module's walk instead of repeating it in every test."""
+    refs, _seconds = reference_fingerprints
+    monkeypatch.setattr(migrations, "_reference_fingerprints", lambda: list(refs))
+
+
+@pytest.fixture
+def stamps(monkeypatch):
+    """Revisions passed to ``command.stamp`` (the real stamp still runs)."""
+    seen: list[str] = []
+    real = command.stamp
+
+    def _spy(config, revision, *args, **kwargs):
+        seen.append(revision)
+        return real(config, revision, *args, **kwargs)
+
+    monkeypatch.setattr(command, "stamp", _spy)
+    return seen
+
+
+def _unversioned(path: Path, key: bytes = KEY) -> None:
+    """Drop ``alembic_version``: what is left is a vault Alembic never saw."""
+    conn = _connect(path, key)
+    try:
+        conn.execute("DROP TABLE alembic_version")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _tables(path: Path, key: bytes = KEY) -> set[str]:
+    conn = _connect(path, key)
+    try:
+        return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
+        conn.close()
+
+
+def test_hc_fkb_001_every_revision_has_its_own_fingerprint(reference_fingerprints):
+    refs, seconds = reference_fingerprints
+    script = ScriptDirectory.from_config(migrations._get_alembic_config("profile"))
+    revisions = [r.revision for r in script.walk_revisions()]
+
+    assert [rev for rev, _fp in refs] == revisions, "newest first, one per revision"
+    assert len(revisions) >= 17
+    assert len({fp for _rev, fp in refs}) == len(revisions), "two revisions share a schema"
+    # 016 and 017 differ only in foreign-key actions: columns alone would tie
+    by_rev = dict(refs)
+    assert by_rev[REV_016] != by_rev["017_fk_cascade_alignment"]
+    print(f"throwaway walk over {len(revisions)} revisions: {seconds:.2f}s")
+
+
+def _plant_older_orphans(path: Path, *, with_care_task: bool) -> dict[str, int]:
+    """Orphans that exist in every revision from 004 on; returns the expected counts."""
+    conn = _connect(path)
+    try:
+        _insert(conn, "documents", id="D1")
+        _insert(conn, "chunks", id="OC", doc_id="MISSING")  # P2
+        _insert(conn, "embeddings", id="OE", chunk_id="OC")  # P3 once OC is gone
+        _insert(conn, "medications", id="M1")
+        _insert(conn, "doses_taken", id="OD", medication_id="M1", schedule_id="MISSING")  # P8
+        _insert(conn, "document_category", id="OK", doc_id="MISSING", category="visit_notes")  # P14
+        expected = {"P2": 1, "P3": 1, "P8": 1, "P14": 1}
+        if with_care_task:
+            _insert(conn, "care_plan_task", id="OT", title="t", source_document_id="MISSING")  # P16
+            expected["P16"] = 1
+        conn.commit()
+        return expected
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    "revision,real_walk",
+    [(REV_016, True), (REV_010, False)],
+    ids=["016", "010"],
+)
+def test_hc_fkb_002_unversioned_vault_is_stamped_where_it_is_then_upgraded(
+    tmp_path, monkeypatch, stamps, revision, real_walk, request
+):
+    if not real_walk:
+        request.getfixturevalue("fast_references")
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), revision)
+    expected = _plant_older_orphans(path, with_care_task=revision == REV_016)
+    _unversioned(path)
+    sha_before = _sha(path)
+
+    counts = migrations.run_profile_migration(path, KEY)
+
+    assert stamps == [revision], "stamped where the schema is, not at head"
+    assert counts == expected
+    assert _rev(path) == PROFILE_HEAD
+    conn = _connect(path)
+    try:
+        assert _fk_actions(conn, "document_category")["doc_id"] == "CASCADE"
+        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert conn.execute("SELECT count(*) FROM chunks").fetchone()[0] == 0  # OC deleted
+        # P8: the dose is kept, its link cleared
+        assert conn.execute("SELECT schedule_id FROM doses_taken WHERE id='OD'").fetchone()[0] is None
+    finally:
+        conn.close()
+    # the snapshot is the vault as it was: orphans in, and no alembic_version yet
+    assert _sha(_snap(path)) == sha_before
+    assert "alembic_version" not in _tables(_snap(path))
+    assert _leftovers(path) == []
+
+
+def test_hc_fkb_003_unversioned_vault_already_at_017_is_stamped_only(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), "head")
+    conn = _connect(path)
+    try:
+        _insert(conn, "chunks", id="OC", doc_id="MISSING")  # an orphan nobody cleans now
+        conn.commit()
+    finally:
+        conn.close()
+    _unversioned(path)
+
+    counts = migrations.run_profile_migration(path, KEY)
+
+    assert stamps == [PROFILE_HEAD]
+    assert counts == {}
+    assert _rev(path) == PROFILE_HEAD
+    assert list(path.parent.glob("vault.pre017*")) == [], "no snapshot: 017 is not pending"
+    conn = _connect(path)
+    try:
+        assert conn.execute("SELECT count(*) FROM chunks WHERE id='OC'").fetchone()[0] == 1, (
+            "stamp only: the 017 cleanup must not run"
+        )
+    finally:
+        conn.close()
+
+
+def test_hc_fkb_004_a_schema_that_matches_nothing_is_refused_untouched(
+    tmp_path, monkeypatch, stamps, fast_references, mig_log
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    conn = _connect(path)
+    try:
+        conn.execute("ALTER TABLE documents ADD COLUMN stray_column TEXT")
+        conn.commit()
+    finally:
+        conn.close()
+    _unversioned(path)
+    sha_before = _sha(path)
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    assert _sha(path) == sha_before
+    assert "alembic_version" not in _tables(path)
+    assert stamps == []
+    assert list(path.parent.glob("vault.pre017*")) == []
+    errors = [r.getMessage() for r in mig_log if r.levelno >= logging.ERROR]
+    assert errors == ["Profile migration refused: the schema of an unversioned vault matches no known revision"]
+    for text in [str(exc.value)] + errors:
+        assert str(path.parent) not in text and KEY.hex() not in text.lower()
+
+
+def test_hc_fkb_005_a_refused_snapshot_leaves_no_alembic_version(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    _plant_older_orphans(path, with_care_task=True)
+    _unversioned(path)
+    sha_before = _sha(path)
+    monkeypatch.setattr(migrations.shutil, "copy2", _enospc)
+
+    with pytest.raises(migrations.ProfileMigrationRefused):
+        migrations.run_profile_migration(path, KEY)
+
+    assert _sha(path) == sha_before
+    assert "alembic_version" not in _tables(path), "stamp must come after the snapshot"
+    assert stamps == []
+    assert list(path.parent.glob("vault.pre017*")) == []

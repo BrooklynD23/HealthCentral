@@ -6,7 +6,11 @@ Provides safe migration execution for:
 - Per-profile SQLCipher encrypted vaults
 
 Key features:
-- Baseline detection: Existing DBs without alembic_version are stamped (not migrated)
+- Baseline detection: an existing master DB without alembic_version is stamped at
+  head (not migrated). A profile vault without it is stamped at the newest revision
+  its schema matches, then upgraded; one that matches none is refused.
+- Pre-017 snapshot: a verified encrypted copy before revision 017 runs on a vault
+  that already has data (see ``_ensure_pre017_snapshot``).
 - Startup-safe execution: Alembic calls run synchronously at startup/login gates
 - SQLCipher support: Profile migrations use PRAGMA key for encryption
 """
@@ -16,6 +20,7 @@ import logging
 import os
 import shutil
 import sqlite3
+import tempfile
 from datetime import timedelta
 from pathlib import Path
 from typing import Optional
@@ -430,6 +435,97 @@ def _purge_expired_snapshot(vault_path: Path) -> None:
 
 
 # =============================================================================
+# Schema match for an unversioned vault (C-P6 / P6-STAMP)
+# =============================================================================
+
+
+def _schema_fingerprint(conn) -> tuple:
+    """Tables, columns and foreign-key actions of the vault, read-only.
+
+    Columns are (name, upper-cased type, notnull, pk); foreign keys are (from,
+    to table, to column, on_delete, on_update). Columns alone are not enough:
+    016 and 017 differ only in FK actions. ``alembic_version`` and SQLite's own
+    tables are left out, so a stamped and an unstamped copy compare equal.
+    """
+    tables = sorted(
+        r[0]
+        for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name NOT LIKE 'sqlite_%' AND name != 'alembic_version'"
+        ).fetchall()
+    )
+    out = []
+    for table in tables:
+        # table_info: cid, name, type, notnull, dflt_value, pk
+        columns = tuple(sorted(
+            (str(r[1]), str(r[2] or "").upper(), int(r[3]), int(r[5]))
+            for r in conn.execute(f'PRAGMA table_info("{table}")').fetchall()
+        ))
+        # foreign_key_list: id, seq, table, from, to, on_update, on_delete, match
+        fks = tuple(sorted(
+            (str(r[3]), str(r[2]), str(r[4]), str(r[6]), str(r[5]))
+            for r in conn.execute(f'PRAGMA foreign_key_list("{table}")').fetchall()
+        ))
+        out.append((table, columns, fks))
+    return tuple(out)
+
+
+def _reference_fingerprints() -> list[tuple[str, tuple]]:
+    """(revision, fingerprint) for every profile revision, newest first.
+
+    Built by walking a throwaway vault up the chain one revision at a time,
+    with its own Alembic config so its ``fk_cleanup_counts`` cannot mix with
+    the real vault's. The 017 step logs one INFO ``total=0`` line; that is this
+    walk, not the real vault. Costs several seconds, and only on an unversioned
+    vault.
+    """
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as scratch:
+        ref_path = Path(scratch) / "reference.db"
+        ref_key = os.urandom(32)
+        ref_hex = _key_to_hex(ref_key)
+        config = _get_alembic_config("profile")
+        config.attributes["vault_path"] = ref_path
+        config.attributes["encryption_key"] = ref_key
+        revisions = [r.revision for r in ScriptDirectory.from_config(config).walk_revisions()]
+        found: list[tuple[str, tuple]] = []
+        for revision in reversed(revisions):  # oldest first
+            command.upgrade(config, revision)
+            conn = _open_keyed(ref_path, ref_hex)
+            try:
+                found.append((revision, _schema_fingerprint(conn)))
+            finally:
+                conn.close()
+    found.reverse()
+    return found
+
+
+def _match_unversioned_vault(vault_path: Path, hex_key: str) -> str:
+    """The newest revision whose schema the vault matches exactly, or refuse.
+
+    Nothing is written. No match is not guessed at: the vault is left as it is.
+    """
+    step = "read-vault"
+    try:
+        conn = _open_keyed(vault_path, hex_key)
+        try:
+            conn.execute("PRAGMA query_only=ON")
+            actual = _schema_fingerprint(conn)
+        finally:
+            conn.close()
+        step = "build-references"
+        references = _reference_fingerprints()
+    except Exception as exc:
+        raise _refuse("schema match", step, exc) from None
+    for revision, fingerprint in references:  # newest first
+        if fingerprint == actual:
+            return revision
+    logger.error("Profile migration refused: the schema of an unversioned vault matches no known revision")
+    raise ProfileMigrationRefused(
+        "Profile migration refused: unversioned vault matches no known revision"
+    )
+
+
+# =============================================================================
 # Profile Database Migrations (SQLCipher)
 # =============================================================================
 
@@ -451,9 +547,16 @@ def run_profile_migration(
         nothing was cleaned (P6-CLEANUP-AUDIT).
 
     Baseline logic:
-    - If tables exist but no alembic_version → stamp head (don't migrate)
+    - If tables exist but no alembic_version → fingerprint the schema, stamp the
+      newest revision it matches exactly, then upgrade to head. A vault that
+      matches no revision is refused (ProfileMigrationRefused) and left alone.
     - If no tables → upgrade head (create schema)
     - If alembic_version exists → upgrade head (run pending migrations)
+
+    Snapshot: before revision 017 runs on a non-empty vault, a verified encrypted
+    copy is made beside it (``vault.pre017.snapshot``); if that fails, this
+    raises ProfileMigrationRefused and changes nothing. On every call, a snapshot
+    that is 30 days old or more is purged first.
     """
     logger.info(f"Running profile database migrations for {vault_path}...")
 
@@ -553,12 +656,24 @@ def run_profile_migration(
             config.attributes["encryption_key"] = encryption_key
 
             if has_tables and not has_alembic_version:
-                # Existing DB without alembic_version: stamp head
+                # Existing DB without alembic_version. Stamping head would hide
+                # every revision the vault does not have (017's FK actions among
+                # them), so stamp the newest revision its schema matches exactly
+                # and upgrade the rest. No match: refuse, nothing is written.
+                matched = _match_unversioned_vault(vault_path, hex_key)
                 logger.info(
-                    f"Profile DB at {vault_path} has existing tables but no "
-                    "alembic_version. Stamping head to baseline."
+                    "Profile DB at %s has existing tables but no alembic_version. "
+                    "Stamping revision %s to baseline.",
+                    vault_path,
+                    matched,
                 )
-                command.stamp(config, "head")
+                # Snapshot before the stamp, so a refusal leaves no alembic_version.
+                if _pre017_snapshot_pending(config, matched):
+                    _ensure_pre017_snapshot(vault_path, hex_key)
+                command.stamp(config, matched)
+                if matched not in set(ScriptDirectory.from_config(config).get_heads()):
+                    command.upgrade(config, "head")
+                    cleanup_counts = dict(config.attributes.get("fk_cleanup_counts", {}))
                 logger.info("Profile database baselined successfully.")
             else:
                 current_revision = None

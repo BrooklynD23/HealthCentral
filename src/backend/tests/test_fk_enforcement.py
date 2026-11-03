@@ -434,7 +434,7 @@ from tests.test_fk_migration_017 import (  # noqa: E402
 DOC_ID = "3f2c9d1e-0000-4000-8000-000000000001"
 
 
-def _pragma_on_vault_engine(vault: Path):
+def _pragma_on_vault_engine(vault: Path, key: bytes = KEY):
     """Async engine on a keyed file vault with the production FK listener."""
     from core.database import install_sqlite_foreign_keys
 
@@ -458,7 +458,7 @@ def _pragma_on_vault_engine(vault: Path):
         cursor.execute("PRAGMA cipher_version")
         row = cursor.fetchone()
         if row and row[0]:
-            cursor.execute(f"PRAGMA key = \"x'{migrations._key_to_hex(KEY)}'\"")
+            cursor.execute(f"PRAGMA key = \"x'{migrations._key_to_hex(key)}'\"")
         cursor.close()
 
     install_sqlite_foreign_keys(engine.sync_engine)
@@ -491,7 +491,8 @@ def _vault_with_care_task(tmp_path, monkeypatch, *, upgrade: bool, orphans: bool
 
 
 async def _delete_document_over_http(
-    vault: Path, tmp_path, monkeypatch, doc_id: str, raised: list | None = None
+    vault: Path, tmp_path, monkeypatch, doc_id: str, raised: list | None = None,
+    key: bytes = KEY,
 ):
     """DELETE /documents/{id}. With ``raised`` given, server exceptions propagate
     out of the app; the one that did is appended to it and the response is None."""
@@ -505,7 +506,7 @@ async def _delete_document_over_http(
     from tests.support.routes import route_client
 
     monkeypatch.setattr(type(documents_api.settings), "app_data_path", property(lambda self: tmp_path))
-    engine = _pragma_on_vault_engine(vault)
+    engine = _pragma_on_vault_engine(vault, key)
     master = MagicMock()
     master.commit = AsyncMock()
     master.rollback = AsyncMock()
@@ -757,3 +758,86 @@ async def test_hc_fks_011_test_reset_removes_the_snapshot(tmp_path, monkeypatch)
     assert resp.status_code == 204, resp.text
     assert vault.is_file(), "reset empties the profile; it does not delete the vault"
     assert list(tmp_path.rglob("vault.pre017*")) == []
+
+
+# --------------------------------------------------------------------------
+# HC-FKB-006: an unversioned pre-017 vault, end to end over HTTP
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_hc_fkb_006_unversioned_pre_017_vault_opens_cleans_and_deletes(
+    tmp_path, monkeypatch
+):
+    """Before this change an unversioned vault was stamped at head, 017 never
+    ran, and the first document delete under the FK pragma was a 500. Now login
+    stamps the revision the schema matches, upgrades through 017 (snapshot first),
+    cleans the planted orphans and writes one counts-only audit row; the document
+    delete is a 204."""
+    from tests.test_fk_migration_017 import (
+        _PASSWORD,
+        _details,
+        _fk_actions,
+        _planted_vault_client,
+        _sha,
+        _snap,
+        _tables,
+        _unversioned,
+    )
+
+    async with _planted_vault_client(tmp_path, monkeypatch, []) as ctx:
+        vault = tmp_path / "vaults" / ctx.pid / "vault.db"
+        conn = _connect(vault, ctx.key)
+        try:
+            _insert(conn, "documents", id=DOC_ID, profile_id="profile-a", doc_type="visit_note_pdf")
+            _insert(conn, "document_entity", id="E-REL", doc_id=DOC_ID)
+            _insert(conn, "document_category", id="K-REL", doc_id=DOC_ID, category="visit_notes")
+            _insert(conn, "care_plan_task", id="T-REL", title="Repeat CBC",
+                    source_document_id=DOC_ID, source_entity_id="E-REL", source_quote="repeat CBC")
+            _insert(conn, "document_category", id="O14", doc_id="MISSING-14", category="visit_notes")
+            _insert(conn, "document_entity", id="O15", doc_id="MISSING-15")
+            _insert(conn, "care_plan_task", id="O16", title="t", source_document_id="MISSING-16")
+            _insert(conn, "care_plan_task", id="O17", title="t",
+                    source_document_id=DOC_ID, source_entity_id="MISSING-17")
+            conn.commit()
+        finally:
+            conn.close()
+        _unversioned(vault, ctx.key)
+        sha_before = _sha(vault)
+
+        login = ctx.client.post(
+            "/profiles/login", json={"profile_id": ctx.pid, "password": _PASSWORD}
+        )
+        rows = await ctx.rows()
+
+        assert login.status_code == 200, login.text
+        assert len(rows) == 1
+        assert _details(rows) == [
+            {"resource_counts": {"P14": 1, "P15": 1, "P16": 1, "P17": 1}, "count": 4}
+        ]
+        # snapshot rule: the vault as it was, orphans in, never stamped
+        snap = _snap(vault)
+        assert _sha(snap) == sha_before
+        assert "alembic_version" not in _tables(snap, ctx.key)
+        # aligned and clean
+        conn = _connect(vault, ctx.key)
+        try:
+            assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
+                "017_fk_cascade_alignment"
+            )
+            assert _fk_actions(conn, "document_category")["doc_id"] == "CASCADE"
+            assert set(_fk_actions(conn, "care_plan_task").values()) == {"SET NULL"}
+            assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+            assert conn.execute(
+                "SELECT count(*) FROM document_category WHERE id='O14'"
+            ).fetchone()[0] == 0
+        finally:
+            conn.close()
+
+    resp, state = await _delete_document_over_http(
+        vault, tmp_path, monkeypatch, DOC_ID, key=ctx.key
+    )
+    assert resp.status_code == 204, resp.text
+    assert state["documents"] == 0
+    assert state["fk_check"] == []
+    assert {t[0]: (t[1], t[2]) for t in state["tasks"]}["T-REL"] == (None, None)
