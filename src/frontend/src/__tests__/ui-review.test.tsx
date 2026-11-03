@@ -693,7 +693,9 @@ describe('held rows follow reprocess (L0 ruling on review round 3, finding 2)', 
     await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
     await waitFor(() => expect(inkOf('obs-1')).toHaveAttribute('data-state', 'ink'));
 
-    await user.click(await screen.findByRole('button', { name: 'Retry extraction' }));
+    const retry = await screen.findByRole('button', { name: 'Retry extraction' });
+    await waitFor(() => expect(retry).toBeEnabled());
+    await user.click(retry);
     await waitFor(() => expect(rowOf('obs-new-1')).not.toBeNull());
     expect(document.getElementById('observation-row-obs-1')).toBeNull();
     expect(rowIds()).toEqual(['obs-new-1', 'obs-new-2']);
@@ -711,7 +713,9 @@ describe('held rows follow reprocess (L0 ruling on review round 3, finding 2)', 
     await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
     await waitFor(() => expect(inkOf('obs-1')).toHaveAttribute('data-state', 'ink'));
 
-    await user.click(await screen.findByRole('button', { name: 'Retry extraction' }));
+    const retry = await screen.findByRole('button', { name: 'Retry extraction' });
+    await waitFor(() => expect(retry).toBeEnabled());
+    await user.click(retry);
     await waitFor(() => expect(rowOf('obs-1')).toHaveTextContent('91'));
     expect(inkOf('obs-1')).toHaveAttribute('data-state', 'pencil');
     expect(rowOf('obs-1').querySelector('[data-state="not-checked"]')).not.toBeNull();
@@ -816,8 +820,12 @@ describe('the Reviewing line is reserved before /documents answers (L0 ruling on
     const line = document.querySelector('[data-reviewing-line]');
     expect(line).not.toBeNull();
     expect(line!.textContent).toBe('');
+    // The other thing that mounted with the file name: Retry extraction is there from the start, and waits.
+    const retry = screen.getByRole('button', { name: 'Retry extraction' });
+    expect(retry).toBeDisabled();
     release();
     await waitFor(() => expect(line).toHaveTextContent('Reviewing: report.pdf'));
+    await waitFor(() => expect(retry).toBeEnabled());
     expect(document.querySelector('[data-reviewing-line]')).toBe(line);
   });
 

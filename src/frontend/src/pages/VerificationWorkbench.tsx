@@ -666,11 +666,6 @@ export function VerificationWorkbench() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {documentReviewMode && selectedDocument && (
-            <Badge variant="default">
-              Reviewing: {selectedDocument.source || 'Document'}
-            </Badge>
-          )}
           {unverifiedCount > 0 && (
             <Badge variant="caution" className="gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -701,19 +696,32 @@ export function VerificationWorkbench() {
             <CheckCircle className="w-4 h-4" />
             {documentReviewMode ? 'Mark Document Verified' : 'Mark All Verified'}
           </Button>
-          {documentReviewMode && selectedDocument && (
+          {/* Shown from the first render too, and disabled until the document is known: it used to mount with the
+              file name and wrap this row. */}
+          {documentReviewMode && (
             <Button
               type="button"
               variant="secondary"
               className="gap-2"
-              onClick={() => retryExtraction(selectedDocument.id)}
-              disabled={reprocessMutation.isPending}
+              onClick={() => selectedDocument && retryExtraction(selectedDocument.id)}
+              disabled={!selectedDocument || reprocessMutation.isPending}
             >
               {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Retry extraction
             </Button>
           )}
         </div>
+        {/* Reserved from the first render: the file name arrives with GET /documents, and a badge that mounted in the
+            actions row then wrapped it and dropped the whole grid 60 px (L0 ruling on review round 3, finding 4). */}
+        {documentReviewMode ? (
+          <div data-reviewing-line="" className="order-last flex min-h-7 basis-full items-center">
+            {selectedDocument ? (
+              <Badge variant="default" className="max-w-full">
+                <span className="truncate">Reviewing: {selectedDocument.source || 'Document'}</span>
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {citedNotFound && (
