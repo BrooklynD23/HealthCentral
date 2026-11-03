@@ -59,7 +59,7 @@ Stored in master database (not encrypted by default).
 | Health data (PHI) | Indefinite | Delete via UI or API |
 | Audit logs | Indefinite | Archival recommended |
 | Backups | 30 days | Settings → Backup & restore, or `--retention-days`. `0` means never prune. Deleted with the profile. |
-| Pre-017 vault snapshot | 30 days | One per profile, in its own folder, made once before migration 017 runs on an existing vault. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Deleted with the profile and by the synthetic-profile test reset. |
+| Pre-017 vault snapshot | Until the first vault open 30 days or more after it was made | One per profile, in its own folder, made once before migration 017 runs on an existing vault. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Deleted with the profile and by the synthetic-profile test reset. |
 | Request metrics | In-memory (session) | Cleared on restart |
 | AI model cache | Persistent | Manual cleanup via settings |
 
@@ -274,10 +274,10 @@ care-plan quote stay readable in that copy until the snapshot is purged, on the
 first open of the vault 30 days or more after it was made (an already-open
 session does not purge it until the vault is opened again). The copy is
 encrypted with the same key as the vault, so it exposes nothing that the vault
-key did not already open; the gap is only that a deletion is not final for up
-to that long. Deleting the whole profile removes it at once. The retention rule
-is a ruling by L0 and is unchanged here; whether document deletion should also
-delete the snapshot is an open owner question (see
+key did not already open; the gap is only that a deletion is not final until
+then, and the purge needs a vault open, so a vault that is never opened keeps
+the copy. Deleting the whole profile removes it at once. Deleting a document
+does not delete the snapshot (see
 [Pre-017 vault snapshot](#pre-017-vault-snapshot)).
 
 ## Unverified Extracted Values
