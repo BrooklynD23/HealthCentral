@@ -458,28 +458,32 @@ test.describe('UI-PALETTE', () => {
   });
 
   // PRE-EXISTING, not from the ?analyte= reader: the unedited /trends page with a chart on it (plain /trends, the
-  // first analyte, at 70db0339) overflows at 390 and 320 and has a dark color-contrast violation on its active panel
-  // tab (.bg-accent.text-white). ui-shell's G6 and G1 do not see it because the shell mock answers /observations with
-  // [] (the empty state, no chart). UI-PG-RESULTS replaces the page.
-  // These tests PASS BY ASSERTING THE KNOWN FAILURE, so a green report here is a recorded gate failure, not a pass.
-  // What they do NOT catch: the G6 pin passes at any overflow size (the size varies with what the page shows: it is
-  // measured, not fixed), the dark pin compares rule ids only (a new contrast defect passes) and runs at 1440
-  // only (at 390 the blocking nodes differ). L0 decides whether this row may carry the debt, and in which form
-  // (test.fail with positive assertions, as ui-shell.spec.ts:1104 does). The chart assertion above each stays gating.
-  const TRENDS_DEBT = 'PRE-EXISTING on /trends (UI-PG-RESULTS replaces the page): if this now fails, either the debt is paid (G6 fits; dark has no violation) or, for dark, a different rule id is reported, which means the debt grew. Read the numbers and the rule ids before changing anything';
+  // first analyte, at 70db0339) overflows horizontally at 390 and 320 and has a dark color-contrast violation on its
+  // active panel tab (.bg-accent.text-white). ui-shell's G6 and G1 do not see it because the shell mock answers
+  // /observations with [] (the empty state, no chart). UI-PG-RESULTS replaces the page and deletes these marks.
+  // L0 ruling 6591279413: the gates are asserted positively (G6 fits, no blocking axe violation) and marked
+  // test.fail, so the report reads "expected to fail". That is a gate failure this row carries, not a pass.
+  // Placement differs from ui-shell.spec.ts:1104, which calls test.fail at the top of the test: here it is called
+  // immediately before the positive assertion, after the chart assertion and after the measurement have returned. A
+  // setup or chart failure therefore stays a real failure and cannot read as the expected one.
+  // What the mark cannot see: any change in the size of the overflow, a further contrast defect in dark (any
+  // violation keeps the expected failure), and the dark check runs at 1440 only (at 390 the blocking nodes differ).
+  // If a mark reports "expected to fail but passed", the debt is paid: delete the mark.
+  const TRENDS_DEBT = 'pre-existing on /trends';
 
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`G6: /trends?analyte=ldl_cholesterol still overflows horizontally at ${viewport.width} (KNOWN FAILURE, pre-existing, pinned)`, async ({ page }) => {
+    test(`G6: /trends?analyte=ldl_cholesterol has no horizontal scroll at ${viewport.width} (expected to fail, fixBy UI-PG-RESULTS)`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
       await expectChart(page, 'LDL chart', 143);
       const scroll = await noHorizontalScroll(page);
-      expect(scroll.ok, `${TRENDS_DEBT} (scrollWidth ${scroll.scrollWidth}, innerWidth ${scroll.innerWidth})`).toBe(false);
+      test.fail(true, `${TRENDS_DEBT}: horizontal overflow, fixBy UI-PG-RESULTS`);
+      expect(scroll.ok, `no horizontal scroll at ${viewport.width} (scrollWidth ${scroll.scrollWidth}, innerWidth ${scroll.innerWidth})`).toBe(true);
     });
   }
 
   for (const theme of ['light', 'dark'] as const) {
-    test(`G1: /trends?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}${theme === 'dark' ? ' (KNOWN FAILURE, pre-existing, pinned: color-contrast)' : ''}`, async ({ page }) => {
+    test(`G1: /trends?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}${theme === 'dark' ? ' (expected to fail, fixBy UI-PG-RESULTS)' : ''}`, async ({ page }) => {
       await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
       await expectChart(page, 'LDL chart', 143);
       // The summary rows fade in one after another; axe reads colours, so measure once they have all settled.
@@ -487,11 +491,8 @@ test.describe('UI-PALETTE', () => {
         Array.from(document.querySelectorAll('main button')).every((el) => getComputedStyle(el).opacity === '1')
       );
       const blocking = (await axeAfterThemeSettles(page, theme)).blocking;
-      if (theme === 'dark') {
-        expect(blocking.map((v) => v.id), `${TRENDS_DEBT}: axe in dark`).toEqual(['color-contrast']);
-      } else {
-        expect(blocking.map(describeViolation), `axe in ${theme}`).toEqual([]);
-      }
+      if (theme === 'dark') test.fail(true, `${TRENDS_DEBT}: color-contrast in dark, fixBy UI-PG-RESULTS`);
+      expect(blocking.map(describeViolation), `axe in ${theme}`).toEqual([]);
     });
   }
 
