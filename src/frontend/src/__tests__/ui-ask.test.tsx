@@ -284,6 +284,84 @@ describe('UI-PG-ASK', () => {
     });
   });
 
+  // Review of #453, round 1. The thumbs now work (the state merge fix), which made two paths live that were dead on
+  // main: a thumb click sent the unsubmitted textarea draft as the correction, and a second click on the pressed
+  // thumb cleared the rating on screen without telling the backend. Blind spot: these assert the request bodies the
+  // page sends, not what api/feedback.py stores from them.
+  describe('UI-PG-ASK: feedback sends only what the patient submitted', () => {
+    const feedbackBodies = () =>
+      vi
+        .mocked(api.apiPost)
+        .mock.calls.filter(([url]) => String(url).startsWith('/feedback/turns/'))
+        .map(([, body]) => body as { rating: number; correction_text?: string });
+
+    async function answered(user: ReturnType<typeof userEvent.setup>) {
+      vi.mocked(api.apiPost).mockImplementation(async (url: string) =>
+        url === '/assistant/chat' ? answerWithCitations : { ok: true }
+      );
+      renderAsk();
+      await sendQuestion(user, 'Test question');
+      await screen.findByText(/hemoglobin level is 14.2/);
+    }
+
+    it('a thumb click never sends the draft in the correction box', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'my unsent draft');
+
+      await user.click(screen.getByRole('button', { name: 'Helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Not helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      expect(feedbackBodies().map((body) => body.rating)).toEqual([-1, 1, -1]);
+      for (const body of feedbackBodies()) expect(body.correction_text, JSON.stringify(body)).toBeUndefined();
+    });
+
+    it('a thumb click after "Submit feedback" resends the submitted correction, not a later draft', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      const box = screen.getByRole('textbox', { name: /better answer/i });
+      await user.type(box, 'the submitted answer');
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      expect(feedbackBodies()[1].correction_text).toBe('the submitted answer');
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Not helpful' })); // no-op: it is pressed
+      await user.click(screen.getByRole('button', { name: 'Feedback options' })); // reopen the box
+      await user.type(screen.getByRole('textbox', { name: /better answer/i }), ' plus an unsent edit');
+      await user.click(screen.getByRole('button', { name: 'Helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      // The upsert replaces the row, so leaving the saved correction out would erase it.
+      expect(feedbackBodies()[2]).toMatchObject({ rating: 1, correction_text: 'the submitted answer' });
+    });
+
+    it('clicking the pressed thumb sends nothing and leaves it pressed', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      const notHelpful = screen.getByRole('button', { name: 'Not helpful' });
+      await user.click(notHelpful);
+      await waitFor(() => expect(notHelpful).toHaveAttribute('aria-pressed', 'true'));
+      await waitFor(() => expect(notHelpful).toBeEnabled());
+      expect(feedbackBodies()).toHaveLength(1);
+
+      await user.click(notHelpful);
+      expect(notHelpful).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: 'Helpful' })).toHaveAttribute('aria-pressed', 'false');
+      expect(feedbackBodies()).toHaveLength(1);
+    });
+  });
+
   describe('HC-UIASK-004: no orb and no canvas (pin for the tier rule)', () => {
     // Blind spot: a canvas drawn after a later interaction would not exist yet. The e2e spec checks the page after an
     // answer; this one checks the first render, the pending state and the source.
@@ -665,8 +743,19 @@ describe('UI-PG-ASK', () => {
         ],
       };
       const popover = await openPopover(user, answer);
-      expect(within(popover).getByText('Quest_Lab_Report.pdf')).toBeInTheDocument();
+      // jsdom has no CSS, so the class is what it can see: a text-transform would read QUEST_LAB_REPORT.PDF on screen
+      // (the e2e test asserts innerText).
+      const title = within(popover).getByText('Quest_Lab_Report.pdf');
+      expect(title).toBeInTheDocument();
+      expect(title).not.toHaveClass('uppercase');
       expect(popover).not.toHaveTextContent('Quest Lab_Report.pdf');
+    });
+
+    it('"Open source" is a 44 px target', async () => {
+      const user = userEvent.setup();
+      serve();
+      const popover = await openPopover(user);
+      expect(within(popover).getByRole('button', { name: 'Open source' })).toHaveClass('min-h-target');
     });
 
     it('the popover title and quote wrap by their own class, and the page injects no global rule for them', async () => {

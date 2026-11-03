@@ -779,6 +779,9 @@ test('UI-PG-ASK: a citation chip opens its quote, and Open source opens the Sour
   const dialog = page.getByRole('dialog', { name: 'Citation 1' });
   await expect(dialog).toContainText('LDL Cholesterol 142 mg/dL');
   await expect(dialog).toContainText('Page 2');
+  // The only way to the source on a phone: a 44 px target, as "Show source" on the result cards is.
+  const openSourceBox = await dialog.getByRole('button', { name: 'Open source' }).boundingBox();
+  expect(openSourceBox?.height ?? 0, '"Open source" height').toBeGreaterThanOrEqual(44);
   await dialog.getByRole('button', { name: 'Open source' }).click();
   const sheet = page.getByRole('dialog', { name: 'Source for LDL Cholesterol' });
   await expect(sheet).toBeVisible();
@@ -937,6 +940,9 @@ test('UI-PG-ASK: a source title shows unchanged in the popover', async ({ page }
   const dialog = page.getByRole('dialog', { name: 'Citation 1' });
   await expect(dialog.getByText('Quest_Lab_Report.pdf', { exact: true })).toBeVisible();
   await expect(dialog).not.toContainText('Quest Lab_Report.pdf');
+  // textContent ignores text-transform; innerText is what the patient reads (it was QUEST_LAB_REPORT.PDF).
+  const shown = await dialog.getByText('Quest_Lab_Report.pdf', { exact: true }).evaluate((el) => (el as HTMLElement).innerText);
+  expect(shown).toBe('Quest_Lab_Report.pdf');
 });
 
 // The default agent path sends row ids where the legacy path sends quotes (recurring failures #1).
