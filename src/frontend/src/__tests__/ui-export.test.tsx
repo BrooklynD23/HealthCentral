@@ -393,7 +393,7 @@ describe('UI-PG-EXPORT keeps behaviour: what clears a generated file (green toda
 });
 
 const REDACTION_COPY =
-  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted.';
+  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted. The question lines shown in this preview, and in text copied with Copy Text, are not redacted.';
 
 describe('HC-UIEXP-001: Full Preview opens a Sheet with the summary', () => {
   // Blind spot: jsdom applies no CSS and runs no motion, so this cannot see the sheet's size, its slide, or that it
@@ -511,8 +511,9 @@ describe('HC-UIEXP-002: no native unstyled checkbox on the page', () => {
 
 describe('HC-UIEXP-004: the redaction level is shown as read-only text', () => {
   // Blind spot: jsdom checks that the text exists, carries data-t0 and sits in no control. It cannot prove the
-  // sentence is true: strict is pattern-based (owner-gated gap O-3) and the CSV and JSON exports are exempt (D3),
-  // which is why the copy says so. The stillness probe in e2e covers the data-t0 behaviour.
+  // sentence is true: strict is pattern-based, the CSV and JSON exports are exempt (D3), and the question lines
+  // from POST /export/questions are not redacted, which is why the copy says so. The stillness probe in e2e
+  // covers the data-t0 behaviour.
   it('is present before any summary exists, with data-t0, in no control', () => {
     setupApi();
     renderPage();
@@ -530,6 +531,15 @@ describe('HC-UIEXP-004: the redaction level is shown as read-only text', () => {
     renderPage();
 
     expect(screen.getByText(/CSV and JSON downloads are your own full copy and are not redacted\./)).toBeInTheDocument();
+  });
+
+  it('says the question lines and Copy Text are not redacted', () => {
+    setupApi();
+    renderPage();
+
+    expect(
+      screen.getByText(/The question lines shown in this preview, and in text copied with Copy Text, are not redacted\./)
+    ).toBeInTheDocument();
   });
 
   it('is repeated in the Full Preview sheet', async () => {

@@ -61,11 +61,12 @@ const visitPrepSectionDefaults = [
 ];
 
 /**
- * What the redaction level means today. Kept truthful: strict is pattern-based (owner-gated gap O-3), and the
- * patient's own CSV and JSON exports are exempt (owner decision D3). Read-only: the level is not a setting here.
+ * What the redaction level means today. Kept truthful: strict is pattern-based, the patient's own CSV and JSON
+ * exports are exempt (owner decision D3), and the question lines come from POST /export/questions, which does no
+ * redaction, so they and the text Copy Text copies are not redacted. Read-only: the level is not a setting here.
  */
 const REDACTION_COPY =
-  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted.';
+  'Redaction level: strict. Personal identifiers that match known patterns are removed before this summary is saved or downloaded. CSV and JSON downloads are your own full copy and are not redacted. The question lines shown in this preview, and in text copied with Copy Text, are not redacted.';
 
 function RedactionNote({ className }: { className?: string }) {
   return (
@@ -172,7 +173,6 @@ export function ExportPage() {
 
   const [sections, setSections] = useState(exportSections);
   const [copied, setCopied] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
@@ -434,8 +434,6 @@ export function ExportPage() {
                   {/* The Sheet's trigger is this button, so Escape returns focus to it. */}
                   <Sheet
                     still
-                    open={previewOpen && summary !== null}
-                    onOpenChange={setPreviewOpen}
                     title="Full summary preview"
                     trigger={
                       <Button variant="ghost" size="sm" className="gap-1.5" disabled={!summary}>
@@ -522,7 +520,7 @@ export function ExportPage() {
                   }}
                   rows={2}
                   placeholder="e.g. Persistent headaches for two weeks"
-                  className="w-full rounded-xl border border-black/12 bg-white px-3 py-2 text-sm text-ink placeholder:text-ink-tertiary focus:outline-hidden focus:ring-2 focus:ring-accent"
+                  className="w-full rounded-xl border border-black/12 bg-surface-elevated px-3 py-2 text-sm text-ink placeholder:text-ink-tertiary focus:outline-hidden focus:ring-2 focus:ring-accent"
                 />
               </div>
 
