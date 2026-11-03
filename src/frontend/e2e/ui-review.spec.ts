@@ -238,6 +238,15 @@ interface ReviewMock {
   /** From now on GET /documents (the list) waits for release(), like a slow server. */
   hold(): void;
   release(): void;
+  /**
+   * From now on GET /observations waits for releaseObservations() and reads the rows only then, like a refetch that was
+   * sent early and answers late. Release it to let it answer; later GETs are not held.
+   */
+  holdObservations(): void;
+  releaseObservations(): void;
+  /** From now on POST /observations/:id/verify commits at once and answers only at releaseVerify() (one POST). */
+  holdVerify(): void;
+  releaseVerify(): void;
 }
 
 /** Observation, entity and page answers, with verify as state: a verified row stays verified on the next GET. */
@@ -246,6 +255,10 @@ async function mockReviewApi(page: Page, options: ReviewMockOptions = {}): Promi
   const entityRows = entities.map((entity) => ({ ...entity }));
   let gate: Promise<void> | null = null;
   let open: () => void = () => undefined;
+  let observationsGate: Promise<void> | null = null;
+  let openObservations: () => void = () => undefined;
+  let verifyGate: Promise<void> | null = null;
+  let openVerify: () => void = () => undefined;
   const mock: ReviewMock = {
     requests: [],
     failVerify: false,
@@ -257,6 +270,24 @@ async function mockReviewApi(page: Page, options: ReviewMockOptions = {}): Promi
     release() {
       open();
       gate = null;
+    },
+    holdObservations() {
+      observationsGate = new Promise<void>((resolve) => {
+        openObservations = resolve;
+      });
+    },
+    releaseObservations() {
+      openObservations();
+      observationsGate = null;
+    },
+    holdVerify() {
+      verifyGate = new Promise<void>((resolve) => {
+        openVerify = resolve;
+      });
+    },
+    releaseVerify() {
+      openVerify();
+      verifyGate = null;
     },
   };
   await page.route(/\/api\/v1\/(observations|documents)(\/|\?|$)/, async (route: Route, request) => {
@@ -272,6 +303,8 @@ async function mockReviewApi(page: Page, options: ReviewMockOptions = {}): Promi
       }
       if (path === '/observations') {
         mock.requests.push(`GET ${path}`);
+        const heldGet = observationsGate;
+        if (heldGet) await heldGet;
         const needsVerification = url.searchParams.get('needs_verification') === 'true';
         return json(needsVerification ? rows.filter((row) => !row.user_verified) : rows);
       }
@@ -296,7 +329,14 @@ async function mockReviewApi(page: Page, options: ReviewMockOptions = {}): Promi
       const index = rows.findIndex((candidate) => candidate.id === verify[1]);
       if (index === -1) return json({ detail: 'not found' }, 404);
       rows[index] = verifyLikeApi(rows[index], (request.postDataJSON() ?? {}) as Partial<Observation>);
-      return json(rows[index]);
+      const saved = rows[index];
+      // The server has committed; the answer waits when a test holds it, so a refetch can land in between.
+      const heldPost = verifyGate;
+      if (heldPost) {
+        verifyGate = null;
+        await heldPost;
+      }
+      return json(saved);
     }
     const entityVerification = /^\/documents\/[^/]+\/entities\/([^/]+)\/verification$/.exec(path);
     if (request.method() === 'PATCH' && entityVerification) {
@@ -957,6 +997,125 @@ test('HC-UIREV-006 stillness: the Source Trace sheet passes stillnessProbe from 
 });
 
 // ---------------------------------------------------------------------------
+// L0 rulings 6602430522 and 6603062959: "It matches, mark as checked" inside the Source Trace sheet on the default
+// /verify. The sheet verifies through its own mutation; without the hold the refetch drops the row and the sheet.
+// ---------------------------------------------------------------------------
+const MARK_CHECKED = 'It matches, mark as checked';
+const SHEET_CHECKED = 'You have marked this value as checked.';
+const CHECKED_TOAST = 'Creatinine, Apr 10, 2026 is now marked as checked';
+const rowOrder = (page: Page) => page.locator('tr[id^="observation-row-"]').evaluateAll((trs) => trs.map((tr) => tr.id));
+
+/** Opens the sheet for the Creatinine row (it has a source excerpt) and waits until "It matches" is enabled. */
+async function openCreatinineSheet(page: Page) {
+  await showSource(page, SOURCED_ID).click();
+  const sheet = page.getByRole('dialog', { name: 'Source for Creatinine' });
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toBeVisible();
+  const mark = sheet.getByRole('button', { name: MARK_CHECKED });
+  await expect(mark).toBeEnabled();
+  return { sheet, mark };
+}
+
+test('UI-PG-REVIEW Ink on the default /verify: It matches in the Source Trace sheet holds the row as ink, and focus returns to Show source', async ({
+  page,
+}) => {
+  await prepare(page);
+  await openReview(page, '/verify');
+  const before = await rowOrder(page);
+  const creatinine = row(page, SOURCED_ID);
+  const { sheet, mark } = await openCreatinineSheet(page);
+
+  await mark.click();
+  await expect(creatinine.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(creatinine.locator('[data-state="checked-by-you"]')).toHaveText('Checked by you');
+  // The refetch (needs_verification) has answered without this row; the sheet must still be there, saying so.
+  await page.waitForLoadState('networkidle');
+  await expect(sheet.getByText(SHEET_CHECKED)).toBeVisible();
+  await expect(creatinine.locator('span[data-t0].font-mono')).toHaveText('0.9');
+  await expect.poll(() => inkClip(creatinine), { message: 'the ink layer opens' }).toMatch(INK_OPEN);
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(1);
+  await expect(page.locator('[data-sonner-toast]')).toContainText(CHECKED_TOAST);
+
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(showSource(page, SOURCED_ID)).toBeFocused();
+  expect(await rowOrder(page)).toEqual(before);
+  await expect(creatinine.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(1);
+});
+
+// Order (b) in a real browser: a refetch already in flight answers without the row before the POST answers. jsdom's
+// focus and Radix are not Chromium's, so the order runs here too. The refetch is started without a product edit: the
+// clock moves 6 minutes (the app's staleTime is 5) without firing a timer, then a visibilitychange makes TanStack
+// refetch the now-stale observations on focus. The GET and the POST are held by the mock.
+test('UI-PG-REVIEW Ink on the default /verify: a refetch in flight when It matches is clicked answers first, and the row is still held', async ({
+  page,
+}) => {
+  await page.clock.install();
+  const mock = await prepare(page);
+  await openReview(page, '/verify');
+  const before = await rowOrder(page);
+  const { mark } = await openCreatinineSheet(page);
+  const gets = () => mock.review.requests.filter((request) => request === 'GET /observations').length;
+  const posts = () => mock.review.requests.filter((request) => request.startsWith('POST ')).length;
+
+  mock.review.holdObservations();
+  const getsBefore = gets();
+  await page.clock.setSystemTime(new Date(Date.now() + 6 * 60 * 1000));
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  await expect.poll(gets, { message: 'the focus refetch is in flight' }).toBeGreaterThan(getsBefore);
+
+  mock.review.holdVerify();
+  await mark.click();
+  await expect.poll(posts, { message: 'the POST was sent' }).toBe(1);
+
+  // The server has committed. The older GET answers: the row is gone from the list and the sheet with it.
+  mock.review.releaseObservations();
+  await expect(row(page, SOURCED_ID)).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // Only now does the POST answer.
+  mock.review.releaseVerify();
+  const creatinine = row(page, SOURCED_ID);
+  await expect(creatinine.locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(creatinine.locator('[data-state="checked-by-you"]')).toHaveText('Checked by you');
+  await page.waitForLoadState('networkidle');
+  await expect(creatinine.locator('span[data-t0].font-mono')).toHaveText('0.9');
+  expect(await rowOrder(page), 'the held row comes back in its place').toEqual(before);
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(1);
+  await expect(page.locator('[data-sonner-toast]')).toContainText(CHECKED_TOAST);
+  await expect(showSource(page, SOURCED_ID), 'focus is not lost to the body').toBeFocused();
+  // The page is not left locked behind a removed sheet: another sheet opens and closes.
+  expect(await page.evaluate(() => document.body.style.pointerEvents)).not.toBe('none');
+  await showSource(page, GLUCOSE_ID).click();
+  await expect(page.getByRole('dialog', { name: 'Source for Glucose' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+// Timing: quiet box only. The title carries HC-UIREV-002 so the quiet-box line for that gate selects it.
+test('HC-UIREV-002: the value text passes stillnessProbe from the It matches click in the Source Trace sheet', async ({
+  page,
+}) => {
+  await prepare(page);
+  await openReview(page, '/verify');
+  const { mark } = await openCreatinineSheet(page);
+  // In view before the probe starts, so the click does not scroll inside its window.
+  await mark.scrollIntoViewIfNeeded();
+  await settle(page);
+  const report = await stillnessProbe(page, {
+    trigger: () => mark.click(),
+    expected: [
+      `#observation-row-${SOURCED_ID} span[data-t0]`,
+      `#observation-row-${SOURCED_ID} [data-state="checked-by-you"]`,
+    ],
+    kind: 'interaction',
+  });
+  expect(report.nodes).toBeGreaterThan(0);
+  await expect(row(page, SOURCED_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(page.getByRole('dialog', { name: 'Source for Creatinine' }).getByText(SHEET_CHECKED)).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
 // Gate G: the per-gate checks. Functional gates first, timing gates after (quiet box only).
 // ---------------------------------------------------------------------------
 const THEMES: Theme[] = ['light', 'dark'];
@@ -1111,6 +1270,7 @@ test('UI-PG-REVIEW Gate G5 reduced motion: no transform 50 ms after the Edit dia
   const shot = testInfo.outputPath('verify-reduced.png');
   await page.screenshot({ path: shot, fullPage: false });
   testInfo.annotations.push({ type: 'gate-g5-screenshot', description: shot });
+});
 });
 
 test('UI-PG-REVIEW Gate G10 stillness on /verify: every [data-t0] node stays still from the nav click', async ({
