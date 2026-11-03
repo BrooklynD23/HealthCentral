@@ -6,7 +6,7 @@
  * the real library reject a leftover `motion.*` under LazyMotion strict.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, onTestFinished } from 'vitest';
 import { Component, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -164,6 +164,12 @@ const ROUTE_PATHS = [
 // that sit behind data branches, so those are not exercised here. HC-UIMO-001
 // (the source audit above) is the complete guard against a leftover `motion.*`.
 describe('UI-MOTION every route under LazyMotion strict', () => {
+  // The 20 s wait below measures rendering, not module load: under a full run's
+  // load the /trends page import alone has taken 35 s (HC-UIMO-003-TIMEOUT).
+  beforeAll(async () => {
+    await import('@/pages/TrendsDashboard');
+  }, 120000);
+
   beforeEach(() => {
     useAuthStore.getState().setAuth({
       token: 'test-token',

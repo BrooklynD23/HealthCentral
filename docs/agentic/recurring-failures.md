@@ -326,6 +326,13 @@ latest-vs-prior comparison"), so the answer names two different rules, and the
 CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
 code exists, not that the feature runs it.
 
+A 2026-11-02 instance in VERIFY-KEEPS-FLAG (#463): the comment in
+`modules/fhir_export.py` called `flag` a "short coded flag" while the flag was
+stored as printed, free text of up to 2000 characters from import. The comment
+read as authority and the line went out unredacted; it was exposed only once
+Verify stopped erasing free-text flags. Recheck: when a comment states the
+shape of a field, find where the field is written before relying on it.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
