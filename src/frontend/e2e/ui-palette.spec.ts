@@ -661,7 +661,7 @@ test.describe('UI-PALETTE', () => {
     expect(inp).toBeLessThan(200);
   });
 
-  test('G5 (quiet box): with reduced motion no element has a transform after the palette opens, after typing and after moving', async ({ page }) => {
+  test('G5 (quiet box): with reduced motion no element has a transform after the palette opens, after typing and after moving', async ({ page }, testInfo) => {
     await openApp(page);
     // One snapshot per interaction (the plan's "after each interaction"), each taken 50 ms after its own action.
     const open = await reducedMotionSnapshot(page, async () => {
@@ -677,5 +677,9 @@ test.describe('UI-PALETTE', () => {
     });
     // The Dialog centres with a translate property, which is not a transform; anything listed here is motion.
     expect({ open, typed, moved }).toEqual({ open: [], typed: [], moved: [] });
+    // The G5 screenshot for the PR: the palette open with the typed query and the moved selection, reduced motion.
+    const shot = testInfo.outputPath('palette-reduced.png');
+    await page.screenshot({ path: shot, fullPage: false });
+    testInfo.annotations.push({ type: 'gate-g5-screenshot', description: shot });
   });
 });
