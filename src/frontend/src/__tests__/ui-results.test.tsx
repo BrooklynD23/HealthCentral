@@ -13,7 +13,8 @@
  * click; 014 the lab-interpreter components; 015 the folded-in Trends and Interpret details; 016 and 017 source audits;
  * 018 a grounded explanation belongs to the result it was made for; 019 a panel interpretation belongs to its tab;
  * 020 the gauge prints no verdict on a scale that is not finite; 021 the logged-out route; 022 an empty panel;
- * 023 the card's toggle name; 024 no analyte name reaches browser storage, before or after a lock.
+ * 023 the card's toggle name; 024 no analyte name reaches browser storage, before or after a lock; 025 the tabs are the Tabs primitive;
+ * 026 the Normal Range badge needs a range and a value inside it.
  *
  * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, ...). The panel fixtures list
  * the analytes a panel should hold for those names (the backend's PANEL_DEFINITIONS must agree, see the PR).
@@ -405,7 +406,7 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
     await renderPage();
     // A row is up before the slider is, so this waits for the list, not the chart.
     await screen.findByRole('button', { name: /Hemoglobin/ });
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await waitFor(() => expect(apiGetCalls()).toContain('/observations/panels/cbc'));
     // The reported defect: the CBC tab selected over a list that still shows Glucose.
     await waitFor(() => expect(screen.queryByRole('button', { name: /Glucose/ })).toBeNull());
@@ -419,14 +420,14 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
     await pageLoaded();
     fireEvent.click(screen.getByRole('button', { name: /Glucose/ }));
     await waitFor(() => expect(chartTitle()).toBe('GLUCOSE'));
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await waitFor(() => expect(chartTitle()).toBe('HEMOGLOBIN'));
   });
 
   it('HC-UIRES-010: a panel that fails to load shows a message, never an unfiltered list under the panel label', async () => {
     await renderPage();
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^Thyroid/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^Thyroid/ }));
     expect(await screen.findByText(/could not load this panel/i)).toBeInTheDocument();
     expect(listButtons()).toHaveLength(0);
   });
@@ -434,7 +435,7 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
   it('HC-UIRES-010: an empty panel shows a message, never an unfiltered list', async () => {
     await renderPage();
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^Lipids/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^Lipids/ }));
     expect(await screen.findByText(/no results from this panel/i)).toBeInTheDocument();
     expect(listButtons()).toHaveLength(0);
   });
@@ -446,7 +447,7 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
     vi.mocked(api.apiGet).mockImplementation(async (url: string, params?: Record<string, string>) =>
       url.startsWith('/observations/panels/') ? new Promise(() => {}) : original(url, params)
     );
-    fireEvent.click(screen.getByRole('tab', { name: /^CMP/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CMP/ }));
     await waitFor(() => expect(screen.getByRole('tab', { name: /^CMP/ })).toHaveAttribute('aria-selected', 'true'));
     expect(listButtons()).toHaveLength(0);
   });
@@ -454,7 +455,7 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
   it('HC-UIRES-010: a named ?analyte= resets the tab to All, so the selected row is listed', async () => {
     await renderPage({ go: '/results?analyte=glucose' });
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await waitFor(() => expect(listNames()).toHaveLength(2));
     fireEvent.click(screen.getByRole('button', { name: 'go /results?analyte=glucose' }));
     await waitFor(() => expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true'));
@@ -473,14 +474,14 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
     await renderPage();
     await pageLoaded();
     expect(screen.queryByRole('button', { name: /^Interpret .* Panel$/ })).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     const button = await screen.findByRole('button', { name: 'Interpret CBC Panel' });
     fireEvent.click(button);
     await waitFor(() =>
       expect(vi.mocked(api.apiPost).mock.calls.some((call) => String(call[0]).startsWith('/interpretations/panels/cbc/interpret'))).toBe(true)
     );
     expect(await screen.findByText('Panel summary text.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'All' }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'All' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: /^Interpret .* Panel$/ })).toBeNull());
   });
 
@@ -491,6 +492,29 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
     expect(tab).toHaveClass('bg-accent');
     expect(tab.className).toContain('text-[var(--on-accent)]');
     expect(tab.className).not.toContain('text-white');
+  });
+
+  it('HC-UIRES-025: the tabs are the ui/Tabs primitive: ArrowRight moves focus without choosing, Enter chooses, one tabpanel is labelled by the chosen tab', async () => {
+    const user = userEvent.setup();
+    await renderPage();
+    await pageLoaded();
+    const all = screen.getByRole('tab', { name: 'All' });
+    expect(all).toHaveAttribute('aria-controls');
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', all.id);
+
+    act(() => all.focus());
+    await user.keyboard('{ArrowRight}');
+    const cbc = screen.getByRole('tab', { name: /^CBC/ });
+    expect(cbc).toHaveFocus();
+    expect(all).toHaveAttribute('aria-selected', 'true');
+    expect(cbc).toHaveAttribute('aria-selected', 'false');
+
+    await user.keyboard('{Enter}');
+    expect(cbc).toHaveAttribute('aria-selected', 'true');
+    expect(all).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', cbc.id);
   });
 });
 
@@ -660,6 +684,8 @@ const ANALYTE_ROWS: Control[] = [
   { name: 'Vitamin D', match: /^Vitamin D\s*\d/ },
 ];
 const TAB_ROWS: Control[] = [
+  // The tablist itself is the one Tab stop of Radix's roving focus (tabindex 0); focus then lands on the chosen tab.
+  { name: 'Lab panels tablist', match: /^Lab panels$/ },
   { name: 'All', match: /^All$/ },
   { name: 'CBC', match: /^CBC(\d+)?$/ },
   { name: 'CMP', match: /^CMP(\d+)?$/ },
@@ -703,7 +729,7 @@ describe('HC-UIRES-005 the page has exactly the controls in this table, and each
   it('HC-UIRES-005: a panel tab adds Interpret <panel> Panel and removes the other analytes', async () => {
     await renderPage();
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await screen.findByRole('button', { name: 'Interpret CBC Panel' });
     await waitFor(() => expect(listNames()).toHaveLength(2));
     expectControlSet([
@@ -737,11 +763,11 @@ describe('HC-UIRES-005 the page has exactly the controls in this table, and each
 
     // Tabs: each selects itself and filters the list; All restores it.
     for (const [label, count] of [['CBC', 2], ['CMP', 1], ['Lipids', 0], ['Thyroid', 0]] as const) {
-      fireEvent.click(screen.getByRole('tab', { name: new RegExp(`^${label}`) }));
+      fireEvent.mouseDown(screen.getByRole('tab', { name: new RegExp(`^${label}`) }));
       await waitFor(() => expect(screen.getByRole('tab', { name: new RegExp(`^${label}`) })).toHaveAttribute('aria-selected', 'true'));
       await waitFor(() => expect(listButtons()).toHaveLength(count));
     }
-    fireEvent.click(screen.getByRole('tab', { name: 'All' }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'All' }));
     await waitFor(() => expect(listButtons()).toHaveLength(4));
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
 
@@ -1370,14 +1396,14 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
   it('HC-UIRES-019: a named ?analyte= resets to All and takes the CBC dashboard with it', async () => {
     await renderPage({ go: '/results?analyte=glucose' });
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Interpret CBC Panel' }));
     expect(await screen.findByText('Panel summary text.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'go /results?analyte=glucose' }));
     await waitFor(() => expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true'));
     expect(screen.queryByText('Panel summary text.')).toBeNull();
     // And it does not come back when the tab is chosen again.
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await waitFor(() => expect(listNames()).toHaveLength(2));
     expect(screen.queryByText('Panel summary text.')).toBeNull();
   });
@@ -1390,11 +1416,11 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
     vi.mocked(api.apiPost).mockImplementation((url: string, ...rest: unknown[]) =>
       url.includes('/panels/') ? new Promise((resolve) => (finish = resolve)) : (original as (...args: unknown[]) => Promise<unknown>)(url, ...rest)
     );
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Interpret CBC Panel' }));
     expect(await screen.findByText('Generating panel interpretation...')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('tab', { name: /^CMP/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CMP/ }));
     await waitFor(() => expect(screen.getByRole('tab', { name: /^CMP/ })).toHaveAttribute('aria-selected', 'true'));
     expect(screen.queryByText('Generating panel interpretation...'), 'the CBC request is not a CMP spinner').toBeNull();
 
@@ -1415,7 +1441,7 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
       });
     });
     expect(screen.queryByText('Panel summary text.'), 'not under CMP').toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await waitFor(() => expect(listNames()).toHaveLength(2));
     expect(screen.queryByText('Panel summary text.'), 'dropped, not parked until CBC is back').toBeNull();
   });
@@ -1438,7 +1464,7 @@ describe('HC-UIRES-022 an empty panel has nothing to download or explain', () =>
   it('HC-UIRES-022: the exports are off, Explain is not offered, and the body does not say to choose a result', async () => {
     await renderPage();
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^Lipids/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^Lipids/ }));
     expect(await screen.findByText(/no results from this panel/i)).toBeInTheDocument();
     expectControlSet(emptyPanelRows);
     expect(screen.getByRole('button', { name: 'Download chart as PNG' })).toBeDisabled();
@@ -1450,7 +1476,7 @@ describe('HC-UIRES-022 an empty panel has nothing to download or explain', () =>
   it('HC-UIRES-022: with Explain already open, an empty panel offers no Generate and no empty interpretation card', async () => {
     await renderPage({ entry: { pathname: '/results', state: { explain: true } } });
     await pageLoaded();
-    fireEvent.click(screen.getByRole('tab', { name: /^Lipids/ }));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^Lipids/ }));
     expect(await screen.findByText(/no results from this panel/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Generate Interpretation/i })).toBeNull();
     expect(screen.queryByText('No interpretation yet')).toBeNull();
@@ -1520,26 +1546,78 @@ describe('HC-UIRES-023 the card toggle matches the heading it opens', () => {
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIRES-026: "Normal Range" is claimed only for a value inside a range the chart has
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-026 the Normal Range badge', () => {
+  // The trend route sends is_abnormal false for a point with no range (api/observations.py), so the flag alone proves nothing.
+  function withLatest(value: number, over: Partial<TrendData>, abnormal = false) {
+    return (canonical: string): TrendData => ({
+      ...trendFor(canonical, 'HEMOGLOBIN'),
+      data_points: [trendPoint('2026-01-10T00:00:00', value, { is_abnormal: abnormal })],
+      ...over,
+    });
+  }
+  async function open(trend: (canonical: string) => TrendData) {
+    setupApi({ trend });
+    await renderPage();
+    await pageLoaded();
+  }
+
+  it('HC-UIRES-026: a value inside the range shows Normal Range', async () => {
+    await open(withLatest(14.2, {}));
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a result with no range and no flag shows neither badge', async () => {
+    await open(withLatest(14.2, { ref_low: null, ref_high: null }));
+    await screen.findByText(/Latest value: 14.2/);
+    expect(screen.queryByText('Normal Range')).toBeNull();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a value outside the range that the route left unflagged shows no Normal Range', async () => {
+    await open(withLatest(130, { ref_low: 70, ref_high: 99 }));
+    await screen.findByText(/Latest value: 130/);
+    expect(screen.queryByText('Normal Range')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a flagged value shows Outside Range and never Normal Range', async () => {
+    await open(withLatest(130, { ref_low: 70, ref_high: 99 }, true));
+    expect(await screen.findByText('Outside Range')).toBeInTheDocument();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIRES-024: no analyte name reaches browser storage (L0 ruling, PR #476 comment 6606545865)
 // ---------------------------------------------------------------------------
 
 describe('HC-UIRES-024 the ribbon puts no analyte name in sessionStorage or localStorage', () => {
   // The suite's localStorage is a plain object with no key() or length (setup.ts), so it cannot be listed. Every
   // setItem on either storage is recorded instead, and sessionStorage (jsdom's real one) is also listed as it stands.
+  // jsdom's sessionStorage is a Storage, and spying on the instance would store a literal 'setItem' key and record
+  // nothing, so the spy goes on Storage.prototype. The plain-object localStorage is spied on directly.
   type Write = { area: string; key: string; value: string };
+  const spies: Array<{ mockRestore: () => void }> = [];
   function recordWrites(): Write[] {
     const writes: Write[] = [];
     const wrap = (area: string, target: Storage) => {
-      const original = target.setItem.bind(target);
-      vi.spyOn(target, 'setItem').mockImplementation((key: string, value: string) => {
+      const original = target.setItem;
+      const spy = vi.spyOn(target, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
         writes.push({ area, key: String(key), value: String(value) });
-        original(key, value);
+        original.call(this, key, value);
       });
+      spies.push(spy);
     };
     wrap('localStorage', window.localStorage);
-    wrap('sessionStorage', window.sessionStorage);
+    wrap('sessionStorage', Object.getPrototypeOf(window.sessionStorage) as Storage);
     return writes;
   }
+  afterEach(() => {
+    spies.splice(0).forEach((spy) => spy.mockRestore());
+  });
   function storedText(writes: Write[]): string[] {
     const texts = writes.flatMap((w) => [w.key, w.value]);
     for (let i = 0; i < window.sessionStorage.length; i += 1) {
@@ -1590,6 +1668,8 @@ describe('HC-UIRES-024 the ribbon puts no analyte name in sessionStorage or loca
       expect(animateCalls.length).toBeGreaterThan(0);
       expect(screen.getByRole('slider')).toHaveAttribute('aria-label', 'Fasting Glucose: results over time');
       expect(namesFound(writes)).toEqual([]);
+      // Nothing the ribbon does touches storage at all (a write-then-remove or an encoded name would show here).
+      expect(writes.filter((w) => w.key !== 'healthcentral-auth')).toEqual([]);
 
       // The real lock path: Lock now calls clearAuth() and queryClient.clear().
       const user = userEvent.setup();
@@ -1618,6 +1698,7 @@ describe('HC-UIRES-024 the ribbon puts no analyte name in sessionStorage or loca
       );
       expect(animateCalls.length).toBeGreaterThan(0);
       expect(namesFound(writes)).toEqual([]);
+      expect(writes.filter((w) => w.key !== 'healthcentral-auth')).toEqual([]);
     } finally {
       delete (Element.prototype as unknown as { animate?: unknown }).animate;
     }

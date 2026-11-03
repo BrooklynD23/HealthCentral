@@ -148,7 +148,7 @@ describe('Accessibility Audit (A11Y-001)', () => {
         expect(allTab).toHaveAttribute('aria-selected', 'true');
       });
 
-      fireEvent.click(screen.getByRole('tab', { name: /CBC/i }));
+      fireEvent.mouseDown(screen.getByRole('tab', { name: /CBC/i }));
       await waitFor(() => {
         expect(screen.getByRole('tab', { name: /CBC/i })).toHaveAttribute('aria-selected', 'true');
       });

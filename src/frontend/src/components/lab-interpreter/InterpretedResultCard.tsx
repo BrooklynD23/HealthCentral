@@ -183,7 +183,7 @@ export function InterpretedResultCard({
           <DisclaimerBanner />
 
           {/* Footer */}
-          <div className="flex items-center justify-between pt-2 border-t border-black/4">
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--line)]">
             <div className="flex items-center gap-3 text-xs text-ink-tertiary">
               <span>
                 {interpretation.model_tier === 'template'

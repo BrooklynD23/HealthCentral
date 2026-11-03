@@ -35,6 +35,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState } from '@/components/ui';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { cn } from '@/utils/cn';
 import { useObservations, usePanel, useTrend } from '@/services/observations';
 import { useMedications } from '@/services/medications';
@@ -144,7 +145,7 @@ async function renderSvgToCanvas(svgElement: SVGSVGElement) {
 
 const chipBase = [
   'flex w-full min-h-11 shrink-0 items-center justify-between gap-2 text-left transition-colors',
-  'rounded-full border border-black/8 bg-surface-elevated px-3.5 py-1',
+  'rounded-full border border-[var(--line)] bg-surface-elevated px-3.5 py-1',
   'lg:min-h-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3',
   'hover:bg-surface-muted/50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
 ];
@@ -238,6 +239,16 @@ export function ResultsPage() {
   const generatePanelInterp = useGeneratePanelInterpretation();
 
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
+  // The trend route sends is_abnormal false for a point that has no range, so "Normal Range" is claimed only when the
+  // chart has a range and the latest value sits inside it. Otherwise no badge: absence is not normality.
+  const latestInsideRange = (() => {
+    if (!trendData || !latestValue || latestValue.is_abnormal) return false;
+    const low = Number.isFinite(trendData.ref_low) ? (trendData.ref_low as number) : null;
+    const high = Number.isFinite(trendData.ref_high) ? (trendData.ref_high as number) : null;
+    const value = latestValue.value;
+    if ((low === null && high === null) || typeof value !== 'number' || !Number.isFinite(value)) return false;
+    return (low === null || value >= low) && (high === null || value <= high);
+  })();
   const unverifiedPointCount = useMemo(
     () => trendData?.data_points.filter((point) => point.user_verified !== true).length ?? 0,
     [trendData]
@@ -290,7 +301,8 @@ export function ResultsPage() {
             setGrounded(null);
             return;
           }
-          setWithheldNotice(null);
+          // Only this result's own notice goes: another result's withheld message must stay until it is answered.
+          setWithheldNotice((current) => (current?.observationId === observationId ? null : current));
           setGrounded({
             observationId,
             summary: data.full_response,
@@ -458,7 +470,7 @@ export function ResultsPage() {
                     {latestValue && latestValue.user_verified !== true && ' (unverified)'}
                   </strong>
                 </p>
-                {latestValue && !latestValue.is_abnormal && <Badge variant="verified">Normal Range</Badge>}
+                {latestInsideRange && <Badge variant="verified">Normal Range</Badge>}
                 {latestValue?.is_abnormal && <Badge variant="attention">Outside Range</Badge>}
               </div>
               {trendData.summary && (
@@ -490,277 +502,277 @@ export function ResultsPage() {
     <div className="space-y-3 lg:space-y-6">
       {shell}
 
-      <div role="tablist" aria-label="Lab panels" className="flex gap-1.5 overflow-x-auto sm:gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => selectTab(tab.id)}
-            className={cn(
-              'min-h-target shrink-0 rounded-xl px-3 py-2 text-sm font-medium transition-colors sm:px-4',
-              'focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-              activeTab === tab.id
-                ? 'bg-accent text-[var(--on-accent)] shadow-soft'
-                : 'bg-surface-elevated border border-black/6 text-ink-secondary hover:bg-surface-muted'
-            )}
-          >
-            {tab.label}
-            {panelData?.observations && activeTab === tab.id && tab.id !== ALL && (
-              <span className="ml-1.5 text-xs tabular-nums">{panelData.observations.length}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {activeTab !== ALL && (
-        <div>
-          <Button
-            onClick={handleGeneratePanelInterpretation}
-            disabled={generatePanelInterp.isPending}
-            className="gap-2"
-          >
-            {generatePanelInterp.isPending ? (
-              <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-            Interpret {activeTab.toUpperCase()} Panel
-          </Button>
-        </div>
-      )}
-
-      {(panelShown || panelPending || panelFailed) && (
-        <PanelInterpretationDashboard
-          interpretation={panelShown?.data}
-          isLoading={panelPending}
-          isError={panelFailed}
-        />
-      )}
-
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-6">
-        <div className="min-w-0 lg:col-start-3 lg:row-start-1">
-          <h2 id="lab-results-heading" className="sr-only text-base font-semibold text-ink lg:not-sr-only lg:mb-2">
-            Lab results
-          </h2>
-          <div
-            role="region"
-            aria-labelledby="lab-results-heading"
-            tabIndex={0}
-            className={cn(
-              'overflow-x-auto rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
-              'lg:overflow-visible lg:rounded-2xl lg:border lg:border-black/4 lg:bg-surface-elevated'
-            )}
-          >
-            {panelMessage ? (
-              <p className="p-3 text-sm text-ink-secondary lg:p-4">{panelMessage}</p>
-            ) : (
-              <ul className="flex gap-2 p-0.5 lg:flex-col lg:gap-0 lg:divide-y lg:divide-black/4 lg:p-0">
-                {visibleList.map((obs) => {
-                  const selected = effectiveAnalyte === obs.analyte_canonical;
-                  return (
-                    <li key={obs.analyte_canonical} className="shrink-0 lg:shrink">
-                      <button
-                        type="button"
-                        aria-current={selected ? 'true' : undefined}
-                        onClick={() => setSelectedAnalyte(obs.analyte_canonical)}
-                        className={cn(chipBase, selected && 'border-accent bg-accent-subtle lg:bg-accent-subtle')}
-                      >
-                        <span className="min-w-0 text-left">
-                          <span className="block truncate text-sm font-medium text-ink">{obs.analyte_raw}</span>
-                          <span data-t0 className="block text-xs text-ink-secondary">
-                            {obs.value ?? obs.value_text} {obs.unit}
-                            {obs.collected_at === null && (
-                              <>
-                                {' · '}
-                                <span className="italic text-ink-tertiary">undated</span>
-                              </>
-                            )}
-                          </span>
-                        </span>
-                        {obs.is_abnormal && (
-                          <Badge variant="attention" className="px-1.5 py-0.5 text-[10px]" aria-label="Flagged on the report">
-                            !
-                          </Badge>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        <div className="min-w-0 space-y-3 lg:col-span-2 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-4">
-          <Card>
-            <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-4">
-              <div className="flex items-start justify-between gap-2">
-                {/* One line on a phone (DF-4): a long display name is cut with an ellipsis, and the ribbon's own label
-                    and the list row still carry it whole. The Normal/Outside badge sits with the latest value below. */}
-                <CardTitle className="flex min-w-0 items-center text-base sm:text-xl">
-                  <span className="min-w-0 truncate" title={trendData?.analyte_display_name || effectiveAnalyte}>
-                    {trendData?.analyte_display_name || effectiveAnalyte}
-                  </span>
-                </CardTitle>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={handleExportPNG}
-                    disabled={!chartReady}
-                    aria-label="Download chart as PNG"
-                  >
-                    <ImageIcon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">PNG</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={handleExportSVG}
-                    disabled={!chartReady}
-                    aria-label="Download chart as SVG"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">SVG</span>
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">{trendBody}</CardContent>
-          </Card>
-
-          {(unverifiedCount > 0 || lowConfidenceCount > 0) && (
-            <div className="flex flex-wrap gap-2">
-              {unverifiedCount > 0 && <Badge variant="caution">{unverifiedCount} unverified values</Badge>}
-              {lowConfidenceCount > 0 && (
-                <Badge variant="attention">{lowConfidenceCount} low-confidence extractions</Badge>
+      <Tabs value={activeTab} onValueChange={selectTab} activationMode="manual" className="space-y-3 lg:space-y-6">
+        <TabsList aria-label="Lab panels" className="gap-1.5 overflow-x-auto border-b-0 sm:gap-2">
+          {tabs.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className={cn(
+                'shrink-0 rounded-xl px-3 sm:px-4 after:hidden',
+                activeTab === tab.id
+                  ? 'bg-accent text-[var(--on-accent)] hover:text-[var(--on-accent)] data-[state=active]:text-[var(--on-accent)] shadow-soft'
+                  : 'bg-surface-elevated border border-[var(--line)] text-ink-secondary hover:bg-surface-muted'
               )}
+            >
+              {tab.label}
+              {panelData?.observations && activeTab === tab.id && tab.id !== ALL && (
+                <span className="ml-1.5 text-xs tabular-nums">{panelData.observations.length}</span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {activeTab !== ALL && (
+          <div>
+            <Button
+              onClick={handleGeneratePanelInterpretation}
+              disabled={generatePanelInterp.isPending}
+              className="gap-2"
+            >
+              {generatePanelInterp.isPending ? (
+                <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              Interpret {activeTab.toUpperCase()} Panel
+            </Button>
+          </div>
+        )}
+
+        {(panelShown || panelPending || panelFailed) && (
+          <PanelInterpretationDashboard
+            interpretation={panelShown?.data}
+            isLoading={panelPending}
+            isError={panelFailed}
+          />
+        )}
+
+        <TabsContent value={activeTab} tabIndex={-1} className="mt-0">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-6">
+            <div className="min-w-0 lg:col-start-3 lg:row-start-1">
+              <h2 id="lab-results-heading" className="sr-only text-base font-semibold text-ink lg:not-sr-only lg:mb-2">
+                Lab results
+              </h2>
+              <div
+                role="region"
+                aria-labelledby="lab-results-heading"
+                tabIndex={0}
+                className={cn(
+                  'overflow-x-auto rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
+                  'lg:overflow-visible lg:rounded-2xl lg:border lg:border-[var(--line)] lg:bg-surface-elevated'
+                )}
+              >
+                {panelMessage ? (
+                  <p className="p-3 text-sm text-ink-secondary lg:p-4">{panelMessage}</p>
+                ) : (
+                  <ul className="flex gap-2 p-0.5 lg:flex-col lg:gap-0 lg:divide-y lg:divide-[var(--line)] lg:p-0">
+                    {visibleList.map((obs) => {
+                      const selected = effectiveAnalyte === obs.analyte_canonical;
+                      return (
+                        <li key={obs.analyte_canonical} className="shrink-0 lg:shrink">
+                          <button
+                            type="button"
+                            aria-current={selected ? 'true' : undefined}
+                            onClick={() => setSelectedAnalyte(obs.analyte_canonical)}
+                            className={cn(chipBase, selected && 'border-accent bg-accent-subtle lg:bg-accent-subtle')}
+                          >
+                            <span className="min-w-0 text-left">
+                              <span className="block truncate text-sm font-medium text-ink">{obs.analyte_raw}</span>
+                              <span data-t0 className="block text-xs text-ink-secondary">
+                                {obs.value ?? obs.value_text} {obs.unit}
+                                {obs.collected_at === null && (
+                                  <>
+                                    {' · '}
+                                    <span className="italic text-ink-tertiary">undated</span>
+                                  </>
+                                )}
+                              </span>
+                            </span>
+                            {obs.is_abnormal && (
+                              <Badge variant="attention" className="px-1.5 py-0.5" aria-label="Flagged on the report">
+                                !
+                              </Badge>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             </div>
-          )}
 
-          {!explainOpen ? (
-            effectiveObservation && (
+            <div className="min-w-0 space-y-3 lg:col-span-2 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-4">
               <Card>
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <p className="text-sm text-ink-secondary">Want this result explained in plain language?</p>
-                  <Button onClick={() => setExplainOpen(true)} className="gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    Explain this result
-                  </Button>
-                </CardContent>
-              </Card>
-            )
-          ) : interpretation ? (
-            <InterpretedResultCard
-              interpretation={interpretation}
-              analyteName={effectiveObservation?.analyte_raw}
-              value={effectiveObservation?.value}
-              unit={effectiveObservation?.unit ?? undefined}
-              refLow={effectiveObservation?.ref_low}
-              refHigh={effectiveObservation?.ref_high}
-              onRegenerate={handleGenerateInterpretation}
-              isRegenerating={generateInterpretation.isPending}
-              observation={effectiveObservation ?? undefined}
-            />
-          ) : !interpLoading && effectiveObservation ? (
-            <Card>
-              <CardContent className="py-8">
-                <div className="space-y-3 text-center">
-                  <Brain className="mx-auto h-10 w-10 text-ink-tertiary" />
-                  <div>
-                    <p className="text-sm font-medium text-ink">No interpretation yet</p>
-                    <p className="mt-1 text-xs text-ink-secondary">
-                      Generate an AI interpretation for {effectiveObservation.analyte_raw}
-                    </p>
+                <CardHeader className="p-4 pb-2 sm:p-6 sm:pb-4">
+                  <div className="flex items-start justify-between gap-2">
+                    {/* One line on a phone (DF-4): a long display name is cut with an ellipsis, and the ribbon's own label
+                        and the list row still carry it whole. The Normal/Outside badge sits with the latest value below. */}
+                    <CardTitle className="flex min-w-0 items-center text-base sm:text-xl">
+                      <span className="min-w-0 truncate" title={trendData?.analyte_display_name || effectiveAnalyte}>
+                        {trendData?.analyte_display_name || effectiveAnalyte}
+                      </span>
+                    </CardTitle>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleExportPNG}
+                        disabled={!chartReady}
+                        aria-label="Download chart as PNG"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">PNG</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5 text-xs"
+                        onClick={handleExportSVG}
+                        disabled={!chartReady}
+                        aria-label="Download chart as SVG"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">SVG</span>
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    onClick={handleGenerateInterpretation}
-                    disabled={generateInterpretation.isPending}
-                    className="gap-2"
-                  >
-                    {generateInterpretation.isPending ? (
-                      <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
-                    ) : (
-                      <Sparkles className="h-4 w-4" />
-                    )}
-                    Generate Interpretation
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : interpLoading ? (
-            <Card>
-              <CardContent className="py-8">
-                <div className="flex items-center justify-center gap-2 text-sm text-ink-secondary">
-                  <Loader2 className="h-5 w-5 text-accent motion-safe:animate-spin" />
-                  Loading interpretation...
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
+                </CardHeader>
+                <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">{trendBody}</CardContent>
+              </Card>
 
-          {/* The polite live region stays mounted so screen readers announce the notice when it appears inside it. */}
-          {effectiveObservation && (
-            <div aria-live="polite" data-testid="withheld-live-region">
-              {withheldNotice && withheldNotice.observationId === effectiveObservation.id && (
-                <Card role="status">
-                  <CardContent className="space-y-2 py-4">
-                    <p className="text-sm font-medium text-ink">
-                      Asclexis could not produce a safe explanation for this result.
-                    </p>
-                    <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
-                    {withheldNotice.physicianReview && (
-                      <p className="text-sm text-ink-secondary">
-                        This result may need prompt attention. Please contact your clinician promptly.
-                      </p>
-                    )}
+              {(unverifiedCount > 0 || lowConfidenceCount > 0) && (
+                <div className="flex flex-wrap gap-2">
+                  {unverifiedCount > 0 && <Badge variant="caution">{unverifiedCount} unverified values</Badge>}
+                  {lowConfidenceCount > 0 && (
+                    <Badge variant="attention">{lowConfidenceCount} low-confidence extractions</Badge>
+                  )}
+                </div>
+              )}
+
+              {!explainOpen ? (
+                effectiveObservation && (
+                  <Card>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+                      <p className="text-sm text-ink-secondary">Want this result explained in plain language?</p>
+                      <Button onClick={() => setExplainOpen(true)} className="gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Explain this result
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              ) : interpretation ? (
+                <InterpretedResultCard
+                  interpretation={interpretation}
+                  analyteName={effectiveObservation?.analyte_raw}
+                  value={effectiveObservation?.value}
+                  unit={effectiveObservation?.unit ?? undefined}
+                  refLow={effectiveObservation?.ref_low}
+                  refHigh={effectiveObservation?.ref_high}
+                  onRegenerate={handleGenerateInterpretation}
+                  isRegenerating={generateInterpretation.isPending}
+                  observation={effectiveObservation ?? undefined}
+                />
+              ) : !interpLoading && effectiveObservation ? (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="space-y-3 text-center">
+                      <Brain className="mx-auto h-10 w-10 text-ink-tertiary" />
+                      <div>
+                        <p className="text-sm font-medium text-ink">No interpretation yet</p>
+                        <p className="mt-1 text-xs text-ink-secondary">
+                          Generate an AI interpretation for {effectiveObservation.analyte_raw}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleGenerateInterpretation}
+                        disabled={generateInterpretation.isPending}
+                        className="gap-2"
+                      >
+                        {generateInterpretation.isPending ? (
+                          <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
+                        ) : (
+                          <Sparkles className="h-4 w-4" />
+                        )}
+                        Generate Interpretation
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : interpLoading ? (
+                <Card>
+                  <CardContent className="py-8">
+                    <div className="flex items-center justify-center gap-2 text-sm text-ink-secondary">
+                      <Loader2 className="h-5 w-5 text-accent motion-safe:animate-spin" />
+                      Loading interpretation...
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {/* The polite live region stays mounted so screen readers announce the notice when it appears inside it. */}
+              {effectiveObservation && (
+                <div aria-live="polite" data-testid="withheld-live-region">
+                  {withheldNotice && withheldNotice.observationId === effectiveObservation.id && (
+                    <Card role="status">
+                      <CardContent className="space-y-2 py-4">
+                        <p className="text-sm font-medium text-ink">
+                          Asclexis could not produce a safe explanation for this result.
+                        </p>
+                        <p className="text-sm text-ink-secondary">{withheldNotice.message}</p>
+                        {withheldNotice.physicianReview && (
+                          <p className="text-sm text-ink-secondary">
+                            This result may need prompt attention. Please contact your clinician promptly.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {groundedShown && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex flex-wrap items-center gap-3 text-base">
+                      Grounded explanation
+                      <Badge variant={groundedShown.isValid ? 'verified' : 'caution'}>
+                        Grounded faithfulness: {(groundedShown.score * 100).toFixed(0)}%
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div data-t0 className="space-y-2">
+                      {formatInterpretationText(groundedShown.summary).paragraphs.map((runs, i) => (
+                        <p key={i} className="whitespace-pre-wrap text-sm text-ink-secondary">
+                          {runs.map((run, j) =>
+                            run.bold ? <strong key={j}>{run.text}</strong> : <span key={j}>{run.text}</span>
+                          )}
+                        </p>
+                      ))}
+                    </div>
                   </CardContent>
                 </Card>
               )}
             </div>
-          )}
 
-          {groundedShown && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex flex-wrap items-center gap-3 text-base">
-                  Grounded explanation
-                  <Badge variant={groundedShown.isValid ? 'verified' : 'caution'}>
-                    Grounded faithfulness: {(groundedShown.score * 100).toFixed(0)}%
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div data-t0 className="space-y-2">
-                  {formatInterpretationText(groundedShown.summary).paragraphs.map((runs, i) => (
-                    <p key={i} className="whitespace-pre-wrap text-sm text-ink-secondary">
-                      {runs.map((run, j) =>
-                        run.bold ? <strong key={j}>{run.text}</strong> : <span key={j}>{run.text}</span>
-                      )}
-                    </p>
-                  ))}
-                </div>
+            <Card className="min-w-0 border-accent/20 bg-accent-subtle lg:col-start-3 lg:row-start-2 lg:self-start">
+              <CardContent className="p-4">
+                <p className="mb-1 text-sm font-medium text-ink">Need help understanding?</p>
+                <p className="mb-3 text-xs text-ink-secondary">
+                  Ask our assistant to explain any test result in plain language.
+                </p>
+                <Button size="sm" className="w-full" onClick={() => navigate('/explain')}>
+                  Open Explain
+                </Button>
               </CardContent>
             </Card>
-          )}
-        </div>
-
-        <Card className="min-w-0 border-accent/20 bg-accent-subtle lg:col-start-3 lg:row-start-2 lg:self-start">
-          <CardContent className="p-4">
-            <p className="mb-1 text-sm font-medium text-ink">Need help understanding?</p>
-            <p className="mb-3 text-xs text-ink-secondary">
-              Ask our assistant to explain any test result in plain language.
-            </p>
-            <Button size="sm" className="w-full" onClick={() => navigate('/explain')}>
-              Open Explain
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -127,7 +127,7 @@ export function PanelInterpretationDashboard({
                       data-t0
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-xl',
-                        'bg-surface-elevated border border-black/4'
+                        'bg-surface-elevated border border-[var(--line)]'
                       )}
                     >
                       <Badge
@@ -159,7 +159,7 @@ export function PanelInterpretationDashboard({
           <DisclaimerBanner />
 
           {/* Meta */}
-          <div data-t0 className="flex items-center gap-3 text-xs text-ink-tertiary pt-2 border-t border-black/4">
+          <div data-t0 className="flex items-center gap-3 text-xs text-ink-tertiary pt-2 border-t border-[var(--line)]">
             <span>
               Collected: {new Date(interpretation.collected_at).toLocaleDateString()}
             </span>
