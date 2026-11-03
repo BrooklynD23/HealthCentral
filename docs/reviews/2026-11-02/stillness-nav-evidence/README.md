@@ -2,7 +2,7 @@
 
 Row: STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "STILLNESS-NAV-LATE", Task 1) with NAV70-CI-MISS folded in
 (docs/plans/2026-10-30-followups-plan.md). Draft PR #469, branch `fix/stillness-nav-late-nav-gap-cause`.
-Task 1 only: no product or harness change, nothing under `src/` edited. Task 2 and Task 3 are not started.
+Scope at the time Task 1 was written: no product or harness change, nothing under `src/` edited, Task 2 and Task 3 not started. Task 2 has since been done and is reported below (its commits are on this branch; `src/` is still untouched apart from `src/frontend/e2e/support/gates.ts` and `src/frontend/e2e/ui-gates.spec.ts`); Task 3 is not done.
 
 - Measured tree: `origin/main` `3325f387` plus the empty claim commit `0c6ce81f`. `git diff 3325f387 HEAD -- src` is empty, so `src/` is exactly main's.
   `origin/main` has since moved (it read `4f29bd6a`, then `7052ae8d` during the runs); it was not merged.
@@ -646,7 +646,7 @@ Review round 1 ran wrap P again on the quiet box (`quiet_run.sh` prechecks passe
   gaps: timeline=34 search=35 med=29 notif=43 care=35 timeline=24 search=32 med=23 notif=22 care=37 timeline=24 search=34 med=26 notif=28 care=31
 - the miss is `/notifications` in batch P1: gap 43 ms, `gapStart=-2`, `gapEnd=41`, load1 1.06.
 
-So wrap P on the preview server has two measurements of one head: 15 of 15 at 37 ms or less (first set above) and 14 of 15 with one 43 ms (this set). The acceptance bar is 15 of 15 on each server, so on the preview server it is **not shown**. The same runner's dev wrap A on `41747d19` gave 0 of 15 over 40 ms (max 38), and its mutant wrap M gave 5 of 15 (max 55). Not re-run, no bound changed, nothing dropped; the miss is not called flaky. A re-run or a ruling on how to read two preview sets needs L0.
+So wrap P on the preview server has two measurements of one head: 15 of 15 at 37 ms or less (first set above) and 14 of 15 with one 43 ms (this set). The acceptance bar is 15 of 15 on each server, so on the preview server it is **not shown**. The same runner's dev wrap A on `41747d19` gave 0 of 15 over 40 ms (max 38), and its mutant wrap M gave 5 of 15 (max 55). Raw files for those two are committed: `logs/task2/wrap-A-green-verify-runner.log` and `logs/task2/wrap-A-green-verify-runner/`, `logs/task2/wrap-M-mutant-verify-runner.log` and `logs/task2/wrap-M-mutant-verify-runner/` (copied unchanged from the runner's scratch directory; the counts recompute from `A1..A3.jsonl` and `M1..M3.jsonl`: base probe runs, measured, 15 each, 0 and 5 over 40 ms, max 38 and 55). Not re-run, no bound changed, nothing dropped; the miss is not called flaky. A re-run or a ruling on how to read two preview sets needs L0.
 
 What the 43 ms run says about the mechanism: its gap opens at -2 ms, before the trigger, so some work still sits at the start of the window after the settle. Which work is not traced; I do not claim it is the start page's render or anything else.
 
@@ -690,7 +690,7 @@ The fix is consistent with those misses but does not explain their size (largest
 
 ## DRAFT owner question (ON HOLD: the second preview set was 14 of 15, see above; the quoted 15 of 15 holds for the first sets only. For L0 to ask only if L0 rules the acceptance met; not a recommendation, and no bound has changed)
 
-Marked DRAFT: wording for L0 to put to the owner, lifted into the PR body by the verify stage.
+Marked DRAFT: wording for L0 to put to the owner. Per L0 ruling 6600141954 (2026-11-03) the question is NOT ASKED and is not lifted into the PR body; the draft stays here, on hold. The quote below is out of date: its "15 of 15 runs ... on each" holds for the first sets only (the second preview set was 14 of 15, one run at 43 ms).
 
 > With the navigation probe now starting from a settled start page, the instrumented page-change set (5 routes) measured a maximum gap of 35 ms on the dev server and 37 ms on `vite preview`, 15 of 15 runs at or under 40 ms on each, on a quiet box. Should page changes return to the 40 ms bound that every other kind of change keeps (STILLNESS-NAV-70 currently allows 70 ms for a page change)? CI, which measured 71 to 77 ms before this change, has not yet run with it; the count of 60 E2E attempts after merge is still open, and until it is read the 70 ms bound stands.
 
@@ -701,4 +701,5 @@ Marked DRAFT: wording for L0 to put to the owner, lifted into the PR body by the
 - Test-file line numbers in `tests-red.log` differ by a few lines from the committed spec: (d) and (e) gained their `__sawDone` assertion after that first RED run; their RED with the assertion is `tests-red-de-rerun.log`.
 - A first lane run of the callers used a `--grep-invert` that did not select what was meant; it was killed after a few tests and its log removed, not counted. The callers were then run as listed above.
 - Mutant sets: only the probe set was run for the mutant (wrap M), not the bare set.
+- `/search` trigger: the Task 1 and Task 2 tallies drive `/search` through the header searchbox (`run/nav-sets.spec.ts:71`, `getByRole('banner').getByRole('searchbox').fill('migraine')` then Enter). #399 has since replaced that control with the command palette on `origin/main`, which this branch does not contain. The `/search` numbers are therefore for the old trigger; no number was re-measured or changed.
 - Task 2 logs: `logs/task2/` (the `logs/` directory is ignored by git; the files were added with `git add -f`, as in Task 1).
