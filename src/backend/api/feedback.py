@@ -35,6 +35,13 @@ from core.feedback_constants import VALID_TAGS
 from core.time import utcnow
 from models.chat_session import ChatTurn
 from models.response_feedback import ResponseFeedback
+from modules.data_donation import has_current_consent
+
+# DON-COPY: patient-facing text, owner-approved at merge.
+EXPORT_CONSENT_DETAIL = (
+    "Exporting your rated answers needs your permission first. "
+    "In Settings, turn on \u201cImprove the assistant model\u201d and agree to the current wording, then try again."
+)
 
 
 async def _emit_audit(event_type: str, action: str, profile_id: str,
@@ -360,6 +367,14 @@ async def export_dataset(
         )
 
     profile_id = session.profile_id
+
+    # DON-RLEXPORT: one consent model. No current fine-tune consent -> no export,
+    # no file, no feedback read. A consent on older wording also refuses.
+    if not await has_current_consent(profile_db, profile_id, "fine_tune"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=EXPORT_CONSENT_DETAIL,
+        )
 
     # Determine output directory
     base_dir = _DEFAULT_EXPORT_DIR.resolve()

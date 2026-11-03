@@ -68,7 +68,8 @@ def _rate_and_export(db, export_root: Path, ratings: list[tuple[str, str]]):
     """POST feedback for each (session_id, turn_id) without prompt_snapshot,
     then POST /feedback/export. Returns (feedback responses, export response)."""
     with patch.object(feedback_api, "_DEFAULT_EXPORT_DIR", export_root), \
-         patch.object(feedback_api, "_emit_audit", AsyncMock()):
+         patch.object(feedback_api, "_emit_audit", AsyncMock()), \
+         patch.object(feedback_api, "has_current_consent", AsyncMock(return_value=True)):
         with route_client(feedback_api.router, "/feedback", profile_id=PROFILE) as client:
             async def _override_profile_db():
                 return db

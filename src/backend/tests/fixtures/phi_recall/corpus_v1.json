@@ -1,0 +1,462 @@
+{
+ "version": 1,
+ "note": "Synthetic only. Every identifier is invented.",
+ "categories": {
+  "name": [
+   {
+    "text": "Patient Name: Jane Quill reports a headache.",
+    "planted": "Quill",
+    "canary": true
+   },
+   {
+    "text": "My doctor, Dr. Alvarez Moreno, ordered a CBC.",
+    "planted": "Moreno"
+   },
+   {
+    "text": "Seen by Mary Whitcombe on follow up.",
+    "planted": "Whitcombe"
+   },
+   {
+    "text": "Her husband Robert Ostrander drove her in.",
+    "planted": "Ostrander"
+   },
+   {
+    "text": "The patient is Samuel Pennywhistle, 54.",
+    "planted": "Pennywhistle"
+   },
+   {
+    "text": "Jane Doe, your LDL is 162 mg/dL.",
+    "planted": "Jane Doe",
+    "known_gap": true
+   },
+   {
+    "text": "Hi John Smith. Your hemoglobin is within range.",
+    "planted": "John Smith",
+    "known_gap": true
+   },
+   {
+    "text": "My doctor is Dr. White.",
+    "planted": "White"
+   },
+   {
+    "text": "Dr. O'Brien reviewed the chart.",
+    "planted": "O'Brien"
+   },
+   {
+    "text": "name_=_jane was typed into the form.",
+    "planted": "jane"
+   },
+   {
+    "text": "my doctor is jane smith and I live in pasadena",
+    "planted": "jane smith"
+   },
+   {
+    "text": "I'm JOHN SMITH",
+    "planted": "JOHN SMITH"
+   },
+   {
+    "text": "this is Maria",
+    "planted": "Maria"
+   },
+   {
+    "text": "My mom Mary is 91 and lives with me.",
+    "planted": "Mary"
+   }
+  ],
+  "geographic": [
+   {
+    "text": "She lives at 4821 Maple Grove Street near the clinic.",
+    "planted": "4821 Maple Grove Street",
+    "canary": true
+   },
+   {
+    "text": "Mailing address: 77 Harbor Lane, Springfield, IL 62704.",
+    "planted": "62704"
+   },
+   {
+    "text": "Moved to Tacoma, WA 98402 last year.",
+    "planted": "98402"
+   },
+   {
+    "text": "Home at 9 Cedar Court is close to the lab.",
+    "planted": "9 Cedar Court"
+   },
+   {
+    "text": "ZIP 30301 is where I get labs drawn.",
+    "planted": "30301"
+   },
+   {
+    "text": "My zip is 90210",
+    "planted": "90210"
+   },
+   {
+    "text": "I live in 90210",
+    "planted": "90210"
+   },
+   {
+    "text": "Cedars-Sinai in Pasadena",
+    "planted": "Pasadena"
+   }
+  ],
+  "date": [
+   {
+    "text": "Admitted on 03/14/2024 for chest pain.",
+    "planted": "03/14/2024",
+    "canary": true
+   },
+   {
+    "text": "Surgery on March 9, 2023 went well.",
+    "planted": "March 9, 2023"
+   },
+   {
+    "text": "Lab drawn 2024-07-02 showed high LDL.",
+    "planted": "2024-07-02"
+   },
+   {
+    "text": "My birthday is 4 July 1961.",
+    "planted": "4 July 1961"
+   },
+   {
+    "text": "Follow up scheduled for 11-30-2025.",
+    "planted": "11-30-2025"
+   },
+   {
+    "text": "Lab drawn 2024-07-02T08:15:00Z",
+    "planted": "2024-07-02"
+   },
+   {
+    "text": "Seen in March 2020.",
+    "planted": "March 2020"
+   },
+   {
+    "text": "It happened 3/15",
+    "planted": "3/15"
+   },
+   {
+    "text": "Visit was March 2024",
+    "planted": "March 2024"
+   },
+   {
+    "text": "Dated 2024/03/15",
+    "planted": "2024/03/15"
+   },
+   {
+    "text": "Admitted on 2024.03.15 for observation.",
+    "planted": "2024.03.15"
+   },
+   {
+    "text": "Visit on 03.15.2024 was routine.",
+    "planted": "03.15.2024"
+   },
+   {
+    "text": "Seen 2024-3-5 at the clinic.",
+    "planted": "2024-3-5"
+   },
+   {
+    "text": "I was born on the 3rd of March.",
+    "planted": "3rd of March"
+   }
+  ],
+  "phone": [
+   {
+    "text": "Call me at 555-123-4567 with results.",
+    "planted": "555-123-4567",
+    "canary": true
+   },
+   {
+    "text": "Reach her at (415) 555 0199 after noon.",
+    "planted": "555 0199"
+   },
+   {
+    "text": "My cell is 415.555.0142.",
+    "planted": "415.555.0142"
+   },
+   {
+    "text": "Office line 1-800-555-0123 is busy.",
+    "planted": "800-555-0123"
+   },
+   {
+    "text": "Fax 206 555 0188 to the clinic.",
+    "planted": "206 555 0188"
+   }
+  ],
+  "email": [
+   {
+    "text": "Send results to jane.quill@example.com please.",
+    "planted": "jane.quill@example.com",
+    "canary": true
+   },
+   {
+    "text": "Email me: sam_p99@mail.example.org",
+    "planted": "sam_p99@mail.example.org"
+   },
+   {
+    "text": "Her work address is r.ostrander@clinic.example.net.",
+    "planted": "r.ostrander@clinic.example.net"
+   },
+   {
+    "text": "Use maria+labs@example.com for portal alerts.",
+    "planted": "maria+labs@example.com"
+   },
+   {
+    "text": "Contact a.b@x.example.co.uk today.",
+    "planted": "a.b@x.example.co.uk"
+   }
+  ],
+  "ssn": [
+   {
+    "text": "SSN 123-45-6789 is on the intake form.",
+    "planted": "123-45-6789",
+    "canary": true
+   },
+   {
+    "text": "My social is 987-65-4321.",
+    "planted": "987-65-4321"
+   },
+   {
+    "text": "Insurance listed 555-44-3333 as the SSN.",
+    "planted": "555-44-3333"
+   },
+   {
+    "text": "Form shows 111-22-3333 under identity.",
+    "planted": "111-22-3333"
+   },
+   {
+    "text": "Social security 222-33-4444 was verified.",
+    "planted": "222-33-4444"
+   },
+   {
+    "text": "SSN 123456789 is on the claim form.",
+    "planted": "123456789"
+   },
+   {
+    "text": "My SSN is 123456789.",
+    "planted": "123456789"
+   },
+   {
+    "text": "SSN: 123 45 6789",
+    "planted": "123 45 6789"
+   },
+   {
+    "text": "my ssn is 987654321 on file.",
+    "planted": "987654321"
+   },
+   {
+    "text": "SSN 123.45.6789 is on the form.",
+    "planted": "123.45.6789"
+   }
+  ],
+  "mrn": [
+   {
+    "text": "MRN 48291736 appears on the wristband.",
+    "planted": "48291736",
+    "canary": true
+   },
+   {
+    "text": "Medical record number: 00123987 was requested.",
+    "planted": "00123987"
+   },
+   {
+    "text": "Chart #7741920 needs review.",
+    "planted": "7741920"
+   },
+   {
+    "text": "MRN: AB-5530021 on file.",
+    "planted": "5530021"
+   },
+   {
+    "text": "Her medical record no. 3321877 is archived.",
+    "planted": "3321877"
+   },
+   {
+    "text": "my MRN is A1234567",
+    "planted": "A1234567"
+   },
+   {
+    "text": "my medical record number is 7654321",
+    "planted": "7654321"
+   },
+   {
+    "text": "My MRN is A 1234567 at the hospital.",
+    "planted": "1234567"
+   }
+  ],
+  "account_number": [
+   {
+    "text": "Member ID: XZ9988776 is on my card.",
+    "planted": "XZ9988776",
+    "canary": true
+   },
+   {
+    "text": "Policy number 4455667788 expires soon.",
+    "planted": "4455667788"
+   },
+   {
+    "text": "Account number 99887766 was billed.",
+    "planted": "99887766"
+   },
+   {
+    "text": "Patient ID: ZX-99881 appears on the report.",
+    "planted": "99881"
+   },
+   {
+    "text": "License number D1234567 was shown at check-in.",
+    "planted": "D1234567"
+   },
+   {
+    "text": "my account number is 12345678",
+    "planted": "12345678"
+   },
+   {
+    "text": "my policy number is AB1234567",
+    "planted": "AB1234567"
+   },
+   {
+    "text": "patient_id_-_98765",
+    "planted": "98765"
+   },
+   {
+    "text": "patient_#_98765",
+    "planted": "98765"
+   },
+   {
+    "text": "patient_no._98765",
+    "planted": "98765"
+   }
+  ],
+  "url": [
+   {
+    "text": "Portal is at https://portal.example.com/u/jquill for results.",
+    "planted": "https://portal.example.com/u/jquill",
+    "canary": true
+   },
+   {
+    "text": "See www.myhealth-example.org/me/4411 for my chart.",
+    "planted": "www.myhealth-example.org/me/4411"
+   },
+   {
+    "text": "Link: http://example.net/r/abc123",
+    "planted": "http://example.net/r/abc123"
+   },
+   {
+    "text": "Download from https://files.example.com/lab.pdf?id=77",
+    "planted": "https://files.example.com/lab.pdf?id=77"
+   },
+   {
+    "text": "My page www.example.com/janequill is public.",
+    "planted": "www.example.com/janequill"
+   }
+  ],
+  "ip_address": [
+   {
+    "text": "Logged in from 192.168.14.77 yesterday.",
+    "planted": "192.168.14.77",
+    "canary": true
+   },
+   {
+    "text": "Device at 10.20.30.40 synced.",
+    "planted": "10.20.30.40"
+   },
+   {
+    "text": "IP 172.16.5.9 was blocked.",
+    "planted": "172.16.5.9"
+   },
+   {
+    "text": "Server 203.0.113.55 sent the file.",
+    "planted": "203.0.113.55"
+   },
+   {
+    "text": "Seen from 8.8.4.4 once.",
+    "planted": "8.8.4.4"
+   }
+  ],
+  "age_over_89": [
+   {
+    "text": "She is a 93-year-old woman with fatigue.",
+    "planted": "93",
+    "canary": true
+   },
+   {
+    "text": "Patient aged 91 presents with cough.",
+    "planted": "91"
+   },
+   {
+    "text": "He is 97 y/o and lives alone.",
+    "planted": "97"
+   },
+   {
+    "text": "Age: 102 per the chart.",
+    "planted": "102"
+   },
+   {
+    "text": "My 95 year old mother has diabetes.",
+    "planted": "95"
+   },
+   {
+    "text": "I am 92 years old.",
+    "planted": "92"
+   },
+   {
+    "text": "He is 95 years old and frail.",
+    "planted": "95"
+   },
+   {
+    "text": "Patient is 101 yrs old.",
+    "planted": "101"
+   },
+   {
+    "text": "My mom Mary is 91 and lives with me.",
+    "planted": "91"
+   },
+   {
+    "text": "she is 95",
+    "planted": "95"
+   }
+  ],
+  "device_vehicle_id": [
+   {
+    "text": "Pump serial number SN4420917 was recalled.",
+    "planted": "SN4420917",
+    "canary": true
+   },
+   {
+    "text": "VIN 1HGCM82633A004352 is on the claim.",
+    "planted": "1HGCM82633A004352"
+   },
+   {
+    "text": "Device ID: PM-77120-X needs a check.",
+    "planted": "PM-77120-X"
+   },
+   {
+    "text": "UDI 00844588003288 is printed on the box.",
+    "planted": "00844588003288"
+   },
+   {
+    "text": "Plate 7ABC123 was noted at the visit.",
+    "planted": "7ABC123"
+   }
+  ]
+ },
+ "non_phi": [
+  "Hemoglobin 13.5 g/dL (reference 12.0-15.5 g/dL) is within range.",
+  "LDL cholesterol 162 mg/dL is above the 100 mg/dL goal.",
+  "Fasting glucose was 104 mg/dL; the reference range is 70-99 mg/dL.",
+  "HbA1c 6.8 % suggests diabetes control is near target.",
+  "TSH 2.4 mIU/L falls inside the 0.4-4.0 mIU/L range.",
+  "White blood cell count 11.2 x10^3/uL is mildly high.",
+  "Creatinine 1.1 mg/dL with eGFR 78 mL/min/1.73m2.",
+  "Potassium 4.2 mmol/L and sodium 139 mmol/L are normal.",
+  "ALT 48 U/L and AST 41 U/L are slightly raised.",
+  "Platelets 245 x10^3/uL, reference 150-400.",
+  "Vitamin D 22 ng/mL is low; typical range is 30-100 ng/mL.",
+  "Ferritin 18 ng/mL suggests low iron stores.",
+  "Total cholesterol 214 mg/dL, HDL 52 mg/dL, triglycerides 150 mg/dL.",
+  "What does a high triglyceride result mean for my diet?",
+  "Explain what the reference range for hemoglobin means.",
+  "Can you explain why LDL is called bad cholesterol?",
+  "Blood pressure 128/82 mmHg was recorded twice.",
+  "Heart rate 72 bpm and oxygen saturation 98 % at rest.",
+  "Calcium 9.4 mg/dL and magnesium 2.0 mg/dL are normal.",
+  "Urine albumin to creatinine ratio 18 mg/g is normal."
+ ]
+}

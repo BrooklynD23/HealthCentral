@@ -44,6 +44,7 @@ from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLA
 from modules.agent.schemas import AgentTerminal
 from modules.agent.settings import is_agent_enabled
 from modules.agent.state import ChatFilters
+from modules.data_donation import delete_for_session
 from modules.faithfulness import FaithfulnessConfig
 from modules.rag import (
     ModelUnavailableError,
@@ -558,6 +559,8 @@ async def delete_session(
         entity_id=session_id,
     )
     await audit_intent(master_db, "started", create_audit_log, **audit_kwargs)
+    # DON-SRC-DELETE: donated copies go in the same commit as the session.
+    await delete_for_session(profile_db, session_id)
     await profile_db.delete(chat_session)
     await profile_db.commit()
     await audit_intent(master_db, "completed", create_audit_log, **audit_kwargs)

@@ -1,0 +1,148 @@
+{
+ "version": 2,
+ "note": "Synthetic only. Every identifier is invented. Written blind (R2).",
+ "categories": {
+  "name": [
+   {"text": "my sister ana voss called about her lipids today", "planted": "ana voss"},
+   {"text": "MARCUS FERRANTE needs his fasting glucose reviewed by Tuesday", "planted": "MARCUS FERRANTE"},
+   {"text": "Tell Priya the TSH results look fine.", "planted": "Priya"},
+   {"text": "Should Marcus Ferrante get his A1C rechecked in the spring?", "planted": "Marcus Ferrante"},
+   {"text": "Okafor's lab results came back and the hemoglobin is 13.2.", "planted": "Okafor"},
+   {"text": "Please send the note to Lindqvist before my appointment.", "planted": "Lindqvist"},
+   {"text": "Hi Tomasz, my ferritin came back low, what should I ask?", "planted": "Tomasz"},
+   {"text": "Mrs. Ilse Brandvold-Keane asked whether her LDL is too high.", "planted": "Ilse Brandvold-Keane"},
+   {"text": "The results were faxed under the name D'Angelo-Reyes yesterday.", "planted": "D'Angelo-Reyes"},
+   {"text": "Nkechi Adeyemi reviewed my potassium levels and said they're normal.", "planted": "Nkechi Adeyemi"},
+   {"text": "Priya Raman's bloodwork shows low vitamin D.", "planted": "Priya Raman"},
+   {"text": "Hieu Nguyen wants to know if his creatinine is trending up.", "planted": "Hieu Nguyen"},
+   {"text": "My mother Fatima Al-Rashidi has a follow-up for her thyroid next week.", "planted": "Fatima Al-Rashidi"},
+   {"text": "lab results for jorge m. castellano were sent to the wrong portal", "planted": "jorge m. castellano"},
+   {"text": "Please ask Bartosz Kowalczyk to call back about the echo.", "planted": "Bartosz Kowalczyk"},
+   {"text": "my grandson otieno wants his ferritin checked too", "planted": "otieno"},
+   {"text": "Could you remind Mr. Haddad about fasting before the cholesterol panel?", "planted": "Haddad"},
+   {"text": "Chidi, my hemoglobin dropped since last month.", "planted": "Chidi"},
+   {"text": "My cholesterol is high, and the nurse was Beatriz", "planted": "Beatriz"},
+   {"text": "The reading for SOFIA ANDERSEN-PRATT was 6.1 on the A1C.", "planted": "SOFIA ANDERSEN-PRATT"},
+   {"text": "I think the cardiologist, Helen Varga-Dunmore, wants a repeat ECG.", "planted": "Helen Varga-Dunmore", "canary": true}
+  ],
+  "geographic": [
+   {"text": "I moved to 60614 last year and need a new lab.", "planted": "60614"},
+   {"text": "Shipping the stool kit to 98101-4422 please", "planted": "98101-4422"},
+   {"text": "i live in tacoma now and the clinic is far", "planted": "tacoma"},
+   {"text": "We moved to Lakeview Heights last spring.", "planted": "Lakeview Heights"},
+   {"text": "Oakridge County health department sent my results.", "planted": "Oakridge County"},
+   {"text": "Results were mailed to 418 Larkspur Avenue, apt 4B.", "planted": "418 Larkspur Avenue"},
+   {"text": "the clinic in Fairbanks says my TSH needs repeating", "planted": "Fairbanks"},
+   {"text": "I'm in the Riverside Flats neighborhood and the pharmacy is closed", "planted": "Riverside Flats"},
+   {"text": "Please update my mailing unit to Unit 12C, the lab copy went missing.", "planted": "Unit 12C"},
+   {"text": "Results went to Spokane, WA by mistake", "planted": "Spokane, WA"},
+   {"text": "I grew up in Santa Rosita and my records are there.", "planted": "Santa Rosita"},
+   {"text": "tell the lab in Boerne my A1C is fine", "planted": "Boerne"},
+   {"text": "the nurse at bridgeport wants my fasting sugar again", "planted": "bridgeport"},
+   {"text": "my cousin lives in Harlow Mill and drives me to labs", "planted": "Harlow Mill"},
+   {"text": "Send copies to Kettering, Ohio.", "planted": "Kettering, Ohio"},
+   {"text": "Mail my bloodwork to 2290 Quarry Road Lansing", "planted": "2290 Quarry Road"},
+   {"text": "I was seen in the Eastside district last year for my thyroid.", "planted": "Eastside district"},
+   {"text": "My pharmacy zip is 33611 and the refill is due Friday.", "planted": "33611"},
+   {"text": "The lab in Pleasant Ridge sent the paper copy.", "planted": "Pleasant Ridge"},
+   {"text": "Ship it to RR 2 Box 114, Gilmer.", "planted": "RR 2 Box 114"},
+   {"text": "My records were transferred from Cedar Falls last March, can you find them?", "planted": "Cedar Falls", "canary": true}
+  ],
+  "age_over_89": [
+   {"text": "my grandmother is 95 and still asks about her potassium", "planted": "95"},
+   {"text": "My grandfather, 93, had his A1C checked last week.", "planted": "93"},
+   {"text": "She is 101 and wants her TSH explained simply.", "planted": "101"},
+   {"text": "He's 92 yo and his hemoglobin dropped.", "planted": "92"},
+   {"text": "a 97-year-old patient with rising creatinine", "planted": "97"},
+   {"text": "Mom turned 90 last week, so should we retest her lipids?", "planted": "90"},
+   {"text": "ninety-three years old and still walking the dog", "planted": "ninety-three"},
+   {"text": "my uncle is ninety one and asked about his PSA", "planted": "ninety one"},
+   {"text": "aged 104, the nurse said her labs are stable", "planted": "104"},
+   {"text": "At 99 she still walks to the mailbox and wants her vitamin B12 checked", "planted": "99"},
+   {"text": "Patient age 96 presented with fatigue and low sodium.", "planted": "96"},
+   {"text": "dad, 100 years old, got the flu shot today", "planted": "100"},
+   {"text": "the woman is 108 and her hemoglobin is 9.1", "planted": "108"},
+   {"text": "Grandma is ninety-four and the pharmacy changed her insulin.", "planted": "ninety-four"},
+   {"text": "a 91-year-old man on warfarin needs INR checks", "planted": "91"},
+   {"text": "ninety two is her age, and she wants a lipid panel", "planted": "ninety two"},
+   {"text": "Her husband is 94 and asks about his prostate labs.", "planted": "94"},
+   {"text": "I am 90 years old and my cholesterol is 210.", "planted": "90"},
+   {"text": "my neighbor's mother is aged 97 and her BMP looks normal", "planted": "97"},
+   {"text": "ninety-nine years old, sharp as a tack, asked about her echo", "planted": "ninety-nine"},
+   {"text": "The patient, 103, was discharged after her blood sugar stabilized.", "planted": "103", "canary": true}
+  ],
+  "date": [
+   {"text": "DOB 03/14/1952 is on my intake form, can you check my A1C history?", "planted": "03/14/1952"},
+   {"text": "My admission was on March 3rd, and the labs were drawn then.", "planted": "March 3rd"},
+   {"text": "Visit date 2024-11-02, can I get the CBC copy?", "planted": "2024-11-02"},
+   {"text": "The biopsy was on the 5th of June, so the report should be in.", "planted": "the 5th of June"},
+   {"text": "Please send the results from 11/9/2023.", "planted": "11/9/2023"},
+   {"text": "My last echo was done on Sept 17, 2022, and it looked normal.", "planted": "Sept 17, 2022", "canary": true}
+  ],
+  "phone": [
+   {"text": "Call me back at (555) 014-2231 after 5pm.", "planted": "(555) 014-2231"},
+   {"text": "My cell is 555.014.9988, thanks.", "planted": "555.014.9988"},
+   {"text": "Reach me at +1 555 014 7777 for the lab callback.", "planted": "+1 555 014 7777"},
+   {"text": "Please call 5550142211 about my refill.", "planted": "5550142211"},
+   {"text": "Office number 555-0123 is the one on the discharge sheet.", "planted": "555-0123"},
+   {"text": "The nurse line rang at 555 014 6602 and nobody picked up.", "planted": "555 014 6602", "canary": true}
+  ],
+  "email": [
+   {"text": "Send the lipid report to labs.review@example.com please.", "planted": "labs.review@example.com"},
+   {"text": "my address is 4471.lab.copy@example.com", "planted": "4471.lab.copy@example.com"},
+   {"text": "email me results at kowalczyk_b@labmail.test", "planted": "kowalczyk_b@labmail.test"},
+   {"text": "Forward to nkechi+labs@example.com before Friday.", "planted": "nkechi+labs@example.com"},
+   {"text": "contact: sofia-andersen@example.invalid", "planted": "sofia-andersen@example.invalid"},
+   {"text": "my patient portal login email is hal.qureshi@example.com, can you check it?", "planted": "hal.qureshi@example.com", "canary": true}
+  ],
+  "ssn": [
+   {"text": "My SSN is 900-12-3456 on the intake form.", "planted": "900-12-3456"},
+   {"text": "ssn 987654321 is on file, please confirm", "planted": "987654321"},
+   {"text": "Social security 912 45 6789 was on the form", "planted": "912 45 6789"},
+   {"text": "Verify SSN 000-45-6789 before billing.", "planted": "000-45-6789"},
+   {"text": "Please use 666-12-0045 for the lab order.", "planted": "666-12-0045"},
+   {"text": "I wrote my social as 955-62-1048 on the form by mistake.", "planted": "955-62-1048", "canary": true}
+  ],
+  "mrn": [
+   {"text": "chart number 00482913 is printed on my lab slip", "planted": "00482913"},
+   {"text": "MRN: A-4478812 for the bloodwork", "planted": "MRN: A-4478812"},
+   {"text": "record #7731902 has the 2024 panel", "planted": "record #7731902"},
+   {"text": "my medical record no. 5520193 is needed for the referral", "planted": "5520193"},
+   {"text": "Patient ID: PT-88213047 on the printout", "planted": "PT-88213047"},
+   {"text": "the clinic chart for me is labeled 0093715, could you pull it?", "planted": "0093715", "canary": true}
+  ],
+  "account_number": [
+   {"text": "My insurance member ID is XJT4471982 on the card", "planted": "XJT4471982"},
+   {"text": "billing account 40-2291-7733 still shows a balance", "planted": "40-2291-7733"},
+   {"text": "policy number BCX-30018842 covers the MRI", "planted": "BCX-30018842"},
+   {"text": "Group #55102 on my plan card, can you check the copay?", "planted": "Group #55102"},
+   {"text": "Subscriber ID 884-220-19 for the blood panel", "planted": "884-220-19"},
+   {"text": "The lab sent the invoice under account 6610-0042-18, which seems wrong.", "planted": "6610-0042-18", "canary": true}
+  ],
+  "url": [
+   {"text": "my portal link is https://portal.riverbend-health.test/p/88213/labs", "planted": "https://portal.riverbend-health.test/p/88213/labs"},
+   {"text": "my personal site is https://oksana-h.test/diabetes-log", "planted": "https://oksana-h.test/diabetes-log"},
+   {"text": "results at http://labs.test/view?pid=4471982 please", "planted": "http://labs.test/view?pid=4471982"},
+   {"text": "check my page at www.patient-notes.test/u/773190", "planted": "www.patient-notes.test/u/773190"},
+   {"text": "the portal shows portal.test/users/u-55410/results for my tests", "planted": "portal.test/users/u-55410/results"},
+   {"text": "I saved the link https://myhealth.test/track/8841-2290 from the visit summary.", "planted": "https://myhealth.test/track/8841-2290", "canary": true}
+  ],
+  "ip_address": [
+   {"text": "The portal logged me in from 203.0.113.44 yesterday.", "planted": "203.0.113.44"},
+   {"text": "Access came from 198.51.100.17 on my tablet", "planted": "198.51.100.17"},
+   {"text": "my router shows 10.20.4.112 as the portal device", "planted": "10.20.4.112"},
+   {"text": "the error log mentions 192.168.1.50 at 9am", "planted": "192.168.1.50"},
+   {"text": "the portal saw 2001:db8:85a3::8a2e:370:7334 on my account", "planted": "2001:db8:85a3::8a2e:370:7334"},
+   {"text": "the sign-in came from 198.51.100.203 so I changed my password.", "planted": "198.51.100.203", "canary": true}
+  ],
+  "device_vehicle_id": [
+   {"text": "My pacemaker serial SN-PM-44891027 is on the card.", "planted": "SN-PM-44891027"},
+   {"text": "insulin pump serial 7740-XK-22091 needs a firmware check", "planted": "7740-XK-22091"},
+   {"text": "plate 7ABC123 is on my car at the clinic lot", "planted": "7ABC123"},
+   {"text": "VIN 1HGCM82633A004352 was on the registration", "planted": "1HGCM82633A004352"},
+   {"text": "the CGM sensor id is G7-3381-0092 from the box", "planted": "G7-3381-0092"},
+   {"text": "my car plate is RTX 4421, and the parking ticket was wrong.", "planted": "RTX 4421", "canary": true}
+  ]
+ },
+ "non_phi": []
+}
