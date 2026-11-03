@@ -88,7 +88,9 @@ export function DocumentInbox() {
   const reprocessDocument = useReprocessDocument();
 
   // Highlight chips for recent documents (HC-M16) — organizational tags only
-  const { data: highlightSummary = [] } = useHighlightsSummary();
+  // The rows wait for the summary on a cold load: chips that arrive after the rows grow the row and push every row
+  // below it down (HC-UIDOC-006). A failed summary stops loading, so the rows show without chips.
+  const { data: highlightSummary = [], isLoading: highlightsLoading } = useHighlightsSummary();
   const highlightsByDoc = new Map(highlightSummary.map((s) => [s.doc_id, s.counts]));
 
   // A process counts as running only while its request is in flight. A stored status of 'pending' does not prove
@@ -462,7 +464,7 @@ export function DocumentInbox() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
+          {isLoading || highlightsLoading ? (
             <div className="p-8 text-center text-ink-secondary">
               <Loader2 className="w-6 h-6 motion-safe:animate-spin mx-auto mb-2" />
               Loading documents...

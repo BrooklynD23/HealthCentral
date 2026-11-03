@@ -97,6 +97,8 @@ let listFails = false;
 /** While set, GET /documents/highlights/summary waits for it, or fails. */
 let summaryGate: Promise<void> | null = null;
 let summaryFails = false;
+/** How many GET /documents have answered with the list. */
+let listAnswers = 0;
 
 /** A gate the test opens by calling the returned function. */
 function gate(): { wait: Promise<void>; open: () => void } {
@@ -185,6 +187,7 @@ beforeEach(() => {
   listFails = false;
   summaryGate = null;
   summaryFails = false;
+  listAnswers = 0;
   orb.mounts = 0;
   orb.sizes = [];
   setReducedMotion(false);
@@ -198,6 +201,7 @@ beforeEach(() => {
     if (path.startsWith('/documents')) {
       if (listGate) await listGate;
       if (listFails) throw new api.ApiError(500, 'Server Error', 'list failed');
+      listAnswers += 1;
       return documents;
     }
     throw new Error(`unmocked GET ${path}`);
@@ -739,6 +743,46 @@ describe('HC-UIDOC-006 the import card commits with its row', () => {
     expect(calls.every(([options]) => (options as FocusOptions).preventScroll === true)).toBe(true);
     const last = focus.mock.instances[focus.mock.calls.length - 1] as unknown as HTMLElement;
     expect(last.getAttribute('aria-label')).toBe('More options');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIDOC-006: the rows wait for the highlight summary on a cold load, so chips never arrive after the rows and push
+// the rows below them down. The e2e half navigates /verify to /inbox under stillnessProbe with the summary held.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-006 rows wait for the highlights', () => {
+  it('HC-UIDOC-006: with the highlight summary still loading the list says Loading, and the rows come with their chips', async () => {
+    // Would not notice: a summary that is already cached and refetches in the background. isLoading is false then
+    // (App.tsx staleTime is five minutes), so the rows are not held and a changed summary could still insert chips.
+    // This test starts with no cache. The first check runs after the list has answered: the documents mock is not
+    // gated, so "Loading documents..." with the list loaded can only be the summary.
+    // RED before this round: the rows showed at once and the chips were inserted when the summary answered.
+    highlights = [{ doc_id: 'doc-a', counts: { abnormal_value: 2 } }];
+    const held = gate();
+    summaryGate = held.wait;
+    renderInbox();
+    await waitFor(() => expect(listAnswers).toBeGreaterThan(0));
+    await act(async () => {});
+    expect(screen.getByText('Loading documents...')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'a.pdf' })).not.toBeInTheDocument();
+    held.open();
+    const heading = await screen.findByRole('heading', { name: 'a.pdf' });
+    // The chips are in the same render as the row.
+    const row = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(row).getByText(new RegExp(HIGHLIGHT_LABELS.abnormal_value))).toBeInTheDocument();
+    expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-006: a failing highlight summary still shows the rows (no chips)', async () => {
+    // Would not notice: the delay in the real app. App.tsx sets retry: 1, so a failing summary holds the list through
+    // one retry; this test client has retry off. The e2e HC-UIDOC-012 measures the delay.
+    // Conservative first: the patient sees the documents even when the summary is down.
+    summaryFails = true;
+    highlights = [{ doc_id: 'doc-a', counts: { abnormal_value: 2 } }];
+    await renderLoaded('a.pdf');
+    const row = rowOf('a.pdf');
+    expect(within(row).queryByText(new RegExp(HIGHLIGHT_LABELS.abnormal_value))).not.toBeInTheDocument();
+    expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument();
   });
 });
 

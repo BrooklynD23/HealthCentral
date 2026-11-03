@@ -147,6 +147,8 @@ interface DocsControl {
   holdSummary(): () => void;
   /** Every GET /documents/highlights/summary the page sent. */
   summaryRequests: number;
+  /** Every GET /documents/highlights/summary answers 500. */
+  summaryFails: boolean;
   /** Wall-clock ms when the last GET /documents was fulfilled. */
   lastListFulfilledAt: number;
 }
@@ -167,6 +169,7 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
     listDelayMs: 0,
     listFails: false,
     summaryRequests: 0,
+    summaryFails: false,
     lastListFulfilledAt: 0,
     holdSummary() {
       let release!: () => void;
@@ -215,6 +218,10 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
     control.summaryRequests += 1;
     if (summaryGate) await summaryGate;
     summaryGate = null;
+    if (control.summaryFails) {
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'summary failed' }) });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(HIGHLIGHTS) });
   });
 
@@ -1485,6 +1492,29 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
       await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
       await expect(page.getByText('Possible duplicate upload')).toHaveCount(0);
     });
+  });
+
+  test('HC-UIDOC-012: a failing highlight summary still shows the rows, and the delay App.tsx retry: 1 adds is printed', async ({
+    page,
+  }) => {
+    // Would not notice: the delay on a slow or flaky network. The retry waits one second (react-query's first retry
+    // delay), and the rows wait with it, because they wait for the summary (the late-highlights fix). The figure is
+    // printed for L0; the rows must be there within 15 s, with no chip.
+    const { docs } = await setup(page);
+    const timeToRows = async () => {
+      const startedAt = Date.now();
+      await page.goto('/inbox');
+      await expect(page.locator(ROW).first()).toBeVisible({ timeout: 15_000 });
+      return Date.now() - startedAt;
+    };
+    const ok = await timeToRows();
+    docs.summaryFails = true;
+    docs.summaryRequests = 0;
+    const failing = await timeToRows();
+    console.log(`HC-UIDOC-012 rows visible ${ok} ms after goto with the summary answering, ${failing} ms with it failing (${docs.summaryRequests} summary requests)`);
+    expect(docs.summaryRequests, 'one request and one retry').toBe(2);
+    await expect(page.locator(ROW)).toHaveCount(3);
+    await expect(page.getByText('Abnormal lab')).toHaveCount(0);
   });
 
   test('HC-UIDOC-011: when the list refresh after an import fails, the patient still sees the import result', async ({ page }) => {
