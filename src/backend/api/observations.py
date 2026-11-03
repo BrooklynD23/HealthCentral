@@ -74,8 +74,10 @@ def verify_observation_access(observation: Observation, session: Session) -> Non
 
 router = APIRouter()
 
-# Flags the extractor emits (modules/extract.py), after strip().upper().
-_PRINTED_FLAGS = frozenset({"H", "L", "HH", "LL", "A", "HIGH", "LOW", "ABNORMAL", "CRITICAL"})
+# Words (after strip().upper()) that mean "within range". A plain Verify
+# recalculates a row whose stored flag is one of these, or that has no flag;
+# any other stored flag is kept, even one that disagrees with the number.
+_NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL"})
 
 
 # Panel definitions - maps panel IDs to canonical analyte names
@@ -466,21 +468,20 @@ async def verify_observation(
     observation.verified_at = utcnow()
     observation.version += 1
 
-    # Recalculate abnormal status only when this request changed the numbers
-    # or the row has no extractor-vocabulary flag: a plain Verify must not
-    # erase or overwrite the lab's printed flag, but it still flags an
-    # out-of-range value the report left unflagged (the extractor never
-    # derives a flag from the range). Free-text import flags ("N", "Normal")
-    # are not abnormal markers, so they are recalculated as before.
+    # Recalculate abnormal status when this request really changed value,
+    # ref_low or ref_high, or when the row has no flag or a normal word
+    # (_NORMAL_FLAGS). A plain Verify keeps any other stored flag and its
+    # is_abnormal exactly, even one that disagrees with the number; a real
+    # edit of the numbers still rewrites it.
     numbers_changed = any(
         f in changes and changes[f]["old"] != changes[f]["new"]
         for f in ("value", "ref_low", "ref_high")
     )
-    has_printed_flag = (
+    keeps_flag = (
         observation.flag is not None
-        and observation.flag.strip().upper() in _PRINTED_FLAGS
+        and observation.flag.strip().upper() not in _NORMAL_FLAGS
     )
-    if (numbers_changed or not has_printed_flag) and observation.value is not None:
+    if (numbers_changed or not keeps_flag) and observation.value is not None:
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"

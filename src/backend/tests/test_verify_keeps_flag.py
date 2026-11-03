@@ -1,12 +1,14 @@
-"""VERIFY-KEEPS-FLAG: a plain Verify keeps the lab's printed flag.
+"""VERIFY-KEEPS-FLAG: a plain Verify keeps the stored flag unless it is normal.
 
 POST /observations/{id}/verify used to recompute flag/is_abnormal from
 value vs ref_low/ref_high on every call. A report's own flag ("CRITICAL",
 or "H" with no printed range) was erased by a Verify click that changed
-nothing. The flag is recalculated only when this request changes value,
-ref_low or ref_high, or when the row has no extractor-vocabulary flag
-(none, or free text such as "N" / "Normal"; see 008). Every case goes
-through HTTP and asserts the STORED columns, not only the response.
+nothing. The flag is recalculated only when this request really changes
+value, ref_low or ref_high, or when the row has no flag or a normal word
+(NORMAL, N, WNL after strip().upper(); see 008 and 010). Any other stored
+flag is kept with its is_abnormal, even one that disagrees with the number
+(009, 011, 012). Every case goes through HTTP and asserts the STORED
+columns, not only the response.
 """
 
 import uuid
@@ -185,8 +187,9 @@ async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(
     # The extractor never derives a flag from the range, and ingest sets
     # is_abnormal = flag is not None. A report line with no printed flag but a
     # value outside its printed range must still be flagged by a plain Verify
-    # (what origin/main did). Only a row with NO flag is recalculated; a flag
-    # the lab printed is never overwritten (001-004).
+    # (what origin/main did). A row with no flag or a normal word is
+    # recalculated; any other stored flag is kept on a plain Verify (001-004,
+    # 009-012).
     hi_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
                             value=18.0, ref_low=12.0, ref_high=16.0)
     hi = await _verify_and_load(profile_db, hi_id, {})
@@ -226,7 +229,7 @@ async def test_hc_vkf_008_unflagged_out_of_range_row_is_flagged_by_plain_verify(
         w = await _verify_and_load(profile_db, w_id, {})
         assert (w.flag, w.is_abnormal) == (want_flag, want_abn), (word, value)
 
-    # A word in the extractor vocabulary is kept, whatever its case or padding.
+    # Any word that is not a normal word is kept, whatever its case or padding.
     hw_id = await _seed_obs(profile_db, flag=" High ", is_abnormal=True,
                             value=14.0, ref_low=12.0, ref_high=16.0)
     hw = await _verify_and_load(profile_db, hw_id, {})
