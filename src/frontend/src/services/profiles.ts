@@ -53,7 +53,7 @@ async function recoverProfile(
   return apiPost<ProfileRecoverResponse, ProfileRecoverRequest>(
     `/profiles/${profileId}/recover`,
     data,
-    { signal: AbortSignal.timeout(180_000) }
+    { signal: AbortSignal.timeout(180_000), reauth: true }
   );
 }
 
