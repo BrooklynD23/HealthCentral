@@ -565,6 +565,8 @@ async function expectControlSet(page: Page, table: Control[]) {
 }
 
 const TAB_ROWS: Control[] = [
+  // The tablist is Radix's one Tab stop (tabindex 0, roving focus); focus then lands on the chosen tab.
+  { label: 'Lab panels tablist', match: /^Lab panels$/ },
   { label: 'All', match: /^All$/ },
   { label: 'CBC', match: /^CBC\d*$/ },
   { label: 'CMP', match: /^CMP\d*$/ },
@@ -871,7 +873,10 @@ test.describe('the ribbon in the page (real browser)', () => {
 test.describe('gate G', () => {
   for (const theme of ['light', 'dark'] as const) {
     test(`G1: /results has no serious or critical axe violation in ${theme}`, async ({ page }) => {
-      await openApp(page);
+      // One row is flagged so that the '!' chip is on the page the gate scans.
+      const flagged = OBSERVATIONS.map((o, i) => (i === 0 ? { ...o, is_abnormal: true, flag: 'H' } : o));
+      await openApp(page, '/results', { observations: flagged });
+      await expect(list(page).getByLabel('Flagged on the report')).toHaveCount(1);
       await chartUp(page);
       await page.getByRole('button', { name: /explain this result/i }).click();
       await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible();
