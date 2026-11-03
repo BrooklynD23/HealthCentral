@@ -1,0 +1,48 @@
+### warmup-3000
+- probe warmup: 1 of 5 over 40 ms (pooled); per batch b0:1/5; unmeasured 0; max 44
+  gaps: timeline=30 search=29 med=44 notif=33 care=28
+- bare warmup: 0 of 5 over 40 ms (pooled); per batch b0:0/5; unmeasured 0; max 36
+  gaps: timeline=30 search=36 med=23 notif=35 care=26
+  warmB.b0.warmup-3000.warmup.probe.timeline	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.41/1.38
+  warmB.b0.warmup-3000.warmup.probe.search	gap=29	gapStart=-2	gapEnd=27	longtasks=-	load1=1.38/1.27
+  warmB.b0.warmup-3000.warmup.probe.med	gap=44	gapStart=678	gapEnd=722	longtasks=-	load1=1.27/1.27
+  warmB.b0.warmup-3000.warmup.probe.notif	gap=33	gapStart=16	gapEnd=49	longtasks=-	load1=1.27/1.41
+  warmB.b0.warmup-3000.warmup.probe.care	gap=28	gapStart=18	gapEnd=46	longtasks=-	load1=1.41/1.29
+  warmB.b0.warmup-3000.warmup.bare.timeline	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.29/1.29
+  warmB.b0.warmup-3000.warmup.bare.search	gap=36	gapStart=-2	gapEnd=34	longtasks=-	load1=1.29/1.29
+  warmB.b0.warmup-3000.warmup.bare.med	gap=23	gapStart=58	gapEnd=81	longtasks=-	load1=1.29/2.07
+  warmB.b0.warmup-3000.warmup.bare.notif	gap=35	gapStart=18	gapEnd=53	longtasks=-	load1=2.07/2.07
+  warmB.b0.warmup-3000.warmup.bare.care	gap=26	gapStart=37	gapEnd=63	longtasks=-	load1=2.07/1.9
+
+### warmup-4173
+- probe warmup: 1 of 5 over 40 ms (pooled); per batch b0:1/5; unmeasured 0; max 50
+  gaps: timeline=38 search=38 med=50 notif=28 care=28
+- bare warmup: 0 of 5 over 40 ms (pooled); per batch b0:0/5; unmeasured 0; max 34
+  gaps: timeline=27 search=34 med=21 notif=25 care=30
+  warmB.b0.warmup-4173.warmup.probe.timeline	gap=38	gapStart=-9	gapEnd=29	longtasks=-	load1=1.9/1.9
+  warmB.b0.warmup-4173.warmup.probe.search	gap=38	gapStart=-8	gapEnd=30	longtasks=-	load1=1.9/1.9
+  warmB.b0.warmup-4173.warmup.probe.med	gap=50	gapStart=-11	gapEnd=39	longtasks=-	load1=1.9/1.75
+  warmB.b0.warmup-4173.warmup.probe.notif	gap=28	gapStart=-18	gapEnd=10	longtasks=-	load1=1.75/1.75
+  warmB.b0.warmup-4173.warmup.probe.care	gap=28	gapStart=42	gapEnd=70	longtasks=-	load1=1.75/1.75
+  warmB.b0.warmup-4173.warmup.bare.timeline	gap=27	gapStart=37	gapEnd=64	longtasks=-	load1=1.75/1.85
+  warmB.b0.warmup-4173.warmup.bare.search	gap=34	gapStart=-2	gapEnd=32	longtasks=-	load1=1.85/1.85
+  warmB.b0.warmup-4173.warmup.bare.med	gap=21	gapStart=17	gapEnd=38	longtasks=-	load1=1.85/1.7
+  warmB.b0.warmup-4173.warmup.bare.notif	gap=25	gapStart=78	gapEnd=103	longtasks=-	load1=1.7/1.7
+  warmB.b0.warmup-4173.warmup.bare.care	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.7/1.7
+
+### warmup-3001
+- probe warmup: 0 of 5 over 40 ms (pooled); per batch b0:0/5; unmeasured 0; max 32
+  gaps: timeline=27 search=29 med=27 notif=32 care=27
+- bare warmup: 0 of 5 over 40 ms (pooled); per batch b0:0/5; unmeasured 0; max 38
+  gaps: timeline=30 search=38 med=22 notif=29 care=30
+  warmB.b0.warmup-3001.warmup.probe.timeline	gap=27	gapStart=18	gapEnd=45	longtasks=-	load1=1.7/2.05
+  warmB.b0.warmup-3001.warmup.probe.search	gap=29	gapStart=-3	gapEnd=26	longtasks=-	load1=2.05/2.05
+  warmB.b0.warmup-3001.warmup.probe.med	gap=27	gapStart=1159	gapEnd=1186	longtasks=-	load1=2.05/3.17
+  warmB.b0.warmup-3001.warmup.probe.notif	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=3.17/3.23
+  warmB.b0.warmup-3001.warmup.probe.care	gap=27	gapStart=19	gapEnd=46	longtasks=-	load1=3.23/3.23
+  warmB.b0.warmup-3001.warmup.bare.timeline	gap=30	gapStart=36	gapEnd=66	longtasks=-	load1=3.23/3.05
+  warmB.b0.warmup-3001.warmup.bare.search	gap=38	gapStart=-3	gapEnd=36	longtasks=-	load1=3.05/3.05
+  warmB.b0.warmup-3001.warmup.bare.med	gap=22	gapStart=38	gapEnd=60	longtasks=-	load1=3.05/3.05
+  warmB.b0.warmup-3001.warmup.bare.notif	gap=29	gapStart=18	gapEnd=48	longtasks=-	load1=3.05/3.05
+  warmB.b0.warmup-3001.warmup.bare.care	gap=30	gapStart=37	gapEnd=68	longtasks=-	load1=3.05/3.05
+
