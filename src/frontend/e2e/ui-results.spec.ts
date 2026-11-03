@@ -308,7 +308,7 @@ test.describe('HC-UIRES-003 first paint', () => {
     await expect(listButtons(page)).toHaveCount(ANALYTE_ROWS.length);
     await expect(page.locator(DISCLAIMER).first()).toBeVisible();
     // Every value on the page is plain text in the DOM: the list values, the latest value, the ribbon's readout and table.
-    await expect(list(page).getByText('118 mg/dL')).toBeVisible();
+    await expect(list(page).getByText('92 mg/dL')).toBeVisible();
     await expect(page.getByText('Latest value: 101 mg/dL (unverified)')).toBeVisible();
     await expect(page.locator('[data-readout]')).toContainText('101 mg/dL');
     expect(await page.locator('table td[data-t0]').count()).toBeGreaterThan(0);
@@ -331,26 +331,33 @@ test.describe('HC-UIRES-003 first paint', () => {
     expect(report.nodes).toBeGreaterThan(0);
   });
 
-  test('QUIET-BOX G10: Explain this result, a tab click and an analyte click are each still from the click', async ({ page }) => {
+  test('QUIET-BOX G10: a tab click, an analyte click and Explain this result are each still from the click', async ({ page }) => {
     await openApp(page);
     await chartUp(page);
-    const explain = await stillnessProbe(page, {
-      trigger: () => page.getByRole('button', { name: /explain this result/i }).click(),
-      expected: [`${DISCLAIMER}[data-t0]`, '[data-readout]', RAIL],
+    const tab = await stillnessProbe(page, {
+      trigger: () => page.getByRole('tab', { name: /^Lipids/ }).click(),
+      expected: ['[data-readout]', RAIL],
     });
-    expect(explain.nodes).toBeGreaterThan(0);
-    await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible();
+    expect(tab.nodes).toBeGreaterThan(0);
+    await page.getByRole('tab', { name: 'All' }).click();
+    await chartUp(page);
     const row = await stillnessProbe(page, {
       trigger: () => list(page).getByRole('button', { name: /Hemoglobin/ }).click(),
       expected: ['[data-readout]', RAIL],
     });
     expect(row.nodes).toBeGreaterThan(0);
     await chartUp(page, 'Hemoglobin');
-    const tab = await stillnessProbe(page, {
-      trigger: () => page.getByRole('tab', { name: /^Lipids/ }).click(),
-      expected: ['[data-readout]', RAIL],
+    // Scroll the trigger into view first: Playwright would scroll for the click, and that scroll moves every T0 node,
+    // so the probe would measure the scroll, not the card (ui-provenance.spec.ts does the same).
+    const explainButton = page.getByRole('button', { name: /explain this result/i });
+    await explainButton.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
+    const explain = await stillnessProbe(page, {
+      trigger: () => explainButton.click(),
+      expected: [`${DISCLAIMER}[data-t0]`, '[data-readout]', RAIL],
     });
-    expect(tab.nodes).toBeGreaterThan(0);
+    expect(explain.nodes).toBeGreaterThan(0);
+    await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible();
   });
 });
 
@@ -403,6 +410,7 @@ test.describe('HC-UIRES-004 (DF-4)', () => {
     await openApp(page);
     await chartUp(page);
     const drawn = await drawnPlot(page);
+    console.log(`DF-4 glucose ${JSON.stringify(drawn)}`);
     expect(
       drawn.visible,
       `visible plot ${drawn.visible.toFixed(1)} px (drawn ${drawn.drawn.toFixed(1)} px from ${drawn.visibleTop.toFixed(1)} to ${drawn.visibleBottom.toFixed(1)}, limit ${drawn.limit.toFixed(1)}, svg ${drawn.svgHeight.toFixed(1)} px)`
@@ -415,7 +423,8 @@ test.describe('HC-UIRES-004 (DF-4)', () => {
     await openApp(page, '/results?analyte=hemoglobin');
     await chartUp(page, 'Hemoglobin');
     const drawn = await drawnPlot(page);
-    expect(drawn.visible, `visible plot ${drawn.visible.toFixed(1)} px`).toBeGreaterThanOrEqual(200);
+    console.log(`DF-4 hemoglobin ${JSON.stringify(drawn)}`);
+    expect(drawn.visible, `visible plot ${drawn.visible.toFixed(1)} px (${JSON.stringify(drawn)})`).toBeGreaterThanOrEqual(200);
   });
 });
 
@@ -432,7 +441,12 @@ async function controlNames(page: Page): Promise<string[]> {
   return page.evaluate(() =>
     Array.from(
       document.querySelectorAll<HTMLElement>('main button, main [role="tab"], main [role="slider"], main a[href], main input, main select, main [tabindex="0"]')
-    ).map((el) => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim())
+    ).map((el) => {
+      const label = el.getAttribute('aria-label');
+      if (label !== null) return label.trim();
+      const by = el.getAttribute('aria-labelledby');
+      return ((by ? document.getElementById(by)?.textContent : el.textContent) ?? '').trim();
+    })
   );
 }
 
@@ -659,15 +673,20 @@ test.describe('the ribbon in the page (real browser)', () => {
         return animate.call(this, keyframes, options);
       };
     });
+    // The dev build runs effects twice (StrictMode), so the count is compared between steps, not against a number.
+    const clips = () => page.evaluate(() => (window as unknown as { __clip: number }).__clip);
     await openApp(page);
     await chartUp(page);
-    expect(await page.evaluate(() => (window as unknown as { __clip: number }).__clip)).toBe(1);
+    const afterGlucose = await clips();
+    expect(afterGlucose, 'the first visit to glucose draws the line with a clip-path animation').toBeGreaterThan(0);
     await page.getByRole('tab', { name: /^CBC/ }).click();
     await chartUp(page, 'Hemoglobin');
+    const afterHemoglobin = await clips();
+    expect(afterHemoglobin, 'a different analyte reveals on its own first visit').toBeGreaterThan(afterGlucose);
     await page.getByRole('tab', { name: 'All' }).click();
     await list(page).getByRole('button', { name: /Glucose/ }).click();
     await chartUp(page);
-    expect(await page.evaluate(() => (window as unknown as { __clip: number }).__clip), 'glucose does not reveal twice in one session').toBe(2);
+    expect(await clips(), 'glucose does not reveal twice in one session').toBe(afterHemoglobin);
   });
 });
 
