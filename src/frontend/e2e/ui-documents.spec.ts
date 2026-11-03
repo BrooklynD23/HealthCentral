@@ -147,6 +147,8 @@ interface DocsControl {
   hold(): () => void;
   /** The next GET /documents waits until the returned function is called (the page shows its loading state). */
   holdList(): () => void;
+  /** The next DELETE waits until the returned function is called; the row goes when it does. */
+  holdDelete(): () => void;
   answer: ImportAnswer;
   /** Every GET /documents waits this long before it answers (the refetch after an import or a delete). Default 0. */
   listDelayMs: number;
@@ -170,6 +172,7 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
   let gate: Promise<void> | null = null;
   let listGate: Promise<void> | null = null;
   let summaryGate: Promise<void> | null = null;
+  let deleteGate: Promise<void> | null = null;
   const control: DocsControl = {
     rows: [...rows],
     deletes: [],
@@ -201,6 +204,15 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
     holdList() {
       let release!: () => void;
       listGate = new Promise<void>((resolve) => {
+        release = () => {
+          resolve();
+        };
+      });
+      return release;
+    },
+    holdDelete() {
+      let release!: () => void;
+      deleteGate = new Promise<void>((resolve) => {
         release = () => {
           resolve();
         };
@@ -281,6 +293,9 @@ async function mockDocuments(page: Page, rows: Document[]): Promise<DocsControl>
     if (request.method() !== 'DELETE') return route.fallback();
     const id = /\/documents\/([^/?]+)$/.exec(new URL(request.url()).pathname)![1];
     control.deletes.push(id);
+    const held = deleteGate;
+    deleteGate = null;
+    if (held) await held;
     control.rows = control.rows.filter((row) => row.id !== id);
     await route.fulfill({ status: 204, body: '' });
   });
@@ -1779,6 +1794,33 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
     await expect(rowByName(page, SECOND_NAME)).toHaveCount(0);
     await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toHaveCount(0);
+    expect(docs.deletes).toEqual(['doc-new-0004', 'doc-second-0002']);
+  });
+
+  test('HC-UIDOC-018: a second Remove while the first is in flight: the card and the link for the first removed document do not stay', async ({
+    page,
+  }) => {
+    // Would not notice: the order the two DELETEs settle in (the first is released first), or a card that goes for less
+    // than a frame (HC-UIDOC-006 (m) samples the ordinary Remove). It reads the settled page.
+    // RED at fb6e7ef2: the card and "N values ready to review" stayed for the document the first Remove deleted.
+    const { docs, release } = await inboxWithHeldImport(page);
+    release();
+    await expect(page.locator(HANDOFF)).toBeVisible();
+    await expect(rowByName(page, NEW_NAME)).toBeVisible();
+    await openDeleteDialog(page, NEW_NAME);
+    const releaseFirst = docs.holdDelete();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect.poll(() => docs.deletes.length).toBe(1);
+    await openDeleteDialog(page, SECOND_NAME);
+    const releaseSecond = docs.holdDelete();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Remove' }).click();
+    await expect.poll(() => docs.deletes.length).toBe(2);
+    releaseFirst();
+    releaseSecond();
+    await expect(rowByName(page, NEW_NAME)).toHaveCount(0);
+    await expect(rowByName(page, SECOND_NAME)).toHaveCount(0);
+    await expect(page.getByText(`Document imported: ${NEW_NAME}`)).toHaveCount(0);
+    await expect(page.locator(HANDOFF)).toHaveCount(0);
     expect(docs.deletes).toEqual(['doc-new-0004', 'doc-second-0002']);
   });
 

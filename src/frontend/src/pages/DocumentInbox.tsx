@@ -237,11 +237,14 @@ export function DocumentInbox() {
     // the previous row's, else the Import Document button, so a keyboard user is never dropped on <body>.
     const at = documents.findIndex((d) => d.id === id);
     const neighbour = documents[at + 1] ?? documents[at - 1];
-    deleteDocument.mutate(id, {
-      // A card that offers "N values ready to review" must not link to a document that no longer exists. It goes when
-      // the list drops the row (importResultShown), not before, so the two leave in one frame.
-      onSuccess: () => setRemovedIds((current) => [...current, id]),
-    });
+    // A card that offers "N values ready to review" must not link to a document that no longer exists. It goes when
+    // the list drops the row (importResultShown), not before, so the two leave in one frame. The record is made here and
+    // not in a per-call onSuccess: that fires only for the observer's latest call, so a second Remove sent while this
+    // one is in flight would lose it. A failed DELETE records nothing (the document is still there).
+    deleteDocument.mutateAsync(id).then(
+      () => setRemovedIds((current) => [...current, id]),
+      () => {}
+    );
     setDeleteTarget(null);
     // With a neighbour: preventScroll. The page scrolls smoothly (globals.css), and a focus() that scrolls it slides every
     // row for 300 ms, then the removed row's height snaps the scroll back. The neighbour takes the removed row's place.

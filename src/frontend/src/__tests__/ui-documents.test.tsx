@@ -1005,6 +1005,49 @@ describe('HC-UIDOC-014 the import result does not wait for a list refresh for ev
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIDOC-018: a second Remove sent while the first is still in flight. useMutation runs a per-call onSuccess only
+// for the observer's latest call (query-core mutationObserver.ts), so the first Remove's record of the removed
+// document was lost and its card and "values ready to review" link stayed for a document that no longer exists.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-018 a second Remove while the first is in flight', () => {
+  it('HC-UIDOC-018: with two DELETEs in flight, the card and the link for the document of the first Remove are gone once both settle', async () => {
+    // Would not notice: the order the two DELETEs settle in (this releases the first, then the second); the e2e
+    // HC-UIDOC-018 holds both on a production-shaped run. It reads the settled page, not a frame.
+    // RED at fb6e7ef2 (round 3 measurement): {"card":"Document imported: private-fresh.pdf","link":"3 values ready to review","rows":[]}.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockResolvedValueOnce(
+      importResponse({ observations_extracted: 3, doc: { id: 'new-1', source: 'private-fresh.pdf' } }) as never
+    );
+    documents = [makeDoc({ id: 'new-1', source: 'private-fresh.pdf' }), ...documents];
+    await upload(user, 'private-fresh.pdf');
+    await screen.findByRole('link', { name: '3 values ready to review' });
+
+    const releases: Array<() => void> = [];
+    apiDelete.mockImplementation((async (path: string) => {
+      await new Promise<void>((resolve) => releases.push(resolve));
+      documents = documents.filter((d) => `/documents/${d.id}` !== path);
+    }) as never);
+    await openRowMenu(user, rowOf('private-fresh.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await openRowMenu(user, rowOf('a.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(2));
+
+    releases.forEach((release) => release());
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'private-fresh.pdf' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'a.pdf' })).not.toBeInTheDocument());
+    await act(async () => {});
+    expect(screen.queryByText(/document imported: private-fresh\.pdf/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /ready to review/i })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIDOC-006: the rows wait for the highlight summary on a cold load, so chips never arrive after the rows and push
 // the rows below them down. The e2e half navigates /verify to /inbox under stillnessProbe with the summary held.
 // ---------------------------------------------------------------------------
