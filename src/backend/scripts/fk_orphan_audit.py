@@ -7,7 +7,8 @@
 Exit 0 clean, 1 on any enforced orphan, 2 on refused/invalid usage.
 
 Opening the copy runs the profile migrations, and migration 017 DELETES enforced
-orphans (children only; P16/P17 are nulled) before this tool can look. So on a
+orphans (children only; P8, P12, P16 and P17 are nulled, the row is kept) before
+this tool can look. So on a
 vault older than 017 the orphans are gone by the time find_orphans runs. They are
 reported under "cleaned by 017 on the copy" (counts per check) and count as
 orphans for the exit code. The live vault is never touched; only the copy is.
@@ -119,7 +120,11 @@ def main() -> int:
         # server mode derives it from sqlite_database_path, so patch that field.
         settings.app_mode = "server"
         settings.sqlite_database_path = str(Path(tmp) / "asclexis.db")
-        assert Path(settings.app_data_path).resolve() == Path(tmp).resolve()
+        if Path(settings.app_data_path).resolve() != Path(tmp).resolve():
+            # Not an assert: python -O would drop it, and the live vault would be
+            # cleaned (and snapshotted) instead of the copy.
+            print("refusing: the data-dir override did not point at the temp copy")
+            return 2
         return asyncio.run(_profile(a.profile, password))
 
 

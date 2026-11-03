@@ -915,6 +915,28 @@ def _snapshot_of(data_dir: Path, pid: str, key: bytes):
         conn.close()
 
 
+def test_hc_fkc_010d_audit_script_refuses_when_the_copy_override_did_not_take(
+    tmp_path, monkeypatch, capsys
+):
+    """The tool must only ever migrate its temp copy. If the data-dir override
+    did not land there, it must exit 2 and touch nothing; a bare ``assert`` would
+    vanish under ``python -O`` and the live vault would be cleaned and snapshotted."""
+    data_dir = tmp_path / "data"
+    pid = str(uuid.uuid4())
+    key = _plant_sealed_vault(data_dir, pid, ["P2"])
+    before = _snapshot_of(data_dir, pid, key)
+    monkeypatch.setattr(
+        type(settings), "app_data_path", property(lambda self: tmp_path / "somewhere-else")
+    )
+
+    rc, out = _run_audit_script(monkeypatch, capsys, data_dir, pid)
+
+    assert rc == 2, out
+    assert "refusing" in out
+    assert _snapshot_of(data_dir, pid, key) == before, "the source vault must stay untouched"
+    assert list(data_dir.rglob("vault.pre017*")) == []
+
+
 def test_hc_fkc_010c_audit_script_master_missing_exits_2_not_clean(
     tmp_path, monkeypatch, capsys
 ):
@@ -1284,11 +1306,17 @@ def test_hc_fks_008_keep_first_a_retry_does_not_overwrite_the_pristine_copy(vaul
         conn.close()
 
 
-def test_hc_fks_008b_a_snapshot_that_does_not_verify_is_replaced(vault016):
+@pytest.mark.parametrize(
+    "existing", [b"not a database" * 100, b""], ids=["garbage", "zero_bytes"]
+)
+def test_hc_fks_008b_a_snapshot_that_does_not_verify_is_replaced(vault016, existing):
+    """A 0-byte file opens as a valid empty database and passes quick_check, so
+    only the has-tables check in the verifier can reject it. (HC-FKS-003[empty]
+    cannot see that check: the size comparison on a fresh copy fires first.)"""
     path, _cfg = vault016
     _seed(path, ["P2"])
     sha_before = _sha(path)
-    _snap(path).write_bytes(b"not a database" * 100)
+    _snap(path).write_bytes(existing)
 
     migrations.run_profile_migration(path, KEY)
 
@@ -1525,6 +1553,42 @@ def test_hc_fks_007c_a_failing_purge_does_not_block_the_open(tmp_path, monkeypat
     assert not [r for r in mig_log if r.levelno >= logging.ERROR]
 
 
+def _event_infos(records) -> list[str]:
+    return [r.getMessage() for r in records if r.levelno == logging.INFO and "napshot" in r.getMessage()]
+
+
+def test_hc_fks_014_a_made_snapshot_is_logged_without_a_path(vault016, mig_log):
+    """A full copy of the vault is written with no audit row, so the log line is
+    the only trace that the retention rule started. Event words only."""
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+
+    migrations.run_profile_migration(path, KEY)
+
+    infos = _event_infos(mig_log)
+    assert len(infos) == 1, infos
+    assert "created" in infos[0]
+    for needle in (str(path.parent), path.parent.name, SNAP_NAME, KEY.hex()):
+        assert needle not in infos[0], infos[0]
+
+
+def test_hc_fks_015_a_purged_snapshot_is_logged_without_a_path(tmp_path, monkeypatch, mig_log):
+    vault = _head_vault(tmp_path, monkeypatch)
+    snap = _snap(vault)
+    snap.write_bytes(b"an old snapshot")
+    os.utime(snap, (_utc_ts(MADE_AT), _utc_ts(MADE_AT)))
+    monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + timedelta(days=30))
+
+    migrations.run_profile_migration(vault, KEY)
+
+    assert not snap.exists()
+    infos = _event_infos(mig_log)
+    assert len(infos) == 1, infos
+    assert "purged" in infos[0]
+    for needle in (str(vault.parent), vault.parent.name, SNAP_NAME):
+        assert needle not in infos[0], infos[0]
+
+
 def test_hc_fks_007d_public_purge_removes_everything_and_raises_on_failure(tmp_path, monkeypatch):
     vault = tmp_path / "vault.db"
     names = [SNAP_NAME + s for s in ("", "-wal", "-shm", "-journal")] + [
@@ -1759,3 +1823,81 @@ def test_hc_fkb_005_a_refused_snapshot_leaves_no_alembic_version(
     assert "alembic_version" not in _tables(path), "stamp must come after the snapshot"
     assert stamps == []
     assert list(path.parent.glob("vault.pre017*")) == []
+
+
+def test_hc_fkb_007_a_failing_reference_walk_refuses_before_any_write(
+    tmp_path, monkeypatch, stamps, mig_log
+):
+    """If the throwaway walk itself fails (disk, SQLCipher), the vault is not
+    guessed at: refuse with the same exception, nothing stamped, no path in the
+    text."""
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    _unversioned(path)
+    sha_before = _sha(path)
+
+    def _boom():
+        raise OSError(errno.ENOSPC, "No space left on device", str(path))
+
+    monkeypatch.setattr(migrations, "_reference_fingerprints", _boom)
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    assert _sha(path) == sha_before
+    assert stamps == []
+    assert "alembic_version" not in _tables(path)
+    assert list(path.parent.glob("vault.pre017*")) == []
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("build-references",), error_class="OSError"
+    )
+
+
+def test_hc_fkb_008_the_runtime_search_index_is_not_part_of_the_schema_match(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    """modules/search.py creates search_records and its FTS5 mirror at run time
+    ("derived, rebuildable, no migration"). A real vault that has used search must
+    still match its revision, or a login after losing alembic_version refuses."""
+    from modules import search as search_module
+
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    conn = _connect(path)
+    try:
+        conn.execute(search_module._CREATE_RECORDS_SQL)
+        conn.execute(search_module._CREATE_FTS_SQL)
+        conn.commit()
+        extra = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE name LIKE 'search_records%'")}
+    finally:
+        conn.close()
+    assert {"search_records", "search_records_fts"} <= extra, extra
+    _unversioned(path)
+
+    migrations.run_profile_migration(path, KEY)
+
+    assert stamps == [REV_016]
+    assert _rev(path) == PROFILE_HEAD
+    assert {"search_records", "search_records_fts"} <= _tables(path), "the index itself is left alone"
+
+
+def test_hc_fkb_008b_any_other_extra_table_still_refuses(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    """The search carve-out is by name, not a general tolerance for extra tables."""
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    conn = _connect(path)
+    try:
+        conn.execute("CREATE TABLE search_records_other (x INTEGER)")
+        conn.commit()
+    finally:
+        conn.close()
+    _unversioned(path)
+
+    with pytest.raises(migrations.ProfileMigrationRefused):
+        migrations.run_profile_migration(path, KEY)
+    assert stamps == []

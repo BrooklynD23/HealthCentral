@@ -393,6 +393,9 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
     except Exception as exc:
         _unlink_quietly(_with_sidecars(tmp))
         raise _refuse("pre-017 snapshot", step, exc) from None
+    # No audit row exists for this copy, so this line is the only trace that the
+    # retention rule started. Event words only: no path, no key.
+    logger.info("Pre-017 snapshot created and verified; it is purged on the first open 30 days or more later")
 
 
 def purge_pre017_snapshot(vault_path: Path) -> None:
@@ -430,6 +433,7 @@ def _purge_expired_snapshot(vault_path: Path) -> None:
         if utcnow() - made >= _SNAPSHOT_MAX_AGE:
             for old in _with_sidecars(snap):
                 old.unlink(missing_ok=True)
+            logger.info("Pre-017 snapshot purged after 30 days")
     except OSError as exc:
         logger.warning("Pre-017 snapshot purge failed (%s)", type(exc).__name__)
 
@@ -439,13 +443,25 @@ def _purge_expired_snapshot(vault_path: Path) -> None:
 # =============================================================================
 
 
+def _is_runtime_search_table(name: str) -> bool:
+    """``search_records`` and its FTS5 mirror (and the mirror's shadow tables).
+
+    modules/search.py creates them at run time and calls them derived and
+    rebuildable, with no migration. A real vault that has used search carries
+    them, so they cannot be part of what identifies a revision. Matched by name,
+    not as a general tolerance for extra tables.
+    """
+    return name == "search_records" or name.startswith("search_records_fts")
+
+
 def _schema_fingerprint(conn) -> tuple:
     """Tables, columns and foreign-key actions of the vault, read-only.
 
     Columns are (name, upper-cased type, notnull, pk); foreign keys are (from,
     to table, to column, on_delete, on_update). Columns alone are not enough:
-    016 and 017 differ only in FK actions. ``alembic_version`` and SQLite's own
-    tables are left out, so a stamped and an unstamped copy compare equal.
+    016 and 017 differ only in FK actions. ``alembic_version``, SQLite's own
+    tables and the runtime search index are left out, so a stamped and an
+    unstamped copy compare equal.
     """
     tables = sorted(
         r[0]
@@ -453,6 +469,7 @@ def _schema_fingerprint(conn) -> tuple:
             "SELECT name FROM sqlite_master WHERE type='table' "
             "AND name NOT LIKE 'sqlite_%' AND name != 'alembic_version'"
         ).fetchall()
+        if not _is_runtime_search_table(r[0])
     )
     out = []
     for table in tables:

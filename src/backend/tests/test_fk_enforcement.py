@@ -532,7 +532,7 @@ async def _delete_document_over_http(
         async with engine.connect() as conn:
             state = {
                 "tasks": (await conn.execute(text(
-                    "SELECT id, source_document_id, source_entity_id FROM care_plan_task"
+                    "SELECT id, source_document_id, source_entity_id, source_quote FROM care_plan_task"
                 ))).fetchall(),
                 "documents": await _count(conn, "documents", f"id='{doc_id}'"),
                 "fk_check": (await conn.execute(text("PRAGMA foreign_key_check"))).fetchall(),
@@ -550,7 +550,9 @@ async def test_hc_fkc_008_document_delete_after_migration_is_204(tmp_path, monke
 
     assert resp.status_code == 204, resp.text
     assert state["documents"] == 0
-    assert [tuple(r) for r in state["tasks"]] == [("T1", None, None)], "care task must be kept, links NULL"
+    assert [tuple(r) for r in state["tasks"]] == [("T1", None, None, None)], (
+        "care task must be kept, links NULL, clinician quote gone with its document"
+    )
     # P3/P4 orphans were removed by the 017 cleanup, so nothing dangles
     assert state["fk_check"] == []
 
@@ -840,4 +842,6 @@ async def test_hc_fkb_006_unversioned_pre_017_vault_opens_cleans_and_deletes(
     assert resp.status_code == 204, resp.text
     assert state["documents"] == 0
     assert state["fk_check"] == []
-    assert {t[0]: (t[1], t[2]) for t in state["tasks"]}["T-REL"] == (None, None)
+    assert {t[0]: (t[1], t[2], t[3]) for t in state["tasks"]}["T-REL"] == (None, None, None), (
+        "links NULL and the verbatim quote cleared with the document"
+    )
