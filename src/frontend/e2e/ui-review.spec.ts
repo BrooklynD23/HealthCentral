@@ -202,7 +202,8 @@ const PAGES_BODY = [
 /**
  * What POST /observations/:id/verify does, copied from src/backend/api/observations.py (`_NORMAL_FLAGS` at :82 and the
  * recalculation after `observation.version += 1`): the numbers are recalculated only when value, ref_low or ref_high
- * really changed, or when the row has no flag or a normal word. A plain Verify keeps any other printed flag.
+ * really changed AND the row has a range (#479, VERIFY-EDIT-NO-RANGE), or when the row has no flag or a normal word.
+ * A plain Verify keeps any other printed flag, and so does an edit of a row with no range.
  * This is a mock, not the backend; HC-VKF on main pins the real behaviour.
  */
 const NORMAL_FLAGS = new Set(['NORMAL', 'N', 'WNL', 'NO', 'FALSE', '0']);
@@ -216,7 +217,8 @@ function verifyLikeApi(current: Observation, edit: Partial<Observation> = {}): O
   next.user_verified = true;
   const numbersChanged = (['value', 'ref_low', 'ref_high'] as const).some((field) => next[field] !== current[field]);
   const keepsFlag = current.flag !== null && !NORMAL_FLAGS.has(current.flag.trim().toUpperCase());
-  if ((numbersChanged || !keepsFlag) && next.value !== null) {
+  const hasRange = next.ref_low !== null || next.ref_high !== null;
+  if (((numbersChanged && hasRange) || !keepsFlag) && next.value !== null) {
     if (next.ref_low !== null && next.value < next.ref_low) Object.assign(next, { is_abnormal: true, flag: 'L' });
     else if (next.ref_high !== null && next.value > next.ref_high) Object.assign(next, { is_abnormal: true, flag: 'H' });
     else Object.assign(next, { is_abnormal: false, flag: null });
