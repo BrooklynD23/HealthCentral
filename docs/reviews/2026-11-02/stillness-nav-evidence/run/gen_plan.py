@@ -56,8 +56,9 @@ def main():
     if plan in ('warmA', 'warmB'):
         for base in ([DEV] if plan == 'warmA' else [DEV, PREVIEW, NOHMR]):
             for st in ('probe', 'bare'):
-                flags = ['wscount'] if base == NOHMR or base == DEV else []
-                out += block(plan, 0, 'warmup', 'warmup', st, flags if st == 'probe' else [], base)
+                flags = ['wscount'] if base in (NOHMR, DEV) else []
+                port = base.rsplit(':', 1)[1]
+                out += [case(plan, 0, f'warmup-{port}', 'warmup', st, flags if st == 'probe' else [], base, r) for r in ROUTES]
     elif plan == 'A':
         order = ['probe', 'bare'] if batch % 2 == 1 else ['bare', 'probe']
         for st in order:
