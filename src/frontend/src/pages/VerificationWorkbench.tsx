@@ -176,6 +176,9 @@ export function VerificationWorkbench() {
   // re-runs on every `observations` refetch — and verifying a row invalidates
   // that query — so the user's selection snaps back to the cited row.
   const appliedCitationRef = useRef<string | null>(null);
+  // The row the Source Preview was last loaded for, and where it points. The document effect below compares against it,
+  // so a refetch (a Verify invalidates the list) does not reload a preview that is still right.
+  const loadedSourceRef = useRef<{ id: string; docId: string | null; page: number | null } | null>(null);
   // The Edit button that opened the dialog. Dialog has no trigger here, so focus goes back to it by hand.
   const editOpenerRef = useRef<HTMLElement | null>(null);
 
@@ -380,6 +383,7 @@ export function VerificationWorkbench() {
 
   const handleRowSelect = useCallback(async (observation: Observation) => {
     setSelectedRow(observation.id);
+    loadedSourceRef.current = { id: observation.id, docId: observation.doc_id, page: observation.source_page };
 
     if (observation.doc_id) {
       setLoadingSource(true);
@@ -450,7 +454,13 @@ export function VerificationWorkbench() {
     if (!selectedDocId || citedObservationId || citedEntityId) return;
     const match = observations?.find((o) => o.doc_id === selectedDocId);
     if (match) {
-      void handleRowSelect(match);
+      // Select on first load and when the selected row is gone (Retry extraction issues new ids). Re-select the row the
+      // user is on only when its document or page changed. Any other refetch, a Verify above all, keeps the selection
+      // and the Source Preview as they are: they were not what changed.
+      const loaded = loadedSourceRef.current;
+      const kept = loaded ? observations?.find((o) => o.id === loaded.id) : undefined;
+      if (!loaded || !kept) void handleRowSelect(match);
+      else if (kept.doc_id !== loaded.docId || kept.source_page !== loaded.page) void handleRowSelect(kept);
       if (!documentReviewMode) {
         const next = new URLSearchParams(searchParams);
         next.delete('doc');
