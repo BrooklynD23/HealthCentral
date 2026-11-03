@@ -37,17 +37,6 @@ vi.mock('@/services/api', () => ({
   },
 }));
 
-// Mock recharts
-vi.mock('recharts', async () => {
-  const actual = await vi.importActual('recharts');
-  return {
-    ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="responsive-container">{children}</div>
-    ),
-  };
-});
-
 function renderWithProviders(component: React.ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: {

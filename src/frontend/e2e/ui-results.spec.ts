@@ -10,7 +10,11 @@
  *
  * Ids: 001 redirects, 002 the CBC tab, 003 first paint and stillness, 004 DF-4 (the drawn plot on a phone), 005 the
  * closed table of controls, 006 PNG and SVG download, 007 Reported and Read confidence, 008 the tabs, 009 widths
- * between a phone and lg.
+ * between a phone and lg, 010 the break-glass warning in a real browser, 011 an explanation belongs to the result it
+ * was made for.
+ *
+ * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, hdl_cholesterol, ...), and
+ * the panel fixtures list the analytes a panel should hold for them (see the PANEL_DEFINITIONS note in the PR).
  */
 
 import { expect, test, type Page, type Route } from '@playwright/test';
@@ -66,7 +70,7 @@ const OBSERVATIONS: Observation[] = [
   observation({ id: 'g1', value: 92, collected_at: '2026-01-10' }),
   observation({ id: 'g2', value: 118, collected_at: '2026-04-10', user_verified: true }),
   observation({ id: 'hgb', analyte_canonical: 'hemoglobin', analyte_raw: 'Hemoglobin', value: 14.2, unit: 'g/dL', ref_low: 12, ref_high: 17.5, collected_at: '2026-04-10' }),
-  observation({ id: 'wbc', analyte_canonical: 'wbc', analyte_raw: 'WBC Count', value: 7.5, unit: 'K/uL', ref_low: 4.5, ref_high: 11, collected_at: '2026-04-10' }),
+  observation({ id: 'wbc', analyte_canonical: 'white_blood_cells', analyte_raw: 'WBC Count', value: 7.5, unit: 'K/uL', ref_low: 4.5, ref_high: 11, collected_at: '2026-04-10' }),
   observation({ id: 'hdl', analyte_canonical: 'hdl_cholesterol', analyte_raw: 'HDL Cholesterol', value: 51, ref_low: null, ref_high: null, collected_at: '2026-04-10' }),
   observation({ id: 'ldl', analyte_canonical: 'ldl_cholesterol', analyte_raw: 'LDL Cholesterol', value: 142, ref_low: null, ref_high: null, collected_at: '2026-04-10' }),
   observation({ id: 'vitd', analyte_canonical: 'vitamin_d', analyte_raw: 'Vitamin D', value: 31, unit: 'ng/mL', ref_low: 30, ref_high: 100, collected_at: '2026-04-10' }),
@@ -92,7 +96,7 @@ const TRENDS: Record<string, { title: string; unit: string; low: number | null; 
     ],
   },
   hemoglobin: { title: 'Hemoglobin', unit: 'g/dL', low: 12, high: 17.5, points: [point('2026-01-10', 13.5, 'g/dL'), point('2026-04-10', 14.2, 'g/dL')] },
-  wbc: { title: 'WBC chart', unit: 'K/uL', low: 4.5, high: 11, points: [point('2026-01-10', 7.1, 'K/uL'), point('2026-04-10', 7.5, 'K/uL')] },
+  white_blood_cells: { title: 'WBC chart', unit: 'K/uL', low: 4.5, high: 11, points: [point('2026-01-10', 7.1, 'K/uL'), point('2026-04-10', 7.5, 'K/uL')] },
   hdl_cholesterol: { title: 'HDL chart', unit: 'mg/dL', low: null, high: null, points: [point('2026-01-10', 49, 'mg/dL'), point('2026-04-10', 51, 'mg/dL')] },
   ldl_cholesterol: { title: 'LDL chart', unit: 'mg/dL', low: null, high: null, points: [point('2026-01-10', 140, 'mg/dL'), point('2026-04-10', 142, 'mg/dL')] },
   vitamin_d: { title: 'Vitamin D chart', unit: 'ng/mL', low: 30, high: 100, points: [point('2026-01-10', 28, 'ng/mL'), point('2026-04-10', 31, 'ng/mL')] },
@@ -111,7 +115,7 @@ const STORED_INTERPRETATION = {
   interpretation_text: 'Your glucose is a little above the range used on the report.',
   severity_level: 'mild',
   advice_text: 'Ask whether a repeat test makes sense.',
-  citations: [],
+  citations: [{ type: 'knowledge_base', id: 'kb-glucose', text: 'Fasting glucose is compared with the range printed on the report.' }],
   context: null,
   model_id: 'template-v1',
   model_tier: 'template',
@@ -121,6 +125,34 @@ const STORED_INTERPRETATION = {
   viewed_at: null,
   created_at: '2026-04-11T00:00:00Z',
 };
+
+const PANEL_INTERPRETATION = {
+  id: 'panel-1',
+  panel_name: 'cbc',
+  collected_at: '2026-04-10T00:00:00',
+  observation_ids: ['hgb', 'wbc'],
+  summary_text: 'Your blood count panel reads as expected on the report.',
+  overall_status: 'normal',
+  relationship_insights: null,
+  advice_text: null,
+  citations: [],
+  confidence_score: 0.9,
+  requires_physician_review: false,
+  created_at: '2026-04-11T00:00:00Z',
+};
+
+const GROUNDED = {
+  interpretation: STORED_INTERPRETATION,
+  grounded_segments: [],
+  full_response: '**FACTS**\nGlucose was 101 mg/dL on the latest report.',
+  insufficient_context: false,
+  insufficient_reasons: [],
+  verification: { enabled: true, total_claims: 1, verified_claims: 1, failed_claims: 0, faithfulness_score: 1, authority_score: 1, summary: '', issues: [] },
+  is_valid: true,
+  validation_errors: [],
+};
+
+const BREAK_GLASS = { use_external_api: true, provider: 'openai', model: 'gpt-x', api_key_configured: true, redaction_break_glass: true };
 
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -132,6 +164,10 @@ interface OpenOptions {
   /** Answer GET /interpretations/... with the stored card (default) or leave it out (a 404 logs a console error). */
   interpretation?: 'stored' | 'none';
   observations?: Observation[];
+  /** Answer the trend of an analyte from here instead of TRENDS (a different display name, say). */
+  trends?: typeof TRENDS;
+  /** Answer GET /settings/model/external-api with this (default: the mock's, break-glass off). */
+  externalApi?: Record<string, unknown>;
 }
 
 /** Opens the app on `route` with the mock API plus this spec's observations, trends, panels and interpretation. */
@@ -151,7 +187,7 @@ async function openApp(page: Page, route = '/results', options: OpenOptions = {}
   });
   await page.route(/\/api\/v1\/observations\/trends\/[^/?]+\/?(\?.*)?$/, (r) => {
     const analyte = new URL(r.request().url()).pathname.replace(/\/+$/, '').split('/').pop() ?? '';
-    const fixture = TRENDS[analyte];
+    const fixture = (options.trends ?? TRENDS)[analyte];
     if (r.request().method() !== 'GET' || !fixture) return r.fallback();
     return json(r, {
       analyte_canonical: analyte,
@@ -170,9 +206,20 @@ async function openApp(page: Page, route = '/results', options: OpenOptions = {}
       panel_id: panel,
       panel_name: panel.toUpperCase(),
       collection_date: '2026-04-10T00:00:00',
-      observations: OBSERVATIONS.filter((o) => PANEL_MEMBERS[panel].includes(o.id)),
+      observations: (options.observations ?? OBSERVATIONS).filter((o) => PANEL_MEMBERS[panel].includes(o.id)),
     });
   });
+  await page.route(/\/api\/v1\/interpretations\/panels\/[^/]+\/interpret\/?(\?.*)?$/, (r) =>
+    r.request().method() === 'POST' ? json(r, PANEL_INTERPRETATION) : r.fallback()
+  );
+  await page.route(/\/api\/v1\/interpretations\/observations\/[^/]+\/interpret-grounded\/?(\?.*)?$/, (r) =>
+    r.request().method() === 'POST' ? json(r, GROUNDED) : r.fallback()
+  );
+  if (options.externalApi) {
+    await page.route(/\/api\/v1\/settings\/model\/external-api\/?(\?.*)?$/, (r) =>
+      r.request().method() === 'GET' ? json(r, options.externalApi) : r.fallback()
+    );
+  }
   if (options.interpretation !== 'none') {
     await page.route(/\/api\/v1\/interpretations\/observations\/[^/]+\/interpretation\/?(\?.*)?$/, (r) =>
       r.request().method() === 'GET' ? json(r, STORED_INTERPRETATION) : r.fallback()
@@ -238,16 +285,30 @@ test.describe('HC-UIRES-001 redirects', () => {
     await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible({ timeout: 15_000 });
   });
 
-  test('a redirect replaces the history entry: Back from /results does not return to /trends', async ({ page }) => {
-    await openApp(page, '/inbox');
-    await page.evaluate(() => {
-      history.pushState({}, '', '/trends');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await expect(page).toHaveURL(/\/results$/, { timeout: 15_000 });
-    await page.goBack();
-    await expect(page).not.toHaveURL(/\/trends$/);
+  test('/interpret?analyte=ldl_cholesterol keeps the query and opens Explain (router state), on LDL', async ({ page }) => {
+    await openApp(page, '/interpret?analyte=ldl_cholesterol');
+    await expect(page).toHaveURL(/\/results\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    expect(await page.evaluate(() => (history.state as { usr?: unknown } | null)?.usr)).toEqual({ explain: true });
+    await chartUp(page, 'LDL chart');
+    await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible({ timeout: 15_000 });
   });
+
+  for (const redirect of ['/trends', '/interpret']) {
+    test(`a redirect replaces the history entry: Back from /results (via ${redirect}) lands on /inbox, and the length did not grow`, async ({ page }) => {
+      await openApp(page, '/inbox');
+      const lengthBefore = await page.evaluate(() => history.length);
+      // A client-side navigation to the old path, as a link to it would make: pushes one entry, which the redirect replaces.
+      await page.evaluate((to) => {
+        history.pushState({}, '', to);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, redirect);
+      await expect(page).toHaveURL(/\/results$/, { timeout: 15_000 });
+      expect(await page.evaluate(() => history.length), 'one entry for the redirect, not two').toBe(lengthBefore + 1);
+      await page.goBack();
+      // With push instead of replace the entry behind /results is the old path, which redirects straight back to /results.
+      await expect(page).toHaveURL(/\/inbox$/);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -429,6 +490,40 @@ test.describe('HC-UIRES-004 (DF-4)', () => {
     expect(await page.evaluate(() => window.scrollY), 'measured at first paint, unscrolled').toBe(0);
   });
 
+  // The page was first measured on a short title and dated chips. These are the real shapes a patient has: the display
+  // name the backend gives BUN, and a first chip with the third "undated" line.
+  test('the same holds with the longest real display name, "BUN (Blood Urea Nitrogen)", as the chart title', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    const title = 'BUN (Blood Urea Nitrogen)';
+    await openApp(page, '/results', { trends: { ...TRENDS, glucose: { ...TRENDS.glucose, title } } });
+    await chartUp(page, title);
+    const drawn = await drawnPlot(page);
+    console.log(`DF-4 long title ${JSON.stringify(drawn)}`);
+    expect(drawn.visible, `visible plot ${drawn.visible.toFixed(1)} px (${JSON.stringify(drawn)})`).toBeGreaterThanOrEqual(200);
+  });
+
+  test('the same holds when the first chip is undated (the chip grows a third line)', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    const undated = OBSERVATIONS.map((o, i) => (i === 0 ? { ...o, collected_at: null } : o));
+    await openApp(page, '/results', { observations: undated });
+    await chartUp(page);
+    await expect(list(page).getByText('undated')).toBeVisible();
+    const drawn = await drawnPlot(page);
+    console.log(`DF-4 undated first chip ${JSON.stringify(drawn)}`);
+    expect(drawn.visible, `visible plot ${drawn.visible.toFixed(1)} px (${JSON.stringify(drawn)})`).toBeGreaterThanOrEqual(200);
+  });
+
+  test('the same holds with the long title, an undated first chip and unverified badges together', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    const title = 'BUN (Blood Urea Nitrogen)';
+    const undated = OBSERVATIONS.map((o, i) => (i === 0 ? { ...o, collected_at: null } : o));
+    await openApp(page, '/results', { observations: undated, trends: { ...TRENDS, glucose: { ...TRENDS.glucose, title } } });
+    await chartUp(page, title);
+    const drawn = await drawnPlot(page);
+    console.log(`DF-4 worst case ${JSON.stringify(drawn)}`);
+    expect(drawn.visible, `visible plot ${drawn.visible.toFixed(1)} px (${JSON.stringify(drawn)})`).toBeGreaterThanOrEqual(200);
+  });
+
   test('the same holds on another chart with a band (hemoglobin, opened by ?analyte=)', async ({ page }) => {
     await page.setViewportSize(PHONE);
     await openApp(page, '/results?analyte=hemoglobin');
@@ -495,6 +590,8 @@ test.describe('HC-UIRES-005 closed table of controls', () => {
       await page.getByRole('tab', { name: /^CBC/ }).click();
       await expect(page.getByRole('button', { name: 'Interpret CBC Panel' })).toBeVisible();
       await expect(listButtons(page)).toHaveCount(2);
+      // The controls are counted once the chart is up: while the trend loads there is no slider yet.
+      await chartUp(page, 'Hemoglobin');
       await expectControlSet(page, [
         ...TAB_ROWS,
         ANALYTE_TABLE_ROWS[1],
@@ -506,9 +603,29 @@ test.describe('HC-UIRES-005 closed table of controls', () => {
 
       await page.getByRole('tab', { name: 'All' }).click();
       await expect(listButtons(page)).toHaveCount(ANALYTE_ROWS.length);
+      await chartUp(page);
       await page.getByRole('button', { name: /explain this result/i }).click();
       await expect(page.getByText('No interpretation yet')).toBeVisible();
       await expectControlSet(page, [...TAB_ROWS, ...ANALYTE_TABLE_ROWS, ...COMMON_ROWS, { label: 'Generate Interpretation', match: /^Generate Interpretation$/ }]);
+
+      // The fourth state: a panel with nothing in it. Nothing is selected, so there is no chart to download and nothing
+      // to explain; the exports are there but off, and the page does not say "choose a result" with none to choose.
+      await page.getByRole('tab', { name: /^Thyroid/ }).click();
+      await expect(main(page).getByText(/no results from this panel/i)).toBeVisible();
+      await expect(slider(page)).toHaveCount(0);
+      await expectControlSet(page, [
+        ...TAB_ROWS,
+        { label: 'Lab results scroller', match: /^Lab results$/ },
+        { label: 'Download chart as PNG', match: /^Download chart as PNG$/ },
+        { label: 'Download chart as SVG', match: /^Download chart as SVG$/ },
+        { label: 'Open Explain', match: /^Open Explain$/ },
+        { label: 'Interpret THYROID Panel', match: /^Interpret THYROID Panel$/ },
+      ]);
+      await expect(page.getByRole('button', { name: 'Download chart as PNG' })).toBeDisabled();
+      await expect(page.getByRole('button', { name: 'Download chart as SVG' })).toBeDisabled();
+      await expect(page.getByRole('button', { name: /explain this result/i })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Generate Interpretation' })).toHaveCount(0);
+      await expect(main(page).getByText(/choose a result/i)).toHaveCount(0);
     });
   }
 
@@ -773,16 +890,20 @@ test.describe('gate G', () => {
     await expect(page.locator(DISCLAIMER)).toHaveCount(2);
   });
 
-  test('QUIET-BOX G2: layout shift over load, a tab, an analyte and Explain stays under 0.1', async ({ page }) => {
+  test('QUIET-BOX G2: layout shift over load, a tab, an analyte, Interpret panel and Explain stays under 0.1', async ({ page }) => {
     await page.setViewportSize(PHONE);
     const total = await measureCls(page, async () => {
       await openApp(page);
       await chartUp(page);
       await page.getByRole('tab', { name: /^CBC/ }).click();
       await chartUp(page, 'Hemoglobin');
+      await page.getByRole('button', { name: 'Interpret CBC Panel' }).click();
+      await expect(page.getByText('Your blood count panel reads as expected on the report.')).toBeVisible();
       await page.getByRole('tab', { name: 'All' }).click();
       await page.getByRole('button', { name: /explain this result/i }).click();
       await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible();
+      await page.getByRole('button', { name: 'Regenerate' }).click();
+      await expect(page.getByText('Grounded explanation')).toBeVisible();
     });
     expect(total).toBeLessThan(0.1);
   });
@@ -793,32 +914,106 @@ test.describe('gate G', () => {
     const slowest = await maxEventDuration(page, async () => {
       await page.getByRole('tab', { name: /^CBC/ }).click();
       await chartUp(page, 'Hemoglobin');
+      await page.getByRole('button', { name: 'Interpret CBC Panel' }).click();
+      await expect(page.getByText('Your blood count panel reads as expected on the report.')).toBeVisible();
       await page.getByRole('tab', { name: 'All' }).click();
       await list(page).getByRole('button', { name: /WBC Count/ }).click();
       await chartUp(page, 'WBC chart');
       await page.getByRole('button', { name: /explain this result/i }).click();
+      await page.getByRole('button', { name: 'Regenerate' }).click();
+      await expect(page.getByText('Grounded explanation')).toBeVisible();
     });
     expect(slowest).toBeLessThan(200);
   });
 
   for (const theme of ['light', 'dark'] as const) {
     for (const viewport of [PHONE, DESKTOP]) {
-      test(`QUIET-BOX G5: reduced motion leaves no transform after a tab, an analyte and Explain (${theme}, ${viewport.width})`, async ({ page }, testInfo) => {
+      test(`QUIET-BOX G5: reduced motion leaves no transform after each interaction (${theme}, ${viewport.width})`, async ({ page }, testInfo) => {
         await page.setViewportSize(viewport);
         await openApp(page);
         await chartUp(page);
         await setTheme(page, theme);
-        const offenders = await reducedMotionSnapshot(page, async () => {
+        // One snapshot per interaction (the gate's "50 ms after each interaction"), each taken after its own action.
+        const afterTab = await reducedMotionSnapshot(page, async () => {
           await page.getByRole('tab', { name: /^CBC/ }).click();
-          await page.getByRole('tab', { name: 'All' }).click();
-          await list(page).getByRole('button', { name: /Hemoglobin/ }).click();
-          await page.getByRole('button', { name: /explain this result/i }).click();
+          await chartUp(page, 'Hemoglobin');
         });
-        expect(offenders).toEqual([]);
+        const afterPanel = await reducedMotionSnapshot(page, async () => {
+          await page.getByRole('button', { name: 'Interpret CBC Panel' }).click();
+          await expect(page.getByText('Your blood count panel reads as expected on the report.')).toBeVisible();
+        });
+        const afterAll = await reducedMotionSnapshot(page, async () => {
+          await page.getByRole('tab', { name: 'All' }).click();
+          await chartUp(page);
+        });
+        const afterRow = await reducedMotionSnapshot(page, async () => {
+          await list(page).getByRole('button', { name: /Hemoglobin/ }).click();
+          await chartUp(page, 'Hemoglobin');
+        });
+        const afterExplain = await reducedMotionSnapshot(page, async () => {
+          await page.getByRole('button', { name: /explain this result/i }).click();
+          await expect(page.getByText('Your glucose is a little above the range used on the report.')).toBeVisible();
+        });
+        const afterRegenerate = await reducedMotionSnapshot(page, async () => {
+          await page.getByRole('button', { name: 'Regenerate' }).click();
+          await expect(page.getByText('Grounded explanation')).toBeVisible();
+        });
+        expect({ afterTab, afterPanel, afterAll, afterRow, afterExplain, afterRegenerate }).toEqual({
+          afterTab: [],
+          afterPanel: [],
+          afterAll: [],
+          afterRow: [],
+          afterExplain: [],
+          afterRegenerate: [],
+        });
         const screenshot = testInfo.outputPath(`results-${theme}-reduced-${viewport.width}.png`);
         await page.screenshot({ path: screenshot, fullPage: false });
         testInfo.annotations.push({ type: 'gate-g5-screenshot', description: screenshot });
       });
     }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-010: the break-glass warning on /results, in a real browser
+// ---------------------------------------------------------------------------
+
+test.describe('HC-UIRES-010 break-glass warning', () => {
+  const ALERT = '[role="alert"]';
+
+  for (const viewport of [PHONE, SMALL_PHONE]) {
+    test(`at ${viewport.width}: the alert is in the first viewport above the chart, nothing scrolls sideways, and the DF-4 effect is recorded`, async ({ page }, testInfo) => {
+      await page.setViewportSize(viewport);
+      await openApp(page, '/results', { externalApi: BREAK_GLASS });
+      await chartUp(page);
+      const alert = page.locator(ALERT).filter({ hasText: /privacy protection override is on/i });
+      await expect(alert).toBeVisible();
+      const box = (await alert.boundingBox())!;
+      const sliderBox = (await slider(page).boundingBox())!;
+      expect(box.y, 'in the first viewport').toBeLessThan(viewport.height);
+      expect(box.y + box.height, 'above the chart').toBeLessThanOrEqual(sliderBox.y);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, 'inside the viewport width').toBeLessThanOrEqual(viewport.width);
+      const scroll = await noHorizontalScroll(page);
+      expect(scroll.ok, `scrollWidth ${scroll.scrollWidth}, innerWidth ${scroll.innerWidth}`).toBe(true);
+      // Recorded, not asserted against the 200 px: the warning is a D12 / BG-WARN-INTERP guarantee and does not get narrower.
+      const drawn = await drawnPlot(page);
+      console.log(`DF-4 break-glass on, ${viewport.width} wide ${JSON.stringify(drawn)}`);
+      testInfo.annotations.push({ type: 'df4-break-glass-visible-plot-px', description: drawn.visible.toFixed(1) });
+    });
+  }
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`G1: /results with the warning on has no serious or critical axe violation in ${theme}`, async ({ page }) => {
+      await openApp(page, '/results', { externalApi: BREAK_GLASS });
+      await chartUp(page);
+      await expect(page.locator(ALERT).filter({ hasText: /privacy protection override is on/i })).toBeVisible();
+      await setTheme(page, theme);
+      await page.waitForFunction(() =>
+        document.getAnimations().every((a) => a.playState === 'finished' || a.effect?.getComputedTiming().iterations === Infinity)
+      );
+      const { blocking } = await axeGate(page);
+      expect(blocking.map(describeViolation), `axe in ${theme}`).toEqual([]);
+    });
   }
 });

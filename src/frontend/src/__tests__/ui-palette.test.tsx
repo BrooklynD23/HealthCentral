@@ -30,16 +30,6 @@ vi.mock('@/services/observations', async (importActual) => ({
   ...(await importActual<typeof import('@/services/observations')>()),
   useObservations: vi.fn(),
 }));
-// jsdom has no layout, so ResponsiveContainer would render nothing (same mock as ResultsPage.test.tsx).
-vi.mock('recharts', async () => {
-  const actual = await vi.importActual<typeof import('recharts')>('recharts');
-  return {
-    ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="responsive-container">{children}</div>
-    ),
-  };
-});
 vi.mock('@/services/search', () => ({ useSearch: vi.fn() }));
 vi.mock('@/services/api', async (importActual) => ({
   ...(await importActual<typeof import('@/services/api')>()),

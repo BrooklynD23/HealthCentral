@@ -10,7 +10,12 @@
  * Ids: 001 redirects; 002 the CBC tab lists CBC analytes only; 003 and 011 the disclaimer and break-glass warning
  * sit in the page shell; 005 the closed table of controls; 006 PNG and SVG export; 007 and 008 the ribbon's Reported
  * and Read-confidence words and its viewHeight; 009 the page's phone height; 010 tabs; 012 and 013 the Explain
- * click; 014 the lab-interpreter components; 015 the folded-in Trends and Interpret details; 016 and 017 source audits.
+ * click; 014 the lab-interpreter components; 015 the folded-in Trends and Interpret details; 016 and 017 source audits;
+ * 018 a grounded explanation belongs to the result it was made for; 019 a panel interpretation belongs to its tab;
+ * 020 the gauge prints no verdict on a scale that is not finite; 021 the logged-out route; 022 an empty panel.
+ *
+ * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, ...). The panel fixtures list
+ * the analytes a panel should hold for those names (the backend's PANEL_DEFINITIONS must agree, see the PR).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -99,7 +104,7 @@ function observation(
 // Vitamin D belongs to none of the four panels: it must stay reachable from All.
 const OBSERVATIONS = [
   observation('o-hgb', 'hemoglobin', 'Hemoglobin', 14.2, 'g/dL', { ref_low: 12, ref_high: 17.5 }),
-  observation('o-wbc', 'wbc', 'WBC Count', 7.5, 'K/uL'),
+  observation('o-wbc', 'white_blood_cells', 'WBC Count', 7.5, 'K/uL'),
   observation('o-glu', 'glucose', 'Glucose', 95, 'mg/dL', { ref_low: 70, ref_high: 99 }),
   observation('o-vitd', 'vitamin_d', 'Vitamin D', 31, 'ng/mL'),
 ];
@@ -146,7 +151,7 @@ const STORED_CARD = {
   interpretation_text: 'Stored card text.',
   severity_level: 'mild',
   advice_text: null,
-  citations: [],
+  citations: [{ type: 'knowledge_base', id: 'kb-hgb', text: 'Hemoglobin carries oxygen in the blood.' }],
   context: null,
   model_id: 'template-v1',
   model_tier: 'template',
@@ -330,13 +335,52 @@ describe('HC-UIRES-001 redirects', () => {
     expect((window.history.state as { usr?: unknown } | null)?.usr).toEqual({ explain: true });
   });
 
-  it('HC-UIRES-001: a redirect replaces the entry: the history is no longer after it than before', async () => {
-    window.history.pushState({}, '', '/inbox');
-    await openApp('/trends?analyte=glucose');
-    const lengthBefore = window.history.length;
-    await waitFor(() => expect(window.location.pathname).toBe('/results'), { timeout: 8000 });
-    expect(window.history.length).toBe(lengthBefore);
+  it('HC-UIRES-001: /interpret?analyte=ldl_cholesterol keeps the query and carries { explain: true }', async () => {
+    await openApp('/interpret?analyte=ldl_cholesterol');
+    await waitFor(() => expect(`${window.location.pathname}${window.location.search}`).toBe('/results?analyte=ldl_cholesterol'), {
+      timeout: 8000,
+    });
+    expect((window.history.state as { usr?: unknown } | null)?.usr).toEqual({ explain: true });
   });
+
+  for (const old of ['/trends?analyte=glucose', '/interpret']) {
+    it(`HC-UIRES-001: ${old} replaces its entry: no entry is added, and Back lands on the page before it`, async () => {
+      window.history.pushState({}, '', '/inbox');
+      // Read after the old path is in place and before the app renders: only the redirect can change it from here.
+      window.history.pushState({}, '', old);
+      const lengthBefore = window.history.length;
+      vi.mocked(api.apiGet).mockResolvedValue([] as never);
+      vi.mocked(api.apiPost).mockResolvedValue({} as never);
+      useAuthStore.getState().setAuth({ token: 'test-token', profileId: 'profile-123', profileName: 'Test Profile', expiresIn: 3600 });
+      const { default: App } = await import('@/App');
+      render(<App />);
+      await waitFor(() => expect(window.location.pathname).toBe('/results'), { timeout: 8000 });
+      expect(window.history.length, 'push would add an entry').toBe(lengthBefore);
+      // With push instead of replace, Back returns to the old path, which redirects straight back to /results.
+      act(() => window.history.back());
+      await waitFor(() => expect(window.location.pathname).toBe('/inbox'), { timeout: 8000 });
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-021: /results is behind the login
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-021 /results and the old paths are protected', () => {
+  afterEach(() => window.history.replaceState({}, '', '/'));
+
+  for (const path of ['/results', '/trends?analyte=glucose', '/interpret']) {
+    it(`HC-UIRES-021: logged out, ${path} lands on /setup and asks the API for no observation`, async () => {
+      vi.mocked(api.apiGet).mockResolvedValue([] as never);
+      useAuthStore.getState().clearAuth();
+      window.history.pushState({}, '', path);
+      const { default: App } = await import('@/App');
+      render(<App />);
+      await waitFor(() => expect(window.location.pathname).toBe('/setup'), { timeout: 8000 });
+      expect(apiGetCalls().filter((url) => url.startsWith('/observations'))).toEqual([]);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -542,6 +586,8 @@ describe('HC-UIRES-012 / 013 Explain this result', () => {
     fireEvent.click(screen.getByRole('button', { name: /explain this result/i }));
     expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /show source/i })).toBeInTheDocument();
+    // "and citations" (the row): the stored card's citation is a chip the reader can open.
+    expect(screen.getByRole('button', { name: 'Citation 1: Hemoglobin carries oxygen in the blood.' })).toBeInTheDocument();
     expect(screen.getAllByRole('note').length).toBeGreaterThanOrEqual(2);
   });
 
@@ -1263,11 +1309,209 @@ describe('HC-UIRES-016 / 017 source audits', () => {
     expect(source).not.toContain('text-white');
   });
 
+  it('HC-UIRES-016: the spinners in the two components the page renders turn only where motion is allowed', async () => {
+    const card = (await import(/* @vite-ignore */ '@/components/lab-interpreter/InterpretedResultCard.tsx?raw')) as { default: string };
+    const dashboard = (await import(/* @vite-ignore */ '@/components/lab-interpreter/PanelInterpretationDashboard.tsx?raw')) as { default: string };
+    for (const source of [card.default, dashboard.default]) {
+      expect(source).toMatch(/motion-safe:animate-spin/);
+      expect(source).not.toMatch(/(?<!motion-safe:)\banimate-/);
+    }
+  });
+
   it('HC-UIRES-017: the page imports the lab-interpreter components by path and never reaches recharts (the Results bundle budget)', async () => {
     const { default: source } = await loadPageSource();
     expect(source).not.toMatch(/from '@\/components\/lab-interpreter'/);
     expect(source).not.toMatch(/from '@\/services'/);
     expect(source).not.toMatch(/recharts|InterpretedTrendChart/);
     expect(source).toContain("from '@/components/results/RangeRibbon'");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-018: a grounded explanation belongs to the result it was made for
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-018 a grounded explanation and its faithfulness badge follow the selected result', () => {
+  it('HC-UIRES-018: generated on Hemoglobin, gone on Glucose, back on Hemoglobin', async () => {
+    await renderPage({ entry: { pathname: '/results', state: { explain: true } } });
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    expect(await screen.findByText('Grounded explanation')).toBeInTheDocument();
+    expect(screen.getByText(/Grounded faithfulness: 100%/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Glucose/ }));
+    await waitFor(() => expect(chartTitle()).toBe('GLUCOSE'));
+    expect(screen.queryByText('Grounded explanation')).toBeNull();
+    expect(screen.queryByText(/Grounded faithfulness/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Hemoglobin/ }));
+    await waitFor(() => expect(chartTitle()).toBe('HEMOGLOBIN'));
+    expect(screen.getByText('Grounded explanation')).toBeInTheDocument();
+    expect(screen.getByText(/Grounded faithfulness: 100%/)).toBeInTheDocument();
+  });
+
+  it('HC-UIRES-018: a ?analyte= pick that moves the selection hides it too', async () => {
+    await renderPage({ entry: { pathname: '/results', state: { explain: true } }, go: '/results?analyte=glucose' });
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    expect(await screen.findByText('Grounded explanation')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'go /results?analyte=glucose' }));
+    await waitFor(() => expect(chartTitle()).toBe('GLUCOSE'));
+    expect(screen.queryByText('Grounded explanation')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-019: a panel interpretation belongs to its tab
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for', () => {
+  it('HC-UIRES-019: a named ?analyte= resets to All and takes the CBC dashboard with it', async () => {
+    await renderPage({ go: '/results?analyte=glucose' });
+    await pageLoaded();
+    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Interpret CBC Panel' }));
+    expect(await screen.findByText('Panel summary text.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'go /results?analyte=glucose' }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true'));
+    expect(screen.queryByText('Panel summary text.')).toBeNull();
+    // And it does not come back when the tab is chosen again.
+    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    await waitFor(() => expect(listNames()).toHaveLength(2));
+    expect(screen.queryByText('Panel summary text.')).toBeNull();
+  });
+
+  it('HC-UIRES-019: a response that arrives after the tab changed is dropped, and its spinner is not shown under the new tab', async () => {
+    await renderPage();
+    await pageLoaded();
+    let finish: (value: unknown) => void = () => undefined;
+    const original = vi.mocked(api.apiPost).getMockImplementation()!;
+    vi.mocked(api.apiPost).mockImplementation((url: string, ...rest: unknown[]) =>
+      url.includes('/panels/') ? new Promise((resolve) => (finish = resolve)) : (original as (...args: unknown[]) => Promise<unknown>)(url, ...rest)
+    );
+    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Interpret CBC Panel' }));
+    expect(await screen.findByText('Generating panel interpretation...')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /^CMP/ }));
+    await waitFor(() => expect(screen.getByRole('tab', { name: /^CMP/ })).toHaveAttribute('aria-selected', 'true'));
+    expect(screen.queryByText('Generating panel interpretation...'), 'the CBC request is not a CMP spinner').toBeNull();
+
+    await act(async () => {
+      finish({
+        id: 'panel-1',
+        panel_name: 'cbc',
+        collected_at: '2026-04-10T00:00:00',
+        observation_ids: ['o-hgb'],
+        summary_text: 'Panel summary text.',
+        overall_status: 'normal',
+        relationship_insights: null,
+        advice_text: null,
+        citations: [],
+        confidence_score: 0.9,
+        requires_physician_review: false,
+        created_at: '2026-04-10T00:00:00',
+      });
+    });
+    expect(screen.queryByText('Panel summary text.'), 'not under CMP').toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /^CBC/ }));
+    await waitFor(() => expect(listNames()).toHaveLength(2));
+    expect(screen.queryByText('Panel summary text.'), 'dropped, not parked until CBC is back').toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-022: an empty panel
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-022 an empty panel has nothing to download or explain', () => {
+  const emptyPanelRows: Control[] = [
+    ...TAB_ROWS,
+    { name: 'Lab results scroller', match: /^Lab results$/ },
+    { name: 'Download chart as PNG', match: /^Download chart as PNG$/ },
+    { name: 'Download chart as SVG', match: /^Download chart as SVG$/ },
+    { name: 'Open Explain', match: /^Open Explain$/ },
+    { name: 'Interpret LIPID Panel', match: /^Interpret LIPID Panel$/ },
+  ];
+
+  it('HC-UIRES-022: the exports are off, Explain is not offered, and the body does not say to choose a result', async () => {
+    await renderPage();
+    await pageLoaded();
+    fireEvent.click(screen.getByRole('tab', { name: /^Lipids/ }));
+    expect(await screen.findByText(/no results from this panel/i)).toBeInTheDocument();
+    expectControlSet(emptyPanelRows);
+    expect(screen.getByRole('button', { name: 'Download chart as PNG' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Download chart as SVG' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /explain this result/i })).toBeNull();
+    expect(screen.queryByText(/choose a result/i)).toBeNull();
+  });
+
+  it('HC-UIRES-022: with Explain already open, an empty panel offers no Generate and no empty interpretation card', async () => {
+    await renderPage({ entry: { pathname: '/results', state: { explain: true } } });
+    await pageLoaded();
+    fireEvent.click(screen.getByRole('tab', { name: /^Lipids/ }));
+    expect(await screen.findByText(/no results from this panel/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Generate Interpretation/i })).toBeNull();
+    expect(screen.queryByText('No interpretation yet')).toBeNull();
+    expectControlSet(emptyPanelRows);
+  });
+
+  it('HC-UIRES-022: the exports are off while the trend loads, and a click then downloads nothing', async () => {
+    const anchors: string[] = [];
+    Object.defineProperty(HTMLAnchorElement.prototype, 'click', { configurable: true, writable: true, value(this: HTMLAnchorElement) { anchors.push(this.download); } });
+    const base = vi.mocked(api.apiGet).getMockImplementation()!;
+    vi.mocked(api.apiGet).mockImplementation(async (url: string, params?: Record<string, string>) =>
+      url.startsWith('/observations/trends/') ? new Promise(() => {}) : base(url, params)
+    );
+    await renderPage();
+    await screen.findByRole('button', { name: /^Hemoglobin/ });
+    expect(screen.getByRole('button', { name: 'Download chart as PNG' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Download chart as SVG' }));
+    expect(anchors).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-020: the gauge prints a verdict only on a finite scale
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-020 ReferenceRangeComparison prints a verdict only when value and both bounds are finite', () => {
+  async function gauge(value: number, refLow: number, refHigh: number) {
+    const { ReferenceRangeComparison } = (await import(/* @vite-ignore */ RANGE_MODULE)) as typeof import('@/components/lab-interpreter/ReferenceRangeComparison');
+    return render(<ReferenceRangeComparison value={value} refLow={refLow} refHigh={refHigh} unit="mg/dL" />);
+  }
+
+  it('HC-UIRES-020: a finite scale still reads Low, High and Normal', async () => {
+    for (const [value, word] of [[60, 'Low'], [120, 'High'], [80, 'Normal']] as const) {
+      const view = await gauge(value, 70, 99);
+      expect(view.container.textContent).toContain(`(${word})`);
+      view.unmount();
+    }
+  });
+
+  it('HC-UIRES-020: a NaN or infinite value or bound prints the value and no verdict word', async () => {
+    for (const [value, low, high] of [[Number.NaN, 70, 99], [80, Number.NaN, 99], [80, 70, Number.POSITIVE_INFINITY], [Number.POSITIVE_INFINITY, 70, 99]] as const) {
+      const view = await gauge(value, low, high);
+      expect(view.container.textContent, `${value} in ${low}..${high}`).not.toMatch(/\((Low|High|Normal)\)/);
+      expect(view.container.textContent).toContain('mg/dL');
+      view.unmount();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-023: the card's toggle names what it opens
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-023 the card toggle matches the heading it opens', () => {
+  it('HC-UIRES-023: the toggle reads "Hide questions to ask" over "Questions you could ask your clinician"; nothing on the card says Recommendations', async () => {
+    const { InterpretedResultCard } = (await import(/* @vite-ignore */ CARD_MODULE)) as typeof import('@/components/lab-interpreter/InterpretedResultCard');
+    render(<InterpretedResultCard interpretation={{ ...STORED_CARD, advice_text: 'Ask about a repeat test.' }} analyteName="Hemoglobin" />);
+    // The advice starts open, so the toggle offers to hide it.
+    expect(screen.getByText('Questions you could ask your clinician')).toBeInTheDocument();
+    expect(screen.getByText('Ask about a repeat test.')).toBeInTheDocument();
+    expect(screen.queryByText(/recommendations/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /hide questions to ask/i }));
+    expect(screen.queryByText('Questions you could ask your clinician')).toBeNull();
+    expect(screen.getByRole('button', { name: /show questions to ask/i })).toBeInTheDocument();
+    expect(screen.queryByText(/recommendations/i)).toBeNull();
   });
 });
