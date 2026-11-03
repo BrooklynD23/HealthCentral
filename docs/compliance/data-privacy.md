@@ -73,7 +73,9 @@ copy of the vault file.
 - **Where and what.** One per profile, in the profile's own folder
   (`<app_data>/vaults/<profile_id>/vault.pre017.snapshot`). It is a copy of the
   encrypted file, sealed with the same key as the vault. It is never decrypted
-  and never written as plain text.
+  and never written as plain text. That holds with SQLCipher; in the
+  local-development mode without it the vault is a plain SQLite file and the
+  copy is exactly as plain as the vault.
 - **When.** Only when 017 has not yet run on a vault that already has tables. A
   new empty vault, and a vault already at 017 or later, take none.
 - **Verified before it counts.** The write-ahead log is folded into the vault
@@ -92,6 +94,13 @@ copy of the vault file.
   one; the restored backup is the recovery copy.
 - **Deleted.** With the profile (the vault-folder sweep in step 4 below) and by
   the synthetic-profile test reset.
+- **A document deleted afterwards stays in it.** The snapshot is a frozen copy
+  of the vault as it was before 017. A document, entity quote or care-plan
+  quote the patient deletes after the migration is gone from the live vault but
+  still readable in the snapshot until the purge below removes it, and that
+  purge waits for the next open of the vault on or after day 30. Deleting a
+  document does not touch the snapshot. See the known gap under
+  [Document Deletion](#document-deletion).
 - **Purged by age.** On the first open of the vault 30 days or more after the
   snapshot was made. The age is the snapshot's own time, not the vault's. A
   session that is already open does not purge it until the vault is opened
@@ -256,6 +265,20 @@ to the documents it quoted, so document deletion cannot target it. It stays
 inside the encrypted per-profile vault, and RL dataset export forces strict
 redaction over it (RL-REDACT-001), but it is not erased when a source document
 is. Tracked as `FEEDBACK-SNAP-001`.
+
+**Known gap (pre-017 snapshot).** On a vault that already held data when
+migration 017 ran, `vault.pre017.snapshot` is a full copy of the vault from
+before the migration, made automatically. Deleting a document afterwards does
+not reach it: the document, its extracted entities and quotes, and any
+care-plan quote stay readable in that copy until the snapshot is purged, on the
+first open of the vault 30 days or more after it was made (an already-open
+session does not purge it until the vault is opened again). The copy is
+encrypted with the same key as the vault, so it exposes nothing that the vault
+key did not already open; the gap is only that a deletion is not final for up
+to that long. Deleting the whole profile removes it at once. The retention rule
+is a ruling by L0 and is unchanged here; whether document deletion should also
+delete the snapshot is an open owner question (see
+[Pre-017 vault snapshot](#pre-017-vault-snapshot)).
 
 ## Unverified Extracted Values
 
