@@ -7,7 +7,28 @@
  * come from the normal harness (playwright.config.ts starts both).
  *
  * Timing gates (G2, G3, G5, G10, and the Lift timing of HC-UIAUTH-003) are measurements: run them on a quiet box
- * only. Their titles end in "(timing)".
+ * only. Their titles end in "(timing)". `--grep '\(timing\)'` selects them; `--grep-invert '\(timing\)'` is the
+ * functional run (no describe title carries the word, so nothing leaves the functional run by accident).
+ *
+ * G3 is measured on a production build (plan section 6), against the real backend. Preview must therefore sit on
+ * port 3000: the backend's local CORS list is http://127.0.0.1:3000 and http://localhost:3000 only
+ * (src/backend/main.py), and extraHTTPHeaders sends that Origin, so a preview on 4173 (e2e/README recipe 3, which
+ * runs without a backend) would have its API calls refused. The config reuses a server already answering on 3000
+ * instead of starting the dev server, and starts the backend itself. From the repo root, build first (heavy; the
+ * quiet box does not need to be quiet for it), then measure:
+ *
+ *   cd src/frontend
+ *   VITE_API_URL=http://127.0.0.1:8000/api/v1 ../../scripts/pyslot.sh npm run build
+ *   /tmp/claude-1000/quiet_run.sh bash -c '
+ *     cd src/frontend
+ *     npx vite preview --host 127.0.0.1 --port 3000 --strictPort & PV=$!
+ *     trap "kill $PV" EXIT
+ *     sleep 3
+ *     HC_E2E_BACKEND_PYTHON=/home/danny/venvs/asclexis-311/bin/python HC_E2E_BASE_URL=http://127.0.0.1:3000 \
+ *       npx playwright test e2e/ui-auth.spec.ts --project=chromium --grep "G3 "'
+ *
+ * Not run when written (L0 owns the quiet box): the CORS reasoning is from reading, so the first run is also the
+ * check; a CORS refusal shows as every API call failing with "net::ERR_FAILED" in the trace.
  */
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -80,13 +101,18 @@ async function submitCreateUntilRecoveryCode(page: Page): Promise<void> {
   await expect(page.getByTestId('recovery-code')).toBeVisible({ timeout: 30000 });
 }
 
-/** Answers POST /profiles/ with a 500 (the same mock as the G2 failed-create case); other requests pass through. */
-async function failProfileCreate(page: Page): Promise<void> {
-  await page.route('**/profiles/', (route) =>
-    route.request().method() === 'POST'
-      ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) })
-      : route.fallback()
-  );
+/**
+ * Answers POST /profiles/ with a 500 after 700 ms; other requests pass through. A real failure arrives after the
+ * key derivation, well outside the 500 ms hadRecentInput window of the layout-shift observer, so the shift of the
+ * card that follows it is counted (an instant mock would hide it from measureCls). The stillness probe passes 0: its
+ * 800 ms window starts at the click.
+ */
+async function failProfileCreate(page: Page, delayMs = 700): Promise<void> {
+  await page.route('**/profiles/', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) });
+  });
 }
 
 /** Opens /setup and fills the unlock card for the E2E profile (does not submit). */
@@ -288,11 +314,7 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
   });
 
   test('G2 CLS on submitting the empty create form and on a failed create (timing)', async ({ page }) => {
-    await page.route('**/profiles/', (route) =>
-      route.request().method() === 'POST'
-        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) })
-        : route.fallback()
-    );
+    await failProfileCreate(page);
     const cls = await measureCls(page, async () => {
       await openCreateForm(page);
       await page.getByRole('button', { name: /create your profile/i }).click();
@@ -494,6 +516,7 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
         duration?: number;
         keyframes?: Record<string, unknown>[];
         panelGap?: boolean;
+        ghostContainsRailCentre?: boolean;
         railCoveredBy?: string | null;
         ghostHasControl?: boolean;
         ghostHtmlHasPassword?: boolean;
@@ -512,7 +535,15 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
           const heading = Array.from(document.querySelectorAll('[data-setup-page] h2')).some(
             (h) => h.textContent === 'Unlock your profile'
           );
-          if (!heading) log.panelGap = true;
+          // The create card (here: the button, a profile is on file) and the footer stay too, or the page would
+          // shrink under the ghost and a scroll clamp could move the panel away from the rect the ghost copied.
+          const createButton = Array.from(document.querySelectorAll('[data-setup-page] button')).some(
+            (b) => b.textContent === 'Create a new profile'
+          );
+          const footer = (document.querySelector('[data-setup-page]')?.textContent ?? '').includes(
+            'Your data is stored locally and never uploaded.'
+          );
+          if (!heading || !createButton || !footer) log.panelGap = true;
         }
         if (ghost && log.ghostAt === undefined) {
           log.ghostAt = now;
@@ -531,6 +562,12 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
         const rail = document.querySelector('[data-safety-rail]');
         if (ghost && rail && log.railCoveredBy === undefined) {
           const box = rail.getBoundingClientRect();
+          // The probe means something only where the ghost is: record whether it sits over the rail's centre.
+          const ghostBox = ghost.getBoundingClientRect();
+          const cx = box.left + box.width / 2;
+          const cy = box.top + box.height / 2;
+          log.ghostContainsRailCentre =
+            cx >= ghostBox.left && cx <= ghostBox.right && cy >= ghostBox.top && cy <= ghostBox.bottom;
           const previous = ghost.style.pointerEvents;
           ghost.style.pointerEvents = 'auto';
           const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
@@ -573,6 +610,8 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     request,
   }) => {
     await ensureE2EProfile(request);
+    // G7 over the whole unlock, the ghost and the landing included, not only the page open.
+    const guard = consoleAndNetworkGuard(page);
     await unlock(page);
 
     const lift = await page.evaluate(() => (window as unknown as { __lift: Record<string, unknown> }).__lift);
@@ -586,6 +625,7 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     // It cleans up after itself, and no attribute or value in the document holds the password.
     await expect(page.locator('[data-lift-ghost]')).toHaveCount(0, { timeout: 5000 });
     expect(await documentHoldsPassword(page)).toEqual([]);
+    guard.assertClean();
   });
 
   test('at 390x844 the Lift ghost does not cover the Safety Rail, and the rail is visible once it ends (G9)', async ({
@@ -595,9 +635,12 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     await ensureE2EProfile(request);
     await unlock(page, PHONE);
     const lift = await page.evaluate(
-      () => (window as unknown as { __lift: { railCoveredBy?: string | null } }).__lift
+      () =>
+        (window as unknown as { __lift: { railCoveredBy?: string | null; ghostContainsRailCentre?: boolean } }).__lift
     );
     expect(lift.railCoveredBy, 'the rail was probed while the ghost was up').not.toBeUndefined();
+    // Without this a ghost placed elsewhere would pass too: the probe only counts where the ghost really is.
+    expect(lift.ghostContainsRailCentre, 'the ghost overlaps the rail centre, so the probe tests z-order').toBe(true);
     expect(lift.railCoveredBy, 'what covered the rail').toBeNull();
     await expect(page.locator('[data-lift-ghost]')).toHaveCount(0, { timeout: 5000 });
     const rail = await safetyVisible(page);
@@ -662,6 +705,8 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
 test.describe('HC-UIAUTH-004: the recovery code in 4-character groups', () => {
   test('at 320x640 no group splits across lines and nothing overflows', async ({ page }) => {
     await page.setViewportSize(SMALL_PHONE);
+    // G7 over the whole create, up to and including the recovery-code step.
+    const guard = consoleAndNetworkGuard(page);
     const code = await createProfileUi(page);
     expect(code).toMatch(/^([A-Z0-9]{4}-){7}[A-Z0-9]{4}$/);
 
@@ -673,6 +718,7 @@ test.describe('HC-UIAUTH-004: the recovery code in 4-character groups', () => {
     expect((await noHorizontalScroll(page)).ok, 'G6 320 recovery step').toBe(true);
     // The code does wrap at this width, and only between groups.
     expect(report.lineTops).toBeGreaterThan(1);
+    guard.assertClean();
   });
 
   test('copy writes the code unchanged, and the step passes axe in both themes', async ({ page, context }) => {
@@ -759,6 +805,53 @@ async function rotateOnRecoverPage(page: Page, profile: { name: string; code: st
   return (await code.textContent()) ?? '';
 }
 
+test.describe('HC-UIAUTH-001: a fixed field error clears (functional)', () => {
+  test('fixing a field clears its error, and only that one (real browser)', async ({ page }) => {
+    await openCreateForm(page);
+    await page.getByRole('button', { name: /create your profile/i }).click();
+    await expect(page.getByText('Name is required')).toBeVisible();
+    await page.getByLabel('Profile Name').fill('A');
+    await expect(page.getByText('Name is required')).toHaveCount(0);
+    await expect(page.getByText('Password is required')).toBeVisible();
+  });
+});
+
+test.describe('SEC-RECOV-001: leaving while the profile is being created (functional)', () => {
+  test('while POST /profiles/ is pending the recovery link is hidden, the fields are locked and a revealed password is masked; the code shows after release', async ({
+    page,
+  }) => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/profiles/', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await held;
+      return route.fallback();
+    });
+    try {
+      await openCreateForm(page);
+      await fillCreateForm(page);
+      await page.getByRole('button', { name: 'Show password' }).click();
+      await expect(page.getByPlaceholder('Create a secure password')).toHaveAttribute('type', 'text');
+      const link = page.locator('a[href="/recover"]');
+      await expect(link).toBeVisible();
+
+      await page.getByRole('button', { name: /create your profile/i }).click();
+      await expect(page.getByRole('button', { name: /creating your profile/i })).toBeVisible();
+
+      // visibility:hidden: out of the tab order and out of the pointer's reach, and the card keeps its height.
+      await expect(link).toBeHidden();
+      await expect(page.getByLabel('Profile Name')).toBeDisabled();
+      await expect(page.getByPlaceholder('Create a secure password')).toBeDisabled();
+      await expect(page.getByPlaceholder('Create a secure password')).toHaveAttribute('type', 'password');
+    } finally {
+      release();
+    }
+    await expect(page.getByTestId('recovery-code')).toBeVisible({ timeout: 30000 });
+  });
+});
+
 test.describe('HC-UIAUTH-005: stillness (timing)', () => {
   test('submitting during the S1 entrance: every field error passes from its first render (timing)', async ({
     page,
@@ -792,15 +885,6 @@ test.describe('HC-UIAUTH-005: stillness (timing)', () => {
     });
   });
 
-  test('fixing a field clears its error, and only that one (real browser)', async ({ page }) => {
-    await openCreateForm(page);
-    await page.getByRole('button', { name: /create your profile/i }).click();
-    await expect(page.getByText('Name is required')).toBeVisible();
-    await page.getByLabel('Profile Name').fill('A');
-    await expect(page.getByText('Name is required')).toHaveCount(0);
-    await expect(page.getByText('Password is required')).toBeVisible();
-  });
-
   test('the recovery-code step passes with the code and its warning expected (timing)', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
     await openCreateForm(page);
@@ -817,11 +901,7 @@ test.describe('HC-UIAUTH-005: stillness (timing)', () => {
 
   test('the create-failure error passes from its first render (timing)', async ({ page }) => {
     await page.setViewportSize(DESKTOP);
-    await page.route('**/profiles/', (route) =>
-      route.request().method() === 'POST'
-        ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Server unavailable' }) })
-        : route.fallback()
-    );
+    await failProfileCreate(page, 0);
     await openCreateForm(page);
     await settleReveal(page);
     await page.getByLabel('Profile Name').fill(`Playwright UIAuth ${Date.now()}`);
