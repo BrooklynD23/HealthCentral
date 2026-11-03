@@ -59,7 +59,7 @@ Stored in master database (not encrypted by default).
 | Health data (PHI) | Indefinite | Delete via UI or API |
 | Audit logs | Indefinite | Archival recommended |
 | Backups | 30 days | Settings → Backup & restore, or `--retention-days`. `0` means never prune. Deleted with the profile. |
-| Pre-017 vault snapshot (and its aside copy) | Until the first vault open 30 days or more after it was made, and only once migration 017 has completed on that vault. A vault that cannot complete 017 keeps it past 30 days. | One per profile, in its own folder, made once before migration 017 runs on an existing vault. A snapshot that fails verification is moved aside to a second file instead of being overwritten, so a profile can briefly hold two full copies. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Both are deleted with the profile and by the synthetic-profile test reset. |
+| Pre-017 vault snapshot (and its aside copy) | Until the first vault open 30 days or more after it was made, and only once migration 017 has completed on that vault. A vault that cannot complete 017 keeps it past 30 days. | One per profile, in its own folder, made once before migration 017 runs on an existing vault. A snapshot that fails verification is moved aside to a second file instead of being overwritten, so a profile can hold two full copies of its patient data until the purge removes the aside. See [Pre-017 vault snapshot](#pre-017-vault-snapshot). Both are deleted with the profile and by the synthetic-profile test reset. |
 | Request metrics | In-memory (session) | Cleared on restart |
 | AI model cache | Persistent | Manual cleanup via settings |
 
@@ -102,13 +102,19 @@ copy of the vault file.
   taken. The aside file is the original file: same key, same bytes, never
   decrypted. It follows the same 30-day rule, counted from the time the
   original snapshot was made, not from the move. Because it is a full copy of
-  the vault as it was, a profile can for a while hold two full copies of its
-  patient data: the aside and the new snapshot. If the aside name is already
-  occupied, the migration is **refused**, the same way as a failed snapshot:
-  nothing is touched, the vault is not upgraded, and the patient sees the same
-  generic 500. The age purge cannot free the name, because it runs only after
-  017 has completed. The vault therefore stays closed until the aside file is
-  removed by hand or the profile is deleted.
+  the vault as it was, a profile can hold two full copies of its patient data,
+  the aside and the new snapshot, until the purge removes the aside. That lasts
+  at least until day 30 and has no limit while 017 cannot complete. If the
+  aside name is already occupied (by the aside file or by any of its journal,
+  WAL or shm files: `vault.pre017.snapshot.aside`, `-journal`, `-wal`, `-shm`),
+  the migration is **refused**, the same way as a failed snapshot: nothing is
+  touched, the vault is not upgraded, and the patient sees the same generic
+  500. The age purge cannot free the name, because it runs only after 017 has
+  completed. The vault therefore stays closed until those files are removed by
+  hand. Deleting the profile would also remove them, but that needs a signed-in
+  session, and login and unlock create the session only after the vault has
+  opened, so a patient whose vault is refused cannot normally get one: the
+  practical exit is by hand.
 - **Deleted.** With the profile (the vault-folder sweep in step 4 below) and by
   the synthetic-profile test reset. Both remove the snapshot, the aside copy and
   their journal, WAL and shm files.
@@ -125,8 +131,10 @@ copy of the vault file.
   later. The open that completes 017 does not purge, because that same open has
   just deleted rows; the next open does. A vault that cannot complete 017 (the
   migration fails or is refused) keeps its snapshot and its aside copy past 30
-  days, for as long as it takes, until 017 completes or the profile is deleted.
-  This extends the retention of that data beyond 30 days on purpose: the
+  days, for as long as it takes, until 017 completes. Deleting the profile
+  also removes them, but that needs a signed-in session that a refused login
+  cannot create, so for a patient locked out the practical exit is removing the
+  files by hand. This extends the retention of that data beyond 30 days on purpose: the
   snapshot is the only copy of the rows 017 deletes. The snapshot and the aside
   copy are each judged by their own time, which is the time the original
   snapshot was made, not the vault's or the move's. A session that is already
@@ -303,8 +311,10 @@ extracted entities and quotes, and any care-plan quote stay readable in those
 copies until they are purged, on the first open of the vault 30 days or more
 after the snapshot was made, once 017 has completed on that vault (an
 already-open session does not purge them until the vault is opened again). A
-vault that cannot complete 017 keeps them past 30 days, until it completes or
-the profile is deleted. The copies are encrypted with the same key as the
+vault that cannot complete 017 keeps them past 30 days, until it completes.
+Deleting the profile removes them too, but that needs a signed-in session that
+a refused login cannot create, so for a locked-out patient the practical exit
+is removing the files by hand. The copies are encrypted with the same key as the
 vault, so they expose nothing that the vault key did not already open; the gap
 is only that a deletion is not final until then, and the purge needs a vault
 open, so a vault that is never opened keeps the copies. Deleting the whole
