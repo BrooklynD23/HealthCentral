@@ -74,6 +74,7 @@ export function DocumentInbox() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
   const importButton = useRef<HTMLButtonElement>(null);
+  const previewOpener = useRef<HTMLElement | null>(null);
 
   // Get active profile from auth store
   const profileId = useAuthStore((state) => state.profileId) || '';
@@ -97,7 +98,22 @@ export function DocumentInbox() {
       ? (documents.find((d) => d.id === reprocessDocument.variables)?.source || 'document')
       : null;
 
-  const closePreview = () => setPreviewDocId(null);
+  const openPreview = (id: string, opener: HTMLElement) => {
+    previewOpener.current = opener;
+    setPreviewDocId(id);
+  };
+
+  // The Sheet is opened from a button, not from a trigger, so Radix has no element to give focus back to and the
+  // focus would fall to <body> (the next Tab lands on "Skip to content"). It goes back to the button that opened it.
+  const closePreview = () => {
+    const opener = previewOpener.current;
+    previewOpener.current = null;
+    setPreviewDocId(null);
+    // After the render: while the Sheet is still open its focus trap would pull the focus straight back.
+    requestAnimationFrame(() => {
+      if (opener?.isConnected) opener.focus();
+    });
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -243,10 +259,10 @@ export function DocumentInbox() {
       <BeamBorder active={processingName !== null} className="rounded-2xl [&>span]:z-10">
         <Card
           className={cn(
-            'border-2 border-dashed transition-all duration-200',
+            'border-2 border-dashed transition-colors duration-200',
             isDragging
               ? 'border-accent bg-accent-subtle/50'
-              : 'border-black/8 hover:border-accent/50'
+              : 'border-border hover:border-accent/50'
           )}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -374,7 +390,7 @@ export function DocumentInbox() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setPreviewDocId(lastImport.document.id)}>
+              <Button variant="secondary" size="sm" onClick={(e) => openPreview(lastImport.document.id, e.currentTarget)}>
                 Preview
               </Button>
               <Button size="sm" onClick={() => navigate(`/verify?doc=${lastImport.document.id}&mode=all`)}>
@@ -451,7 +467,7 @@ export function DocumentInbox() {
               className="border-0 bg-transparent"
             />
           ) : (
-            <div className="divide-y divide-black/4">
+            <div className="divide-y divide-border">
               {documents.map((doc) => (
                 <div
                   key={doc.id}
@@ -511,11 +527,11 @@ export function DocumentInbox() {
                       variant="ghost"
                       size="icon"
                       aria-label="View document"
-                      onClick={() => setPreviewDocId(doc.id)}
+                      onClick={(e) => openPreview(doc.id, e.currentTarget)}
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <DropdownMenu.Root>
+                    <DropdownMenu.Root modal={false}>
                       <DropdownMenu.Trigger asChild>
                         <Button
                           type="button"
@@ -532,7 +548,7 @@ export function DocumentInbox() {
                       </DropdownMenu.Trigger>
                       <DropdownMenu.Portal>
                         <DropdownMenu.Content
-                          className="min-w-48 rounded-xl border border-black/8 bg-white p-1 shadow-lg z-100"
+                          className="min-w-48 rounded-xl border border-border bg-surface-elevated p-1 text-ink shadow-lg z-100"
                           sideOffset={8}
                           align="end"
                         >
@@ -589,6 +605,7 @@ export function DocumentInbox() {
           if (!open) closeDeleteDialog();
         }}
         title="Remove this document?"
+        className="[overflow-wrap:anywhere]"
         description={`Remove "${deleteTarget?.source || 'this document'}" from your library? This cannot be undone.`}
       >
         <div className="flex flex-wrap justify-end gap-2">

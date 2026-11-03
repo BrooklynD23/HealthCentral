@@ -576,6 +576,98 @@ test.describe('HC-UIDOC end to end', () => {
     await page.keyboard.press('Escape');
   });
 
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+    { width: 320, height: 640 },
+  ]) {
+    test(`HC-UIDOC-009: closing the preview Sheet with Escape puts focus back on View document of that row, at ${viewport.width}x${viewport.height}`, async ({
+      page,
+    }) => {
+      // Would not notice: focus on <body> (the next Tab lands on "Skip to content"). The focused element is read and
+      // must be the exact button that opened the Sheet, on the second row so a "first button" default would fail.
+      await page.setViewportSize(viewport);
+      await setup(page);
+      await openInbox(page);
+      const view = rowByName(page, SECOND_NAME).getByRole('button', { name: 'View document' });
+      await view.focus();
+      await page.keyboard.press('Enter');
+      const sheet = page.getByRole('dialog', { name: 'Document preview' });
+      await expect(sheet).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(sheet).toBeHidden();
+      await expect(view).toBeFocused();
+      expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('BUTTON');
+    });
+  }
+
+  test('HC-UIDOC-009: closing the preview Sheet that the last-import card opened puts focus back on its Preview button', async ({
+    page,
+  }) => {
+    await setup(page);
+    await openInbox(page);
+    await fileInput(page).setInputFiles(NEW_FILE);
+    await expect(page.locator(HANDOFF)).toBeVisible();
+    const preview = page.getByRole('button', { name: 'Preview', exact: true });
+    await preview.focus();
+    await page.keyboard.press('Enter');
+    const sheet = page.getByRole('dialog', { name: 'Document preview' });
+    await expect(sheet).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(sheet).toBeHidden();
+    await expect(preview).toBeFocused();
+  });
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+    { width: 320, height: 640 },
+  ]) {
+    test(`HC-UIDOC-010: the delete dialog shows the whole document name inside itself, at ${viewport.width}x${viewport.height}`, async ({
+      page,
+    }) => {
+      // Would not notice: a name cut off inside a dialog that scrolls sideways. A fixed overlay does not widen the
+      // document, so G6 cannot see it; the text range of the name is measured against the dialog box instead. The
+      // delete cannot be undone, so the person must be able to read which document goes.
+      await page.setViewportSize(viewport);
+      await setup(page);
+      await openInbox(page);
+      await rowByName(page, LONG_NAME).getByRole('button', { name: 'More options' }).click();
+      await page.getByRole('menuitem', { name: /delete/i }).click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog).toContainText(LONG_NAME);
+      const measured = await dialog.evaluate((el, name) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node: Node | null;
+        let range: Range | null = null;
+        while ((node = walker.nextNode())) {
+          const at = node.textContent?.indexOf(name) ?? -1;
+          if (at >= 0) {
+            range = document.createRange();
+            range.setStart(node, at);
+            range.setEnd(node, at + name.length);
+            break;
+          }
+        }
+        const box = el.getBoundingClientRect();
+        const text = range ? Array.from(range.getClientRects()) : [];
+        return {
+          found: range !== null,
+          dialogLeft: box.left,
+          dialogRight: box.right,
+          textLeft: Math.min(...text.map((r) => r.left)),
+          textRight: Math.max(...text.map((r) => r.right)),
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+        };
+      }, LONG_NAME);
+      expect(measured.found, 'the name is in one text node of the dialog').toBe(true);
+      expect(measured.textLeft).toBeGreaterThanOrEqual(measured.dialogLeft - 0.5);
+      expect(measured.textRight).toBeLessThanOrEqual(measured.dialogRight + 0.5);
+      expect(measured.scrollWidth, 'the dialog does not scroll sideways').toBe(measured.clientWidth);
+    });
+  }
+
   test('thinking-orbs is requested when an orb mounts on /inbox, and not on /inbox idle or on another route', async ({
     page,
   }) => {
@@ -609,17 +701,26 @@ test.describe('HC-UIDOC end to end', () => {
 test.describe('Gate G on /inbox', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('GATE G1 /inbox has no serious or critical axe violation in light or dark: the list, an import in flight, the delete dialog, the empty library', async ({
+  test('GATE G1 /inbox has no serious or critical axe violation in light or dark: the list, the open row menu, an import in flight, the delete dialog, the empty library', async ({
     page,
   }) => {
     // Would not notice: a violation that only the delete dialog, the processing state or the empty library has, so
-    // four states are scanned. The theme is applied after load by the harness.
+    // five states are scanned. The theme is applied after load by the harness.
     // RED today: not known; the old page passes axe (HC-UIG-002). The new states are the new surface.
     const { docs } = await setup(page);
     await openInbox(page);
     for (const theme of ['light', 'dark'] as const) {
       expect(blockingIds(await axeSettled(page, theme)), `list, ${theme}`).toEqual([]);
     }
+    // The open row menu is a surface of its own (bg-white was #fff under dark text, contrast 1.18).
+    await setTheme(page, 'light');
+    await rowByName(page, THIRD_NAME).getByRole('button', { name: 'More options' }).click();
+    await expect(page.getByRole('menu')).toBeVisible();
+    for (const theme of ['light', 'dark'] as const) {
+      expect(blockingIds(await axeSettled(page, theme)), `open row menu, ${theme}`).toEqual([]);
+    }
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toBeHidden();
     await setTheme(page, 'light');
     const release = await startHeldImport(page, docs);
     for (const theme of ['light', 'dark'] as const) {
@@ -635,7 +736,7 @@ test.describe('Gate G on /inbox', () => {
       expect(blockingIds(await axeSettled(page, theme)), `delete dialog, ${theme}`).toEqual([]);
     }
 
-    // The empty library (EmptyState with its action) is a fourth surface.
+    // The empty library (EmptyState with its action) is a fifth surface.
     docs.rows = [];
     await openInbox(page, { empty: true });
     await expect(page.getByRole('button', { name: 'Choose a file' })).toBeVisible();

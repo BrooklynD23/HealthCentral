@@ -680,6 +680,79 @@ describe('HC-UIDOC-006 T0 marks, handoff and preview', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByTestId('page-image-overlay')).not.toBeInTheDocument();
   });
+
+  it('HC-UIDOC-009: closing the preview Sheet with Escape returns focus to View document of that row', async () => {
+    // Would not notice: a focus that Radix gives back to a trigger it does not have (the Sheet has none, so it falls
+    // to <body> and the next Tab lands on "Skip to content"). Only the opener's own button counts: a different
+    // focused element would also pass "not <body>", so the exact button is read.
+    // RED before this round: the focus stayed on <body> after Escape.
+    documents = [makeDoc({ id: 'd1', source: 'one.pdf' }), makeDoc({ id: 'd2', source: 'two.pdf' })];
+    const user = userEvent.setup();
+    await renderLoaded('one.pdf');
+    const view = within(rowOf('two.pdf')).getByRole('button', { name: 'View document' });
+    await user.click(view);
+    await screen.findByRole('dialog', { name: 'Document preview' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(view).toHaveFocus());
+  });
+
+  it('HC-UIDOC-009: closing the preview Sheet that the last-import card opened returns focus to its Preview button', async () => {
+    const user = userEvent.setup();
+    await renderLoaded();
+    await upload(user);
+    await screen.findByText(/document imported: new\.pdf/i);
+    const preview = screen.getByRole('button', { name: 'Preview' });
+    await user.click(preview);
+    await screen.findByRole('dialog', { name: 'Document preview' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(preview).toHaveFocus());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIDOC-010: no migration leftovers, and the delete dialog never cuts the name off.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-010 tokens and the delete dialog', () => {
+  it('HC-UIDOC-010: the open row menu uses the theme surface, not bg-white, and no element uses transition-all or a black/N border', async () => {
+    // Would not notice: a value computed in a stylesheet (jsdom loads none), so this is a class contract; the axe scan
+    // of the open menu in light and dark is e2e GATE G1. bg-white is #fff in dark mode (contrast 1.18 on the text).
+    // RED today: the menu is bg-white with border-black/8, the drop zone has transition-all, the list divides with
+    // divide-black/4.
+    const user = userEvent.setup();
+    await renderLoaded();
+    await openRowMenu(user, rowOf('a.pdf'));
+    const menu = await screen.findByRole('menu');
+    const menuTokens = menu.className.split(/\s+/);
+    expect(menuTokens).toContain('bg-surface-elevated');
+    expect(menuTokens).toContain('border-border');
+    expect(menuTokens).not.toContain('bg-white');
+    // Whole page for transition-all (banned, plan 2.6). The shared Card, Button and AddToPinboardButton carry their
+    // own border-black/N outside this row's licence, so the border check reads this page's drop zone and list only.
+    const all = Array.from(document.querySelectorAll('*')).flatMap((el) => (el.getAttribute('class') ?? '').split(/\s+/));
+    expect(all.filter((t) => /(^|:)transition-all$/.test(t))).toEqual([]);
+    const dropZone = document.querySelector('[class*="border-dashed"]');
+    const list = document.querySelector('[class*="divide-y"]');
+    expect(dropZone).not.toBeNull();
+    expect(list).not.toBeNull();
+    const own = [dropZone, list].flatMap((el) => (el?.getAttribute('class') ?? '').split(/\s+/));
+    expect(own.filter((t) => /^(border|divide)-black\/\d+$/.test(t))).toEqual([]);
+    expect(list?.className).toContain('divide-border');
+  });
+
+  it('HC-UIDOC-010: the delete dialog wraps a long document name inside itself', async () => {
+    // Would not notice: a layout that only a browser computes (jsdom has none); the measured text range at 1440, 390
+    // and 320 is e2e HC-UIDOC-010. This pins the class that lets an unbroken name wrap.
+    // RED today: the dialog has no overflow-wrap class.
+    documents = [makeDoc({ source: 'x'.repeat(120) + '.pdf' })];
+    const user = userEvent.setup();
+    await renderLoaded('x'.repeat(120) + '.pdf');
+    await openRowMenu(user, rowOf('x'.repeat(120) + '.pdf'));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.className).toContain('[overflow-wrap:anywhere]');
+  });
 });
 
 // ---------------------------------------------------------------------------
