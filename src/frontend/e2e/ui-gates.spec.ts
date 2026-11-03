@@ -762,3 +762,220 @@ test('HC-UIG-009 sampling check bounds an overlay open at 70 ms with its own tex
   );
   expect(sparseOverlay.failures.join('\n'), 'a 70 ms gap is within the overlay bound').not.toMatch(/sampling gap/);
 });
+
+// ---------------------------------------------------------------------------
+// HC-UIG-010: a navigation probe starts from a settled start page (STILLNESS-NAV-LATE, L0 ruling 2026-11-02).
+// Before the sampler starts, stillnessProbe waits until no request has been in flight for NETWORK_IDLE_MS and the
+// route container's entrance fade is done, both at the same moment. A page that never settles fails with
+// StillnessSettleError. Work the trigger does after that point is still sampled and still fails.
+// Tests assert on error.name, so they need no new import and a missing settle is a failed assertion.
+// ---------------------------------------------------------------------------
+const SETTLE_ERROR_NAME = 'StillnessSettleError';
+const SETTLE_START_SCRIPT = 'window.__started = false; window.__start = function () { window.__started = true; };';
+
+type SettleOutcome = { error: Error | null; report: Awaited<ReturnType<typeof stillnessProbe>> | null };
+
+async function settleProbe(
+  page: Page,
+  options: { kind: 'interaction' | 'navigation' | 'overlay'; lazyRoute?: boolean }
+): Promise<SettleOutcome> {
+  try {
+    const report = await stillnessProbe(page, {
+      trigger: startFixture(page),
+      expected: ['[data-t0]'],
+      kind: options.kind,
+      lazyRoute: options.lazyRoute,
+    });
+    return { error: null, report };
+  } catch (caught) {
+    return { error: caught as Error, report: null };
+  }
+}
+
+/**
+ * Opens a fixture whose /gates/held request is never answered. serveFixture is not used: its networkidle wait
+ * would hang on a request that starts at load. The held route is registered after the page route (newest wins).
+ */
+async function serveWithHeldRequest(page: Page, html: string): Promise<void> {
+  await page.route(`${FIXTURE_ORIGIN}/gates/**`, (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: html })
+  );
+  await page.route(`${FIXTURE_ORIGIN}/gates/held`, () => undefined);
+  await page.goto(`${FIXTURE_ORIGIN}${FIXTURE_PATH}`, { waitUntil: 'domcontentloaded' });
+}
+
+const wasStarted = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __started?: boolean }).__started === true);
+const sawSlowDone = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __sawDone?: boolean }).__sawDone === true);
+
+const HELD_AT_LOAD_HTML = fixtureHtml(
+  NAV_BODY,
+  `${SETTLE_START_SCRIPT} fetch('/gates/held').catch(function () {});`
+);
+
+test('HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError', async ({
+  page,
+}) => {
+  test.setTimeout(45_000);
+  await serveWithHeldRequest(page, HELD_AT_LOAD_HTML);
+  const { error } = await settleProbe(page, { kind: 'navigation' });
+  console.log(`HC-UIG-010 (a) rejected with: ${String(error)}`);
+  expect(error, 'the probe must reject a start page that never settles').not.toBeNull();
+  expect(error?.name, 'the rejection must be the settle error, not a gap failure').toBe(SETTLE_ERROR_NAME);
+  expect(String(error), 'the rejection must name the request still in flight').toContain('/gates/held');
+  expect(await wasStarted(page), 'the trigger must not run on a page that never settled').toBe(false);
+});
+
+test('HC-UIG-010 (b) a request started just before the probe is not invisible to the settle', async ({ page }) => {
+  test.setTimeout(45_000);
+  // The request begins after the page's first networkidle and before the probe attaches any listener.
+  await serveFixture(page, fixtureHtml(NAV_BODY, SETTLE_START_SCRIPT));
+  await page.route(`${FIXTURE_ORIGIN}/gates/held`, () => undefined);
+  await page.evaluate(() => {
+    void fetch('/gates/held').catch(() => undefined);
+  });
+  const { error } = await settleProbe(page, { kind: 'navigation' });
+  console.log(`HC-UIG-010 (b) rejected with: ${String(error)}`);
+  expect(error, 'the probe must reject a start page with a request in flight').not.toBeNull();
+  expect(error?.name).toBe(SETTLE_ERROR_NAME);
+  expect(String(error)).toContain('/gates/held');
+  expect(await wasStarted(page), 'the trigger must not run on a page that never settled').toBe(false);
+});
+
+test('HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity', async ({
+  page,
+}) => {
+  test.setTimeout(45_000);
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<main data-route-container="/gates/fixture" style="opacity:.5"><p data-t0>Route A</p></main>',
+      SETTLE_START_SCRIPT
+    )
+  );
+  const { error } = await settleProbe(page, { kind: 'navigation' });
+  console.log(`HC-UIG-010 (c1) rejected with: ${String(error)}`);
+  expect(error, 'a route that never finishes its entrance fade must fail the probe').not.toBeNull();
+  expect(error?.name).toBe(SETTLE_ERROR_NAME);
+  expect(String(error), 'the rejection must name the last opacity').toContain('opacity 0.5');
+  expect(await wasStarted(page)).toBe(false);
+});
+
+test('HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError', async ({
+  page,
+}) => {
+  test.setTimeout(45_000);
+  await serveFixture(page, fixtureHtml('<p data-t0>No route container here</p>', SETTLE_START_SCRIPT));
+  const { error } = await settleProbe(page, { kind: 'navigation' });
+  console.log(`HC-UIG-010 (c2) rejected with: ${String(error)}`);
+  expect(error, 'a page with no route element has no entrance fade to wait for and must fail the probe').not.toBeNull();
+  expect(error?.name).toBe(SETTLE_ERROR_NAME);
+  expect(String(error), 'the rejection must say there was no route element').toContain('no route element');
+  expect(await wasStarted(page)).toBe(false);
+});
+
+// (d), (e), (f): a request begins just before the probe and is answered at about 700 ms (serveFixture's slowFetchMs).
+// A probe that settles first triggers after it is done: __start copies __slowDone into __sawDone. A probe that does
+// not settle triggers at once, so __sawDone stays false and these tests fail on that assertion.
+const BEGIN_SLOW_SCRIPT = `
+  window.__begin = function () { fetch('/gates/slow').then(function () { window.__slowDone = true; }); };
+`;
+
+async function beginSlowRequest(page: Page): Promise<void> {
+  await page.evaluate(() => (window as unknown as { __begin: () => void }).__begin());
+}
+
+test('HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound', async ({
+  page,
+}) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      NAV_BODY,
+      `${NAV_SWAP_SCRIPT}
+       ${BEGIN_SLOW_SCRIPT}
+       window.__start = function () {
+         window.__sawDone = window.__slowDone === true;
+         window.__swap('<p data-t0 id="t2">Route B 92 mg/dL</p>');
+         var end = performance.now() + 150;
+         while (performance.now() < end) {}
+       };`
+    ),
+    { slowFetchMs: 700 }
+  );
+  await beginSlowRequest(page);
+  const { error } = await settleProbe(page, { kind: 'navigation' });
+  console.log(`HC-UIG-010 (d) rejected with: ${String(error)}`);
+  expect(error, 'the probe must reject the blocked main thread').not.toBeNull();
+  expect(error?.name, 'the settle must not be what rejects it').not.toBe(SETTLE_ERROR_NAME);
+  expect(await sawSlowDone(page), 'the trigger must run after the start page settled').toBe(true);
+  const gap = /sampling gap of (\d+) ms \(must be <= 70 ms for a page change, owner STILLNESS-NAV-70/.exec(String(error));
+  expect(gap, 'the rejection must be the 70 ms page-change gap bound').not.toBeNull();
+  expect(Number(gap?.[1]), 'the gap is the 150 ms the trigger blocked').toBeGreaterThan(70);
+});
+
+test('HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<p data-t0 id="t" style="width:220px">Glucose 104 mg/dL</p>' + NAV_BODY,
+      `${NAV_SWAP_SCRIPT}
+       ${BEGIN_SLOW_SCRIPT}
+       window.__start = function () {
+         window.__sawDone = window.__slowDone === true;
+         window.__swap('<p data-t0 id="t2">Route B 92 mg/dL</p>');
+         document.getElementById('t').style.transform = 'scale(0.96)';
+       };`
+    ),
+    { slowFetchMs: 700 }
+  );
+  await beginSlowRequest(page);
+  const { error } = await settleProbe(page, { kind: 'navigation' });
+  console.log(`HC-UIG-010 (e) rejected with: ${String(error)}`);
+  expect(error, 'the probe must reject a T0 node that moves').not.toBeNull();
+  expect(error?.name, 'the settle must not be what rejects it').not.toBe(SETTLE_ERROR_NAME);
+  expect(await sawSlowDone(page), 'the trigger must run after the start page settled').toBe(true);
+  expect(String(error), 'the rejection must name the property that moved').toMatch(/computed transform changed/);
+});
+
+for (const lazyRoute of [false, true]) {
+  test(`HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute ${lazyRoute})`, async ({
+    page,
+  }) => {
+    await serveFixture(
+      page,
+      fixtureHtml(
+        NAV_BODY,
+        `${NAV_SWAP_SCRIPT}
+         ${BEGIN_SLOW_SCRIPT}
+         window.__start = function () {
+           window.__sawDone = window.__slowDone === true;
+           var m = window.__swap('<p data-t0 id="t">Route B 92 mg/dL</p>');
+           m.animate([{opacity:.35},{opacity:1}], {duration:200, fill:'both'});
+         };`
+      ),
+      { slowFetchMs: 700 }
+    );
+    await beginSlowRequest(page);
+    const { error, report } = await settleProbe(page, { kind: 'navigation', lazyRoute });
+    console.log(`HC-UIG-010 (f) lazyRoute ${lazyRoute}: error=${String(error)} report=${JSON.stringify(report)}`);
+    expect(error, 'a settled page with a normal fade must pass').toBeNull();
+    expect(await sawSlowDone(page), 'the trigger must run after the request that began before the probe').toBe(true);
+    expect(report?.samples, 'probe must take samples').toBeGreaterThan(3);
+  });
+}
+
+// (g) Guard, GREEN on today's probe by design: the settle is for page changes only. Its RED is the mutant
+// "the settle runs for every kind" (a held request would then fail these two with StillnessSettleError).
+for (const kind of ['interaction', 'overlay'] as const) {
+  test(`HC-UIG-010 (g) the ${kind} probe does not wait for the start page to settle`, async ({ page }) => {
+    test.setTimeout(45_000);
+    await serveWithHeldRequest(page, HELD_AT_LOAD_HTML);
+    const { error } = await settleProbe(page, { kind });
+    console.log(`HC-UIG-010 (g) ${kind}: ${String(error)}`);
+    expect(error?.name, `${kind} must not raise the settle error`).not.toBe(SETTLE_ERROR_NAME);
+    expect(error, `${kind} on a still page must pass`).toBeNull();
+    expect(await wasStarted(page), 'the trigger ran').toBe(true);
+  });
+}
