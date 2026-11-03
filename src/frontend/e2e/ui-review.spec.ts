@@ -137,25 +137,152 @@ const entities: DocumentEntityResponse[] = [
     verified_by_user: null,
     extraction_version: null,
   },
+  // Long values, one already checked: the one-third column is where a chip appearing once pushed the page wide.
+  {
+    id: 'ent-review-checked',
+    doc_id: DOC_ID,
+    category: 'radiology',
+    entity_type: 'finding',
+    entity_value: 'Mild degenerative change of the lumbar spine at L4-L5 with no acute fracture or malalignment',
+    confidence: 0.92,
+    source_page: null,
+    source_bbox_json: null,
+    char_start: null,
+    char_end: null,
+    quote: null,
+    verified_by_user: true,
+    extraction_version: null,
+  },
+  {
+    id: 'ent-review-long',
+    doc_id: DOC_ID,
+    category: 'radiology',
+    entity_type: 'finding',
+    entity_value: 'Small stable nodule in the right lower lobe measuring 4 mm, unchanged from the prior examination',
+    confidence: 0.9,
+    source_page: null,
+    source_bbox_json: null,
+    char_start: null,
+    char_end: null,
+    quote: null,
+    verified_by_user: null,
+    extraction_version: null,
+  },
 ];
 
+/** GET /documents/:id, for the Source Trace sheet's file name. */
+const DOCUMENT_BODY = {
+  id: DOC_ID,
+  profile_id: FIXTURE_PROFILE_ID,
+  doc_type: 'lab_report',
+  source: 'metabolic-panel-august.pdf',
+  status: 'needs_review',
+  page_count: 3,
+  collection_date: '2026-04-10',
+  imported_at: '2026-04-11T09:00:00',
+  parsed_at: '2026-04-11T09:01:00',
+  verified_at: null,
+  extraction_confidence: 0.92,
+};
+
+/**
+ * Page 3, where the Creatinine row was read. One line holds both the analyte and the value, so the sheet can
+ * highlight it. The long line has neither, so it is plain context that must still stay inside the sheet (DF-2).
+ */
+const LONG_CONTEXT_LINE =
+  'Reference intervals are for adults and depend on the method, the age, the sex and the hydration of the person tested; interpret with previous results';
+const PAGES_BODY = [
+  {
+    page_number: 3,
+    text: ['Chemistry panel', LONG_CONTEXT_LINE, 'Creatinine 0.9 mg/dL (0.6-1.3)', 'Sodium 140 mmol/L'].join('\n'),
+    has_tables: false,
+  },
+];
+
+/**
+ * What POST /observations/:id/verify does, copied from src/backend/api/observations.py (`_NORMAL_FLAGS` at :82 and the
+ * recalculation after `observation.version += 1`): the numbers are recalculated only when value, ref_low or ref_high
+ * really changed, or when the row has no flag or a normal word. A plain Verify keeps any other printed flag.
+ * This is a mock, not the backend; HC-VKF on main pins the real behaviour.
+ */
+const NORMAL_FLAGS = new Set(['NORMAL', 'N', 'WNL', 'NO', 'FALSE', '0']);
+function verifyLikeApi(current: Observation, edit: Partial<Observation> = {}): Observation {
+  const next: Observation = { ...current };
+  for (const field of ['value', 'ref_low', 'ref_high'] as const) {
+    const sent = edit[field];
+    if (sent !== undefined && sent !== null) next[field] = sent;
+  }
+  if (edit.value_text !== undefined) next.value_text = edit.value_text;
+  next.user_verified = true;
+  const numbersChanged = (['value', 'ref_low', 'ref_high'] as const).some((field) => next[field] !== current[field]);
+  const keepsFlag = current.flag !== null && !NORMAL_FLAGS.has(current.flag.trim().toUpperCase());
+  if ((numbersChanged || !keepsFlag) && next.value !== null) {
+    if (next.ref_low !== null && next.value < next.ref_low) Object.assign(next, { is_abnormal: true, flag: 'L' });
+    else if (next.ref_high !== null && next.value > next.ref_high) Object.assign(next, { is_abnormal: true, flag: 'H' });
+    else Object.assign(next, { is_abnormal: false, flag: null });
+  }
+  return next;
+}
+
+interface ReviewMockOptions {
+  /** The rows the API starts with. Default: the shared fixture. */
+  rows?: Observation[];
+}
+
+/** What a test can steer or read from the mock. */
+interface ReviewMock {
+  /** "METHOD /path" of every call the review mock answered, in order. */
+  readonly requests: string[];
+  /** While true, POST /observations/:id/verify answers 500. */
+  failVerify: boolean;
+  /** From now on GET /documents (the list) waits for release(), like a slow server. */
+  hold(): void;
+  release(): void;
+}
+
 /** Observation, entity and page answers, with verify as state: a verified row stays verified on the next GET. */
-async function mockReviewApi(page: Page): Promise<void> {
-  const rows = initialObservations.map((row) => ({ ...row }));
+async function mockReviewApi(page: Page, options: ReviewMockOptions = {}): Promise<ReviewMock> {
+  const rows = (options.rows ?? initialObservations).map((row) => ({ ...row }));
+  const entityRows = entities.map((entity) => ({ ...entity }));
+  let gate: Promise<void> | null = null;
+  let open: () => void = () => undefined;
+  const mock: ReviewMock = {
+    requests: [],
+    failVerify: false,
+    hold() {
+      gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+    },
+    release() {
+      open();
+      gate = null;
+    },
+  };
   await page.route(/\/api\/v1\/(observations|documents)(\/|\?|$)/, async (route: Route, request) => {
     const url = new URL(request.url());
     const path = url.pathname.replace(/^.*\/api\/v1/, '').replace(/\/+$/, '') || '/';
-    const json = (body: unknown) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+    const json = (body: unknown, status = 200) =>
+      route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
     if (request.method() === 'GET') {
+      if (path === '/documents' && gate) {
+        await gate;
+        return route.fallback();
+      }
       if (path === '/observations') {
+        mock.requests.push(`GET ${path}`);
         const needsVerification = url.searchParams.get('needs_verification') === 'true';
         return json(needsVerification ? rows.filter((row) => !row.user_verified) : rows);
       }
-      if (path === `/documents/${DOC_ID}/entities`) return json(entities);
+      if (path === `/documents/${DOC_ID}`) {
+        mock.requests.push(`GET ${path}`);
+        return json(DOCUMENT_BODY);
+      }
+      if (path === `/documents/${DOC_ID}/entities`) return json(entityRows);
       if (path === `/documents/${DOC_ID}/pages`) {
-        return json([{ page_number: 3, text: 'Creatinine 0.9 mg/dL (0.6-1.3)', has_tables: false }]);
+        mock.requests.push(`GET ${path}`);
+        return json(PAGES_BODY);
       }
       if (/^\/documents\/[^/]+\/pages\/\d+\/image$/.test(path)) {
         return route.fulfill({ status: 200, contentType: 'image/png', body: PAGE_PNG });
@@ -164,21 +291,31 @@ async function mockReviewApi(page: Page): Promise<void> {
     }
     const verify = /^\/observations\/([^/]+)\/verify$/.exec(path);
     if (request.method() === 'POST' && verify) {
-      const row = rows.find((candidate) => candidate.id === verify[1]);
-      if (!row) return route.fulfill({ status: 404, contentType: 'application/json', body: '{"detail":"not found"}' });
-      row.user_verified = true;
-      return json(row);
+      mock.requests.push(`POST ${path}`);
+      if (mock.failVerify) return json({ detail: 'the server could not save this' }, 500);
+      const index = rows.findIndex((candidate) => candidate.id === verify[1]);
+      if (index === -1) return json({ detail: 'not found' }, 404);
+      rows[index] = verifyLikeApi(rows[index], (request.postDataJSON() ?? {}) as Partial<Observation>);
+      return json(rows[index]);
+    }
+    const entityVerification = /^\/documents\/[^/]+\/entities\/([^/]+)\/verification$/.exec(path);
+    if (request.method() === 'PATCH' && entityVerification) {
+      const entity = entityRows.find((candidate) => candidate.id === entityVerification[1]);
+      if (!entity) return json({ detail: 'not found' }, 404);
+      entity.verified_by_user = (request.postDataJSON() as { verified: boolean | null }).verified;
+      return json(entity);
     }
     return route.fallback();
   });
+  return mock;
 }
 
-async function prepare(page: Page, viewport = DESKTOP) {
+async function prepare(page: Page, viewport = DESKTOP, options: ReviewMockOptions = {}) {
   await page.setViewportSize(viewport);
   const mock = await installMockApi(page);
-  await mockReviewApi(page);
+  const review = await mockReviewApi(page, options);
   await seedMockSession(page);
-  return mock;
+  return Object.assign(mock, { review });
 }
 
 const REVIEW_ALL = `/verify?doc=${DOC_ID}&mode=all`;
@@ -203,10 +340,10 @@ async function settle(page: Page): Promise<void> {
 
 const row = (page: Page, id: string): Locator => page.locator(`#observation-row-${id}`);
 
-async function openReview(page: Page, path = REVIEW_ALL) {
+async function openReview(page: Page, path = REVIEW_ALL, readyId = GLUCOSE_ID) {
   await page.goto(path);
   await expect(page.getByRole('heading', { name: 'Verification Workbench' })).toBeVisible();
-  await expect(row(page, GLUCOSE_ID)).toBeVisible();
+  await expect(row(page, readyId)).toBeVisible();
   await settle(page);
 }
 
@@ -229,12 +366,166 @@ test('HC-UIREV-001: an out-of-range value carries an icon and words, in the DOM 
   await expect(below).toHaveText("Below the report's range");
   await expect(below.locator('svg')).toHaveCount(1);
 
-  await expect(row(page, GLUCOSE_ID).locator('[data-state="in-range"]')).toHaveText('In range');
+  // L0 ruling on review round 3: no reassurance chip. A value inside its range carries no range words at all.
+  await expect(row(page, GLUCOSE_ID).locator('[data-state$="-range"]')).toHaveCount(0);
+  await expect(row(page, GLUCOSE_ID)).not.toContainText(/in range/i);
 
   // The words are real text on screen, not clipped to nothing.
   const box = await above.boundingBox();
   expect(box?.width ?? 0).toBeGreaterThan(40);
 });
+
+// ---------------------------------------------------------------------------
+// L0 ruling on review round 3, finding 1: Verify keeps the flag the report printed, so the words, the tint and
+// the position of the value are the same before and after. The mock answers like observations.py (see
+// verifyLikeApi), so a row the report flagged keeps its flag across Verify.
+// ---------------------------------------------------------------------------
+const FLAG_ROWS: Observation[] = [
+  makeObservation({
+    id: 'obs-f-crit',
+    analyte_raw: 'Potassium',
+    value: 4.2,
+    unit: 'mmol/L',
+    ref_low: 3.5,
+    ref_high: 5.1,
+    flag: 'CRITICAL',
+    is_abnormal: true,
+  }),
+  makeObservation({ id: 'obs-f-high', analyte_raw: 'Troponin', value: 0.08, unit: 'ng/mL', flag: 'H', is_abnormal: true }),
+  makeObservation({
+    id: 'obs-f-paren',
+    analyte_raw: 'Sodium',
+    value: 150,
+    unit: 'mmol/L',
+    ref_low: 135,
+    ref_high: 145,
+    flag: '(H)',
+    is_abnormal: true,
+  }),
+  makeObservation({ id: 'obs-f-none', analyte_raw: 'LDL cholesterol', value: 130, unit: 'mg/dL', ref_high: 100 }),
+  makeObservation({
+    id: 'obs-f-nin',
+    analyte_raw: 'Chloride',
+    value: 102,
+    unit: 'mmol/L',
+    ref_low: 98,
+    ref_high: 107,
+    flag: 'N',
+  }),
+  makeObservation({
+    id: 'obs-f-nhigh',
+    analyte_raw: 'Triglycerides',
+    value: 180,
+    unit: 'mg/dL',
+    ref_high: 150,
+    flag: 'N',
+  }),
+  // Reference rows: the colour a plain value and an above-range value really get (no flag, in range / flag H).
+  initialObservations[0],
+  initialObservations[1],
+];
+
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+interface ValueSnapshot {
+  words: string | null;
+  color: string;
+  rect: Box;
+  /** Every T0 node in the rows after this one, in document coordinates. */
+  below: Box[];
+}
+
+/** The range words, the computed colour and the document-space box of a row's value, and the T0 nodes below it. */
+async function snapshotValue(page: Page, id: string): Promise<ValueSnapshot> {
+  return row(page, id).evaluate((tr) => {
+    const box = (el: Element): Box => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height };
+    };
+    const value = tr.querySelectorAll('td')[1].querySelector('span[data-t0]') as HTMLElement;
+    const chip = tr.querySelector('[data-state$="-range"]');
+    const below: Box[] = [];
+    for (let next = tr.nextElementSibling; next; next = next.nextElementSibling) {
+      for (const node of Array.from(next.querySelectorAll('[data-t0]'))) below.push(box(node));
+    }
+    return {
+      words: chip?.textContent?.trim() ?? null,
+      color: getComputedStyle(value).color,
+      rect: box(value),
+      below,
+    };
+  });
+}
+
+function expectSameBox(after: Box, before: Box, label: string) {
+  for (const key of ['x', 'y', 'w', 'h'] as const) {
+    expect(Math.abs(after[key] - before[key]), `${label} ${key}: ${before[key]} -> ${after[key]}`).toBeLessThanOrEqual(0.5);
+  }
+}
+
+const ABOVE_WORDS = "Above the report's range";
+const FLAG_CASES = [
+  { id: 'obs-f-crit', name: '(a) CRITICAL 4.2 inside 3.5-5.1', words: null, tint: 'ink' },
+  { id: 'obs-f-high', name: '(b) H with no numeric range', words: ABOVE_WORDS, tint: 'attention' },
+  { id: 'obs-f-paren', name: '(c) "(H)"', words: ABOVE_WORDS, tint: 'attention' },
+  { id: 'obs-f-none', name: '(d) no flag, 130 over ref_high 100', words: ABOVE_WORDS, tint: 'attention' },
+  { id: 'obs-f-nin', name: '(e) flag N, inside the range', words: null, tint: 'ink' },
+  { id: 'obs-f-nhigh', name: '(f) flag N, 180 over 150', words: ABOVE_WORDS, tint: 'attention' },
+] as const;
+
+for (const flagCase of FLAG_CASES) {
+  test(`HC-UIREV-001 Verify keeps what the report printed: ${flagCase.name}`, async ({ page }) => {
+    await prepare(page, DESKTOP, { rows: FLAG_ROWS });
+    await openReview(page, '/verify', 'obs-f-crit');
+    const ink = (await snapshotValue(page, GLUCOSE_ID)).color;
+    const attention = (await snapshotValue(page, A1C_ID)).color;
+    expect(ink, 'the two reference tints differ').not.toBe(attention);
+
+    const before = await snapshotValue(page, flagCase.id);
+    expect(before.words, `${flagCase.name} words before`).toBe(flagCase.words);
+    expect(before.color, `${flagCase.name} tint before`).toBe(flagCase.tint === 'ink' ? ink : attention);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+    await row(page, flagCase.id).getByRole('button', { name: 'Verify observation' }).click();
+    await expect(row(page, flagCase.id).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+    await page.waitForLoadState('networkidle');
+
+    const after = await snapshotValue(page, flagCase.id);
+    expect(after.words, `${flagCase.name} words after`).toBe(before.words);
+    expect(after.color, `${flagCase.name} tint after`).toBe(before.color);
+    expectSameBox(after.rect, before.rect, `${flagCase.name} value`);
+    expect(after.below.length, 'rows below').toBe(before.below.length);
+    after.below.forEach((box, index) => expectSameBox(box, before.below[index], `${flagCase.name} below[${index}]`));
+  });
+}
+
+// ---------------------------------------------------------------------------
+// L0 ruling on review round 3, finding 4: the page does not move when /documents answers late. The "Reviewing:
+// <file>" line is reserved in document review mode. Layout only (no clock), so it runs on any box.
+// ---------------------------------------------------------------------------
+for (const width of [1024, 1280, 1440]) {
+  test(`HC-UIREV-004: the grid does not move when the document list answers late, at ${width}`, async ({ page }) => {
+    const mock = await prepare(page, { width, height: 900 });
+    mock.review.hold();
+    await page.goto(REVIEW_ALL);
+    await expect(row(page, GLUCOSE_ID)).toBeVisible();
+    await expect(page.getByText(/^Reviewing:/)).toHaveCount(0);
+    const gridTop = () =>
+      page.locator('.grid.grid-cols-1').first().evaluate((el) => el.getBoundingClientRect().y + window.scrollY);
+    const rowTop = () => row(page, GLUCOSE_ID).evaluate((el) => el.getBoundingClientRect().y + window.scrollY);
+    const before = { grid: await gridTop(), row: await rowTop() };
+
+    mock.review.release();
+    await expect(page.getByText(/^Reviewing:/)).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    const after = { grid: await gridTop(), row: await rowTop() };
+    expect(after, `grid and first row, before and after /documents answers (${width})`).toEqual(before);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Ink: the functional half. The stillness half is HC-UIREV-002 below.
@@ -593,4 +884,54 @@ test('UI-PG-REVIEW Gate G10 stillness on /verify when a row is selected and its 
   });
   expect(report.nodes).toBeGreaterThan(0);
   await expect(page.getByText('2026-08-02')).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// L0 ruling on review round 3, finding 5: an entity in the one-third column. Checking it must not widen the page
+// or move any entity value, at the desktop widths where the nowrap cells once overflowed.
+// ---------------------------------------------------------------------------
+for (const width of [1024, 1280, 1440]) {
+  test(`HC-UIREV-004: checking an entity keeps the page inside the viewport and every value still, at ${width}`, async ({
+    page,
+  }) => {
+    await prepare(page, { width, height: 900 });
+    await openReview(page);
+    // The value nodes only: the "Checked by you" chip is a T0 node too, and it is not there before the click.
+    const values = page.locator('[id^="entity-row-"] td span[data-t0]:not([data-state])');
+    await expect(values).toHaveCount(4);
+    const measure = () =>
+      values.evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const r = node.getBoundingClientRect();
+          return { x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height };
+        })
+      );
+    const scrollBefore = await noHorizontalScroll(page);
+    expect(scrollBefore.ok, `${width} before: ${JSON.stringify(scrollBefore)}`).toBe(true);
+    const before = await measure();
+
+    const target = page.locator('#entity-row-ent-review-long');
+    await target.getByRole('button', { name: 'Verify Finding' }).click();
+    await expect(target.locator('[data-state="checked-by-you"]')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+
+    const scrollAfter = await noHorizontalScroll(page);
+    expect(scrollAfter.ok, `${width} after: ${JSON.stringify(scrollAfter)}`).toBe(true);
+    const after = await measure();
+    expect(after.length).toBe(before.length);
+    after.forEach((box, index) => expectSameBox(box, before[index], `entity value ${index} at ${width}`));
+  });
+}
+
+// Timing: quiet box only. The title carries HC-UIREV-002 so the quiet-box line for that gate selects it.
+test('HC-UIREV-002: an entity value passes stillnessProbe from the entity Verify click', async ({ page }) => {
+  await prepare(page);
+  await openReview(page);
+  const report = await stillnessProbe(page, {
+    trigger: () => page.locator('#entity-row-ent-review-long').getByRole('button', { name: 'Verify Finding' }).click(),
+    expected: ['[id^="entity-row-"] span[data-t0]', '#entity-row-ent-review-long [data-state="checked-by-you"]'],
+    kind: 'interaction',
+  });
+  expect(report.nodes).toBeGreaterThan(0);
+  await expect(page.locator('#entity-row-ent-review-long [data-ink-marker]')).toHaveAttribute('data-state', 'ink');
 });

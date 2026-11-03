@@ -127,18 +127,106 @@ const abnormalNoFlag = { ...flaggedA, id: 'obs-8', analyte_raw: 'Chloride', flag
 // A letter flag with numbers outside the range: the numbers still give the direction.
 const flaggedAHigh = { ...flaggedA, id: 'obs-9', analyte_raw: 'Magnesium', value: 3, ref_low: 1, ref_high: 2 };
 
-const state = { observations: [] as unknown[] };
+// Rows for the L0 ruling on review round 3 (finding 1): what a plain Verify does to a printed flag.
+// CRITICAL with the number inside the range: the lab flagged it, and Verify must not erase that.
+const criticalInRange = {
+  ...baseObservation,
+  id: 'obs-c',
+  analyte_canonical: 'potassium',
+  analyte_raw: 'Potassium',
+  value: 4.2,
+  unit: 'mmol/L',
+  ref_low: 3.5,
+  ref_high: 5.1,
+  flag: 'CRITICAL',
+  is_abnormal: true,
+};
+// H with no numeric range at all: the flag is the only evidence of direction.
+const highNoRange = {
+  ...baseObservation,
+  id: 'obs-h',
+  analyte_canonical: 'troponin',
+  analyte_raw: 'Troponin',
+  value: 0.08,
+  unit: 'ng/mL',
+  ref_low: null,
+  ref_high: null,
+  flag: 'H',
+  is_abnormal: true,
+};
+// The extractor can keep the brackets: "(H)".
+const bracketHigh = { ...highNoRange, id: 'obs-p', analyte_raw: 'Sodium', analyte_canonical: 'sodium', flag: '(H)' };
+// A normal word with the number inside the range: nothing to claim before or after.
+const normalWordInRange = { ...criticalInRange, id: 'obs-n', analyte_raw: 'Chloride', flag: 'N', is_abnormal: false };
+// A normal word with the number over ref_high: the numbers win, and Verify recalculates it to H.
+const normalWordHigh = { ...ldlUnflagged, id: 'obs-nh', analyte_raw: 'Triglycerides', flag: 'N' };
+
+const state = {
+  observations: [] as unknown[],
+  documents: [] as unknown[],
+  /** When set, GET /documents (the list) waits for it, like a slow server. */
+  holdDocuments: null as Promise<void> | null,
+};
+
+/**
+ * What POST /observations/:id/verify does, copied from src/backend/api/observations.py (`_NORMAL_FLAGS` and the
+ * recalculation after `observation.version += 1`): the numbers are recalculated only when value, ref_low or
+ * ref_high really changed, or when the row has no flag or a normal word. A plain Verify keeps any other flag.
+ * This is a mock, not the backend; HC-VKF on main pins the real behaviour.
+ */
+const NORMAL_FLAGS = new Set(['NORMAL', 'N', 'WNL', 'NO', 'FALSE', '0']);
+type Row = {
+  id: string;
+  value: number | null;
+  ref_low: number | null;
+  ref_high: number | null;
+  flag: string | null;
+  is_abnormal: boolean;
+  user_verified: boolean;
+};
+function verifyLikeApi(current: Row, edit: Partial<Row> = {}): Row {
+  const next: Row = { ...current };
+  for (const field of ['value', 'ref_low', 'ref_high'] as const) {
+    if (edit[field] !== undefined && edit[field] !== null) next[field] = edit[field] as number;
+  }
+  next.user_verified = true;
+  const numbersChanged = (['value', 'ref_low', 'ref_high'] as const).some((field) => next[field] !== current[field]);
+  const keepsFlag = current.flag !== null && !NORMAL_FLAGS.has(current.flag.trim().toUpperCase());
+  if ((numbersChanged || !keepsFlag) && next.value !== null) {
+    if (next.ref_low !== null && next.value < next.ref_low) Object.assign(next, { is_abnormal: true, flag: 'L' });
+    else if (next.ref_high !== null && next.value > next.ref_high) Object.assign(next, { is_abnormal: true, flag: 'H' });
+    else Object.assign(next, { is_abnormal: false, flag: null });
+  }
+  return next;
+}
+
+/** POST /observations/:id/verify answers like the API and keeps the stored row, so the next GET agrees. */
+function mockVerifyEndpoint() {
+  vi.mocked(api.apiPost).mockImplementation(async (url: string, body?: unknown) => {
+    const id = /\/observations\/([^/]+)\/verify$/.exec(url)?.[1];
+    const rows = state.observations as Row[];
+    const current = rows.find((row) => row.id === id);
+    if (!current) throw new Error(`not stubbed: ${url}`);
+    const saved = verifyLikeApi(current, (body ?? {}) as Partial<Row>);
+    state.observations = rows.map((row) => (row.id === id ? saved : row));
+    return saved;
+  });
+}
 
 /** Like the API: the default /verify list asks for needs_verification=true and gets only unverified rows back. */
 function mockApi() {
-  vi.mocked(api.apiGet).mockImplementation((url: string, params?: Record<string, string>) => {
-    if (url.startsWith('/documents') && url.includes('/pages')) return Promise.resolve([]);
-    if (url.startsWith('/documents')) return Promise.resolve([]);
+  vi.mocked(api.apiGet).mockImplementation(async (url: string, params?: Record<string, string>) => {
+    if (url.startsWith('/documents') && url.includes('/pages')) return [];
+    if (url === '/documents' || url === '/documents/') {
+      if (state.holdDocuments) await state.holdDocuments;
+      return state.documents;
+    }
+    if (url.startsWith('/documents')) return [];
     if (url.startsWith('/observations')) {
       const rows = state.observations as { user_verified: boolean }[];
-      return Promise.resolve(params?.needs_verification === 'true' ? rows.filter((row) => !row.user_verified) : rows);
+      return params?.needs_verification === 'true' ? rows.filter((row) => !row.user_verified) : rows;
     }
-    return Promise.resolve([]);
+    return [];
   });
 }
 
@@ -182,7 +270,10 @@ beforeEach(() => {
     profileName: 'Test Profile',
   });
   state.observations = [glucose, hba1c, ferritin, ldlUnflagged];
+  state.documents = [];
+  state.holdDocuments = null;
   mockApi();
+  mockVerifyEndpoint();
   setReducedMotion(false);
 });
 
@@ -196,7 +287,6 @@ describe('HC-UIREV-001: a value outside its range carries an icon and words, not
   it.each([
     ['obs-2', 'above-range', "Above the report's range"],
     ['obs-3', 'below-range', "Below the report's range"],
-    ['obs-1', 'in-range', 'In range'],
   ])('%s shows the %s chip with its words and an icon', async (id, chipState, words) => {
     renderWorkbench();
     await screen.findByText('Glucose');
@@ -204,6 +294,17 @@ describe('HC-UIREV-001: a value outside its range carries an icon and words, not
     expect(chip).not.toBeNull();
     expect(chip).toHaveTextContent(words);
     expect(chip!.querySelector('svg')).not.toBeNull();
+  });
+
+  // L0 ruling on review round 3 (finding 1): this row asks only for words on out-of-range values, so the
+  // in-range chip is gone. Round 1 of this row had asserted that chip ("In range" on obs-1) as new behaviour.
+  // Blind spot: it checks the chip, not a different phrase for the same reassurance in another element.
+  it('a value inside its range shows no range chip and no "In range" words', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(rowOf('obs-1').querySelector('[data-state="in-range"]')).toBeNull();
+    expect(rowOf('obs-1').textContent).not.toMatch(/in range/i);
+    expect(rowOf('obs-1').querySelector('[data-state$="-range"]')).toBeNull();
   });
 
   // Blind spot: a flagged value is covered by the cases above. This one has no flag, so it fails if the
@@ -217,21 +318,19 @@ describe('HC-UIREV-001: a value outside its range carries an icon and words, not
   });
 
   // Blind spot: it covers the three flag words the extractor emits and is_abnormal. Any other unknown flag text
-  // takes the same branch. Without this a CRITICAL value inside its range reads "In range" (HC-UIREV-001 review).
+  // takes the same branch. A CRITICAL value inside its range must say nothing about the range (HC-UIREV-001 review).
   it.each([
     ['obs-5', 'flag A'],
     ['obs-6', 'flag CRITICAL'],
     ['obs-7', 'flag ABNORMAL'],
     ['obs-8', 'is_abnormal with no flag'],
-  ])('%s (%s) with numbers inside the range never reads In range', async (id) => {
+  ])('%s (%s) with numbers inside the range shows no range chip', async (id) => {
     state.observations = [glucose, flaggedA, flaggedCritical, flaggedAbnormalWord, abnormalNoFlag];
     renderWorkbench();
     await screen.findByText('Glucose');
     expect(rowOf(id)).not.toBeNull();
-    expect(rowOf(id).querySelector('[data-state="in-range"]')).toBeNull();
+    expect(rowOf(id).querySelector('[data-state$="-range"]')).toBeNull();
     expect(rowOf(id).textContent).not.toMatch(/in range/i);
-    // The clean row beside them still says it.
-    expect(rowOf('obs-1').querySelector('[data-state="in-range"]')).not.toBeNull();
   });
 
   // Blind spot: one value. It pins that a letter flag does not switch the numbers off.
@@ -250,14 +349,115 @@ describe('HC-UIREV-001: a value outside its range carries an icon and words, not
       expect(rowOf(id).textContent).not.toMatch(/\b(abnormal|normal)\b/i);
     }
   });
+
+  // Finding 13. Blind spot: the text of one cell; the e2e spec reads the same cell on screen.
+  it.each([
+    ['obs-4', '≤ 100 mg/dL', 'only ref_high'],
+    ['obs-1', '70-100 mg/dL', 'both limits'],
+  ])('%s prints its range as %s (%s)', async (id, text) => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(Array.from(rowOf(id).querySelectorAll('[data-t0]')).map((node) => node.textContent)).toContain(text);
+  });
+
+  it('a range with only ref_low prints ≥, and ref_range_text still wins', async () => {
+    state.observations = [
+      { ...glucose, ref_high: null },
+      { ...hba1c, ref_range_text: '4.0 to 5.6' },
+    ];
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const cells = (id: string) => Array.from(rowOf(id).querySelectorAll('[data-t0]')).map((node) => node.textContent);
+    expect(cells('obs-1')).toContain('≥ 70 mg/dL');
+    expect(cells('obs-2')).toContain('4.0 to 5.6 %');
+    expect(cells('obs-2').join('|')).not.toContain('≥');
+  });
+});
+
+describe('HC-UIREV-001 and HC-UIREV-002 across Verify (L0 ruling on review round 3, finding 1)', () => {
+  const valueNodeOf = (row: HTMLElement) =>
+    Array.from(row.querySelectorAll('span[data-t0]')).find((node) => node.className.includes('font-mono')) as HTMLElement;
+  const chipWordsOf = (row: HTMLElement) => row.querySelector('[data-state$="-range"]')?.textContent ?? null;
+  const tintOf = (row: HTMLElement) =>
+    ['text-status-attention', 'text-status-caution', 'text-ink'].find((cls) => valueNodeOf(row).classList.contains(cls));
+
+  /** Renders the rows, snapshots the row, clicks Verify, waits for the ink, and snapshots again. */
+  async function acrossVerify(rows: unknown[], id: string) {
+    state.observations = [glucose, ...rows];
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const row = rowOf(id);
+    const node = valueNodeOf(row);
+    const before = { words: chipWordsOf(row), tint: tintOf(row), text: node.textContent };
+    await user.click(within(row).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(row.querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const after = { words: chipWordsOf(rowOf(id)), tint: tintOf(rowOf(id)), text: valueNodeOf(rowOf(id)).textContent };
+    return { before, after, sameNode: valueNodeOf(rowOf(id)) === node };
+  }
+
+  // Each case's blind spot: jsdom has no layout, so the value's rect and its computed colour are e2e's (the
+  // "Verify keeps the printed flag" tests there). Here the chip words and the tint class are read.
+
+  // (a) A pin on the old code once the mock is right: CRITICAL has no side, so there was never a chip.
+  it('(a) CRITICAL 4.2 inside 3.5-5.1: no chip and ink, before and after', async () => {
+    const { before, after, sameNode } = await acrossVerify([criticalInRange], 'obs-c');
+    expect(before).toEqual({ words: null, tint: 'text-ink', text: '4.2' });
+    expect(after).toEqual(before);
+    expect(sameNode).toBe(true);
+  });
+
+  // (b) A pin on the old code too: the flag is the only evidence, and Verify keeps it.
+  it('(b) H with no numeric range: "Above the report\'s range" and attention, before and after', async () => {
+    const { before, after } = await acrossVerify([highNoRange], 'obs-h');
+    expect(before).toEqual({ words: "Above the report's range", tint: 'text-status-attention', text: '0.08' });
+    expect(after).toEqual(before);
+  });
+
+  // (c) RED on the old code: getStatusColor compared the raw flag, so "(H)" was ink while the chip said above.
+  it('(c) "(H)" reads as attention, as the chip says', async () => {
+    const { before, after } = await acrossVerify([bracketHigh], 'obs-p');
+    expect(before).toEqual({ words: "Above the report's range", tint: 'text-status-attention', text: '0.08' });
+    expect(after).toEqual(before);
+  });
+
+  // (d) RED on the old code: ink before Verify, attention after (the server then stored H).
+  it('(d) no flag, 130 over ref_high 100: the same chip and attention, before and after', async () => {
+    const { before, after } = await acrossVerify([ldlUnflagged], 'obs-4');
+    expect(before).toEqual({ words: "Above the report's range", tint: 'text-status-attention', text: '130' });
+    expect(after).toEqual(before);
+  });
+
+  // (e) RED on the old code: "In range" appeared after Verify, when the stored N was recalculated away.
+  it('(e) flag N, 4.2 inside the range: no chip before and none after', async () => {
+    const { before, after } = await acrossVerify([normalWordInRange], 'obs-n');
+    expect(before).toEqual({ words: null, tint: 'text-ink', text: '4.2' });
+    expect(after).toEqual(before);
+  });
+
+  // (f) RED on the old code: ink before (flag N), attention after (stored H).
+  it('(f) flag N, 130 over 100: above the range both times, and the stored flag becomes H', async () => {
+    const { before, after } = await acrossVerify([normalWordHigh], 'obs-nh');
+    expect(before).toEqual({ words: "Above the report's range", tint: 'text-status-attention', text: '130' });
+    expect(after).toEqual(before);
+    expect((state.observations as Row[]).find((row) => row.id === 'obs-nh')?.flag).toBe('H');
+  });
+
+  // Blind spot: it pins the mock to the backend rules above; the backend itself is HC-VKF's. Without it, a mock
+  // that erased every flag would make (a) and (b) fail for the wrong reason.
+  it('the verify mock keeps CRITICAL and H, and recalculates N and no flag', () => {
+    const base = { ref_low: 3.5, ref_high: 5.1, user_verified: false };
+    expect(verifyLikeApi({ ...base, id: 'x', value: 4.2, flag: 'CRITICAL', is_abnormal: true }).flag).toBe('CRITICAL');
+    expect(verifyLikeApi({ ...base, id: 'x', value: 4.2, ref_low: null, ref_high: null, flag: 'H', is_abnormal: true }).flag).toBe('H');
+    expect(verifyLikeApi({ ...base, id: 'x', value: 4.2, flag: 'N', is_abnormal: false }).flag).toBeNull();
+    expect(verifyLikeApi({ ...base, id: 'x', value: 9, flag: null, is_abnormal: false }).flag).toBe('H');
+  });
 });
 
 describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the chip to checked by you', () => {
   async function verifyGlucose(user: ReturnType<typeof userEvent.setup>) {
-    vi.mocked(api.apiPost).mockImplementation(async () => {
-      state.observations = [{ ...glucose, user_verified: true }, hba1c, ferritin, ldlUnflagged];
-      return { ...glucose, user_verified: true };
-    });
     await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
   }
 
@@ -455,6 +655,177 @@ describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the ch
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(markerOf(rowOf('obs-1'))).toHaveAttribute('data-state', 'ink'));
     expect(rowOf('obs-1')).toHaveTextContent('99');
+  });
+});
+
+const reportDoc = { id: 'doc-1', doc_type: 'lab_report', source: 'report.pdf', status: 'parsed' };
+
+describe('held rows follow reprocess (L0 ruling on review round 3, finding 2)', () => {
+  const REVIEW_ALL = '/verify?doc=doc-1&mode=all';
+  const inkOf = (id: string) => rowOf(id)?.querySelector('[data-ink-marker]') as HTMLElement | null;
+  const rowIds = () =>
+    Array.from(document.querySelectorAll('tr[id^="observation-row-"]')).map((tr) => tr.id.replace('observation-row-', ''));
+
+  /** POST /documents/doc-1/reprocess replaces the rows, the way api/documents.py:639-641 does. */
+  function mockReprocess(replacement: () => unknown[]) {
+    const verifyEndpoint = vi.mocked(api.apiPost).getMockImplementation()!;
+    vi.mocked(api.apiPost).mockImplementation(async (url: string, body?: unknown) => {
+      if (url === '/documents/doc-1/reprocess') {
+        state.observations = replacement();
+        return {};
+      }
+      return verifyEndpoint(url, body);
+    });
+  }
+
+  // RED on the old code: the held copy of obs-1 came back as a row the record no longer has. Blind spot: the
+  // mock deletes and re-creates rows with new ids; a server that kept the ids is the next test.
+  it('Retry extraction replaces the rows, and a verified row that is gone does not come back as a ghost', async () => {
+    window.history.pushState({}, '', REVIEW_ALL);
+    state.documents = [reportDoc];
+    mockReprocess(() => [
+      { ...glucose, id: 'obs-new-1' },
+      { ...hba1c, id: 'obs-new-2' },
+    ]);
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(inkOf('obs-1')).toHaveAttribute('data-state', 'ink'));
+
+    await user.click(await screen.findByRole('button', { name: 'Retry extraction' }));
+    await waitFor(() => expect(rowOf('obs-new-1')).not.toBeNull());
+    expect(document.getElementById('observation-row-obs-1')).toBeNull();
+    expect(rowIds()).toEqual(['obs-new-1', 'obs-new-2']);
+  });
+
+  // RED on the old code: the held copy won over the server's row, so the page kept "Checked by you" and 95
+  // beside a record that says 91 and unchecked. Blind spot: the same ids, so only the held map decides.
+  it('Retry extraction clears the held rows, so the server\'s row is what shows', async () => {
+    window.history.pushState({}, '', REVIEW_ALL);
+    state.documents = [reportDoc];
+    mockReprocess(() => [{ ...glucose, value: 91, user_verified: false }, hba1c]);
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(inkOf('obs-1')).toHaveAttribute('data-state', 'ink'));
+
+    await user.click(await screen.findByRole('button', { name: 'Retry extraction' }));
+    await waitFor(() => expect(rowOf('obs-1')).toHaveTextContent('91'));
+    expect(inkOf('obs-1')).toHaveAttribute('data-state', 'pencil');
+    expect(rowOf('obs-1').querySelector('[data-state="not-checked"]')).not.toBeNull();
+  });
+
+  // RED on the old code: the held row won even after the server returned the row verified, with other numbers.
+  // Blind spot: the mock's POST answer and its next GET disagree on purpose (a second device edited it).
+  it('once the fetched row is verified it wins over the held copy', async () => {
+    window.history.pushState({}, '', REVIEW_ALL);
+    vi.mocked(api.apiPost).mockImplementation(async () => {
+      state.observations = [{ ...glucose, value: 99, user_verified: true }, hba1c, ferritin, ldlUnflagged];
+      return { ...glucose, user_verified: true };
+    });
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(rowOf('obs-1')).toHaveTextContent('99'));
+    expect(rowOf('obs-1')).not.toHaveTextContent('95');
+    expect(inkOf('obs-1')).toHaveAttribute('data-state', 'ink');
+  });
+
+  // Blind spot: one row on the default list; the order test above covers several.
+  it('on the default list a verified row the server dropped is still held (it is not a ghost there)', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(inkOf('obs-1')).toHaveAttribute('data-state', 'ink');
+  });
+});
+
+describe('the end of the queue shows while the last row is held as ink (L0 ruling on review round 3, finding 3)', () => {
+  const attentionDoc = { id: 'doc-2', doc_type: 'lab_report', source: 'scan.pdf', status: 'extraction_failed' };
+  const markAll = () => screen.getByRole('button', { name: 'Mark All Verified' });
+
+  async function verifyOnlyRow() {
+    state.observations = [glucose];
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/observations/').length).toBeGreaterThan(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  // RED on the old code: neither state existed while a held row kept the list non-empty. Blind spot: the held
+  // row stays on screen (HC-UIREV-002 needs it), so the list moves down when this block mounts; e2e measures that.
+  it('verifying the last row shows "All observations verified" above the list, and the row stays', async () => {
+    await verifyOnlyRow();
+    const done = screen.getByText('All observations verified');
+    expect(done.compareDocumentPosition(rowOf('obs-1')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+    expect(screen.queryByText(/items need review/)).toBeNull();
+  });
+
+  it('with an import that needs attention it shows "Documents needing attention" above the list', async () => {
+    state.documents = [attentionDoc];
+    await verifyOnlyRow();
+    const heading = await screen.findByText('Documents needing attention');
+    expect(heading.compareDocumentPosition(rowOf('obs-1')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('scan.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('All observations verified')).toBeNull();
+  });
+
+  // RED on the old code: the button stayed enabled and sent nothing.
+  it('Mark All Verified is disabled once no unverified row is left', async () => {
+    await verifyOnlyRow();
+    expect(markAll()).toBeDisabled();
+  });
+
+  // Blind spot: Mark All's own loop (it still skips markChecked) is unchanged and not tested here.
+  it('while an unverified row remains, no end-of-queue state shows and Mark All is enabled', async () => {
+    state.observations = [glucose, hba1c];
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Verify observation' }));
+    await waitFor(() => expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText('All observations verified')).toBeNull();
+    expect(screen.getByText('1 items need review')).toBeInTheDocument();
+    expect(markAll()).toBeEnabled();
+  });
+});
+
+describe('the Reviewing line is reserved before /documents answers (L0 ruling on review round 3, finding 4)', () => {
+  // RED on the old code: the badge mounted when /documents resolved and wrapped the actions row. Blind spot:
+  // jsdom has no layout, so this pins the reserved line; e2e measures the grid top while /documents is held.
+  it('the line exists while the document list is pending and holds the file name once it arrives', async () => {
+    window.history.pushState({}, '', '/verify?doc=doc-1&mode=all');
+    let release: () => void = () => undefined;
+    state.holdDocuments = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    state.documents = [reportDoc];
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const line = document.querySelector('[data-reviewing-line]');
+    expect(line).not.toBeNull();
+    expect(line!.textContent).toBe('');
+    release();
+    await waitFor(() => expect(line).toHaveTextContent('Reviewing: report.pdf'));
+    expect(document.querySelector('[data-reviewing-line]')).toBe(line);
+  });
+
+  // Blind spot: the default list. It must not grow a reserved line it has no use for.
+  it('the default list has no Reviewing line', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(document.querySelector('[data-reviewing-line]')).toBeNull();
   });
 });
 
@@ -722,6 +1093,20 @@ describe('EntityDetailView rows say it in words and show the marker too', () => 
     const marker = entityRow('e-yes').querySelector('[data-ink-marker]')!;
     expect(marker).toHaveAttribute('aria-hidden', 'true');
     expect(marker.hasAttribute('data-t0')).toBe(false);
+  });
+
+  // L0 ruling on review round 3 (finding 5). RED on the old code: sm:table-cell and sm:whitespace-nowrap sized the
+  // Review column by its content, so a chip appearing pushed the page wider and re-wrapped the value.
+  // Blind spot: class names. The 1024, 1280 and 1440 no-scroll check and the rects are e2e's.
+  it('stacks at every width: no table-cell layout and no nowrap at sm and up', () => {
+    const { container } = renderEntities();
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/whitespace-nowrap/);
+    expect(html).not.toMatch(/\bsm:table(-cell|-row|-header-group|-row-group)?\b/);
+    expect(html).not.toMatch(/\bsm:max-w-xs\b/);
+    const none = entityRow('e-none');
+    expect(none.className).toMatch(/\bblock\b/);
+    for (const td of Array.from(none.querySelectorAll(':scope > td'))) expect(td.className).toMatch(/\bblock\b/);
   });
 
   // Blind spot: roles from attributes only.
