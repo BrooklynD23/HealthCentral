@@ -670,12 +670,15 @@ def _plant_sealed_vault(data_dir: Path, pid: str, check_ids) -> bytes:
 
 
 @contextlib.asynccontextmanager
-async def _planted_vault_client(tmp_path, monkeypatch, check_ids):
+async def _planted_vault_client(tmp_path, monkeypatch, check_ids, *, relative=False):
     """Real master DB + real sealed vault at 016 holding ``check_ids`` orphans.
 
     Yields a namespace with an HTTP ``client`` on the profiles router (real
-    master session), the profile ``pid``, the vault ``key`` and ``rows()``, the
-    master cleanup audit rows read back.
+    master session), the profile ``pid``, the vault ``key``, ``vault`` (its
+    absolute path) and ``rows()``, the master cleanup audit rows read back.
+    ``relative``: app_data_path is the relative ``Path("data")``, the default in
+    local mode, with the working directory at ``tmp_path``; the app then builds
+    every vault path relative.
     """
     from types import SimpleNamespace
 
@@ -693,10 +696,16 @@ async def _planted_vault_client(tmp_path, monkeypatch, check_ids):
     from tests.support.db import fk_profile_engine
     from tests.support.routes import route_client
 
-    monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: tmp_path))
+    if relative:
+        monkeypatch.chdir(tmp_path)
+        data_dir = tmp_path / "data"
+        monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: Path("data")))
+    else:
+        data_dir = tmp_path
+        monkeypatch.setattr(type(settings), "app_data_path", property(lambda self: tmp_path))
     monkeypatch.setattr(settings, "database_encryption_required", False)
     pid = str(uuid.uuid4())
-    key = _plant_sealed_vault(tmp_path, pid, check_ids)
+    key = _plant_sealed_vault(data_dir, pid, check_ids)
 
     engine = fk_profile_engine()
     async with engine.begin() as conn:
@@ -719,7 +728,10 @@ async def _planted_vault_client(tmp_path, monkeypatch, check_ids):
         with route_client(
             profiles_router, "/profiles", master_db=master, raise_server_exceptions=False
         ) as client:
-            yield SimpleNamespace(client=client, pid=pid, key=key, rows=rows)
+            yield SimpleNamespace(
+                client=client, pid=pid, key=key, rows=rows,
+                vault=data_dir / "vaults" / pid / "vault.db",
+            )
     finally:
         await manager.close_profile_database(pid)
         await master.close()
@@ -1904,6 +1916,9 @@ def test_hc_fks_019_a_corrupted_snapshot_is_moved_aside_and_a_new_one_taken(
     assert len(events) == 1, events
     for needle in (str(path), str(path.parent), path.parent.name, SNAP_NAME, ASIDE_NAME, "vault.db", KEY.hex(), KEY.hex().upper()):
         assert needle not in events[0], events[0]
+    # the exception class (and only the class) is logged, as in every refusal: a
+    # moved-aside line without it cannot tell damage from a bug
+    assert events[0].endswith(("(_SnapshotInvalid)", "(DatabaseError)")), events[0]
     assert not [r for r in mig_log if r.levelno >= logging.ERROR]
 
 
@@ -1963,6 +1978,282 @@ def test_hc_fks_021_a_failed_move_refuses_and_keeps_the_damaged_snapshot(
     _assert_refusal_leaks_nothing(
         path, exc.value, mig_log, step_words=("move-aside",), error_class="PermissionError"
     )
+
+
+# --------------------------------------------------------------------------
+# HC-FKS-008r/016r/019r, 022: review round 2 (relative vault path, verifier errors,
+# purge order, the aside refusal over HTTP)
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def vault016_rel(tmp_path, monkeypatch):
+    """(RELATIVE vault path, alembic config) at 016. Local mode's app_data_path is
+    the relative ``Path("data")``, so every real vault path is relative; every
+    other fixture here uses an absolute tmp_path and cannot see what that breaks."""
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    monkeypatch.chdir(tmp_path)
+    path = Path("data/vaults/p/vault.db")
+    path.parent.mkdir(parents=True)
+    assert not path.is_absolute()
+    cfg = _alembic_cfg(path)
+    command.upgrade(cfg, REV_016)
+    return path, cfg
+
+
+def test_hc_fks_008r_relative_vault_two_failed_opens_keep_the_pristine_snapshot(vault016_rel):
+    path, orphan_id = _vault_with_orphan_and_blocker(vault016_rel)
+    snap = _snap(path)
+
+    with pytest.raises(Exception) as first:
+        migrations.run_profile_migration(path, KEY)
+    assert not isinstance(first.value, migrations.ProfileMigrationRefused), "the upgrade failed, not the snapshot"
+    before = _state(snap)
+
+    with pytest.raises(Exception) as second:  # still blocked: the existing snapshot is verified again
+        migrations.run_profile_migration(path, KEY)
+
+    assert not isinstance(second.value, migrations.ProfileMigrationRefused), second.value
+    assert _state(snap) == before, "a good snapshot must be kept, not moved aside and re-copied"
+    assert _leftovers(path) == [], "nothing was moved aside"
+
+    conn = _connect(path)
+    try:
+        conn.execute("DROP TABLE _alembic_tmp_care_plan_task")
+        conn.commit()
+    finally:
+        conn.close()
+    migrations.run_profile_migration(path, KEY)
+
+    assert _rev(path) == PROFILE_HEAD
+    assert _state(snap) == before and _leftovers(path) == []
+    conn = _connect(snap)
+    try:
+        assert conn.execute("SELECT 1 FROM chunks WHERE id = ?", (orphan_id,)).fetchone()
+    finally:
+        conn.close()
+
+
+def test_hc_fks_016r_relative_vault_a_failed_017_keeps_an_aged_snapshot_until_it_completes(
+    vault016_rel, monkeypatch
+):
+    path, _orphan_id = _vault_with_orphan_and_blocker(vault016_rel)
+    with pytest.raises(Exception):
+        migrations.run_profile_migration(path, KEY)
+    snap = _snap(path)
+    _set_age(snap, MADE_AT)
+    monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + timedelta(days=31))
+    before = _state(snap)
+
+    with pytest.raises(Exception) as retry:
+        migrations.run_profile_migration(path, KEY)
+
+    assert not isinstance(retry.value, migrations.ProfileMigrationRefused), retry.value
+    assert _state(snap) == before and _leftovers(path) == []
+    conn = _connect(path)
+    try:
+        conn.execute("DROP TABLE _alembic_tmp_care_plan_task")
+        conn.commit()
+    finally:
+        conn.close()
+    migrations.run_profile_migration(path, KEY)
+    assert _rev(path) == PROFILE_HEAD and _state(snap) == before
+
+    migrations.run_profile_migration(path, KEY)
+    assert not snap.exists() and _leftovers(path) == []
+
+
+@pytest.mark.parametrize("damage", list(_DAMAGED))
+def test_hc_fks_019r_relative_vault_a_corrupted_snapshot_is_moved_aside_and_a_new_one_taken(
+    vault016_rel, mig_log, damage
+):
+    path, _cfg = vault016_rel
+    _seed(path, ["P2"])
+    sha_vault = _sha(path)
+    planted = _plant_damaged_snapshot(path, _DAMAGED[damage](path))
+    _apply_alembic_ini_logging()
+
+    migrations.run_profile_migration(path, KEY)
+
+    for name, data in planted.items():
+        assert path.with_name(name.replace(SNAP_NAME, ASIDE_NAME, 1)).read_bytes() == data
+    migrations._verify_snapshot(_snap(path), migrations._key_to_hex(KEY))
+    assert _sha(_snap(path)) == sha_vault
+    assert _rev(path) == PROFILE_HEAD
+    events = [r.getMessage() for r in mig_log if r.levelno == logging.WARNING and "aside" in r.getMessage().lower()]
+    assert len(events) == 1, events
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ValueError("a relative path"), RuntimeError("encryption required"), PermissionError(errno.EACCES, "locked")],
+    ids=["ValueError", "RuntimeError", "PermissionError"],
+)
+def test_hc_fks_022_a_verifier_error_that_says_nothing_about_the_file_refuses_and_moves_nothing(
+    vault016, mig_log, monkeypatch, error
+):
+    """Only a failed check (the verifier's own refusal, or a database error) means
+    the snapshot is damaged. Anything else (here a bug or a locked file) says
+    nothing about the file, so the good snapshot must not be moved."""
+    path, _orphan_id = _vault_with_orphan_and_blocker(vault016)
+    with pytest.raises(Exception):
+        migrations.run_profile_migration(path, KEY)  # the failed 017 leaves a good snapshot
+    before = _tree_shas(path.parent)
+    real_verify = migrations._verify_snapshot
+
+    def _verify(target, hex_key, read_only=False):
+        if read_only:
+            raise error
+        return real_verify(target, hex_key, read_only=read_only)
+
+    monkeypatch.setattr(migrations, "_verify_snapshot", _verify)
+    mig_log.clear()
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    assert _tree_shas(path.parent) == before, "nothing was moved, added or removed"
+    assert _leftovers(path) == []
+    assert _rev(path) == REV_016
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("verify-existing",), error_class=type(error).__name__
+    )
+
+
+def test_hc_fks_023_a_database_error_from_the_verifier_counts_as_damage(vault016, monkeypatch):
+    """The other side of HC-FKS-022: the driver's own DatabaseError (what a garbage
+    file raises) is damage and the file is moved aside."""
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    damaged = b"not a database" * 100
+    _snap(path).write_bytes(damaged)
+    seen: list[str] = []
+    real_verify = migrations._verify_snapshot
+
+    def _verify(target, hex_key, read_only=False):
+        try:
+            return real_verify(target, hex_key, read_only=read_only)
+        except Exception as exc:
+            seen.append(type(exc).__name__)
+            raise
+
+    monkeypatch.setattr(migrations, "_verify_snapshot", _verify)
+
+    migrations.run_profile_migration(path, KEY)
+
+    assert seen == ["DatabaseError"], seen
+    assert path.with_name(ASIDE_NAME).read_bytes() == damaged
+    assert _rev(path) == PROFILE_HEAD
+
+
+def test_hc_fks_018c_the_age_purge_removes_sidecars_first_and_the_main_file_last(tmp_path, monkeypatch, mig_log):
+    """If a sidecar will not go, the main file stays, so the next open still finds
+    it, ages it and tries again. Main first would leave a sidecar nothing ages."""
+    vault = _head_vault(tmp_path, monkeypatch)
+    now = MADE_AT + timedelta(days=60)
+    names = [SNAP_NAME, SNAP_NAME + "-wal", ASIDE_NAME, ASIDE_NAME + "-journal"]
+    for name in names:
+        vault.with_name(name).write_bytes(b"planted " + name.encode())
+        _set_age(vault.with_name(name), now - timedelta(days=45))
+    monkeypatch.setattr(migrations, "utcnow", lambda: now)
+    real_unlink = Path.unlink
+    locked = {SNAP_NAME + "-wal", ASIDE_NAME + "-journal"}
+
+    def _locked(self, *args, **kwargs):
+        if self.name in locked:
+            raise PermissionError(errno.EACCES, "locked", str(self))
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _locked)
+    migrations.run_profile_migration(vault, KEY)  # must not raise
+
+    assert _snap(vault).exists() and vault.with_name(ASIDE_NAME).exists(), (
+        "a main file goes last: its sidecar could not be removed, so it stays"
+    )
+    monkeypatch.setattr(Path, "unlink", real_unlink)
+    migrations.run_profile_migration(vault, KEY)
+
+    assert _leftovers(vault) == [], "the next open finished the purge"
+
+
+def test_hc_fks_018d_sidecars_with_no_main_file_are_purged_once_017_is_confirmed(tmp_path, monkeypatch):
+    vault = _head_vault(tmp_path, monkeypatch)
+    orphans = [SNAP_NAME + "-wal", SNAP_NAME + "-shm", ASIDE_NAME + "-journal"]
+    for name in orphans:
+        vault.with_name(name).write_bytes(b"a sidecar with no main file")  # young: mtime is now
+    keeper = vault.with_name(SNAP_NAME + ".keep")  # not one of the names: must stay
+    keeper.write_bytes(b"not ours")
+
+    migrations.run_profile_migration(vault, KEY)
+
+    assert [p.name for p in vault.parent.glob("vault.pre017*")] == [keeper.name]
+
+
+@pytest.mark.asyncio
+async def test_hc_fks_012b_login_with_the_aside_occupied_is_the_fixed_500_with_no_token(
+    tmp_path, monkeypatch
+):
+    """The state with no in-app exit: nothing is opened, so no token exists, and
+    the refusal says nothing about where anything is."""
+    from core.profile_database import get_profile_db_manager
+
+    async with _planted_vault_client(tmp_path, monkeypatch, ["P2"]) as ctx:
+        folder = ctx.vault.parent
+        _snap(ctx.vault).write_bytes(b"not a database" * 100)
+        (folder / (ASIDE_NAME + "-wal")).write_bytes(b"an earlier damaged copy")
+        before = _tree_shas(folder)
+        login = {"profile_id": ctx.pid, "password": _PASSWORD}
+
+        refused = ctx.client.post("/profiles/login", json=login)
+
+        assert refused.status_code == 500
+        assert refused.json() == {"detail": "Failed to open profile database"}
+        assert str(tmp_path) not in refused.text and ASIDE_NAME not in refused.text
+        assert "set-cookie" not in refused.headers
+        assert ctx.pid not in get_profile_db_manager()._connections, "no cached connection"
+        assert _tree_shas(folder) == before, "nothing was touched"
+        assert _rev(ctx.vault, ctx.key) == REV_016
+        assert await ctx.rows() == []
+
+
+@pytest.mark.asyncio
+async def test_hc_fks_012c_relative_app_data_path_two_failed_logins_keep_the_snapshot(
+    tmp_path, monkeypatch
+):
+    """Local mode's default app_data_path is relative. Two failed 017 logins must
+    not move the good snapshot aside, and a login after the cause clears must open."""
+    async with _planted_vault_client(tmp_path, monkeypatch, ["P2"], relative=True) as ctx:
+        folder = ctx.vault.parent
+        conn = _connect(ctx.vault, ctx.key)
+        try:
+            conn.execute("CREATE TABLE _alembic_tmp_care_plan_task (x INTEGER)")
+            conn.commit()
+        finally:
+            conn.close()
+        login = {"profile_id": ctx.pid, "password": _PASSWORD}
+
+        first = ctx.client.post("/profiles/login", json=login)
+        assert first.status_code == 500
+        snap = _snap(ctx.vault)
+        before = _state(snap)
+        second = ctx.client.post("/profiles/login", json=login)
+
+        assert second.status_code == 500
+        assert second.json() == {"detail": "Failed to open profile database"}
+        assert _state(snap) == before, "the good snapshot is kept"
+        assert _leftovers(ctx.vault) == [], "nothing moved aside"
+
+        conn = _connect(ctx.vault, ctx.key)
+        try:
+            conn.execute("DROP TABLE _alembic_tmp_care_plan_task")
+            conn.commit()
+        finally:
+            conn.close()
+        ok = ctx.client.post("/profiles/login", json=login)
+
+        assert ok.status_code == 200, ok.text
+        assert _rev(ctx.vault, ctx.key) == PROFILE_HEAD
+        assert _state(snap) == before and sorted(p.name for p in folder.glob("vault.pre017*")) == [SNAP_NAME]
 
 
 # --------------------------------------------------------------------------
@@ -2293,8 +2584,25 @@ def _assert_refused_and_untouched(path, stamps, *, before_sha, before_tables, ro
     assert list(path.parent.glob("vault.pre017*")) == []
 
 
-def test_hc_fkb_009_the_single_table_list_is_all_thirteen():
+# The 12 tables the old baseline check named (core/migrations.py at 2d470854).
+OLD_TWELVE = {
+    "documents", "observations", "chunks", "embeddings", "lab_interpretations",
+    "panel_interpretations", "medications", "medication_schedules", "doses_taken",
+    "adherence_patterns", "reminder_logs", "user_model_settings",
+}
+
+
+def test_hc_fkb_009_the_single_table_list_is_every_table_the_old_check_missed(tmp_path, monkeypatch):
+    """Read from a real head vault, so a table a later revision adds fails this
+    test until it is added to SINGLE_TABLES (and so to the refusal tests below)."""
+    head = _head_vault(tmp_path, monkeypatch)
+    missed = {
+        t for t in _tables(head)
+        if t != "alembic_version" and not migrations._is_runtime_search_table(t)
+    } - OLD_TWELVE
+    assert OLD_TWELVE <= _tables(head), "the old list names real tables"
     assert len(SINGLE_TABLES) == 13 and len(set(SINGLE_TABLES)) == 13
+    assert set(SINGLE_TABLES) == missed
 
 
 @pytest.mark.parametrize("table", SINGLE_TABLES)

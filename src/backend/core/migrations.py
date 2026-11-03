@@ -237,6 +237,17 @@ class _SnapshotInvalid(Exception):
     """A snapshot check failed (nothing path-like in the text, by construction)."""
 
 
+def _database_errors() -> tuple[type[Exception], ...]:
+    """The database errors a damaged file raises, from the stdlib driver and from
+    SQLCipher's (a different class: ``sqlcipher3.dbapi2.DatabaseError`` is not a
+    ``sqlite3.DatabaseError``)."""
+    errors: list[type[Exception]] = [sqlite3.DatabaseError]
+    extra = getattr(get_sqlcipher_module(), "DatabaseError", None) if is_sqlcipher_available() else None
+    if isinstance(extra, type) and extra not in errors:
+        errors.append(extra)
+    return tuple(errors)
+
+
 def _refuse(what: str, step: str, exc: Exception) -> ProfileMigrationRefused:
     """Log once (step and exception class only) and build the refusal to raise."""
     logger.error("Profile migration refused: %s failed at step %s (%s)", what, step, type(exc).__name__)
@@ -276,7 +287,9 @@ def _open_keyed(path: Path, hex_key: str, timeout: float = 5.0, read_only: bool 
     can delete them, and a snapshot that fails verification must be moved aside
     with its sidecars byte for byte.
     """
-    target = f"{path.as_uri()}?mode=ro&immutable=1" if read_only else str(path)
+    # as_uri() raises ValueError on a relative path, and local mode's app_data_path
+    # is the relative Path("data"), so every real vault path is relative.
+    target = f"{path.resolve().as_uri()}?mode=ro&immutable=1" if read_only else str(path)
     if not is_sqlcipher_available():
         return sqlite3.connect(target, timeout=timeout, uri=read_only)
     conn = get_sqlcipher_module().connect(target, timeout=timeout, uri=read_only)
@@ -373,8 +386,9 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
     sidecars, to the aside name (sidecars first, the main file last) and a new
     snapshot is taken through the temp name. It is never overwritten and never
     deleted: it is the original file. If the aside name is already occupied the
-    migration is refused and nothing is touched. A failed attempt never touches
-    the final name or the aside.
+    migration is refused and nothing is touched. A failed copy of the new
+    snapshot leaves nothing at the temp name and publishes nothing; after a move
+    the final name is then empty and the aside holds the original.
 
     Raises ProfileMigrationRefused on any failure; the vault is untouched.
     """
@@ -384,10 +398,15 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
         if snap.exists():
             step = "verify-existing"
             verifies = True
+            damage = ""
             try:
                 _verify_snapshot(snap, hex_key, read_only=True)
-            except Exception:
-                verifies = False  # handled below: moved aside, never replaced
+            except (_SnapshotInvalid, *_database_errors()) as exc:
+                # Only a failed check means the file is damaged. Any other error
+                # (a bug, a locked file) says nothing about it: it goes to the outer
+                # handler, which refuses with nothing moved.
+                verifies = False
+                damage = type(exc).__name__
             if verifies:
                 return
             step = "aside-occupied"
@@ -402,8 +421,8 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
             for old in _with_sidecars(snap)[1:] + [snap]:
                 if os.path.lexists(old):
                     os.replace(old, aside.with_name(aside.name + old.name[len(snap.name):]))
-            # Event words only: no path, no key.
-            logger.warning("Pre-017 snapshot failed verification and was moved aside")
+            # Event words and the exception class only: no path, no key.
+            logger.warning("Pre-017 snapshot failed verification and was moved aside (%s)", damage)
         step = "clear-temp"
         for stale in _with_sidecars(tmp):
             stale.unlink(missing_ok=True)
@@ -484,9 +503,15 @@ def _purge_expired_snapshot(vault_path: Path) -> None:
             try:
                 made = utcfromtimestamp(main.stat().st_mtime)
             except FileNotFoundError:
+                # Sidecars with no main file are left by an earlier failed purge
+                # and carry no age of their own: remove them.
+                for old in _with_sidecars(main)[1:]:
+                    old.unlink(missing_ok=True)
                 continue
             if utcnow() - made >= _SNAPSHOT_MAX_AGE:
-                for old in _with_sidecars(main):
+                # Sidecars first, the main file last: if a sidecar cannot be
+                # removed the main file stays, so the next open ages it again.
+                for old in _with_sidecars(main)[1:] + [main]:
                     old.unlink(missing_ok=True)
                 logger.warning("Pre-017 %s purged after 30 days", label)  # WARNING: see _ensure_pre017_snapshot
         except OSError as exc:
