@@ -11,14 +11,18 @@ flag is kept with its is_abnormal, even one that disagrees with the number
 columns, not only the response.
 """
 
+import json
 import uuid
 from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+import api.export as export_api
 import api.observations as obs_api
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
@@ -42,7 +46,8 @@ async def profile_db():
         await engine.dispose()
 
 
-async def _seed_obs(db: AsyncSession, *, flag, is_abnormal, value, ref_low, ref_high) -> str:
+async def _seed_obs(db: AsyncSession, *, flag, is_abnormal, value, ref_low, ref_high,
+                    user_verified=False) -> str:
     doc_id, obs_id = str(uuid.uuid4()), str(uuid.uuid4())
     db.add(Document(
         id=doc_id, profile_id=PROFILE, path_hash="p" * 64, content_hash="c" * 64,
@@ -51,15 +56,15 @@ async def _seed_obs(db: AsyncSession, *, flag, is_abnormal, value, ref_low, ref_
     db.add(Observation(
         id=obs_id, profile_id=PROFILE, doc_id=doc_id, analyte_canonical="hemoglobin",
         analyte_raw="Hemoglobin", value=value, unit="g/dL", ref_low=ref_low,
-        ref_high=ref_high, flag=flag, is_abnormal=is_abnormal, user_verified=False,
+        ref_high=ref_high, flag=flag, is_abnormal=is_abnormal, user_verified=user_verified,
         collected_at=OBS_AT,
     ))
     await db.commit()
     return obs_id
 
 
-def _get(router, prefix, profile_db, method, url, **kwargs):
-    with route_client(router, prefix, profile_id=PROFILE) as client:
+def _get(router, prefix, profile_db, method, url, master_db=None, **kwargs):
+    with route_client(router, prefix, profile_id=PROFILE, master_db=master_db) as client:
         async def _override_profile_db():
             return profile_db
 
@@ -355,3 +360,116 @@ async def test_hc_vkf_014_blank_flag_is_kept_like_any_other_flag(profile_db):
                              value=14.0, ref_low=12.0, ref_high=16.0)
     obs = await _verify_and_load(profile_db, obs_id, {})
     assert (obs.flag, obs.is_abnormal) == ("   ", True)
+
+
+# --- L0 ruling (#463): the FHIR export redacts a kept free-text flag ---------
+#
+# A plain Verify keeps any stored flag that is not a normal word (001-014), so
+# a flag can be report free text. document-level Verify also sets
+# user_verified on rows without touching the flag. Either way the row reaches
+# POST /export/fhir, which must redact the flag like other narrative.
+
+# One Observation per export, so every PII span below comes from the flag.
+_PII_FLAG = "Called Dr Smith 555-123-4567 jane@example.com MRN: A1234567"
+_PII_BITS = ("555-123-4567", "jane@example.com", "A1234567")
+
+
+@pytest.fixture
+def fhir_store(monkeypatch):
+    """A fresh api.export._fhir_store so no export outlives its test."""
+    store: dict = {}
+    monkeypatch.setattr(export_api, "_fhir_store", store)
+    return store
+
+
+def _master_db_with_profile():
+    """POST /export/fhir reads the Profile row; route_client's default
+    AsyncMock cannot return one."""
+    db = MagicMock()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = SimpleNamespace(display_name="Jane Doe")
+    db.execute = AsyncMock(return_value=result)
+    db.commit = AsyncMock()
+    db.flush = AsyncMock()
+    db.refresh = AsyncMock()
+    return db
+
+
+def _export_fhir(profile_db):
+    """POST /export/fhir then GET its download, both through HTTP.
+
+    Returns (POST json, raw download text, parsed bundle).
+    """
+    master_db = _master_db_with_profile()
+    post = _get(export_api.router, "/export", profile_db, "POST", "/export/fhir",
+                master_db=master_db, json={"confirm": True})
+    assert post.status_code == 200, post.text
+    body = post.json()
+    dl = _get(export_api.router, "/export", profile_db, "GET",
+              f"/export/fhir/{body['export_id']}/download", master_db=master_db)
+    assert dl.status_code == 200, dl.text
+    return body, dl.text, json.loads(dl.text)
+
+
+def _observation_resources(bundle) -> list[dict]:
+    return [e["resource"] for e in bundle["entry"]
+            if e["resource"]["resourceType"] == "Observation"]
+
+
+async def _set_flag(profile_db, obs_id, flag) -> None:
+    obs = (
+        await profile_db.execute(select(Observation).where(Observation.id == obs_id))
+    ).scalar_one()
+    obs.flag = flag
+    await profile_db.commit()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["route_verify", "document_level_verify"])
+async def test_hc_vkf_015_fhir_export_redacts_a_kept_free_text_flag(
+        profile_db, fhir_store, path):
+    if path == "route_verify":
+        # (a) stored unverified, then a plain Verify through the route, which
+        # keeps the free-text flag (001-004, 009).
+        obs_id = await _seed_obs(profile_db, flag=_PII_FLAG, is_abnormal=True,
+                                 value=14.0, ref_low=12.0, ref_high=16.0)
+        kept = await _verify_and_load(profile_db, obs_id, {})
+        assert kept.flag == _PII_FLAG
+    else:
+        # (b) the state document-level Verify leaves: user_verified True with
+        # the flag as stored, and no route Verify on the row.
+        obs_id = await _seed_obs(profile_db, flag=_PII_FLAG, is_abnormal=True,
+                                 value=14.0, ref_low=12.0, ref_high=16.0,
+                                 user_verified=True)
+
+    body, raw, bundle = _export_fhir(profile_db)
+    for bit in _PII_BITS:
+        assert bit not in raw, bit
+    (resource,) = _observation_resources(bundle)
+    assert "[PHONE-REDACTED]" in resource["interpretation"][0]["text"]
+
+    # Same row, same export, flag H: the flag is the only thing that differs,
+    # so a higher redaction_count comes from the flag. The display name can
+    # count too, so no absolute number is asserted.
+    await _set_flag(profile_db, obs_id, "H")
+    body_h, _, _ = _export_fhir(profile_db)
+    assert body["redaction_count"] > body_h["redaction_count"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "word",
+    ["H", "L", "HH", "LL", "A", "HIGH", "LOW", "ABNORMAL", "CRITICAL",
+     "Critical high", "Positive", "Yes", "Elevated", "Non-critical",
+     "Negative", "NEG"],
+)
+async def test_hc_vkf_016_fhir_export_leaves_a_coded_flag_unchanged(
+        profile_db, fhir_store, word):
+    # Pin: green before the fix and after it. Strict redaction leaves every
+    # coded flag word alone (measured, L0 ruling), so redacting the flag costs
+    # no clinical meaning. If a word here ever changes, stop and tell L0.
+    await _seed_obs(profile_db, flag=word, is_abnormal=True, value=14.0,
+                    ref_low=12.0, ref_high=16.0, user_verified=True)
+    _, _, bundle = _export_fhir(profile_db)
+    (resource,) = _observation_resources(bundle)
+    assert resource["interpretation"] == [{"text": word}]
