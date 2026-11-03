@@ -3,12 +3,15 @@
 POST /observations/{id}/verify used to recompute flag/is_abnormal from
 value vs ref_low/ref_high on every call. A report's own flag ("CRITICAL",
 or "H" with no printed range) was erased by a Verify click that changed
-nothing. The flag is recalculated only when this request really changes
-value, ref_low or ref_high, or when the row has no flag or a normal word
-(NORMAL, N, WNL, NO, FALSE, 0 after strip().upper(); see 008 and 010). Any
-other stored flag is kept with its is_abnormal, even one that disagrees with
-the number (009, 011, 012). Every case goes through HTTP and asserts the STORED
-columns, not only the response.
+nothing. A plain Verify (no real change to value, ref_low or ref_high)
+recalculates only a row with no flag or a normal word (NORMAL, N, WNL, NO,
+FALSE, 0 after strip().upper(); see 008 and 010). Any other stored flag is kept
+with its is_abnormal, even one that disagrees with the number (009, 011, 012).
+A real change to value, ref_low or ref_high recalculates when a range exists
+after the edit (005-007, 013, 022, 023); with both bounds null after the edit it
+keeps flag and is_abnormal, and a row with no flag stays none (VERIFY-EDIT-NO-RANGE,
+017-024). Every case goes through HTTP and asserts the STORED columns, not only
+the response.
 """
 
 import json
@@ -478,3 +481,140 @@ async def test_hc_vkf_016_fhir_export_leaves_a_coded_flag_unchanged(
     _, _, bundle = _export_fhir(profile_db)
     (resource,) = _observation_resources(bundle)
     assert resource["interpretation"] == [{"text": word}]
+
+
+# --- VERIFY-EDIT-NO-RANGE (owner: "Keep the flag"): a real edit, no range ----
+#
+# When a real edit changes value, ref_low or ref_high and both bounds are null
+# after the edit, flag and is_abnormal are kept: there is no range to
+# recalculate against, and the old code erased a report's own flag (and set
+# is_abnormal False) just because the number was corrected. With a range the
+# recalculation is unchanged. 017-020 are RED on #463's head (eb94b9a7); 021-024
+# are pins, green on #463's head and after.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("flag", ["CRITICAL", "H", "Positive"])
+async def test_hc_vkf_017_real_edit_with_no_range_keeps_the_flag(profile_db, flag):
+    obs_id = await _seed_obs(profile_db, flag=flag, is_abnormal=True,
+                             value=7.1, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
+    assert obs.value == 7.2, "the edit itself must still apply"
+    assert (obs.flag, obs.is_abnormal) == (flag, True)
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_018_real_edit_with_no_range_keeps_is_abnormal_exactly(profile_db):
+    # "Exactly": the kept flag keeps is_abnormal as stored, here False.
+    obs_id = await _seed_obs(profile_db, flag="Yes", is_abnormal=False,
+                             value=7.1, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
+    assert obs.value == 7.2
+    assert (obs.flag, obs.is_abnormal) == ("Yes", False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("word", ["N", "Normal", "No"])
+async def test_hc_vkf_019_real_edit_with_no_range_keeps_a_normal_word(profile_db, word):
+    # The row has no exception for normal words: with no range a real edit
+    # keeps the stored flag and is_abnormal as they are (imports store
+    # is_abnormal = flag is not None, so this is True). Asymmetry with 010: a
+    # plain `{}` Verify on the same row still recalculates to (None, False).
+    obs_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                             value=7.1, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
+    assert obs.value == 7.2
+    assert (obs.flag, obs.is_abnormal) == (word, True)
+
+    plain_id = await _seed_obs(profile_db, flag=word, is_abnormal=True,
+                               value=7.1, ref_low=None, ref_high=None)
+    plain = await _verify_and_load(profile_db, plain_id, {})
+    assert (plain.flag, plain.is_abnormal) == (None, False)
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_020_text_only_row_gaining_a_value_keeps_the_flag(profile_db):
+    obs_id = await _seed_obs(profile_db, flag="Positive", is_abnormal=True,
+                             value=None, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
+    assert obs.value == 7.2
+    assert (obs.flag, obs.is_abnormal) == ("Positive", True)
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_021_real_edit_with_no_range_and_no_flag_stays_none(profile_db):
+    # Pin: green on #463's head and after.
+    obs_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                             value=7.1, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"value": 7.2})
+    assert obs.value == 7.2
+    assert (obs.flag, obs.is_abnormal) == (None, False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("seed_flag", ["CRITICAL", "N"])
+@pytest.mark.parametrize(
+    "ref_low, ref_high, body, want",
+    [
+        (12.0, 16.0, {"value": 18}, ("H", True)),
+        (12.0, 16.0, {"value": 9}, ("L", True)),
+        (12.0, 16.0, {"value": 14}, (None, False)),
+        (None, 16.0, {"value": 18}, ("H", True)),
+        (None, 16.0, {"value": 14}, (None, False)),
+        (12.0, None, {"value": 9}, ("L", True)),
+        (12.0, None, {"value": 14}, (None, False)),
+        # null means "not sent": the row still has its 12-16 range.
+        (12.0, 16.0, {"value": 14, "ref_low": None, "ref_high": None}, (None, False)),
+    ],
+    ids=["both-high", "both-low", "both-in", "high-only-high", "high-only-in",
+         "low-only-low", "low-only-in", "null-bounds-not-sent"],
+)
+async def test_hc_vkf_022_real_edit_with_a_range_recalculates_as_today(
+        profile_db, seed_flag, ref_low, ref_high, body, want):
+    # Pin: green on #463's head and after. One bound is a range. Seeded at 20.0
+    # so every body value is a real change (re-sending 14 over 14 is not one).
+    obs_id = await _seed_obs(profile_db, flag=seed_flag, is_abnormal=True,
+                             value=20.0, ref_low=ref_low, ref_high=ref_high)
+    obs = await _verify_and_load(profile_db, obs_id, body)
+    assert (obs.flag, obs.is_abnormal) == want
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "value, body, want",
+    [
+        (18.0, {"ref_high": 16}, ("H", True)),
+        (9.0, {"ref_low": 12}, ("L", True)),
+        (7.1, {"value": 14, "ref_low": 12, "ref_high": 16}, (None, False)),
+    ],
+    ids=["gains-high", "gains-low", "gains-both"],
+)
+async def test_hc_vkf_023_a_range_gained_in_this_request_counts_after_the_edit(
+        profile_db, value, body, want):
+    # Pin: green on #463's head and after. The bounds are read after the edit,
+    # not as they were stored: a no-range row that gains a range in this
+    # request is recalculated against it.
+    obs_id = await _seed_obs(profile_db, flag="CRITICAL", is_abnormal=True,
+                             value=value, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, body)
+    assert (obs.flag, obs.is_abnormal) == want
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_024_not_a_real_edit_with_no_range_is_unchanged(profile_db):
+    # Pin: green on #463's head and after.
+    kept_id = await _seed_obs(profile_db, flag="CRITICAL", is_abnormal=True,
+                              value=7.1, ref_low=None, ref_high=None)
+    kept = await _verify_and_load(profile_db, kept_id, {"value": 7.1})
+    assert (kept.flag, kept.is_abnormal) == ("CRITICAL", True)
+
+    for body in ({"value": 7.1}, {"unit": "mg/dL"}):
+        n_id = await _seed_obs(profile_db, flag="N", is_abnormal=True,
+                               value=7.1, ref_low=None, ref_high=None)
+        n = await _verify_and_load(profile_db, n_id, body)
+        assert (n.flag, n.is_abnormal) == (None, False), body
+
+    none_id = await _seed_obs(profile_db, flag=None, is_abnormal=False,
+                              value=7.1, ref_low=None, ref_high=None)
+    none = await _verify_and_load(profile_db, none_id, {})
+    assert (none.flag, none.is_abnormal) == (None, False)
