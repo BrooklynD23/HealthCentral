@@ -2244,3 +2244,172 @@ def test_hc_fkb_008b_any_other_extra_table_still_refuses(
     with pytest.raises(migrations.ProfileMigrationRefused):
         migrations.run_profile_migration(path, KEY)
     assert stamps == []
+
+
+# --------------------------------------------------------------------------
+# HC-FKB-009..012: any user table makes an unversioned file non-empty
+# --------------------------------------------------------------------------
+
+# Tables that profile revisions create but the old 12-table baseline list did not
+# name. A file holding only one of them used to count as empty and was written to.
+SINGLE_TABLES = (
+    "badge_definition", "care_plan_task", "chat_sessions", "chat_turns",
+    "document_category", "document_entity", "donated_records", "donation_consents",
+    "earned_badge", "memory_items", "pinboard", "pinboard_item", "response_feedback",
+)
+
+
+def _file_with_tables(path: Path, tables, *, rowless_alembic_version: bool = False) -> None:
+    """A vault file holding only ``tables``, one row each (and, optionally, an
+    ``alembic_version`` table with no row)."""
+    conn = _connect(path)
+    try:
+        if rowless_alembic_version:
+            conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+        for name in tables:
+            conn.execute(f'CREATE TABLE "{name}" (id TEXT PRIMARY KEY)')
+            conn.execute(f'INSERT INTO "{name}" VALUES (?)', ("row-1",))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _version_rows(path: Path) -> int:
+    conn = _connect(path)
+    try:
+        return conn.execute("SELECT count(*) FROM alembic_version").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def _assert_refused_and_untouched(path, stamps, *, before_sha, before_tables, rowless: bool = False):
+    assert _sha(path) == before_sha, "a refused file must not be touched"
+    assert _tables(path) == before_tables, "no table was added"
+    if rowless:
+        assert "alembic_version" in _tables(path) and _version_rows(path) == 0
+    else:
+        assert "alembic_version" not in _tables(path)
+    assert stamps == []
+    assert list(path.parent.glob("vault.pre017*")) == []
+
+
+def test_hc_fkb_009_the_single_table_list_is_all_thirteen():
+    assert len(SINGLE_TABLES) == 13 and len(set(SINGLE_TABLES)) == 13
+
+
+@pytest.mark.parametrize("table", SINGLE_TABLES)
+def test_hc_fkb_009_a_file_with_one_unlisted_table_is_refused_untouched(
+    tmp_path, monkeypatch, stamps, fast_references, table
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    _file_with_tables(path, [table])
+    sha_before, tables_before = _sha(path), _tables(path)
+
+    with pytest.raises(migrations.ProfileMigrationRefused):
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_refused_and_untouched(path, stamps, before_sha=sha_before, before_tables=tables_before)
+    assert tables_before == {table}
+
+
+def test_hc_fkb_010_a_file_with_two_unlisted_tables_is_refused_untouched(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    _file_with_tables(path, ["pinboard", "pinboard_item"])
+    sha_before, tables_before = _sha(path), _tables(path)
+
+    with pytest.raises(migrations.ProfileMigrationRefused):
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_refused_and_untouched(path, stamps, before_sha=sha_before, before_tables=tables_before)
+
+
+def test_hc_fkb_011_a_rowless_alembic_version_with_a_user_table_is_unversioned(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    """``alembic_version`` with no row has no revision, so the file is unversioned
+    and goes through the schema match like any other. It used to skip the match
+    and be upgraded in place."""
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    _file_with_tables(path, ["pinboard"], rowless_alembic_version=True)
+    sha_before, tables_before = _sha(path), _tables(path)
+
+    with pytest.raises(migrations.ProfileMigrationRefused):
+        migrations.run_profile_migration(path, KEY)
+
+    _assert_refused_and_untouched(
+        path, stamps, before_sha=sha_before, before_tables=tables_before, rowless=True
+    )
+
+
+def test_hc_fkb_011b_a_rowless_alembic_version_on_a_matching_vault_is_stamped(
+    tmp_path, monkeypatch, stamps, fast_references
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    _plant_older_orphans(path, with_care_task=True)
+    conn = _connect(path)
+    try:
+        conn.execute("DELETE FROM alembic_version")
+        conn.commit()
+    finally:
+        conn.close()
+    assert _version_rows(path) == 0
+    sha_before = _sha(path)
+
+    migrations.run_profile_migration(path, KEY)
+
+    assert stamps == [REV_016], "matched like any unversioned vault, stamped where it is"
+    assert _rev(path) == PROFILE_HEAD
+    assert _sha(_snap(path)) == sha_before, "and snapshotted before 017 ran"
+
+
+def _absent(path: Path) -> None:
+    assert not path.exists()
+
+
+def _zero_bytes(path: Path) -> None:
+    path.write_bytes(b"")
+
+
+def _rowless_only(path: Path) -> None:
+    _file_with_tables(path, [], rowless_alembic_version=True)
+
+
+def _search_only(path: Path) -> None:
+    """Only the derived search index: modules/search.py makes it at run time."""
+    from modules import search as search_module
+
+    conn = _connect(path)
+    try:
+        conn.execute(search_module._CREATE_RECORDS_SQL)
+        conn.execute(search_module._CREATE_FTS_SQL)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    "build", [_absent, _zero_bytes, _rowless_only, _search_only],
+    ids=["absent", "zero-bytes", "rowless-alembic-version-only", "search-index-only"],
+)
+def test_hc_fkb_012_a_file_with_no_user_table_is_new_and_reaches_head_without_a_snapshot(
+    tmp_path, monkeypatch, stamps, build
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    build(path)
+    search_before = {t for t in _tables(path) if t.startswith("search_records")} if path.exists() else set()
+
+    migrations.run_profile_migration(path, KEY)
+
+    assert _rev(path) == PROFILE_HEAD
+    assert stamps == [], "created through the upgrade, not stamped"
+    assert list(path.parent.glob("vault.pre017*")) == [], "no snapshot of an empty file"
+    assert {t for t in _tables(path) if t.startswith("search_records")} == search_before
+    assert {"documents", "chunks", "care_plan_task"} <= _tables(path)

@@ -619,10 +619,12 @@ def run_profile_migration(
         nothing was cleaned (P6-CLEANUP-AUDIT).
 
     Baseline logic:
-    - If tables exist but no alembic_version → fingerprint the schema, stamp the
-      newest revision it matches exactly, then upgrade to head. A vault that
-      matches no revision is refused (ProfileMigrationRefused) and left alone.
-    - If no tables → upgrade head (create schema)
+    - If any user table exists but there is no revision (no alembic_version, or
+      one with no row) → fingerprint the schema, stamp the newest revision it
+      matches exactly, then upgrade to head. A vault that matches no revision is
+      refused (ProfileMigrationRefused) and left alone. The derived search index
+      does not count as a user table.
+    - If no user tables → upgrade head (create schema)
     - If alembic_version exists → upgrade head (run pending migrations)
 
     Snapshot: before revision 017 runs on a non-empty vault, a verified encrypted
@@ -651,22 +653,6 @@ def run_profile_migration(
 
     # Convert key to hex format
     hex_key = _key_to_hex(encryption_key)
-
-    # Expected profile tables for baseline detection
-    expected_tables = [
-        "documents",
-        "observations",
-        "chunks",
-        "embeddings",
-        "lab_interpretations",
-        "panel_interpretations",
-        "medications",
-        "medication_schedules",
-        "doses_taken",
-        "adherence_patterns",
-        "reminder_logs",
-        "user_model_settings",
-    ]
 
     # PRAGMA foreign_keys stays OFF on migration engines on purpose: Alembic batch
     # rebuilds need it off (SQL-FK-001). The runtime engines turn it on.
@@ -723,17 +709,30 @@ def run_profile_migration(
     purge_when_done = False
     try:
         with engine.connect() as connection:
-            has_tables, has_alembic_version = _check_baseline_needed(
-                connection, expected_tables
+            # Non-empty means any user table, not a list of known ones: a file
+            # holding one table a revision creates is not a new vault. Only
+            # alembic_version and the derived search index (see
+            # _is_runtime_search_table) do not count.
+            existing = set(inspect(connection).get_table_names())
+            has_alembic_version = "alembic_version" in existing
+            has_tables = any(
+                name != "alembic_version" and not _is_runtime_search_table(name)
+                for name in existing
             )
+            current_revision = None
+            if has_alembic_version:
+                current_revision = MigrationContext.configure(
+                    connection
+                ).get_current_revision()
 
             # Configure Alembic with vault path and encryption key
             config = _get_alembic_config("profile")
             config.attributes["vault_path"] = vault_path
             config.attributes["encryption_key"] = encryption_key
 
-            if has_tables and not has_alembic_version:
-                # Existing DB without alembic_version. Stamping head would hide
+            if has_tables and current_revision is None:
+                # Existing DB without a revision (no alembic_version table, or one
+                # with no row). Stamping head would hide
                 # every revision the vault does not have (017's FK actions among
                 # them), so stamp the newest revision its schema matches exactly
                 # and upgrade the rest. No match: refuse, nothing is written.
@@ -755,11 +754,7 @@ def run_profile_migration(
                     cleanup_counts = dict(config.attributes.get("fk_cleanup_counts", {}))
                 logger.info("Profile database baselined successfully.")
             else:
-                current_revision = None
-                if has_alembic_version:
-                    current_revision = MigrationContext.configure(
-                        connection
-                    ).get_current_revision()
+                if current_revision is not None:
                     heads = set(ScriptDirectory.from_config(config).get_heads())
                     if current_revision in heads:
                         logger.info(
