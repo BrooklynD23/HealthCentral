@@ -1048,6 +1048,26 @@ describe('HC-UIDOC-018 a second Remove while the first is in flight', () => {
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIDOC-019: a list that has not answered yet has no count. "0 total" beside "Loading documents..." says the library
+// is empty before the patient knows.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-019 no count while the list loads', () => {
+  it('HC-UIDOC-019: on a cold load with the list held there is no "0 total"; after the answer the real count shows', async () => {
+    // Would not notice: the header height when the badge appears (e2e HC-UIDOC-019 reads the rects); a count hidden by
+    // CSS only: this looks for the text, so a badge that stays in the DOM is found.
+    // RED at fb6e7ef2: '0 total' beside "Loading documents...".
+    const held = gate();
+    listGate = held.wait;
+    renderInbox();
+    await screen.findByText('Loading documents...');
+    expect(screen.queryByText(/\d+ total/)).not.toBeInTheDocument();
+    held.open();
+    expect(await screen.findByText('1 total')).toBeInTheDocument();
+    expect(screen.queryByText('Loading documents...')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIDOC-006: the rows wait for the highlight summary on a cold load, so chips never arrive after the rows and push
 // the rows below them down. The e2e half navigates /verify to /inbox under stillnessProbe with the summary held.
 // ---------------------------------------------------------------------------

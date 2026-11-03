@@ -1824,6 +1824,28 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     expect(docs.deletes).toEqual(['doc-new-0004', 'doc-second-0002']);
   });
 
+  test('HC-UIDOC-019: on a cold load with the list held there is no count, and the Recent Documents header keeps its height and place when the count appears', async ({
+    page,
+  }) => {
+    // Would not notice: a header that changes height by less than 0.01 px, or a shift of the rows below it (the cold-load
+    // stillness test HC-UIDOC-006 (e) and G2 read the rows and the layout score, not this header on its own).
+    // RED at fb6e7ef2: "0 total" showed beside "Loading documents...".
+    const { docs } = await setup(page);
+    const releaseList = docs.holdList();
+    await page.goto('/inbox');
+    await expect(page.getByText('Loading documents...')).toBeVisible();
+    await expect(page.getByText(/\d+ total/)).toHaveCount(0);
+    const header = page.locator('h3', { hasText: 'Recent Documents' }).locator('xpath=..');
+    const before = await header.boundingBox();
+    releaseList();
+    await expect(page.getByText('3 total')).toBeVisible();
+    const after = await header.boundingBox();
+    console.log(`HC-UIDOC-019: header before ${JSON.stringify(before)} after ${JSON.stringify(after)}`);
+    expect(before).not.toBeNull();
+    expect(after!.height).toBeCloseTo(before!.height, 1);
+    expect(after!.y).toBeCloseTo(before!.y, 1);
+  });
+
   test('HC-UIDOC-013: after Remove of the only row, keyboard focus on Import Document is inside the viewport at 320x640', async ({
     page,
   }) => {

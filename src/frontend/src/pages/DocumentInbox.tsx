@@ -500,8 +500,8 @@ export function DocumentInbox() {
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Recent Documents</span>
-            {/* A list that failed to load has no count: "0 total" would say the library is empty. */}
-            {!(error && documents.length === 0) && <Badge variant="default">{documents.length} total</Badge>}
+            {/* A list that has not answered or failed to load has no count: "0 total" would say the library is empty. */}
+            {!isLoading && !(error && documents.length === 0) && <Badge variant="default">{documents.length} total</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
