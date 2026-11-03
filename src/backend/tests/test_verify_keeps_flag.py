@@ -5,9 +5,9 @@ value vs ref_low/ref_high on every call. A report's own flag ("CRITICAL",
 or "H" with no printed range) was erased by a Verify click that changed
 nothing. The flag is recalculated only when this request really changes
 value, ref_low or ref_high, or when the row has no flag or a normal word
-(NORMAL, N, WNL after strip().upper(); see 008 and 010). Any other stored
-flag is kept with its is_abnormal, even one that disagrees with the number
-(009, 011, 012). Every case goes through HTTP and asserts the STORED
+(NORMAL, N, WNL, NO, FALSE, 0 after strip().upper(); see 008 and 010). Any
+other stored flag is kept with its is_abnormal, even one that disagrees with
+the number (009, 011, 012). Every case goes through HTTP and asserts the STORED
 columns, not only the response.
 """
 
@@ -250,8 +250,8 @@ _SHAPES = (
     "word",
     ["Critical high", "Yes", "Positive", "Elevated",
      # Near-misses of the normal set and the owner's own example: only the
-     # exact words NORMAL, N, WNL count as normal, never a substring or a
-     # negation. A padded word is kept as stored, whatever its case.
+     # exact words NORMAL, N, WNL, NO, FALSE, 0 count as normal, never a
+     # substring or a negation; NEG is not one of them. A padded word is kept as stored, whatever its case.
      "Negative", "NEG", "Normal range", "Non-critical", " High "],
 )
 @pytest.mark.parametrize("shape", _SHAPES, ids=[s[0] for s in _SHAPES])
@@ -272,8 +272,10 @@ async def test_hc_vkf_009_unknown_words_are_kept(profile_db, word, shape):
      "NO", "No", "no", " No ", "FALSE", "False", "false", " False ", "0", " 0 "],
 )
 async def test_hc_vkf_010_normal_words_are_recalculated(profile_db, word):
-    # Pin: green on 3f9bfee7 and on origin/main as well (a normal word was
-    # always recalculated); it guards the new keep rule against over-reach.
+    # NORMAL, N, WNL: green on 3f9bfee7 and on origin/main as well (a normal
+    # word was always recalculated); they guard the keep rule against
+    # over-reach. NO, FALSE, 0 (L0 ruling, #463) were red until they joined
+    # _NORMAL_FLAGS.
     for value, ref_low, ref_high, want_flag, want_abn in (
         (14.0, 12.0, 16.0, None, False),
         (18.0, 12.0, 16.0, "H", True),

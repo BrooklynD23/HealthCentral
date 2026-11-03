@@ -77,7 +77,9 @@ router = APIRouter()
 # Words (after strip().upper()) that mean "within range". A plain Verify
 # recalculates a row whose stored flag is one of these, or that has no flag;
 # any other stored flag is kept, even one that disagrees with the number.
-_NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL"})
+# NO, FALSE and 0 are the plain negative of an `abnormal` column
+# (modules/import_structured.py:540).
+_NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
 
 
 # Panel definitions - maps panel IDs to canonical analyte names
