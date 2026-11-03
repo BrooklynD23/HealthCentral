@@ -783,6 +783,120 @@ test('HC-UIREV-004: a row is one line on desktop and stacked on a phone', async 
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIREV-006 (plan delta, followups plan): "Show source" on a row opens the Source Trace sheet for that row.
+// ---------------------------------------------------------------------------
+const showSource = (page: Page, id: string): Locator => row(page, id).getByRole('button', { name: 'Show source' });
+const SHEET = '[role="dialog"]';
+
+test('HC-UIREV-006: Show source opens the Source Trace sheet for that row and leaves the selection alone', async ({
+  page,
+}) => {
+  const mock = await prepare(page);
+  const imageRequests: string[] = [];
+  page.on('request', (request) => {
+    if (/\/pages\/\d+\/image/.test(request.url())) imageRequests.push(request.url());
+  });
+  await openReview(page, '/verify');
+  expect(mock.review.requests, 'no GET /documents/<id> before the sheet opens').not.toContain(`GET /documents/${DOC_ID}`);
+
+  await showSource(page, SOURCED_ID).click();
+  const sheet = page.getByRole('dialog', { name: 'Source for Creatinine' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText('metabolic-panel-august.pdf')).toBeVisible();
+  await expect(sheet.getByText('Page 3')).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText('Creatinine 0.9 mg/dL (0.6-1.3)');
+  expect(mock.review.requests).toContain(`GET /documents/${DOC_ID}`);
+
+  // Clicks on the trigger and inside the sheet bubble through the React tree to the row; neither may select it.
+  await sheet.getByRole('heading', { name: 'Source for Creatinine' }).click();
+  await sheet.getByText('Excerpt', { exact: true }).click();
+  await expect(row(page, SOURCED_ID)).not.toHaveClass(/bg-accent-subtle/);
+  await expect(page.locator('[data-page-image-overlay]')).toHaveCount(0);
+  expect(imageRequests, 'no page image was requested').toEqual([]);
+
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(showSource(page, SOURCED_ID)).toBeFocused();
+
+  // A second row opens its own sheet.
+  await showSource(page, GLUCOSE_ID).click();
+  await expect(page.getByRole('dialog', { name: 'Source for Glucose' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(row(page, GLUCOSE_ID)).not.toHaveClass(/bg-accent-subtle/);
+  expect(imageRequests).toEqual([]);
+});
+
+test('HC-UIREV-006: the button is a 44 px target and the row stays one line on desktop', async ({ page }) => {
+  await prepare(page, DESKTOP);
+  await openReview(page, '/verify');
+  const button = showSource(page, GLUCOSE_ID);
+  const box = await button.boundingBox();
+  expect(box!.height, 'Show source target height').toBeGreaterThanOrEqual(44);
+  const cells = row(page, GLUCOSE_ID).locator('td');
+  const name = await cells.nth(0).boundingBox();
+  const value = await cells.nth(1).boundingBox();
+  expect(value!.x).toBeGreaterThan(name!.x + name!.width - 1);
+  expect(Math.abs(value!.y - name!.y)).toBeLessThan(8);
+});
+
+// DF-2 / HC-UIPV-004 (queue.md:627 assigns it to this row): no source line scrolls sideways, at 1440 and 390.
+for (const viewport of [DESKTOP, PHONE]) {
+  test(`HC-UIREV-006 and DF-2 (HC-UIPV-004): every source line fits its box at ${viewport.width}`, async ({ page }) => {
+    await prepare(page, viewport);
+    await openReview(page, '/verify');
+    await showSource(page, SOURCED_ID).click();
+    const sheet = page.getByRole('dialog', { name: 'Source for Creatinine' });
+    await expect(sheet.locator('li', { hasText: 'Matching line:' })).toBeVisible();
+    const lines = await sheet.locator('ol li').evaluateAll((items) =>
+      items.map((li) => {
+        const text = li.querySelector('[data-t0]') as HTMLElement;
+        return {
+          text: (text?.textContent ?? '').slice(0, 40),
+          li: [li.scrollWidth, li.clientWidth],
+          span: [text?.scrollWidth ?? 0, text?.clientWidth ?? 0],
+        };
+      })
+    );
+    expect(lines.length, 'the excerpt shows its lines').toBeGreaterThanOrEqual(4);
+    for (const line of lines) {
+      expect(line.li[0], `li scrollWidth ${JSON.stringify(line)}`).toBeLessThanOrEqual(line.li[1]);
+      expect(line.span[0], `span scrollWidth ${JSON.stringify(line)}`).toBeLessThanOrEqual(line.span[1]);
+    }
+  });
+}
+
+test('HC-UIREV-006 and Gate G6 with the Source Trace sheet open: no horizontal scroll at 390 and 320', async ({ page }) => {
+  await prepare(page, PHONE);
+  await openReview(page, '/verify');
+  await showSource(page, SOURCED_ID).click();
+  await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toBeVisible();
+  await expect(page.locator(`${SHEET} li`, { hasText: 'Matching line:' })).toBeVisible();
+  const at390 = await noHorizontalScroll(page);
+  expect(at390.ok, `G6 390 with the sheet: ${JSON.stringify(at390)}`).toBe(true);
+  await page.setViewportSize(SMALL_PHONE);
+  const at320 = await noHorizontalScroll(page);
+  expect(at320.ok, `G6 320 with the sheet: ${JSON.stringify(at320)}`).toBe(true);
+});
+
+// Timing: quiet box only. The title carries "HC-UIREV-006 stillness" so the quiet-box line selects it.
+test('HC-UIREV-006 stillness: the Source Trace sheet passes stillnessProbe from the Show source click', async ({ page }) => {
+  await prepare(page);
+  await openReview(page, '/verify');
+  const trigger = showSource(page, SOURCED_ID);
+  // Scroll first, so the click does not scroll the page under the probe.
+  await trigger.scrollIntoViewIfNeeded();
+  await settle(page);
+  const report = await stillnessProbe(page, {
+    trigger: () => trigger.click(),
+    expected: [`${SHEET} dd[data-t0]`, `${SHEET} ol [data-t0]`],
+    kind: 'overlay',
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
 // Gate G: the per-gate checks. Functional gates first, timing gates after (quiet box only).
 // ---------------------------------------------------------------------------
 const THEMES: Theme[] = ['light', 'dark'];
@@ -811,6 +925,20 @@ for (const theme of THEMES) {
       `G1 edit dialog ${theme}`
     ).toEqual([]);
   });
+
+  test(`UI-PG-REVIEW Gate G1 axe with the Source Trace sheet open (${theme})`, async ({ page }) => {
+    await prepare(page);
+    await openReview(page, '/verify');
+    await setTheme(page, theme);
+    await showSource(page, SOURCED_ID).click();
+    await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toBeVisible();
+    await expect(page.locator(`${SHEET} li`, { hasText: 'Matching line:' })).toBeVisible();
+    const axe = await axeGate(page, { theme });
+    expect(
+      axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+      `G1 source sheet ${theme}`
+    ).toEqual([]);
+  });
 }
 
 test('UI-PG-REVIEW Gate G7 and Gate G9 on /verify: no console error, local only, Safety Rail in view', async ({ page }) => {
@@ -830,25 +958,45 @@ test('UI-PG-REVIEW Gate G7 and Gate G9 on /verify: no console error, local only,
   const afterVerify = await safetyVisible(page);
   expect(afterVerify.found && afterVerify.inViewport && afterVerify.effectiveOpacity >= 0.99, `G9 ${JSON.stringify(afterVerify)}`).toBe(true);
 
+  // HC-UIREV-006: the Source Trace sheet open (its GETs run) and closed.
+  await showSource(page, SOURCED_ID).click();
+  await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toBeVisible();
+  await expect(page.locator(`${SHEET} li`, { hasText: 'Matching line:' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const afterSheet = await safetyVisible(page);
+  expect(afterSheet.found && afterSheet.inViewport && afterSheet.effectiveOpacity >= 0.99, `G9 ${JSON.stringify(afterSheet)}`).toBe(true);
+
   guard.assertClean();
   expect(mock.unmocked, 'G7 unmocked').toEqual([]);
 });
 
-test('UI-PG-REVIEW Gate G2 CLS under 0.1 over load, Verify and the Edit dialog', async ({ page }) => {
-  await prepare(page);
+test('UI-PG-REVIEW Gate G2 CLS under 0.1 over load (a late /documents), Verify, the Edit dialog and the Source Trace sheet', async ({
+  page,
+}) => {
+  const mock = await prepare(page);
   await openReview(page);
+  // From here GET /documents (the list) waits until the rows are on screen, like a slow server: the "Reviewing:
+  // <file>" line used to mount then and drop the grid (L0 ruling on review round 3, finding 4).
+  mock.review.hold();
   const cls = await measureCls(page, async () => {
     await page.goto(REVIEW_ALL);
     await expect(row(page, GLUCOSE_ID)).toBeVisible();
+    mock.review.release();
+    await expect(page.getByText(/^Reviewing:/)).toBeVisible();
     await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
     await expect(row(page, GLUCOSE_ID).locator('[data-state="checked-by-you"]')).toBeVisible();
     await row(page, A1C_ID).getByRole('button', { name: 'Edit value' }).click();
     await page.keyboard.press('Escape');
+    await showSource(page, SOURCED_ID).click();
+    await expect(page.locator(`${SHEET} li`, { hasText: 'Matching line:' })).toBeVisible();
+    await page.keyboard.press('Escape');
   });
+  console.log(`UI-PG-REVIEW G2 CLS /verify: ${cls}`);
   expect(cls, 'G2 /verify').toBeLessThan(0.1);
 });
 
-test('UI-PG-REVIEW Gate G3 INP proxy under 200 ms for Verify and the Edit dialog, CPU x4', async ({ page }) => {
+test('UI-PG-REVIEW Gate G3 INP proxy under 200 ms for Verify, the Edit dialog and the Source Trace sheet, CPU x4', async ({ page }) => {
   await prepare(page);
   await openReview(page);
   const inp = await maxEventDuration(
@@ -859,9 +1007,13 @@ test('UI-PG-REVIEW Gate G3 INP proxy under 200 ms for Verify and the Edit dialog
       await page.keyboard.press('Escape');
       await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
       await expect(row(page, GLUCOSE_ID).locator('[data-state="checked-by-you"]')).toBeVisible();
+      await showSource(page, SOURCED_ID).click();
+      await expect(page.getByRole('dialog', { name: 'Source for Creatinine' })).toBeVisible();
+      await page.keyboard.press('Escape');
     },
     { cpuRate: 4 }
   );
+  console.log(`UI-PG-REVIEW G3 INP proxy /verify (CPU x4): ${inp} ms`);
   expect(inp, 'G3 /verify').toBeLessThan(200);
 });
 

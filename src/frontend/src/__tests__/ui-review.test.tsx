@@ -164,6 +164,8 @@ const normalWordHigh = { ...ldlUnflagged, id: 'obs-nh', analyte_raw: 'Triglyceri
 const state = {
   observations: [] as unknown[],
   documents: [] as unknown[],
+  /** GET /documents/doc-1/pages: the source text the page preview and the Source Trace sheet read. */
+  pages: [] as unknown[],
   /** When set, GET /documents (the list) waits for it, like a slow server. */
   holdDocuments: null as Promise<void> | null,
 };
@@ -216,7 +218,8 @@ function mockVerifyEndpoint() {
 /** Like the API: the default /verify list asks for needs_verification=true and gets only unverified rows back. */
 function mockApi() {
   vi.mocked(api.apiGet).mockImplementation(async (url: string, params?: Record<string, string>) => {
-    if (url.startsWith('/documents') && url.includes('/pages')) return [];
+    if (url.startsWith('/documents') && url.includes('/pages')) return state.pages;
+    if (url === '/documents/doc-1') return reportDoc;
     if (url === '/documents' || url === '/documents/') {
       if (state.holdDocuments) await state.holdDocuments;
       return state.documents;
@@ -271,6 +274,7 @@ beforeEach(() => {
   });
   state.observations = [glucose, hba1c, ferritin, ldlUnflagged];
   state.documents = [];
+  state.pages = [];
   state.holdDocuments = null;
   mockApi();
   mockVerifyEndpoint();
@@ -834,6 +838,87 @@ describe('the Reviewing line is reserved before /documents answers (L0 ruling on
     renderWorkbench();
     await screen.findByText('Glucose');
     expect(document.querySelector('[data-reviewing-line]')).toBeNull();
+  });
+});
+
+describe('HC-UIREV-006: "Show source" on a row opens the Source Trace sheet for that row', () => {
+  const showSourceOf = (id: string) => within(rowOf(id)).getByRole('button', { name: 'Show source' });
+  const documentGets = () =>
+    vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === '/documents/doc-1').length;
+
+  // RED on the old code: the page had no Show source. Blind spot: the class names stand for the 44 px target
+  // (h-11); the box itself is measured in e2e.
+  it('every row with a document has a Show source button with an h-11 target; one without a document has none', async () => {
+    state.observations = [glucose, { ...hba1c, doc_id: null }];
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(showSourceOf('obs-1').className).toMatch(/\bh-11\b/);
+    expect(within(rowOf('obs-2')).queryByRole('button', { name: 'Show source' })).toBeNull();
+  });
+
+  // Blind spot: it watches the document GET by URL. The pages and entities the page itself loads are other URLs.
+  it('makes no GET /documents/<id> before the sheet is opened', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(documentGets()).toBe(0);
+    const user = userEvent.setup();
+    await user.click(showSourceOf('obs-1'));
+    await screen.findByRole('dialog', { name: 'Source for Glucose' });
+    await waitFor(() => expect(documentGets()).toBe(1));
+  });
+
+  // Blind spot: the sheet's own content is SourceTrace's test (HC-STW-002). This checks the title and that it is
+  // this row's.
+  it('opens "Source for <that row>", and a second row opens its own', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(showSourceOf('obs-1'));
+    await screen.findByRole('dialog', { name: 'Source for Glucose' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await user.click(showSourceOf('obs-2'));
+    await screen.findByRole('dialog', { name: 'Source for Hemoglobin A1c' });
+    expect(screen.queryByRole('dialog', { name: 'Source for Glucose' })).toBeNull();
+  });
+
+  // Radix portals bubble through the React tree, so a click on the trigger or inside the sheet would reach the row's
+  // onClick. Blind spot: selection is read from the row's highlight class and the preview text; the page image
+  // request is e2e's.
+  it('opening the sheet and clicking inside it never selects the row', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await user.click(showSourceOf('obs-1'));
+    const dialog = await screen.findByRole('dialog', { name: 'Source for Glucose' });
+    expect(rowOf('obs-1').className).not.toMatch(/bg-accent-subtle/);
+    await user.click(within(dialog).getByRole('heading', { name: 'Source for Glucose' }));
+    await user.click(within(dialog).getByText('Excerpt'));
+    expect(rowOf('obs-1').className).not.toMatch(/bg-accent-subtle/);
+    expect(screen.getByText('Select a row to preview the source document location')).toBeInTheDocument();
+  });
+
+  // Blind spot: Radix returns focus to the trigger it knows; a trigger that unmounted would not be caught here.
+  it('Escape closes the sheet and focus returns to Show source', async () => {
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    const trigger = showSourceOf('obs-1');
+    await user.click(trigger);
+    await screen.findByRole('dialog', { name: 'Source for Glucose' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  // Blind spot: the button is a click target only; the row's other buttons keep their own tests.
+  it('Show source does not break the row: Edit, Verify and Expand are still there', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    for (const name of ['Edit value', 'Verify observation', 'Expand details', 'Show source']) {
+      expect(within(rowOf('obs-1')).getByRole('button', { name })).toBeInTheDocument();
+    }
   });
 });
 

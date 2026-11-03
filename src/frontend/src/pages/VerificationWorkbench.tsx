@@ -26,6 +26,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { apiGet, ApiError } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
+import { ObservationSourceTrace } from '@/components/results/SourceTrace';
 import { EntityDetailView, InkMarker } from '@/components/documents/EntityDetailView';
 import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
 import type { Observation, DocumentPage, BoundingBox, Document } from '@/services/types';
@@ -790,6 +791,29 @@ export function VerificationWorkbench() {
                               {observation.analyte_raw}
                             </span>
                           </div>
+                          {/* HC-UIREV-006. The sheet is a portal, but React events bubble through the tree: without this
+                              wrapper a click on the button, or anywhere inside the sheet, would reach the row's onClick
+                              and select it (and load its page image). It sits under the name, not in the Actions
+                              cell, so the table gains no width. */}
+                          {observation.doc_id ? (
+                            <span role="presentation" className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                              <ObservationSourceTrace
+                                observation={observation}
+                                trigger={
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      'inline-flex h-11 items-center rounded-sm px-1 text-sm font-medium text-accent',
+                                      'underline underline-offset-4 hover:text-accent-hover transition-colors',
+                                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                                    )}
+                                  >
+                                    Show source
+                                  </button>
+                                }
+                              />
+                            </span>
+                          ) : null}
                         </td>
                         <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
                           {/* The header row is hidden below sm, so the cell names itself there. */}
