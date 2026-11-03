@@ -155,10 +155,6 @@ export function ResultsPage() {
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
   const [activeTab, setActiveTab] = useState(ALL);
-  const activeTabRef = useRef(activeTab);
-  useEffect(() => {
-    activeTabRef.current = activeTab;
-  }, [activeTab]);
   const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
 
   const location = useLocation();
@@ -240,15 +236,18 @@ export function ResultsPage() {
 
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
   // The trend route sends is_abnormal false for a point that has no range, so "Normal Range" is claimed only when the
-  // chart has a range and the latest value sits inside it. Otherwise no badge: absence is not normality.
-  const latestInsideRange = (() => {
-    if (!trendData || !latestValue || latestValue.is_abnormal) return false;
+  // chart has a range and the latest value sits inside it. Otherwise no badge: absence is not normality. "Outside
+  // Range" is claimed only for a value that is outside the band; a flag the band does not bear out is shown as the
+  // report's own flag, so it is never hidden and never contradicts the ribbon.
+  const latestPlace = (() => {
+    if (!trendData || !latestValue) return 'unknown';
     const low = Number.isFinite(trendData.ref_low) ? (trendData.ref_low as number) : null;
     const high = Number.isFinite(trendData.ref_high) ? (trendData.ref_high as number) : null;
     const value = latestValue.value;
-    if ((low === null && high === null) || typeof value !== 'number' || !Number.isFinite(value)) return false;
-    return (low === null || value >= low) && (high === null || value <= high);
+    if ((low === null && high === null) || typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
+    return (low === null || value >= low) && (high === null || value <= high) ? 'inside' : 'outside';
   })();
+  const latestInsideRange = latestPlace === 'inside' && !latestValue?.is_abnormal;
   const unverifiedPointCount = useMemo(
     () => trendData?.data_points.filter((point) => point.user_verified !== true).length ?? 0,
     [trendData]
@@ -298,10 +297,11 @@ export function ResultsPage() {
               message: data.full_response,
               physicianReview: data.withheld_physician_review === true,
             });
-            setGrounded(null);
+            setGrounded((current) => (current?.observationId === observationId ? null : current));
             return;
           }
-          // Only this result's own notice goes: another result's withheld message must stay until it is answered.
+          // Only this result's own notice goes, so another result's withheld message stays while it is on screen again.
+          // There is one notice slot: a second withheld result replaces the first one's.
           setWithheldNotice((current) => (current?.observationId === observationId ? null : current));
           setGrounded({
             observationId,
@@ -314,18 +314,17 @@ export function ResultsPage() {
     );
   };
 
+  // The panel is interpreted for the day the panel itself is from (the route matches observations of that day), never
+  // another analyte's date. No date, no request.
+  const panelDate = activeTab !== ALL ? (panelData?.collection_date ?? null) : null;
+
   const handleGeneratePanelInterpretation = () => {
-    const latestDate = observations?.[0]?.collected_at;
-    if (!latestDate) return;
+    if (!panelDate) return;
     const panel = activeTab;
     generatePanelInterp.mutate(
-      { panelName: panel, collectedAt: latestDate },
-      {
-        // A tab chosen while this was running is a different panel: the answer is for the one asked, so it is dropped.
-        onSuccess: (data) => {
-          if (activeTabRef.current === panel) setPanelInterpretation({ panel, data });
-        },
-      }
+      { panelName: panel, collectedAt: panelDate },
+      // The answer is kept with the tab it was asked on and shown only while that tab is on screen.
+      { onSuccess: (data) => setPanelInterpretation({ panel, data }) }
     );
   };
 
@@ -471,7 +470,9 @@ export function ResultsPage() {
                   </strong>
                 </p>
                 {latestInsideRange && <Badge variant="verified">Normal Range</Badge>}
-                {latestValue?.is_abnormal && <Badge variant="attention">Outside Range</Badge>}
+                {latestValue?.is_abnormal && (
+                  <Badge variant="attention">{latestPlace === 'outside' ? 'Outside Range' : 'Flagged on the report'}</Badge>
+                )}
               </div>
               {trendData.summary && (
                 <p data-t0 className="mt-1 text-sm text-ink-secondary">
@@ -523,32 +524,32 @@ export function ResultsPage() {
           ))}
         </TabsList>
 
-        {activeTab !== ALL && (
-          <div>
-            <Button
-              onClick={handleGeneratePanelInterpretation}
-              disabled={generatePanelInterp.isPending}
-              className="gap-2"
-            >
-              {generatePanelInterp.isPending ? (
-                <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              Interpret {activeTab.toUpperCase()} Panel
-            </Button>
-          </div>
-        )}
+        <TabsContent value={activeTab} tabIndex={-1} className="mt-0 space-y-3 lg:space-y-6">
+          {activeTab !== ALL && (
+            <div>
+              <Button
+                onClick={handleGeneratePanelInterpretation}
+                disabled={generatePanelInterp.isPending || !panelDate}
+                className="gap-2"
+              >
+                {generatePanelInterp.isPending ? (
+                  <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Interpret {activeTab.toUpperCase()} Panel
+              </Button>
+            </div>
+          )}
 
-        {(panelShown || panelPending || panelFailed) && (
-          <PanelInterpretationDashboard
-            interpretation={panelShown?.data}
-            isLoading={panelPending}
-            isError={panelFailed}
-          />
-        )}
+          {(panelShown || panelPending || panelFailed) && (
+            <PanelInterpretationDashboard
+              interpretation={panelShown?.data}
+              isLoading={panelPending}
+              isError={panelFailed}
+            />
+          )}
 
-        <TabsContent value={activeTab} tabIndex={-1} className="mt-0">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-6">
             <div className="min-w-0 lg:col-start-3 lg:row-start-1">
               <h2 id="lab-results-heading" className="sr-only text-base font-semibold text-ink lg:not-sr-only lg:mb-2">

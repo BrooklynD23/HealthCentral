@@ -825,6 +825,50 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     expect(screen.queryByText(ESCALATE_TEXT)).toBeNull();
   });
 
+  it('HC-IWM-FE-005 a withheld notice survives an answer for another result, and that answer survives it', async () => {
+    // Glucose is withheld, LDL gets a good answer, and back on Glucose its escalation message is still there: the
+    // other result's answer must not clear it (the clinician line can ride on this notice).
+    let posts = 0;
+    mockPage({
+      observations: [observation, ldl],
+      post: () => {
+        posts += 1;
+        if (posts === 3) return { ...withheldBody(), full_response: 'Second withheld message.', withheld_physician_review: true };
+        if (posts !== 2) return { ...withheldBody(), withheld_physician_review: true };
+        return {
+          interpretation: storedCard,
+          grounded_segments: [],
+          full_response: '**FACTS**\nLDL grounded text.',
+          insufficient_context: false,
+          insufficient_reasons: [],
+          verification: { ...emptyVerification, enabled: true, faithfulness_score: 1 },
+          is_valid: true,
+          validation_errors: [],
+        };
+      },
+    });
+    renderPage();
+    await openExplain();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText(LEAD);
+
+    fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+    await waitFor(() => expect(screen.queryByText(LEAD)).toBeNull());
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText('Grounded explanation');
+
+    fireEvent.click(await screen.findByRole('button', { name: /Glucose/i }));
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    expect(screen.getByText(/contact your clinician promptly/i)).toBeInTheDocument();
+    expect(screen.queryByText('Grounded explanation')).toBeNull();
+
+    // And a second withheld answer for Glucose does not take LDL's grounded answer with it.
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+    await screen.findByText(/Second withheld message\./);
+    fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+    expect(await screen.findByText('Grounded explanation')).toBeInTheDocument();
+  });
+
   it('HC-IWM-FE-004 a withheld critical card shows the clinician line; a false or missing flag does not', async () => {
     const CLINICIAN =
       'This result may need prompt attention. Please contact your clinician promptly.';

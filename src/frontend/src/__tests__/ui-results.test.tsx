@@ -119,6 +119,13 @@ const PANELS: Record<string, unknown> = {
   lipid: { panel_id: 'lipid', panel_name: 'Lipid Panel', observations: [], collection_date: null },
 };
 
+// The panel is asked for its own date, so the button is off until the panel has loaded.
+async function interpretButton(panel: string) {
+  const button = await screen.findByRole('button', { name: `Interpret ${panel} Panel` });
+  await waitFor(() => expect(button).toBeEnabled());
+  return button;
+}
+
 function trendPoint(date: string, value: number, extra: Partial<TrendPoint> = {}): TrendPoint {
   return {
     date,
@@ -475,8 +482,7 @@ describe('HC-UIRES-002 / 010 panel tabs', () => {
     await pageLoaded();
     expect(screen.queryByRole('button', { name: /^Interpret .* Panel$/ })).toBeNull();
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
-    const button = await screen.findByRole('button', { name: 'Interpret CBC Panel' });
-    fireEvent.click(button);
+    fireEvent.click(await interpretButton('CBC'));
     await waitFor(() =>
       expect(vi.mocked(api.apiPost).mock.calls.some((call) => String(call[0]).startsWith('/interpretations/panels/cbc/interpret'))).toBe(true)
     );
@@ -1285,10 +1291,10 @@ describe('HC-UIRES-015 nothing either old page showed has gone', () => {
   it('HC-UIRES-015: the unverified and low-confidence counts, Normal/Outside badge, and the undated mark', async () => {
     setupApi({
       observations: [
-        observation('a', 'hemoglobin', 'Hemoglobin', 14.2, 'g/dL', { user_verified: false, extraction_confidence: 0.5, collected_at: null, is_abnormal: true }),
+        observation('a', 'hemoglobin', 'Hemoglobin', 19.4, 'g/dL', { user_verified: false, extraction_confidence: 0.5, collected_at: null, is_abnormal: true }),
         observation('b', 'glucose', 'Glucose', 95, 'mg/dL', { user_verified: true, extraction_confidence: 0.95 }),
       ],
-      trend: (c) => ({ ...trendFor(c, c.toUpperCase()), data_points: [trendPoint('2026-04-10T00:00:00', 14.2, { is_abnormal: true, user_verified: false })] }),
+      trend: (c) => ({ ...trendFor(c, c.toUpperCase()), data_points: [trendPoint('2026-04-10T00:00:00', 19.4, { is_abnormal: true, user_verified: false })] }),
     });
     await renderPage();
     await pageLoaded();
@@ -1397,7 +1403,7 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
     await renderPage({ go: '/results?analyte=glucose' });
     await pageLoaded();
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Interpret CBC Panel' }));
+    fireEvent.click(await interpretButton('CBC'));
     expect(await screen.findByText('Panel summary text.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'go /results?analyte=glucose' }));
     await waitFor(() => expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true'));
@@ -1417,7 +1423,7 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
       url.includes('/panels/') ? new Promise((resolve) => (finish = resolve)) : (original as (...args: unknown[]) => Promise<unknown>)(url, ...rest)
     );
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Interpret CBC Panel' }));
+    fireEvent.click(await interpretButton('CBC'));
     expect(await screen.findByText('Generating panel interpretation...')).toBeInTheDocument();
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CMP/ }));
@@ -1444,6 +1450,37 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     await waitFor(() => expect(listNames()).toHaveLength(2));
     expect(screen.queryByText('Panel summary text.'), 'dropped, not parked until CBC is back').toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-027: Interpret <panel> is asked for the panel's own date
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-027 Interpret <panel> sends the panel\'s own collection date', () => {
+  it('HC-UIRES-027: the newest observation of another analyte does not set the date', async () => {
+    // The route matches the panel\'s observations on that day: another analyte\'s newer date would find none (404).
+    setupApi({ observations: [observation('o-ldl', 'ldl_cholesterol', 'LDL Cholesterol', 142, 'mg/dL', { collected_at: '2026-08-02T00:00:00' }), ...OBSERVATIONS] });
+    await renderPage();
+    await pageLoaded();
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
+    fireEvent.click(await interpretButton('CBC'));
+    await waitFor(() =>
+      expect(vi.mocked(api.apiPost).mock.calls.some((call) => String(call[0]).startsWith('/interpretations/panels/cbc/interpret'))).toBe(true)
+    );
+    const asked = vi.mocked(api.apiPost).mock.calls.map((call) => String(call[0])).filter((url) => url.includes('/panels/cbc/'));
+    expect(asked).toEqual(['/interpretations/panels/cbc/interpret?collected_at=2026-04-10T00%3A00%3A00']);
+  });
+
+  it('HC-UIRES-027: a panel with no date offers a disabled button and posts nothing', async () => {
+    await renderPage();
+    await pageLoaded();
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /^Lipids/ }));
+    const button = await screen.findByRole('button', { name: 'Interpret LIPID Panel' });
+    await screen.findByText(/no results from this panel/i);
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(vi.mocked(api.apiPost).mock.calls.some((call) => String(call[0]).includes('/panels/'))).toBe(false);
   });
 });
 
@@ -1583,8 +1620,40 @@ describe('HC-UIRES-026 the Normal Range badge', () => {
     expect(screen.queryByText('Normal Range')).toBeNull();
   });
 
-  it('HC-UIRES-026: a flagged value shows Outside Range and never Normal Range', async () => {
+  it('HC-UIRES-026: a flagged value outside the range shows Outside Range and never Normal Range', async () => {
     await open(withLatest(130, { ref_low: 70, ref_high: 99 }, true));
+    expect(await screen.findByText('Outside Range')).toBeInTheDocument();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a flagged value inside the band is the report\'s flag, not Outside Range, and is not hidden', async () => {
+    await open(withLatest(14.2, {}, true));
+    expect(await screen.findByText('Flagged on the report')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a flagged value on a chart with no range is the report\'s flag, not Outside Range', async () => {
+    await open(withLatest(14.2, { ref_low: null, ref_high: null }, true));
+    expect(await screen.findByText('Flagged on the report')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a value on either bound is inside the range', async () => {
+    await open(withLatest(12, {}));
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+    cleanup();
+    await open(withLatest(17.5, {}));
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+  });
+
+  it('HC-UIRES-026: a one-sided limit is a range: inside it is Normal Range, past it is Outside Range', async () => {
+    await open(withLatest(90, { ref_low: null, ref_high: 99 }));
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+    cleanup();
+    await open(withLatest(130, { ref_low: null, ref_high: 99 }, true));
     expect(await screen.findByText('Outside Range')).toBeInTheDocument();
     expect(screen.queryByText('Normal Range')).toBeNull();
   });
