@@ -252,7 +252,7 @@ _SHAPES = (
      # Near-misses of the normal set and the owner's own example: only the
      # exact words NORMAL, N, WNL count as normal, never a substring or a
      # negation. A padded word is kept as stored, whatever its case.
-     "Negative", "Normal range", "Non-critical", " High "],
+     "Negative", "NEG", "Normal range", "Non-critical", " High "],
 )
 @pytest.mark.parametrize("shape", _SHAPES, ids=[s[0] for s in _SHAPES])
 async def test_hc_vkf_009_unknown_words_are_kept(profile_db, word, shape):
@@ -267,7 +267,9 @@ async def test_hc_vkf_009_unknown_words_are_kept(profile_db, word, shape):
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "word",
-    ["Normal", "N", "WNL", "normal", "n", "wnl", "WnL", " Normal ", " n ", " WNL "],
+    ["Normal", "N", "WNL", "normal", "n", "wnl", "WnL", " Normal ", " n ", " WNL ",
+     # L0 ruling (#463): the plain negative of an `abnormal` column.
+     "NO", "No", "no", " No ", "FALSE", "False", "false", " False ", "0", " 0 "],
 )
 async def test_hc_vkf_010_normal_words_are_recalculated(profile_db, word):
     # Pin: green on 3f9bfee7 and on origin/main as well (a normal word was
