@@ -25,11 +25,12 @@ from sqlalchemy.pool import StaticPool
 import models  # noqa: F401  register every table on both bases
 from api.assistant import router as assistant_router
 from api.interpretations import router as interpretations_router
-from api.observations import PANEL_DEFINITIONS, router as observations_router
+from api.observations import PANEL_DEFINITIONS
+from api.observations import router as observations_router
 from core.auth import get_profile_db_session
 from core.database import Base
 from core.profile_database import ProfileDatabaseBase
-from models import Observation, PanelInterpretation
+from models import LabInterpretation, Observation, PanelInterpretation
 from modules.normalize import NormalizeModule
 from tests.support.routes import route_client
 
@@ -139,6 +140,13 @@ async def _set_strict(db: Db) -> None:
     assert resp.status_code == 200, resp.text
 
 
+async def _card_observation_ids(db: Db) -> list[str]:
+    """Observation ids that got a per-row interpretation card. Wording-independent."""
+    db.profile.expire_all()
+    rows = (await db.profile.execute(select(LabInterpretation.observation_id))).scalars().all()
+    return list(rows)
+
+
 async def _stored_panels(db: Db) -> list[PanelInterpretation]:
     db.profile.expire_all()
     return list((await db.profile.execute(select(PanelInterpretation))).scalars().all())
@@ -205,9 +213,14 @@ async def test_hc_pcn_003_panel_interpretation_includes_normalizer_named_row(pan
     stored = _stored(raw)
     async with _dbs([(stored, 50.0, False, True)]) as db:
         resp = _interpret_panel(db, panel)
+        # observation_ids is appended before the card exists; a withheld card would still
+        # pass the assertions below and drop the row from the summary. Assert the card
+        # itself (not the summary wording, which #482 edits). Read it before the DB closes.
+        cards = await _card_observation_ids(db)
 
     assert resp.status_code == 201, resp.text
     assert resp.json()["observation_ids"] == db.ids
+    assert cards == db.ids
 
 
 @pytest.mark.asyncio

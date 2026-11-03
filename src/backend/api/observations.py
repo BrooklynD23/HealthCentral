@@ -82,7 +82,8 @@ router = APIRouter()
 _NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
 
 
-# Panel definitions - maps panel IDs to canonical analyte names
+# Panel definitions - maps panel IDs to the analyte names the normalizer stores, plus the
+# older names listed before it, kept so existing matches still match (order = display order).
 PANEL_DEFINITIONS = {
     "cbc": {
         "name": "Complete Blood Count",
