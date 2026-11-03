@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, type ComponentType } from 'react';
+import type { ComponentType } from 'react';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import type { TrendData, TrendPoint } from '@/services/types';
@@ -310,7 +310,8 @@ describe('HC-UIRES-001 redirects', () => {
   }
   afterEach(() => window.history.replaceState({}, '', '/'));
 
-  it('HC-UIRES-001: /trends?analyte=ldl_cholesterol redirects to /results?analyte=ldl_cholesterol', async () => {
+  // The first test loads the whole app's modules, which takes longer than the default 10 s on a /mnt checkout.
+  it('HC-UIRES-001: /trends?analyte=ldl_cholesterol redirects to /results?analyte=ldl_cholesterol', { timeout: 60_000 }, async () => {
     await openApp('/trends?analyte=ldl_cholesterol');
     await waitFor(() => expect(`${window.location.pathname}${window.location.search}`).toBe('/results?analyte=ldl_cholesterol'), {
       timeout: 8000,
@@ -555,7 +556,7 @@ describe('HC-UIRES-012 / 013 Explain this result', () => {
     await screen.findByText('No interpretation yet');
     fireEvent.click(screen.getByRole('button', { name: /Glucose/ }));
     await waitFor(() => expect(apiGetCalls()).toContain('/interpretations/observations/o-glu/interpretation'));
-    expect(screen.getByText('No interpretation yet')).toBeInTheDocument();
+    expect(await screen.findByText('Generate an AI interpretation for Glucose')).toBeInTheDocument();
   });
 
   it('HC-UIRES-013: Open Explain goes to /explain', async () => {
@@ -575,6 +576,15 @@ interface Control {
   match: RegExp;
 }
 
+// aria-label, then aria-labelledby, then the text.
+function accessibleName(element: HTMLElement): string {
+  const label = element.getAttribute('aria-label');
+  if (label !== null) return label.trim();
+  const by = element.getAttribute('aria-labelledby');
+  if (by) return (document.getElementById(by)?.textContent ?? '').trim();
+  return (element.textContent ?? '').trim();
+}
+
 function controlsOnPage(): Array<{ element: HTMLElement; name: string }> {
   const root = document.body;
   const found = root.querySelectorAll<HTMLElement>(
@@ -582,7 +592,7 @@ function controlsOnPage(): Array<{ element: HTMLElement; name: string }> {
   );
   return Array.from(found).map((element) => ({
     element,
-    name: (element.getAttribute('aria-label') ?? element.textContent ?? '').trim(),
+    name: accessibleName(element),
   }));
 }
 
@@ -1022,7 +1032,11 @@ describe('HC-UIRES-008 RangeRibbon viewHeight', () => {
 // ---------------------------------------------------------------------------
 
 describe('HC-UIRES-009 the page draws the ribbon taller below lg', () => {
-  const originalMatchMedia = window.matchMedia;
+  // setup.ts installs matchMedia in a beforeAll, so it is read here in a beforeEach, not when the file is collected.
+  let originalMatchMedia: typeof window.matchMedia;
+  beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
+  });
   afterEach(() => {
     Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: originalMatchMedia });
   });

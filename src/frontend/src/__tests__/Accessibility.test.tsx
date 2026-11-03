@@ -10,10 +10,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { TrendsDashboard } from '@/pages/TrendsDashboard';
+import { ResultsPage } from '@/pages/ResultsPage';
 import { VerificationWorkbench } from '@/pages/VerificationWorkbench';
 import { ExportPage } from '@/pages/ExportPage';
 import * as api from '@/services/api';
@@ -132,9 +132,9 @@ describe('Accessibility Audit (A11Y-001)', () => {
     setupMocks();
   });
 
-  describe('TrendsDashboard: Panel Tab Accessibility', () => {
+  describe('ResultsPage: Panel Tab Accessibility', () => {
     it('should have tablist role on panel selector container', async () => {
-      renderWithProviders(<TrendsDashboard />);
+      renderWithProviders(<ResultsPage />);
 
       await waitFor(() => {
         expect(screen.getByRole('tablist')).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('Accessibility Audit (A11Y-001)', () => {
     });
 
     it('should have tab roles on individual panel buttons', async () => {
-      renderWithProviders(<TrendsDashboard />);
+      renderWithProviders(<ResultsPage />);
 
       await waitFor(() => {
         const tabs = screen.getAllByRole('tab');
@@ -151,18 +151,25 @@ describe('Accessibility Audit (A11Y-001)', () => {
     });
 
     it('should mark active tab with aria-selected', async () => {
-      renderWithProviders(<TrendsDashboard />);
+      renderWithProviders(<ResultsPage />);
 
+      // UI-PG-RESULTS (L0 ruling 6600985053 Q4): All is the first tab and the default; a panel tab is selected by a click.
       await waitFor(() => {
-        const cbcTab = screen.getByRole('tab', { name: /CBC/i });
-        expect(cbcTab).toHaveAttribute('aria-selected', 'true');
+        const allTab = screen.getByRole('tab', { name: 'All' });
+        expect(allTab).toHaveAttribute('aria-selected', 'true');
       });
+
+      fireEvent.click(screen.getByRole('tab', { name: /CBC/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('tab', { name: /CBC/i })).toHaveAttribute('aria-selected', 'true');
+      });
+      expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'false');
     });
   });
 
-  describe('TrendsDashboard: Chart Accessibility', () => {
+  describe('ResultsPage: Chart Accessibility', () => {
     it('should have accessible chart data summary', async () => {
-      renderWithProviders(<TrendsDashboard />);
+      renderWithProviders(<ResultsPage />);
 
       await waitFor(() => {
         // The sr-only data table or summary text should exist
@@ -171,11 +178,11 @@ describe('Accessibility Audit (A11Y-001)', () => {
     });
   });
 
-  describe('TrendsDashboard: Loading State', () => {
+  describe('ResultsPage: Loading State', () => {
     it('should have aria-live region for loading announcements', async () => {
       vi.mocked(api.apiGet).mockImplementation(() => new Promise(() => {})); // never resolves
 
-      renderWithProviders(<TrendsDashboard />);
+      renderWithProviders(<ResultsPage />);
 
       const loadingRegion = screen.getByRole('status');
       expect(loadingRegion).toBeInTheDocument();

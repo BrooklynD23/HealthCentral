@@ -1,6 +1,5 @@
 import {
   Bell,
-  Brain,
   CheckCircle,
   ClipboardList,
   FileOutput,
@@ -18,8 +17,8 @@ import {
  * Every destination name in the shell lives in this file (plan §3.1, UI-SHELL).
  * The owner may rename them (open question UI-NAV-NAMES); change them here only.
  *
- * Transition entries (plan §3.1): "Results" points at /trends until UI-PG-RESULTS,
- * "Interpret" stays under Understand, and "Reminders" stays under Care until UI-MICRO.
+ * Transition entry (plan §3.1): "Reminders" stays under Care until UI-MICRO. "Results" is /results (UI-PG-RESULTS
+ * folded Trends and Interpret into it, so there is no Interpret entry; /trends and /interpret redirect).
  */
 
 export interface NavItem {
@@ -53,8 +52,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Understand',
     items: [
-      { label: 'Results', to: '/trends', icon: TrendingUp },
-      { label: 'Interpret', to: '/interpret', icon: Brain },
+      { label: 'Results', to: '/results', icon: TrendingUp },
       { label: 'Ask', to: '/explain', icon: MessageCircle },
     ],
   },
@@ -76,7 +74,7 @@ export const navGroups: NavGroup[] = [
 export const navTabs: NavTab[] = [
   { label: 'Documents', to: '/inbox', icon: Inbox },
   { label: 'Review values', to: '/verify', icon: CheckCircle },
-  { label: 'Results', to: '/trends', icon: TrendingUp },
+  { label: 'Results', to: '/results', icon: TrendingUp },
   { label: 'Ask', to: '/explain', icon: MessageCircle },
   { label: 'More', icon: MoreHorizontal },
 ];

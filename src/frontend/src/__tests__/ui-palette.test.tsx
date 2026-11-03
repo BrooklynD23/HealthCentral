@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CommandPalette from '@/components/layout/CommandPalette';
 import { closePalette, openPalette, PaletteMount } from '@/components/layout/paletteEvents';
 import { TopBar } from '@/components/layout/TopBar';
-import { TrendsDashboard } from '@/pages/TrendsDashboard';
+import { ResultsPage } from '@/pages/ResultsPage';
 import { apiGet } from '@/services/api';
 import { useObservations } from '@/services/observations';
 import { useSearch } from '@/services/search';
@@ -25,12 +25,12 @@ import { useAuthStore } from '@/stores/authStore';
 
 // The two hooks are mocked by default; the tests that need the real hook (its query, its refetch on focus) call
 // vi.importActual and put the real one back, with only the network (apiGet) mocked.
-// The /trends tests below render the real page, which also needs the real useTrend and usePanel.
+// The /results tests below render the real page, which also needs the real useTrend and usePanel.
 vi.mock('@/services/observations', async (importActual) => ({
   ...(await importActual<typeof import('@/services/observations')>()),
   useObservations: vi.fn(),
 }));
-// jsdom has no layout, so ResponsiveContainer would render nothing (same mock as TrendsDashboard.test.tsx).
+// jsdom has no layout, so ResponsiveContainer would render nothing (same mock as ResultsPage.test.tsx).
 vi.mock('recharts', async () => {
   const actual = await vi.importActual<typeof import('recharts')>('recharts');
   return {
@@ -426,12 +426,12 @@ describe('HC-UIPAL-005 (D4): a value is never shown without its unit and mark', 
 });
 
 describe('HC-UIPAL-004: a Results row jumps to its analyte', () => {
-  it('Enter on an analyte goes to /trends?analyte=<canonical>', async () => {
+  it('Enter on an analyte goes to /results?analyte=<canonical>', async () => {
     const user = userEvent.setup();
     renderShell();
     await user.click(trigger());
     await user.type(await screen.findByRole('combobox'), 'ldl{Enter}');
-    expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=ldl_cholesterol$/);
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/results\?analyte=ldl_cholesterol$/);
   });
 });
 
@@ -473,7 +473,7 @@ const searchHits = (types: string[], idFor: (type: string) => string = (type) =>
   } as unknown as ReturnType<typeof useSearch>);
 
 describe('HC-UIPAL-004: the Actions group and each record hit go to their destination', () => {
-  // Start away from /inbox, /medications, /verify and /trends so a wrong or missing navigation cannot look right.
+  // Start away from /inbox, /medications, /verify and /results so a wrong or missing navigation cannot look right.
   it.each([
     ['import a document', /^\/inbox$/],
     ['log a dose', /^\/medications$/],
@@ -486,11 +486,11 @@ describe('HC-UIPAL-004: the Actions group and each record hit go to their destin
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  // The observation hit's id is 'l1', an LDL observation in the shell's list, so it opens LDL's chart, not a bare /trends.
+  // The observation hit's id is 'l1', an LDL observation in the shell's list, so it opens LDL's chart, not a bare /results.
   it.each([
     ['document', 'document-1', /^\/inbox$/],
     ['entity', 'entity-1', /^\/verify$/],
-    ['observation', 'l1', /^\/trends\?analyte=ldl_cholesterol$/],
+    ['observation', 'l1', /^\/results\?analyte=ldl_cholesterol$/],
   ])('a %s hit goes to its page', async (type, id, path) => {
     searchHits([type], () => id);
     const user = userEvent.setup();
@@ -639,7 +639,7 @@ describe('a closed palette makes no API call (the real hooks, only the network m
   });
 });
 
-describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through the real page and only the network mocked', () => {
+describe('HC-UIPAL-004 (L0 ruling 6586583230): /results reads ?analyte=, through the real page and only the network mocked', () => {
   // Every analyte has its own chart title and latest value, so "the chart shown" is read off the page, not the URL.
   const TRENDS: Record<string, { title: string; latest: number }> = {
     glucose: { title: 'GLUCOSE CHART', latest: 117 },
@@ -703,7 +703,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
               path="*"
               element={
                 <>
-                  <TrendsDashboard />
+                  <ResultsPage />
                   {withPalette && <CommandPalette />}
                   <NavHandle />
                   <LocationProbe />
@@ -740,7 +740,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
   });
 
   it('a) ?analyte=ldl_cholesterol, glucose first: LDL title and value, one trend request (LDL), no extra observations fetch', async () => {
-    renderTrends('/trends?analyte=ldl_cholesterol');
+    renderTrends('/results?analyte=ldl_cholesterol');
     await expectChartOf('ldl_cholesterol');
     await settle(50);
     expect(trendCalls(), 'only the named analyte was asked for, never glucose first').toEqual([
@@ -750,7 +750,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
   });
 
   it('b) an unknown ?analyte=nope falls back to the first analyte, with no error and no request for nope', async () => {
-    renderTrends('/trends?analyte=nope');
+    renderTrends('/results?analyte=nope');
     await expectChartOf('glucose');
     await settle(50);
     expect(screen.queryByText('Failed to load observations')).toBeNull();
@@ -759,7 +759,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
   });
 
   it('c) observations still pending on ?analyte=ldl_cholesterol: no trend request; once loaded the first one is LDL', async () => {
-    renderTrends('/trends?analyte=ldl_cholesterol', true);
+    renderTrends('/results?analyte=ldl_cholesterol', true);
     await settle(100);
     expect(trendCalls(), 'nothing is asked while the analyte list is unknown').toEqual([]);
     await act(async () => releaseObservations?.());
@@ -770,8 +770,8 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
     ]);
   });
 
-  it('d) plain /trends is unchanged: the first analyte, one observations fetch', async () => {
-    renderTrends('/trends');
+  it('d) plain /results is unchanged: the first analyte, one observations fetch', async () => {
+    renderTrends('/results');
     await expectChartOf('glucose');
     await settle(50);
     expect(trendCalls()).toEqual(['/observations/trends/glucose']);
@@ -779,7 +779,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
   });
 
   it('e) arriving on ?analyte=ldl_cholesterol and then clicking the HDL row shows HDL, and it stays', async () => {
-    renderTrends('/trends?analyte=ldl_cholesterol');
+    renderTrends('/results?analyte=ldl_cholesterol');
     await expectChartOf('ldl_cholesterol');
     await clickRow(/HDL Cholesterol/);
     await expectChartOf('hdl_cholesterol');
@@ -787,30 +787,30 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
     await expectChartOf('hdl_cholesterol');
   });
 
-  it('f) a mounted page, HDL clicked on /trends, then a navigation to ?analyte=ldl_cholesterol: LDL', async () => {
-    renderTrends('/trends');
+  it('f) a mounted page, HDL clicked on /results, then a navigation to ?analyte=ldl_cholesterol: LDL', async () => {
+    renderTrends('/results');
     await expectChartOf('glucose');
     await clickRow(/HDL Cholesterol/);
     await expectChartOf('hdl_cholesterol');
-    act(() => void navigate('/trends?analyte=ldl_cholesterol'));
+    act(() => void navigate('/results?analyte=ldl_cholesterol'));
     await expectChartOf('ldl_cholesterol');
   });
 
   it('g) a mounted page on ?analyte=ldl_cholesterol, HDL clicked, then the same URL again: LDL', async () => {
-    renderTrends('/trends?analyte=ldl_cholesterol');
+    renderTrends('/results?analyte=ldl_cholesterol');
     await expectChartOf('ldl_cholesterol');
     await clickRow(/HDL Cholesterol/);
     await expectChartOf('hdl_cholesterol');
-    act(() => void navigate('/trends?analyte=ldl_cholesterol'));
+    act(() => void navigate('/results?analyte=ldl_cholesterol'));
     await expectChartOf('ldl_cholesterol');
   });
 
-  it('h) a mounted page, HDL clicked, then a navigation to plain /trends: HDL stays (only a named analyte replaces a click)', async () => {
-    renderTrends('/trends');
+  it('h) a mounted page, HDL clicked, then a navigation to plain /results: HDL stays (only a named analyte replaces a click)', async () => {
+    renderTrends('/results');
     await expectChartOf('glucose');
     await clickRow(/HDL Cholesterol/);
     await expectChartOf('hdl_cholesterol');
-    act(() => void navigate('/trends'));
+    act(() => void navigate('/results'));
     await settle(100);
     await expectChartOf('hdl_cholesterol');
   });
@@ -833,16 +833,16 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
 
     it('i) the hit\'s id is an observation of LDL: the URL names LDL and the chart is LDL\'s, not glucose\'s', async () => {
       observationHit('l1');
-      renderTrends('/trends', false, true);
+      renderTrends('/results', false, true);
       await expectChartOf('glucose');
       await pickHit();
-      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=ldl_cholesterol$/));
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/results\?analyte=ldl_cholesterol$/));
       await expectChartOf('ldl_cholesterol');
     });
 
     it('k) before /observations answers the hit is not offered (it could only open the first analyte); once it does, it opens LDL', async () => {
       observationHit('l1');
-      renderTrends('/trends', true, true);
+      renderTrends('/results', true, true);
       const user = userEvent.setup();
       act(() => openPalette());
       await user.type(await screen.findByRole('combobox'), 'zzq');
@@ -852,13 +852,13 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
       expect(within(root).queryByRole('option', { name: /LDL Cholesterol/ })).toBeNull();
       await act(async () => releaseObservations?.());
       await user.click(await within(root).findByRole('option', { name: /LDL Cholesterol/ }));
-      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=ldl_cholesterol$/));
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/results\?analyte=ldl_cholesterol$/));
       await expectChartOf('ldl_cholesterol');
     });
 
     it('j) the hit\'s id matches no observation: the hit is not offered, the page stays on the first analyte\'s chart', async () => {
       observationHit('not-an-observation');
-      renderTrends('/trends', false, true);
+      renderTrends('/results', false, true);
       await expectChartOf('glucose');
       const user = userEvent.setup();
       act(() => openPalette());
@@ -868,7 +868,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
       await settle(300); // past the 150 ms debounce, where the hit would have rendered
       expect(within(root).getByRole('option', { name: /Search records for/ })).toBeInTheDocument();
       expect(within(root).queryByRole('option', { name: /LDL Cholesterol/ }), 'an unresolved hit could only open the wrong chart').toBeNull();
-      expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends$/);
+      expect(screen.getByTestId('location')).toHaveTextContent(/^\/results$/);
       await expectChartOf('glucose');
     });
   });
@@ -878,13 +878,13 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /trends reads ?analyte=, through 
       ...OBSERVATIONS,
       observation({ id: 'ag1', analyte_canonical: 'a&g_ratio', analyte_raw: 'A&G Ratio', value: 14, unit: 'mg/dL', collected_at: '2026-04-10' }),
     ];
-    renderTrends('/trends', false, true, withAg);
+    renderTrends('/results', false, true, withAg);
     await expectChartOf('glucose');
     const user = userEvent.setup();
     act(() => openPalette());
     await user.type(await screen.findByRole('combobox'), 'ratio');
     await user.click(await within(dialog()).findByRole('option', { name: /A&G Ratio/ }));
-    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/trends\?analyte=a%26g_ratio$/));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/results\?analyte=a%26g_ratio$/));
     await expectChartOf('a&g_ratio');
   });
 });

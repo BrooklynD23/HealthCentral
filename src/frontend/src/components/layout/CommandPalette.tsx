@@ -55,11 +55,11 @@ interface Group {
 const RECORD_LINK: Record<SearchRecordType, { icon: LucideIcon; to: string }> = {
   document: { icon: FileText, to: '/inbox' },
   entity: { icon: Tags, to: '/verify' },
-  observation: { icon: FlaskConical, to: '/trends' },
+  observation: { icon: FlaskConical, to: '/results' },
 };
 
 /** /trends names its analyte with ?analyte= (the page reads it; without it the chart is the first analyte's). */
-const trendsFor = (analyte: string) => `/trends?${new URLSearchParams({ analyte }).toString()}`;
+const trendsFor = (analyte: string) => `/results?${new URLSearchParams({ analyte }).toString()}`;
 
 /** The most recent observation of each analyte, newest date first (an undated one counts as oldest). */
 function latestByAnalyte(observations: Observation[] | undefined): Observation[] {
