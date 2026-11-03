@@ -1346,8 +1346,14 @@ for (const width of [1024, 1280, 1440]) {
 test('HC-UIREV-002: an entity value passes stillnessProbe from the entity Verify click', async ({ page }) => {
   await prepare(page);
   await openReview(page);
+  const verifyEntity = page.locator('#entity-row-ent-review-long').getByRole('button', { name: 'Verify Finding' });
+  // The button is below the fold at 1440 x 900 (y 1430). Playwright's click() would scroll the page 825 px inside the
+  // probe's window, and the probe would charge that scroll to the product (measured: window.scrollY is 825 at the
+  // pointerdown, before any click handler runs). Scroll first; the probe still fails on any scroll the product does.
+  await verifyEntity.scrollIntoViewIfNeeded();
+  await settle(page);
   const report = await stillnessProbe(page, {
-    trigger: () => page.locator('#entity-row-ent-review-long').getByRole('button', { name: 'Verify Finding' }).click(),
+    trigger: () => verifyEntity.click(),
     expected: ['[id^="entity-row-"] span[data-t0]', '#entity-row-ent-review-long [data-state="checked-by-you"]'],
     kind: 'interaction',
   });
