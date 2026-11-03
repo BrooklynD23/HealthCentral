@@ -1863,6 +1863,30 @@ describe('UI-PG-REVIEW finding 8: Verify keeps the selected row and its Source P
     expect(isSelected('obs-1')).toBe(true);
   });
 
+  // Same action, another caller (recurring-failures, 2026-11-03): Mark Document Verified also refetches the list.
+  // Blind spot: the same one-document mock; the request count and the selection are what it can see.
+  it('Mark Document Verified keeps the selected row and does not fetch the pages again', async () => {
+    const verifyEndpoint = vi.mocked(api.apiPost).getMockImplementation()!;
+    vi.mocked(api.apiPost).mockImplementation(async (url: string, body?: unknown) => {
+      if (url === '/documents/doc-1/verify') {
+        state.observations = (state.observations as Row[]).map((row) => ({ ...row, user_verified: true }));
+        return {};
+      }
+      return verifyEndpoint(url, body);
+    });
+    const user = userEvent.setup();
+    await openAndSelect(user, 'obs-3', 'Ferritin');
+    const before = pagesCalls();
+    const getsBefore = observationGets();
+    await user.click(screen.getByRole('button', { name: 'Mark Document Verified' }));
+    await waitFor(() => expect(observationGets()).toBeGreaterThan(getsBefore));
+    await waitFor(() => expect(rowOf('obs-3').querySelector('[data-state="checked-by-you"]')).not.toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(pagesCalls()).toBe(before);
+    expect(isSelected('obs-3')).toBe(true);
+    expect(isSelected('obs-1')).toBe(false);
+  });
+
   // PIN, green before and after: Retry extraction issues new ids, so the selected row is gone and the first new
   // row is selected again. Blind spot: only the id change; a reprocess that keeps ids is a plain refetch.
   it('Retry extraction (new ids) selects the first new row', async () => {
