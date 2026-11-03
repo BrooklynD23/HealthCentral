@@ -431,16 +431,30 @@ export function ExportPage() {
                       </>
                     )}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => setPreviewOpen(true)}
-                    disabled={!summary}
+                  {/* The Sheet's trigger is this button, so Escape returns focus to it. */}
+                  <Sheet
+                    still
+                    open={previewOpen && summary !== null}
+                    onOpenChange={setPreviewOpen}
+                    title="Full summary preview"
+                    trigger={
+                      <Button variant="ghost" size="sm" className="gap-1.5" disabled={!summary}>
+                        <Eye className="w-4 h-4" />
+                        Full Preview
+                      </Button>
+                    }
                   >
-                    <Eye className="w-4 h-4" />
-                    Full Preview
-                  </Button>
+                    {summary && (
+                      <div className="min-w-0 space-y-6">
+                        <SummaryBody
+                          summary={summary}
+                          questions={questions}
+                          showQuestions={showQuestionsInSummary}
+                        />
+                        <RedactionNote className="border-t border-black/8 pt-4" />
+                      </div>
+                    )}
+                  </Sheet>
                 </div>
               </CardTitle>
             </CardHeader>
@@ -854,24 +868,6 @@ export function ExportPage() {
           </div>
         </div>
       </div>
-
-      <Sheet
-        still
-        open={previewOpen && summary !== null}
-        onOpenChange={setPreviewOpen}
-        title="Full summary preview"
-      >
-        {summary && (
-          <div className="min-w-0 space-y-6">
-            <SummaryBody
-              summary={summary}
-              questions={questions}
-              showQuestions={showQuestionsInSummary}
-            />
-            <RedactionNote className="border-t border-black/8 pt-4" />
-          </div>
-        )}
-      </Sheet>
     </div>
   );
 }
