@@ -16,6 +16,7 @@ import logging
 import os
 import shutil
 import sqlite3
+from datetime import timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -27,7 +28,7 @@ from sqlalchemy import create_engine, event, inspect, text
 
 from .config import settings
 from .sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
-from .time import UTC, utcnow
+from .time import UTC, utcfromtimestamp, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +205,8 @@ _SNAPSHOT_REVISION = "017_fk_cascade_alignment"
 _SNAPSHOT_NAME = "vault.pre017.snapshot"
 _SNAPSHOT_TMP_NAME = "vault.pre017.snapshot.tmp"
 _SNAPSHOT_SIDECARS = ("-wal", "-shm", "-journal")
+# A snapshot is purged on the first open this long (or longer) after it was made.
+_SNAPSHOT_MAX_AGE = timedelta(days=30)
 # How long the WAL checkpoint may wait for a reader before the snapshot is refused.
 _SNAPSHOT_BUSY_TIMEOUT_S = 5.0
 
@@ -387,6 +390,45 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
         raise _refuse("pre-017 snapshot", step, exc) from None
 
 
+def purge_pre017_snapshot(vault_path: Path) -> None:
+    """Remove the snapshot, its temp copy and their sidecars for one vault.
+
+    Every file is attempted; the first OSError is raised afterwards, so a caller
+    that must not leave a copy behind (the synthetic-profile reset) can tell.
+    """
+    snap, tmp = _snapshot_paths(vault_path)
+    first_error: Optional[OSError] = None
+    for path in _with_sidecars(snap) + _with_sidecars(tmp):
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            first_error = first_error or exc
+    if first_error is not None:
+        raise first_error
+
+
+def _purge_expired_snapshot(vault_path: Path) -> None:
+    """Housekeeping at the start of every profile open; never blocks the open.
+
+    A temp copy is an interrupted attempt and goes at any age. The snapshot goes
+    once it is 30 days old or more. The age is its own mtime, which
+    ``_ensure_pre017_snapshot`` sets to the time it was made.
+    """
+    snap, tmp = _snapshot_paths(vault_path)
+    try:
+        for stale in _with_sidecars(tmp):
+            stale.unlink(missing_ok=True)
+        try:
+            made = utcfromtimestamp(snap.stat().st_mtime)
+        except FileNotFoundError:
+            return
+        if utcnow() - made >= _SNAPSHOT_MAX_AGE:
+            for old in _with_sidecars(snap):
+                old.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.warning("Pre-017 snapshot purge failed (%s)", type(exc).__name__)
+
+
 # =============================================================================
 # Profile Database Migrations (SQLCipher)
 # =============================================================================
@@ -424,6 +466,9 @@ def run_profile_migration(
 
     # Ensure vault directory exists
     vault_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Before anything else, so it also runs for a vault already at head.
+    _purge_expired_snapshot(vault_path)
 
     # Convert key to hex format
     hex_key = _key_to_hex(encryption_key)

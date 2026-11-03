@@ -33,6 +33,7 @@ from core.security import (
     KeySealingError,
 )
 from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+from core.migrations import purge_pre017_snapshot
 from core.profile_database import get_profile_db_manager
 from core.auth import (
     authenticate_profile,
@@ -555,6 +556,8 @@ async def reset_synthetic_test_profile(
         if docs_path.exists():
             shutil.rmtree(docs_path)
         docs_path.mkdir(parents=True, exist_ok=True)
+        # The pre-017 snapshot holds the old data of a profile that is being reset.
+        purge_pre017_snapshot(docs_path.parent / "vault.db")
 
         await profile_db.commit()
     except Exception as exc:

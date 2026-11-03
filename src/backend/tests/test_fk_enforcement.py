@@ -648,3 +648,112 @@ async def test_hc_fkc_001r_dose_kept_by_p8_reads_back_through_the_list_route(
     assert [(d["id"], d["medication_id"], d["schedule_id"]) for d in resp.json()] == [
         ("DOSE-ORPHAN", MED_ID, None)
     ]
+
+
+# --------------------------------------------------------------------------
+# HC-FKS-010/011: the snapshot dies with a deleted or reset profile
+# --------------------------------------------------------------------------
+
+SNAP = "vault.pre017.snapshot"
+
+
+def _profile_folder_with_real_snapshot(tmp_path, monkeypatch, pid: str) -> Path:
+    """``tmp_path/vaults/<pid>/vault.db`` at 016 with an orphan; opening it through
+    run_profile_migration leaves a real snapshot beside it."""
+    from api import profiles as profiles_api
+    from tests.test_fk_migration_017 import _seed
+
+    monkeypatch.setattr(_settings, "database_encryption_required", False)
+    monkeypatch.setattr(type(profiles_api.settings), "app_data_path", property(lambda self: tmp_path))
+    folder = tmp_path / "vaults" / pid
+    folder.mkdir(parents=True)
+    vault = folder / "vault.db"
+    command.upgrade(_alembic_cfg(vault), REV_016)
+    _seed(vault, ["P2"])
+    migrations.run_profile_migration(vault, KEY)
+    assert (folder / SNAP).is_file(), "fixture needs a real snapshot"
+    return vault
+
+
+@pytest.mark.asyncio
+async def test_hc_fks_010_deleting_the_profile_removes_the_snapshot(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    import api.profiles as profiles_api
+    from api.profiles import PROFILE_DELETE_CONFIRMATION
+    from core.database import Base
+    from models.profile import Profile
+    from tests.support.db import fk_profile_engine
+    from tests.support.routes import route_client
+
+    pid = "profile-a"
+    vault = _profile_folder_with_real_snapshot(tmp_path, monkeypatch, pid)
+    engine = fk_profile_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSession(engine, expire_on_commit=False) as db:
+        from datetime import datetime
+
+        now = datetime(2026, 1, 1)
+        db.add(Profile(
+            id=pid, display_name=pid, encryption_key_id="k", password_hash="h",
+            password_salt="s", is_locked=False, created_at=now, updated_at=now,
+        ))
+        await db.commit()
+        with patch.object(profiles_api, "authenticate_profile", AsyncMock(return_value=SimpleNamespace(id=pid))), \
+             patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()), \
+             patch.object(profiles_api, "revoke_jwt_token", MagicMock()), \
+             route_client(profiles_api.router, "/profiles", profile_id=pid, master_db=db) as client:
+            resp = client.request(
+                "DELETE", f"/profiles/{pid}",
+                json={
+                    "password": "CorrectHorse1",
+                    "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+                    "export_acknowledged": True,
+                },
+            )
+    await engine.dispose()
+
+    assert resp.status_code == 204, resp.text
+    assert not vault.parent.exists()
+    assert list(tmp_path.rglob("vault.pre017*")) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_fks_011_test_reset_removes_the_snapshot(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    import api.profiles as profiles_api
+    from core.auth import Session, get_profile_db_session, require_auth
+    from tests.support.routes import route_client
+
+    pid = "profile-a"
+    vault = _profile_folder_with_real_snapshot(tmp_path, monkeypatch, pid)
+    engine = _pragma_on_vault_engine(vault)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        with route_client(profiles_api.router, "/profiles", raise_server_exceptions=False) as client:
+            async def _auth():
+                return Session(
+                    profile_id=pid, profile_name="Playwright E2E reset",
+                    expires_at=datetime.now(timezone.utc) + timedelta(hours=1), token_jti="j",
+                )
+
+            async def _db():
+                return session
+
+            client.app.dependency_overrides[require_auth] = _auth
+            client.app.dependency_overrides[get_profile_db_session] = _db
+            resp = client.post("/profiles/test/reset")
+    finally:
+        await session.close()
+        await engine.dispose()
+
+    assert resp.status_code == 204, resp.text
+    assert vault.is_file(), "reset empties the profile; it does not delete the vault"
+    assert list(tmp_path.rglob("vault.pre017*")) == []

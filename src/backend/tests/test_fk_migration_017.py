@@ -20,9 +20,12 @@ import hashlib
 import json
 import logging
 import logging.config
+import os
 import shutil
 import sys
+import time
 import uuid
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -36,6 +39,7 @@ from core import migrations  # noqa: E402
 from core.config import settings  # noqa: E402
 from core.fk_audit import PROFILE_CHECKS  # noqa: E402
 from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available  # noqa: E402
+from core.time import UTC  # noqa: E402
 from tests.support.migrations import PROFILE_HEAD  # noqa: E402
 
 KEY = b"0" * 32
@@ -1397,3 +1401,158 @@ async def test_hc_fks_013_recovery_with_the_snapshot_refused_loses_the_new_code(
         )
         assert login.status_code == 200, login.text
         assert _rev(vault, ctx.key) == PROFILE_HEAD
+
+
+# --------------------------------------------------------------------------
+# HC-FKS: age and purge of the snapshot
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def local_tz():
+    """Switch the process time zone for one test; always restore it."""
+    old = os.environ.get("TZ")
+
+    def _set(name: str) -> None:
+        os.environ["TZ"] = name
+        time.tzset()
+
+    yield _set
+    if old is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = old
+    time.tzset()
+
+
+@pytest.mark.parametrize(
+    "tz_name", ["UTC", "Pacific/Kiritimati", "America/Los_Angeles"],
+)
+def test_hc_fks_006_snapshot_age_counts_from_when_it_was_made(vault016, local_tz, tz_name):
+    """copy2 keeps the vault's mtime, so a snapshot of a 60-day-old vault would
+    look 60 days old and be purged on the next open. The explicit time is also
+    computed as UTC: a naive utcnow().timestamp() reads as local time, which is
+    hours off in any zone but UTC."""
+    local_tz(tz_name)
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    sixty_days_ago = time.time() - 60 * 86400
+    os.utime(path, (sixty_days_ago, sixty_days_ago))
+
+    migrations.run_profile_migration(path, KEY)
+
+    snap = _snap(path)
+    assert abs(snap.stat().st_mtime - time.time()) < 120, "the snapshot is as old as its own creation"
+    migrations.run_profile_migration(path, KEY)  # the next open, vault at head
+    assert snap.is_file(), "a fresh snapshot must survive the next open"
+
+
+def _head_vault(tmp_path: Path, monkeypatch) -> Path:
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    vault = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(vault), "head")
+    return vault
+
+
+def _utc_ts(moment: datetime) -> float:
+    return moment.replace(tzinfo=UTC).timestamp()
+
+
+MADE_AT = datetime(2026, 10, 1, 12, 0, 0)
+
+
+@pytest.mark.parametrize(
+    "age,purged",
+    [
+        (timedelta(days=30), True),
+        (timedelta(days=30, seconds=1), True),
+        (timedelta(days=29, hours=23), False),
+        (timedelta(0), False),
+    ],
+    ids=["exactly-30d", "30d-1s", "29d-23h", "just-made"],
+)
+def test_hc_fks_007_snapshot_purged_at_thirty_days_on_the_next_open(
+    tmp_path, monkeypatch, age, purged
+):
+    vault = _head_vault(tmp_path, monkeypatch)
+    snap = _snap(vault)
+    snap.write_bytes(b"a snapshot")
+    os.utime(snap, (_utc_ts(MADE_AT), _utc_ts(MADE_AT)))
+    monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + age)
+
+    migrations.run_profile_migration(vault, KEY)  # an open of a vault already at head
+
+    assert snap.exists() is (not purged)
+    assert _rev(vault) == PROFILE_HEAD
+
+
+def test_hc_fks_007b_a_stale_temp_is_removed_at_any_age(tmp_path, monkeypatch):
+    vault = _head_vault(tmp_path, monkeypatch)
+    snap = _snap(vault)
+    snap.write_bytes(b"a young snapshot")
+    stale = [vault.with_name(TMP_NAME + suffix) for suffix in ("", "-wal", "-shm")]
+    for path in stale:
+        path.write_bytes(b"interrupted")  # mtime is now: age does not matter
+
+    migrations.run_profile_migration(vault, KEY)
+
+    assert [p.name for p in stale if p.exists()] == []
+    assert snap.exists(), "only the temp goes; a young snapshot stays"
+
+
+def test_hc_fks_007c_a_failing_purge_does_not_block_the_open(tmp_path, monkeypatch, mig_log):
+    vault = _head_vault(tmp_path, monkeypatch)
+    snap = _snap(vault)
+    snap.write_bytes(b"an old snapshot")
+    os.utime(snap, (_utc_ts(MADE_AT), _utc_ts(MADE_AT)))
+    monkeypatch.setattr(migrations, "utcnow", lambda: MADE_AT + timedelta(days=45))
+    real_unlink = Path.unlink
+
+    def _locked(self, *args, **kwargs):
+        if self.name.startswith("vault.pre017"):
+            raise PermissionError(errno.EACCES, "locked", str(self))
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _locked)
+
+    migrations.run_profile_migration(vault, KEY)  # must not raise
+
+    assert snap.exists(), "the purge failed, so the file is still there"
+    warnings = [r.getMessage() for r in mig_log if r.levelno == logging.WARNING]
+    assert any("PermissionError" in w for w in warnings), warnings
+    for w in warnings:
+        assert str(vault.parent) not in w
+    assert not [r for r in mig_log if r.levelno >= logging.ERROR]
+
+
+def test_hc_fks_007d_public_purge_removes_everything_and_raises_on_failure(tmp_path, monkeypatch):
+    vault = tmp_path / "vault.db"
+    names = [SNAP_NAME + s for s in ("", "-wal", "-shm", "-journal")] + [
+        TMP_NAME + s for s in ("", "-wal", "-shm", "-journal")
+    ]
+
+    def _plant_all():
+        for name in names:
+            (tmp_path / name).write_bytes(b"x")
+        vault.write_bytes(b"the vault itself")
+
+    _plant_all()
+    migrations.purge_pre017_snapshot(vault)
+    assert [p.name for p in tmp_path.iterdir()] == ["vault.db"], "only the vault stays"
+    migrations.purge_pre017_snapshot(vault)  # nothing left: not an error
+
+    _plant_all()
+    real_unlink = Path.unlink
+
+    def _locked(self, *args, **kwargs):
+        if self.name == SNAP_NAME:
+            raise PermissionError(errno.EACCES, "locked", str(self))
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", _locked)
+    with pytest.raises(PermissionError):
+        migrations.purge_pre017_snapshot(vault)
+    monkeypatch.undo()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["vault.db", SNAP_NAME], (
+        "one failure must not stop the other files from being removed"
+    )
