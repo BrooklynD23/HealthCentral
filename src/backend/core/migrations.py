@@ -205,10 +205,15 @@ async def run_master_migrations_async() -> None:
 # downgrade restores neither. So an existing, non-empty vault is copied first.
 # The copy is the encrypted file itself, never decrypted: same key, same bytes.
 _SNAPSHOT_REVISION = "017_fk_cascade_alignment"
-# Neither name may end in ".db": scripts/backup.py collects vaults with
+# None of these names may end in ".db": scripts/backup.py collects vaults with
 # rglob("*.db"), and a snapshot in a backup would outlive the profile's delete.
 _SNAPSHOT_NAME = "vault.pre017.snapshot"
 _SNAPSHOT_TMP_NAME = "vault.pre017.snapshot.tmp"
+# A snapshot that fails verification is moved here, never overwritten or deleted.
+# It is the original file (same key, same bytes), so it follows the same 30-day
+# rule, counted from the original's mtime, and it is removed wherever the
+# snapshot is removed.
+_SNAPSHOT_ASIDE_NAME = "vault.pre017.snapshot.aside"
 _SNAPSHOT_SIDECARS = ("-wal", "-shm", "-journal")
 # A snapshot this old (or older) is purged on the first open that finds the vault
 # confirmed at revision 017 or later. Until then it is kept at any age: while 017
@@ -238,8 +243,13 @@ def _refuse(what: str, step: str, exc: Exception) -> ProfileMigrationRefused:
     return ProfileMigrationRefused(f"Profile migration refused: {what} failed at step {step}")
 
 
-def _snapshot_paths(vault_path: Path) -> tuple[Path, Path]:
-    return vault_path.with_name(_SNAPSHOT_NAME), vault_path.with_name(_SNAPSHOT_TMP_NAME)
+def _snapshot_paths(vault_path: Path) -> tuple[Path, Path, Path]:
+    """(snapshot, temp copy, aside copy) beside ``vault_path``."""
+    return (
+        vault_path.with_name(_SNAPSHOT_NAME),
+        vault_path.with_name(_SNAPSHOT_TMP_NAME),
+        vault_path.with_name(_SNAPSHOT_ASIDE_NAME),
+    )
 
 
 def _with_sidecars(path: Path) -> list[Path]:
@@ -254,16 +264,22 @@ def _unlink_quietly(paths) -> None:
             pass  # best effort on a failure path; the original error is what matters
 
 
-def _open_keyed(path: Path, hex_key: str, timeout: float = 5.0):
+def _open_keyed(path: Path, hex_key: str, timeout: float = 5.0, read_only: bool = False):
     """Raw DBAPI connection on ``path`` with the vault key set.
 
     Same rule as the migration engine's connect listener: SQLCipher with
     PRAGMA key and a sqlite_master read when available, stdlib sqlite3
     otherwise.
+
+    ``read_only`` opens the file immutable: SQLite then never looks at, replays
+    or deletes its journal, WAL or shm files. A normal open of a damaged file
+    can delete them, and a snapshot that fails verification must be moved aside
+    with its sidecars byte for byte.
     """
+    target = f"{path.as_uri()}?mode=ro&immutable=1" if read_only else str(path)
     if not is_sqlcipher_available():
-        return sqlite3.connect(str(path), timeout=timeout)
-    conn = get_sqlcipher_module().connect(str(path), timeout=timeout)
+        return sqlite3.connect(target, timeout=timeout, uri=read_only)
+    conn = get_sqlcipher_module().connect(target, timeout=timeout, uri=read_only)
     try:
         cursor = conn.cursor()
         try:
@@ -302,10 +318,11 @@ def _pre017_snapshot_pending(config: Config, current_revision: Optional[str]) ->
     return _SNAPSHOT_REVISION not in applied
 
 
-def _verify_snapshot(path: Path, hex_key: str) -> None:
+def _verify_snapshot(path: Path, hex_key: str, read_only: bool = False) -> None:
     """Raise unless ``path`` opens with the vault key, has tables, and
-    PRAGMA quick_check returns exactly one row, ``ok``."""
-    conn = _open_keyed(path, hex_key)
+    PRAGMA quick_check returns exactly one row, ``ok``. ``read_only``: see
+    ``_open_keyed``."""
+    conn = _open_keyed(path, hex_key, read_only=read_only)
     try:
         tables = conn.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]
         rows = [tuple(r) for r in conn.execute("PRAGMA quick_check").fetchall()]
@@ -352,21 +369,41 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
 
     Keep-first: a snapshot that already exists and still verifies is kept, so a
     retry after a failed upgrade cannot replace the pristine copy with a copy of
-    a partly cleaned vault. One that does not verify is replaced through the
-    temp name. A failed attempt never touches the final name.
+    a partly cleaned vault. One that does not verify is moved aside, with its
+    sidecars, to the aside name (sidecars first, the main file last) and a new
+    snapshot is taken through the temp name. It is never overwritten and never
+    deleted: it is the original file. If the aside name is already occupied the
+    migration is refused and nothing is touched. A failed attempt never touches
+    the final name or the aside.
 
     Raises ProfileMigrationRefused on any failure; the vault is untouched.
     """
-    snap, tmp = _snapshot_paths(vault_path)
+    snap, tmp, aside = _snapshot_paths(vault_path)
     step = "inspect"
     try:
         if snap.exists():
             step = "verify-existing"
+            verifies = True
             try:
-                _verify_snapshot(snap, hex_key)
-                return
+                _verify_snapshot(snap, hex_key, read_only=True)
             except Exception:
-                pass  # does not verify: replace it below
+                verifies = False  # handled below: moved aside, never replaced
+            if verifies:
+                return
+            step = "aside-occupied"
+            if any(os.path.lexists(p) for p in _with_sidecars(aside)):
+                raise _SnapshotInvalid("aside occupied")
+            step = "move-aside"
+            # Sidecars first: a stop part-way leaves the main file at the snapshot
+            # name, so a retry sees it and refuses (the aside is then occupied),
+            # and the publish step below can never unlink a damaged file's sidecar.
+            # os.replace keeps the mtime, so the aside's 30 days count from the
+            # original's time. It is deliberately not stamped.
+            for old in _with_sidecars(snap)[1:] + [snap]:
+                if os.path.lexists(old):
+                    os.replace(old, aside.with_name(aside.name + old.name[len(snap.name):]))
+            # Event words only: no path, no key.
+            logger.warning("Pre-017 snapshot failed verification and was moved aside")
         step = "clear-temp"
         for stale in _with_sidecars(tmp):
             stale.unlink(missing_ok=True)
@@ -403,18 +440,18 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
 
 
 def purge_pre017_snapshot(vault_path: Path) -> None:
-    """Remove the snapshot, its temp copy and their sidecars for one vault.
+    """Remove the snapshot, its temp copy and its aside copy, with sidecars.
 
     Every file is attempted; the first OSError is raised afterwards, so a caller
     that must not leave a copy behind (the synthetic-profile reset) can tell.
     """
-    snap, tmp = _snapshot_paths(vault_path)
     first_error: Optional[OSError] = None
-    for path in _with_sidecars(snap) + _with_sidecars(tmp):
-        try:
-            path.unlink(missing_ok=True)
-        except OSError as exc:
-            first_error = first_error or exc
+    for main in _snapshot_paths(vault_path):
+        for path in _with_sidecars(main):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as exc:
+                first_error = first_error or exc
     if first_error is not None:
         raise first_error
 
@@ -424,7 +461,7 @@ def _clear_snapshot_temp(vault_path: Path) -> None:
 
     A temp copy is an interrupted attempt and goes at any age.
     """
-    _snap, tmp = _snapshot_paths(vault_path)
+    _snap, tmp, _aside = _snapshot_paths(vault_path)
     try:
         for stale in _with_sidecars(tmp):
             stale.unlink(missing_ok=True)
@@ -433,25 +470,27 @@ def _clear_snapshot_temp(vault_path: Path) -> None:
 
 
 def _purge_expired_snapshot(vault_path: Path) -> None:
-    """Remove the snapshot once it is 30 days old or more; never blocks the open.
+    """Remove the snapshot and the aside copy once each is 30 days old or more;
+    never blocks the open.
 
     The caller runs this only when the vault was confirmed at revision 017 or
-    later at the start of the call and the call has succeeded. The age is the
-    snapshot's own mtime, which ``_ensure_pre017_snapshot`` sets to the time it
-    was made.
+    later at the start of the call and the call has succeeded. Each copy is
+    judged by its own mtime: the snapshot's is the time ``_ensure_pre017_snapshot``
+    made it, the aside's is the original snapshot's (``os.replace`` keeps it).
     """
-    snap, _tmp = _snapshot_paths(vault_path)
-    try:
+    snap, _tmp, aside = _snapshot_paths(vault_path)
+    for main, label in ((snap, "snapshot"), (aside, "snapshot aside copy")):
         try:
-            made = utcfromtimestamp(snap.stat().st_mtime)
-        except FileNotFoundError:
-            return
-        if utcnow() - made >= _SNAPSHOT_MAX_AGE:
-            for old in _with_sidecars(snap):
-                old.unlink(missing_ok=True)
-            logger.warning("Pre-017 snapshot purged after 30 days")  # WARNING: see _ensure_pre017_snapshot
-    except OSError as exc:
-        logger.warning("Pre-017 snapshot purge failed (%s)", type(exc).__name__)
+            try:
+                made = utcfromtimestamp(main.stat().st_mtime)
+            except FileNotFoundError:
+                continue
+            if utcnow() - made >= _SNAPSHOT_MAX_AGE:
+                for old in _with_sidecars(main):
+                    old.unlink(missing_ok=True)
+                logger.warning("Pre-017 %s purged after 30 days", label)  # WARNING: see _ensure_pre017_snapshot
+        except OSError as exc:
+            logger.warning("Pre-017 %s purge failed (%s)", label, type(exc).__name__)
 
 
 # =============================================================================

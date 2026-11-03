@@ -23,6 +23,7 @@ import logging.config
 import os
 import shutil
 import sys
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -1310,10 +1311,11 @@ def test_hc_fks_008_keep_first_a_retry_does_not_overwrite_the_pristine_copy(vaul
 @pytest.mark.parametrize(
     "existing", [b"not a database" * 100, b""], ids=["garbage", "zero_bytes"]
 )
-def test_hc_fks_008b_a_snapshot_that_does_not_verify_is_replaced(vault016, existing):
+def test_hc_fks_008b_a_snapshot_that_does_not_verify_is_moved_aside_not_replaced(vault016, existing):
     """A 0-byte file opens as a valid empty database and passes quick_check, so
     only the has-tables check in the verifier can reject it. (HC-FKS-003[empty]
-    cannot see that check: the size comparison on a fresh copy fires first.)"""
+    cannot see that check: the size comparison on a fresh copy fires first.)
+    The damaged file is kept, byte for byte, under the aside name."""
     path, _cfg = vault016
     _seed(path, ["P2"])
     sha_before = _sha(path)
@@ -1321,8 +1323,9 @@ def test_hc_fks_008b_a_snapshot_that_does_not_verify_is_replaced(vault016, exist
 
     migrations.run_profile_migration(path, KEY)
 
-    assert _sha(_snap(path)) == sha_before, "replaced by a fresh, verified copy"
-    assert _leftovers(path) == []
+    assert _sha(_snap(path)) == sha_before, "a fresh, verified copy took its place"
+    assert path.with_name(ASIDE_NAME).read_bytes() == existing, "the damaged file is kept, not replaced"
+    assert _leftovers(path) == [ASIDE_NAME]
 
 
 def test_hc_fks_008c_a_failed_attempt_never_touches_the_final_name(vault016, monkeypatch):
@@ -1336,13 +1339,14 @@ def test_hc_fks_008c_a_failed_attempt_never_touches_the_final_name(vault016, mon
     with pytest.raises(migrations.ProfileMigrationRefused):
         migrations.run_profile_migration(path, KEY)
 
-    assert snap.read_bytes() == existing, "only a verified temp may replace the snapshot"
-    assert _leftovers(path) == []
+    assert not snap.exists(), "only a verified temp may publish: the failed copy published nothing"
+    assert path.with_name(ASIDE_NAME).read_bytes() == existing, "the damaged file was moved aside, not lost"
+    assert _leftovers(path) == [ASIDE_NAME], "no temp is left"
     assert _rev(path) == REV_016
 
 
 @pytest.mark.parametrize("scoped", [False, True], ids=["full", "scoped"])
-def test_hc_fks_009_a_real_backup_leaves_the_snapshot_and_temp_out(
+def test_hc_fks_009_a_real_backup_leaves_the_snapshot_temp_and_aside_out(
     tmp_path, monkeypatch, scoped
 ):
     from scripts.backup import backup
@@ -1357,8 +1361,11 @@ def test_hc_fks_009_a_real_backup_leaves_the_snapshot_and_temp_out(
     _seed(vault, ["P2"])
     migrations.run_profile_migration(vault, KEY)
     (vault_dir / TMP_NAME).write_bytes(b"an interrupted attempt")
+    # a real aside: a real encrypted vault copy under the aside name, and a sidecar
+    shutil.copy2(vault_dir / SNAP_NAME, vault_dir / ASIDE_NAME)
+    (vault_dir / (ASIDE_NAME + "-wal")).write_bytes(b"an aside sidecar")
     on_disk = [p.name for p in vault_dir.glob("vault.pre017*")]
-    assert len(on_disk) == 2, f"fixture needs a real snapshot and a temp: {on_disk}"
+    assert len(on_disk) == 4, f"fixture needs a snapshot, a temp, an aside and a sidecar: {on_disk}"
 
     result = backup(data, tmp_path / "backups", profile_id=pid if scoped else None)
 
@@ -1605,8 +1612,10 @@ def test_hc_fks_015_a_purged_snapshot_is_logged_without_a_path(tmp_path, monkeyp
 
 def test_hc_fks_007d_public_purge_removes_everything_and_raises_on_failure(tmp_path, monkeypatch):
     vault = tmp_path / "vault.db"
-    names = [SNAP_NAME + s for s in ("", "-wal", "-shm", "-journal")] + [
-        TMP_NAME + s for s in ("", "-wal", "-shm", "-journal")
+    names = [
+        base + s
+        for base in (SNAP_NAME, TMP_NAME, ASIDE_NAME)
+        for s in ("", "-wal", "-shm", "-journal")
     ]
 
     def _plant_all():
@@ -1619,21 +1628,23 @@ def test_hc_fks_007d_public_purge_removes_everything_and_raises_on_failure(tmp_p
     assert [p.name for p in tmp_path.iterdir()] == ["vault.db"], "only the vault stays"
     migrations.purge_pre017_snapshot(vault)  # nothing left: not an error
 
-    _plant_all()
-    real_unlink = Path.unlink
+    for locked_name in (SNAP_NAME, ASIDE_NAME):
+        _plant_all()
+        real_unlink = Path.unlink
 
-    def _locked(self, *args, **kwargs):
-        if self.name == SNAP_NAME:
-            raise PermissionError(errno.EACCES, "locked", str(self))
-        return real_unlink(self, *args, **kwargs)
+        def _locked(self, *args, _locked_name=locked_name, **kwargs):
+            if self.name == _locked_name:
+                raise PermissionError(errno.EACCES, "locked", str(self))
+            return real_unlink(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "unlink", _locked)
-    with pytest.raises(PermissionError):
-        migrations.purge_pre017_snapshot(vault)
-    monkeypatch.undo()
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["vault.db", SNAP_NAME], (
-        "one failure must not stop the other files from being removed"
-    )
+        monkeypatch.setattr(Path, "unlink", _locked)
+        with pytest.raises(PermissionError):
+            migrations.purge_pre017_snapshot(vault)
+        monkeypatch.undo()
+        assert sorted(p.name for p in tmp_path.iterdir()) == sorted(["vault.db", locked_name]), (
+            "one failure must not stop the other files from being removed"
+        )
+        (tmp_path / locked_name).unlink()
 
 
 # --------------------------------------------------------------------------
@@ -1712,9 +1723,19 @@ def _failed_with_018_pending(tmp_path, monkeypatch, request):
     return path, Exception, [SNAP_NAME]
 
 
+def _refused_aside_occupied(tmp_path, monkeypatch, request):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "vault.db"
+    command.upgrade(_alembic_cfg(path), REV_016)
+    _seed(path, ["P2"])
+    # the planted snapshot is garbage (fails verification) and the aside is taken
+    return path, migrations.ProfileMigrationRefused, [SNAP_NAME, ASIDE_NAME]
+
+
 _REFUSED_CASES = {
     "unversioned-no-match": _refused_no_match,
     "failed-018-after-017": _failed_with_018_pending,
+    "damaged-snapshot-aside-occupied": _refused_aside_occupied,
 }
 
 
@@ -1753,26 +1774,195 @@ def _purge_case_017_with_018_pending(tmp_path, monkeypatch):
     "where", [_purge_case_at_head, _purge_case_017_with_018_pending], ids=["at-head", "017-with-018-pending"]
 )
 @pytest.mark.parametrize(
-    "snap_days,snap_kept",
-    [(45, False), (3, True)],
-    ids=["aged-snapshot-purged", "young-snapshot-kept"],
+    "snap_days,aside_days,snap_kept,aside_kept",
+    [
+        (45, None, False, None),
+        (3, None, True, None),
+        (45, 45, False, False),
+        (3, 45, True, False),
+        (45, 3, False, True),
+        (3, 3, True, True),
+    ],
+    ids=[
+        "snapshot-aged", "snapshot-young", "both-aged", "aside-aged-snapshot-young",
+        "snapshot-aged-aside-young", "both-young",
+    ],
 )
 def test_hc_fks_018_a_vault_confirmed_at_017_purges_what_is_aged(
-    tmp_path, monkeypatch, where, snap_days, snap_kept
+    tmp_path, monkeypatch, where, snap_days, aside_days, snap_kept, aside_kept
 ):
     """At head the purge runs. At 017 with a newer revision pending it runs after
-    that upgrade succeeded (a stubbed 018 stands in for a future revision)."""
+    that upgrade succeeded (a stubbed 018 stands in for a future revision). The
+    snapshot and the aside are judged separately, each by its own mtime."""
     vault, final_rev = where(tmp_path, monkeypatch)
     now = MADE_AT + timedelta(days=60)
-    snap = _snap(vault)
-    snap.write_bytes(b"planted snapshot")
-    _set_age(snap, now - timedelta(days=snap_days))
+    planted = {SNAP_NAME: (snap_days, snap_kept), ASIDE_NAME: (aside_days, aside_kept)}
+    for name, (days, _kept) in planted.items():
+        if days is not None:
+            vault.with_name(name).write_bytes(b"planted " + name.encode())
+            _set_age(vault.with_name(name), now - timedelta(days=days))
     monkeypatch.setattr(migrations, "utcnow", lambda: now)
 
     migrations.run_profile_migration(vault, KEY)
 
     assert _rev(vault) == final_rev
-    assert snap.exists() is snap_kept
+    for name, (days, kept) in planted.items():
+        if days is not None:
+            assert vault.with_name(name).exists() is kept, name
+
+
+@pytest.mark.parametrize("aside_days", [3, 45], ids=["young-aside", "aged-aside"])
+def test_hc_fks_018_a_vault_below_017_keeps_the_aside_whatever_its_age(
+    vault016, monkeypatch, aside_days
+):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    now = MADE_AT + timedelta(days=60)
+    aside = path.with_name(ASIDE_NAME)
+    aside.write_bytes(b"planted aside")
+    _set_age(aside, now - timedelta(days=aside_days))
+    before = _state(aside)
+    monkeypatch.setattr(migrations, "utcnow", lambda: now)
+
+    migrations.run_profile_migration(path, KEY)  # completes 017 on this call
+
+    assert _rev(path) == PROFILE_HEAD
+    assert _snap(path).is_file(), "the new snapshot is there"
+    assert aside.is_file() and _state(aside) == before, "no purge in a call that began below 017"
+
+
+# --------------------------------------------------------------------------
+# HC-FKS-019..021: a snapshot that fails verification is moved aside (P6-SNAPSHOT)
+# --------------------------------------------------------------------------
+
+ASIDE_SIDECARS = ("-wal", "-shm", "-journal")
+
+
+def _damaged_garbage(_vault: Path) -> bytes:
+    return b"not a database" * 100
+
+
+def _damaged_head_zeroed(vault: Path) -> bytes:
+    """A real encrypted vault copy whose first 8 KB (header and first pages) is zeroed."""
+    real = vault.read_bytes()
+    assert len(real) > 8192
+    return bytes(8192) + real[8192:]
+
+
+def _damaged_zero_bytes(_vault: Path) -> bytes:
+    return b""
+
+
+_DAMAGED = {
+    "garbage": _damaged_garbage,
+    "head-zeroed": _damaged_head_zeroed,
+    "zero-bytes": _damaged_zero_bytes,
+}
+
+
+def _plant_damaged_snapshot(path: Path, damaged: bytes) -> dict[str, bytes]:
+    """The damaged main file and all three sidecars, each with its own bytes."""
+    planted = {SNAP_NAME: damaged}
+    for suffix in ASIDE_SIDECARS:
+        planted[SNAP_NAME + suffix] = f"damaged sidecar {suffix} ".encode() * 7
+    for name, data in planted.items():
+        path.with_name(name).write_bytes(data)
+        _set_age(path.with_name(name), MADE_AT)
+    return planted
+
+
+@pytest.mark.parametrize("damage", list(_DAMAGED))
+def test_hc_fks_019_a_corrupted_snapshot_is_moved_aside_and_a_new_one_taken(
+    vault016, mig_log, damage
+):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    sha_vault = _sha(path)
+    planted = _plant_damaged_snapshot(path, _DAMAGED[damage](path))
+    originals = dict(planted)
+    mtimes = {name: path.with_name(name).stat().st_mtime_ns for name in originals}
+    with tempfile.TemporaryDirectory() as probe:  # the damage must really fail verification
+        shutil.copy2(_snap(path), Path(probe) / "probe")
+        with pytest.raises(Exception):
+            migrations._verify_snapshot(Path(probe) / "probe", migrations._key_to_hex(KEY))
+    _apply_alembic_ini_logging()
+
+    migrations.run_profile_migration(path, KEY)
+
+    for name, data in originals.items():
+        moved = path.with_name(name.replace(SNAP_NAME, ASIDE_NAME, 1))
+        assert moved.read_bytes() == data, f"{name} was not moved byte for byte"
+        assert moved.stat().st_mtime_ns == mtimes[name], "the aside is not stamped: its age is the original's"
+    for suffix in ASIDE_SIDECARS:
+        assert not path.with_name(SNAP_NAME + suffix).exists(), "no sidecar is left at the snapshot name"
+    migrations._verify_snapshot(_snap(path), migrations._key_to_hex(KEY))  # raises if not good
+    assert _sha(_snap(path)) == sha_vault, "the new snapshot is a copy of the vault as it was"
+    assert _rev(path) == PROFILE_HEAD
+    assert _leftovers(path) == sorted([ASIDE_NAME] + [ASIDE_NAME + s for s in ASIDE_SIDECARS])
+
+    events = [r.getMessage() for r in mig_log if r.levelno == logging.WARNING and "aside" in r.getMessage().lower()]
+    assert len(events) == 1, events
+    for needle in (str(path), str(path.parent), path.parent.name, SNAP_NAME, ASIDE_NAME, "vault.db", KEY.hex(), KEY.hex().upper()):
+        assert needle not in events[0], events[0]
+    assert not [r for r in mig_log if r.levelno >= logging.ERROR]
+
+
+def _tree_shas(folder: Path) -> dict[str, str]:
+    return {p.name: _sha(p) for p in sorted(folder.iterdir()) if p.is_file()}
+
+
+@pytest.mark.parametrize("occupant", [ASIDE_NAME + s for s in ("",) + ASIDE_SIDECARS])
+def test_hc_fks_020_an_occupied_aside_name_refuses_and_touches_nothing(vault016, mig_log, occupant):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    _snap(path).write_bytes(b"not a database" * 100)
+    path.with_name(occupant).write_bytes(b"an earlier damaged copy")
+    before = _tree_shas(path.parent)
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    assert _tree_shas(path.parent) == before, "no file was added, changed or removed"
+    assert _rev(path) == REV_016
+    assert "alembic_version" in _tables(path)
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("aside-occupied",), error_class="_SnapshotInvalid"
+    )
+
+
+@pytest.mark.parametrize("fails_on", ["first-move", "main-file"])
+def test_hc_fks_021_a_failed_move_refuses_and_keeps_the_damaged_snapshot(
+    vault016, mig_log, monkeypatch, fails_on
+):
+    path, _cfg = vault016
+    _seed(path, ["P2"])
+    damaged = b"not a database" * 100
+    _snap(path).write_bytes(damaged)
+    path.with_name(SNAP_NAME + "-wal").write_bytes(b"damaged wal")
+    sha_vault = _sha(path)
+    real_replace = os.replace
+    moves: list[str] = []
+
+    def _replace(src, dst, *args, **kwargs):
+        if Path(dst).name.startswith(ASIDE_NAME):
+            moves.append(Path(dst).name)
+            if fails_on == "first-move" or Path(dst).name == ASIDE_NAME:
+                raise OSError(errno.EACCES, "locked", str(dst))
+        return real_replace(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(migrations.os, "replace", _replace)
+
+    with pytest.raises(migrations.ProfileMigrationRefused) as exc:
+        migrations.run_profile_migration(path, KEY)
+
+    assert moves, "the move was attempted"
+    kept = [p for p in (_snap(path), path.with_name(ASIDE_NAME)) if p.exists() and p.read_bytes() == damaged]
+    assert len(kept) == 1, "the damaged main file must still be readable at exactly one of the two names"
+    assert _sha(path) == sha_vault and _rev(path) == REV_016
+    assert not path.with_name(TMP_NAME).exists()
+    _assert_refusal_leaks_nothing(
+        path, exc.value, mig_log, step_words=("move-aside",), error_class="PermissionError"
+    )
 
 
 # --------------------------------------------------------------------------

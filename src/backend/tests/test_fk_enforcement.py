@@ -8,6 +8,7 @@ silently misses the rest of the pool).
 
 from __future__ import annotations
 
+import shutil
 import sys
 import uuid
 from pathlib import Path
@@ -654,10 +655,11 @@ async def test_hc_fkc_001r_dose_kept_by_p8_reads_back_through_the_list_route(
 
 
 # --------------------------------------------------------------------------
-# HC-FKS-010/011: the snapshot dies with a deleted or reset profile
+# HC-FKS-010/011: the snapshot and its aside copy die with a deleted or reset profile
 # --------------------------------------------------------------------------
 
 SNAP = "vault.pre017.snapshot"
+ASIDE = "vault.pre017.snapshot.aside"
 
 
 def _profile_folder_with_real_snapshot(tmp_path, monkeypatch, pid: str) -> Path:
@@ -675,11 +677,15 @@ def _profile_folder_with_real_snapshot(tmp_path, monkeypatch, pid: str) -> Path:
     _seed(vault, ["P2"])
     migrations.run_profile_migration(vault, KEY)
     assert (folder / SNAP).is_file(), "fixture needs a real snapshot"
+    # a real aside (an encrypted vault copy) and one sidecar of it
+    shutil.copy2(folder / SNAP, folder / ASIDE)
+    (folder / (ASIDE + "-wal")).write_bytes(b"an aside sidecar")
+    assert sorted(p.name for p in folder.glob("vault.pre017*")) == [SNAP, ASIDE, ASIDE + "-wal"]
     return vault
 
 
 @pytest.mark.asyncio
-async def test_hc_fks_010_deleting_the_profile_removes_the_snapshot(tmp_path, monkeypatch):
+async def test_hc_fks_010_deleting_the_profile_removes_the_snapshot_and_the_aside(tmp_path, monkeypatch):
     from types import SimpleNamespace
     from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -726,7 +732,7 @@ async def test_hc_fks_010_deleting_the_profile_removes_the_snapshot(tmp_path, mo
 
 
 @pytest.mark.asyncio
-async def test_hc_fks_011_test_reset_removes_the_snapshot(tmp_path, monkeypatch):
+async def test_hc_fks_011_test_reset_removes_the_snapshot_and_the_aside(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
 
     from sqlalchemy.ext.asyncio import AsyncSession
