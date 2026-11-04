@@ -382,6 +382,8 @@ class InterpretModule:
         abnormal_count = 0
         observation_ids = []
 
+        from api.observations import observation_range_status, status_is_abnormal  # lazy: api imports modules
+
         for obs in observations:
             observation_ids.append(obs.id)
             interp_result = await self.interpret_observation(
@@ -390,15 +392,21 @@ class InterpretModule:
                 master_db=master_db,
             )
             if interp_result.interpretation:
+                # VALUE-RANGE-COMPARE: the same status the sentence uses; "disagrees" and
+                # "keep" fall back to the stored is_abnormal.
+                is_abnormal = status_is_abnormal(
+                    observation_range_status(obs.flag, obs.value, obs.ref_low, obs.ref_high),
+                    obs.is_abnormal,
+                )
                 summary = {
                     "analyte": obs.analyte_canonical,
                     "value": obs.value,
                     "unit": obs.unit,
                     "severity": interp_result.interpretation.severity_level,
-                    "is_abnormal": obs.is_abnormal,
+                    "is_abnormal": is_abnormal,
                 }
                 observation_summaries.append(summary)
-                if obs.is_abnormal:
+                if is_abnormal:
                     abnormal_count += 1
 
         # Generate panel summary
@@ -849,13 +857,23 @@ class InterpretModule:
             for rec in context.recommendations.recommendations[:3]:
                 knowledge_text += f"- [{rec.id}] {rec.title}: {rec.text}\n"
 
+        # VALUE-RANGE-COMPARE: an unflagged result outside its range goes to the model as
+        # H or L, not "normal". A printed flag stays exactly as printed.
+        flag = obs.flag
+        if flag is None:
+            from api.observations import observation_range_status  # lazy: api imports modules
+
+            flag = {"above": "H", "below": "L"}.get(
+                observation_range_status(None, obs.value, obs.ref_low, obs.ref_high)
+            )
+
         return LLM_INTERPRETATION_PROMPT.format(
             analyte=kb.display_name if kb else obs.analyte_canonical.upper(),
             value=obs.value if obs.value is not None else obs.value_text or "N/A",
             unit=obs.unit or "",
             ref_low=obs.ref_low or "N/A",
             ref_high=obs.ref_high or "N/A",
-            flag=obs.flag or "normal",
+            flag=flag or "normal",
             knowledge_text=knowledge_text,
         )
 
