@@ -517,7 +517,7 @@ describe('HC-UIPIN-003 search echoes its query', () => {
     const linkTokens = link.className.split(/\s+/);
     expect(linkTokens).toContain('after:absolute');
     expect(linkTokens).toContain('after:inset-0');
-    const card = link.closest('[data-search-result]')!;
+    const card = link.closest<HTMLElement>('[data-search-result]')!;
     const tokens = card.className.split(/\s+/);
     expect(tokens).toContain('relative');
     expect(tokens.some((t) => /^hover:bg-/.test(t))).toBe(true);

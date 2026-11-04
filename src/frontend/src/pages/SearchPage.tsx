@@ -1,6 +1,6 @@
 /** Cross-record local search page (HC-M21). */
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -106,7 +106,7 @@ export function SearchPage() {
   const [category, setCategory] = useState('');
   const [highlightType, setHighlightType] = useState<HighlightType | ''>('');
 
-  const { data, isLoading, isError } = useSearch({
+  const { data, isLoading, isError, refetch } = useSearch({
     q: activeQuery,
     provider,
     date_from: dateFrom,
@@ -116,11 +116,24 @@ export function SearchPage() {
     limit: 50,
   });
   const results = data?.results ?? [];
+  const searchInput = useRef<HTMLInputElement>(null);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
     const q = queryInput.trim();
     setSearchParams(q ? { q } : {});
+  };
+
+  // Clears the query and every filter, so the next search is not empty again because of a forgotten filter. The
+  // button leaves with the empty state, so focus goes to the box rather than to <body>.
+  const clearSearch = () => {
+    setSearchParams({});
+    setProvider('');
+    setDateFrom('');
+    setDateTo('');
+    setCategory('');
+    setHighlightType('');
+    requestAnimationFrame(() => searchInput.current?.focus());
   };
 
   return (
@@ -136,6 +149,7 @@ export function SearchPage() {
         <CardContent className="space-y-4 py-4">
           <form onSubmit={submitSearch} className="flex gap-2" role="search">
             <Input
+              ref={searchInput}
               type="search"
               value={queryInput}
               onChange={(event) => setQueryInput(event.target.value)}
@@ -166,7 +180,7 @@ export function SearchPage() {
               <select
                 value={category}
                 onChange={(event) => setCategory(event.target.value)}
-                className="h-10 w-full rounded-xl border border-black/8 bg-white px-3 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                className="h-10 w-full rounded-xl border border-border bg-surface-elevated px-3 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {CATEGORY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
@@ -178,7 +192,7 @@ export function SearchPage() {
               <select
                 value={highlightType}
                 onChange={(event) => setHighlightType(event.target.value as HighlightType | '')}
-                className="h-10 w-full rounded-xl border border-black/8 bg-white px-3 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                className="h-10 w-full rounded-xl border border-border bg-surface-elevated px-3 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <option value="">All highlights</option>
                 {Object.entries(HIGHLIGHT_LABELS).map(([value, label]) => (
@@ -198,17 +212,27 @@ export function SearchPage() {
 
       {isLoading && (
         <div className="flex justify-center py-16" role="status" aria-live="polite">
-          <Loader2 className="h-6 w-6 animate-spin text-ink-tertiary" />
+          <Loader2 className="h-6 w-6 motion-safe:animate-spin text-ink-tertiary" />
           <span className="sr-only">Searching records...</span>
         </div>
       )}
 
       {isError && (
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not search records"
-          description="Something went wrong loading matching records. Please try again."
-        />
+        // Error text is T0 (plan section 2.1): a static alert, not an EmptyState, whose entrance would move it.
+        <Card data-search-error className="border-status-critical/30 bg-status-critical/5">
+          <CardContent className="py-10 text-center">
+            <div role="alert" data-t0>
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-status-critical" aria-hidden="true" />
+              <h2 className="font-display text-lg font-medium text-ink">Could not search records</h2>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-ink-secondary">
+                Something went wrong loading matching records. Please try again.
+              </p>
+            </div>
+            <Button variant="secondary" className="mt-6" onClick={() => void refetch()}>
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {!activeQuery && !isLoading && (
@@ -216,6 +240,11 @@ export function SearchPage() {
           icon={FileSearch}
           title="Search your records"
           description="Enter words found in a document, extracted detail, or observation."
+          action={
+            <Button variant="secondary" onClick={() => searchInput.current?.focus()}>
+              Start a search
+            </Button>
+          }
         />
       )}
 
@@ -224,6 +253,11 @@ export function SearchPage() {
           icon={FileSearch}
           title="No matching records"
           description="Try a different search or adjust the filters."
+          action={
+            <Button variant="secondary" onClick={clearSearch}>
+              Clear search and filters
+            </Button>
+          }
         />
       )}
 

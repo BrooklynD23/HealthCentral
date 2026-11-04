@@ -145,7 +145,12 @@ export function PinboardsPage() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+    return (
+      <div className="flex justify-center py-16" role="status" aria-live="polite">
+        <Loader2 className="h-6 w-6 motion-safe:animate-spin" />
+        <span className="sr-only">Loading pinboards...</span>
+      </div>
+    );
   }
 
   return (
@@ -167,7 +172,8 @@ export function PinboardsPage() {
 
       {pinboards.length === 0 ? (
         <EmptyState icon={FolderOpen} title="No pinboards yet"
-          description="Create one, then pin records from the inbox or timeline." />
+          description="Create one, then pin records from the inbox or timeline."
+          action={<Button variant="secondary" onClick={() => newNameInput.current?.focus()}>Name a pinboard</Button>} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
           <Card><CardContent className="p-2">
@@ -194,7 +200,7 @@ export function PinboardsPage() {
               </CardHeader>
               <CardContent>
                 {items.length === 0 ? <p className="text-sm text-ink-secondary">No pinned items yet.</p> : (
-                  <ul className="divide-y divide-black/5">
+                  <ul className="divide-y divide-border">
                     {items.map((item) => <li key={item.id} className="flex items-center justify-between gap-3 py-3">
                       <div className="min-w-0 [overflow-wrap:anywhere]">
                         <p data-t0 data-pinboard-item-label className="text-sm font-medium text-ink">{ITEM_LABELS[item.item_type]}</p>

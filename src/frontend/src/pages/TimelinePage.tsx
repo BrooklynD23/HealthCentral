@@ -22,7 +22,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { Badge, Card, CardContent, EmptyState, Input } from '@/components/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Input } from '@/components/ui';
 import { useObservations } from '@/services/observations';
 import type { Observation } from '@/services/types';
 import { useTimeline } from '@/services/timeline';
@@ -167,7 +167,7 @@ export function TimelinePage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const { data, isLoading: timelineLoading, isError } = useTimeline({
+  const { data, isLoading: timelineLoading, isError, refetch } = useTimeline({
     event_type: eventType,
     date_from: dateFrom,
     date_to: dateTo,
@@ -211,7 +211,7 @@ export function TimelinePage() {
               <select
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value as TimelineEventType | '')}
-                className="w-full rounded-xl border border-black/8 bg-white px-3 py-2 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                className="w-full rounded-xl border border-border bg-surface-elevated px-3 py-2 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {EVENT_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -242,17 +242,27 @@ export function TimelinePage() {
 
       {isLoading && (
         <div className="flex justify-center py-16" role="status" aria-live="polite">
-          <Loader2 className="h-6 w-6 animate-spin text-ink-tertiary" />
+          <Loader2 className="h-6 w-6 motion-safe:animate-spin text-ink-tertiary" />
           <span className="sr-only">Loading timeline...</span>
         </div>
       )}
 
       {isError && (
-        <EmptyState
-          icon={AlertTriangle}
-          title="Could not load timeline"
-          description="Something went wrong loading your timeline. Please try again."
-        />
+        // Error text is T0 (plan section 2.1): a static alert, not an EmptyState, whose entrance would move it.
+        <Card data-timeline-error className="border-status-critical/30 bg-status-critical/5">
+          <CardContent className="py-10 text-center">
+            <div role="alert" data-t0>
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-status-critical" aria-hidden="true" />
+              <h2 className="font-display text-lg font-medium text-ink">Could not load timeline</h2>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-ink-secondary">
+                Something went wrong loading your timeline. Please try again.
+              </p>
+            </div>
+            <Button variant="secondary" className="mt-6" onClick={() => void refetch()}>
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {!isLoading && !isError && events.length === 0 && undated.length === 0 && (
@@ -260,6 +270,11 @@ export function TimelinePage() {
           icon={History}
           title="No events yet"
           description="Import documents or add medications to see your health history here."
+          action={
+            <Button asChild variant="secondary">
+              <Link to="/inbox">Import a document</Link>
+            </Button>
+          }
         />
       )}
 
