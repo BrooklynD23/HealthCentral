@@ -4,7 +4,7 @@
  * Also exports SwitchRow, the labelled row the other sections use for their switches.
  */
 
-import { useId, type Ref } from 'react';
+import { useEffect, useId, useState, type ReactNode, type Ref } from 'react';
 import { Clock, Flame, Mic } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 import { Switch } from '@/components/ui/Switch';
@@ -36,6 +36,27 @@ interface SwitchRowProps {
   disabled?: boolean;
   /** The Switch's button, for a caller that returns focus to it. */
   switchRef?: Ref<HTMLButtonElement>;
+}
+
+/**
+ * Mounts its children `frames` paints after it mounts. Opening a section is a burst of work (the cards mount, then their
+ * replies arrive), and a burst that is one long task starves the page's timers (G10, stillness): the parts that are not T0
+ * and not above T0 are mounted a frame or two later, so that the first paint is small. Used for what the patient reads second.
+ */
+export function AfterPaint({ frames, children }: { frames: number; children: ReactNode }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let remaining = frames;
+    let raf = 0;
+    const tick = () => {
+      remaining -= 1;
+      if (remaining <= 0) setReady(true);
+      else raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [frames]);
+  return ready ? <>{children}</> : null;
 }
 
 /** A label and a Switch in one tinted row. The label names the switch and a click on it toggles. */

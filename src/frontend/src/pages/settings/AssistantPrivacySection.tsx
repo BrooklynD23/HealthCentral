@@ -17,7 +17,7 @@ import { DataDonationCard } from '@/components/settings/DataDonationCard';
 import { AgentSettingsCard } from '@/components/settings/AgentSettingsCard';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import { useExternalApiSettings, useSaveExternalApiSettings } from '@/services';
-import { SwitchRow } from './PreferencesSection';
+import { SwitchRow, AfterPaint } from './PreferencesSection';
 
 const CONSENT_ITEMS = [
   'Lab results and observations referenced in your questions',
@@ -142,11 +142,13 @@ export function AssistantPrivacySection() {
       </div>
 
       <div className="space-y-6">
-        {/* Opt-in data donation consent (RSI1-DONATE) */}
-        <DataDonationCard />
+        <AfterPaint frames={1}>
+          {/* Opt-in data donation consent (RSI1-DONATE) */}
+          <DataDonationCard />
 
-        {/* Assistant Memory */}
-        <MemoryManager />
+          {/* Assistant Memory */}
+          <MemoryManager />
+        </AfterPaint>
       </div>
 
       {/* Consent dialog: still (M0), Escape closes it, focus returns to the switch. */}

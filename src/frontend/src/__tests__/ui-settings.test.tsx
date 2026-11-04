@@ -184,6 +184,9 @@ function renderSettings(url = '/settings', gcTime?: number) {
 const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
   await screen.findByTestId('tier-row-low');
+  // The tier card mounts first and the other cards a frame or two after it (so that opening Advanced is not one long task):
+  // Export training data is in the last of them.
+  await screen.findByRole('button', { name: 'Export training data' });
 };
 
 beforeEach(() => {
@@ -325,12 +328,14 @@ describe('HC-UISET-002: Advanced is collapsed until "Show advanced settings"', (
 
     await user.click(button);
     expect(await screen.findByTestId('tier-row-mid')).toBeInTheDocument();
+    await screen.findByRole('button', { name: 'Export training data' });
     expect(screen.getAllByText(/Tesseract/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/GPU/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Phi-4-mini/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Re-detect' })).toBeInTheDocument();
     expect(screen.getByText('Current Status')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Export training data' })).toBeEnabled();
+    // Enabled once the feedback counts have arrived.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Export training data' })).toBeEnabled());
   });
 
   it('an Advanced section that cannot load says so, and the other sections do not', async () => {
