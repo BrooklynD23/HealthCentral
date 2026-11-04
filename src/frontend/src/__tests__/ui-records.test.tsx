@@ -783,6 +783,25 @@ describe('HC-UIPIN-002 pinboard rename and delete use dialogs', () => {
     expect(screen.getByRole('button', { name: 'Board A' })).toBeInTheDocument();
   });
 
+  it('HC-UIPIN-002: deleting the board that was selected focuses the next board\'s Delete button, and deleting the last one focuses the new-pinboard box', async () => {
+    // Would not notice: focus dropped on <body> after the board panel it sat in is gone (the #464 Remove class).
+    // The second case deletes the only board left, so the panel and its buttons leave with it.
+    // RED today: window.confirm is called and the stub throws.
+    const user = userEvent.setup();
+    await renderLoaded();
+    await user.click(screen.getByRole('button', { name: 'Delete pinboard' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await screen.findByRole('heading', { name: 'Board B' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete pinboard' })).toHaveFocus());
+
+    await user.click(screen.getByRole('button', { name: 'Delete pinboard' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+    await screen.findByText('No pinboards yet');
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'New pinboard name' })).toHaveFocus());
+    expect(apiDelete.mock.calls.map(([path]) => path)).toEqual(['/pinboards/board-a', '/pinboards/board-b']);
+  });
+
   it('HC-UIPIN-002: pinned items carry data-t0 on label and id, and a long board name and a UUID item wrap', async () => {
     // Would not notice: a long board name or an unbroken id that pushes the page wider than 320 px (G6; the class
     // contract here, the measured width in e2e), or pinned text the stillness probe cannot see.
