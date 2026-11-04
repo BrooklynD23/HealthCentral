@@ -10,9 +10,9 @@
  * contracts below pin what a stylesheet would do; the measured layout is e2e.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import * as api from '@/services/api';
 import type { Observation } from '@/services/types';
@@ -93,6 +93,10 @@ const OBSERVATIONS: Observation[] = [
   obs('o3', 'Glucose', 'glucose'),
   obs('o4', 'HbA1c', 'hba1c'),
   obs('o5', 'Sodium', 'sodium'),
+  // The same canonical analyte under another spelling: the title counts it once (modules/timeline.py), so the names
+  // must too.
+  obs('o6', 'GLUCOSE', 'glucose'),
+  obs('o7', 'Albumin', 'albumin'),
 ];
 
 // o-missing is in no observation row: it adds no name, and never a guess.
@@ -116,10 +120,16 @@ let timelineAnswers = 0;
 let observationsGate: Promise<void> | null = null;
 let observationsFail = false;
 let timelineGate: Promise<void> | null = null;
+// Rows the observations route answers with beyond OBSERVATIONS (a document imported since the page last looked).
+let extraObservations: Observation[] = [];
 
 let pinboards: Pinboard[] = [];
 let pinboardsGate: Promise<void> | null = null;
 let boardItems: Record<string, PinboardItem[]> = {};
+// Requests for the items of a board that no longer exists: the real route answers 404 (api/pinboards.py).
+let itemsNotFound = 0;
+let patchGate: Promise<void> | null = null;
+let deleteGate: Promise<void> | null = null;
 
 let searchFails = false;
 let searchGate: Promise<void> | null = null;
@@ -187,6 +197,10 @@ beforeEach(() => {
   pinboards = [makeBoard('board-a', 'Board A'), makeBoard('board-b', 'Board B')];
   pinboardsGate = null;
   boardItems = {};
+  itemsNotFound = 0;
+  patchGate = null;
+  deleteGate = null;
+  extraObservations = [];
   searchFails = false;
   searchGate = null;
   setReducedMotion(false);
@@ -201,14 +215,20 @@ beforeEach(() => {
     if (path === '/observations/') {
       if (observationsGate) await observationsGate;
       if (observationsFail) throw new api.ApiError(500, 'Server Error', 'observations failed');
-      return OBSERVATIONS;
+      return [...OBSERVATIONS, ...extraObservations];
     }
     if (path === '/pinboards/') {
       if (pinboardsGate) await pinboardsGate;
       return pinboards.map((b) => ({ ...b }));
     }
     const items = /^\/pinboards\/([^/]+)\/items$/.exec(path);
-    if (items) return boardItems[items[1]] ?? [];
+    if (items) {
+      if (!pinboards.some((b) => b.id === items[1])) {
+        itemsNotFound += 1;
+        throw new api.ApiError(404, 'Not Found', 'no such pinboard');
+      }
+      return boardItems[items[1]] ?? [];
+    }
     if (path === '/search/') {
       if (searchGate) await searchGate;
       if (searchFails) throw new api.ApiError(500, 'Server Error', 'search failed');
@@ -218,12 +238,14 @@ beforeEach(() => {
   }) as never);
 
   apiPatch.mockImplementation((async (path: string, body: { name: string }) => {
+    if (patchGate) await patchGate;
     const board = pinboards.find((b) => `/pinboards/${b.id}` === path);
     if (!board) throw new api.ApiError(404, 'Not Found', 'no such pinboard');
     board.name = body.name;
     return { ...board };
   }) as never);
   apiDelete.mockImplementation((async (path: string) => {
+    if (deleteGate) await deleteGate;
     pinboards = pinboards.filter((b) => `/pinboards/${b.id}` !== path);
   }) as never);
 
@@ -249,8 +271,11 @@ function Probe() {
   );
 }
 
-function renderAt(ui: React.ReactNode, route = '/') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+function renderAt(
+  ui: React.ReactNode,
+  route = '/',
+  client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[route]}>
@@ -276,7 +301,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
 // HC-UIPIN-001: a timeline card names its analytes.
 // ---------------------------------------------------------------------------
 describe('HC-UIPIN-001 timeline cards name their analytes', () => {
-  it('HC-UIPIN-001: a lab card names its analytes under the backend title, in order, once each, with no guess for an unknown id', async () => {
+  it('HC-UIPIN-001: a lab card names its analytes under the backend title, sorted by name, once each per canonical analyte, with no guess for an unknown id', async () => {
     // Would not notice: a name taken from the wrong field (canonical over raw), a duplicate Glucose row that prints
     // twice, an unknown id that prints its raw id, or a non-lab card that borrows the lab ids. The title text is
     // unchanged, because TW4-TIMELINE reads it.
@@ -356,6 +381,141 @@ describe('HC-UIPIN-001 timeline cards name their analytes', () => {
     expect(screen.getByText('Lab results (1 analyte)')).toBeInTheDocument();
   });
 
+  it('HC-UIPIN-001: a failed timeline shows its alert alone, with no spinner while the observations are still held', async () => {
+    // Would not notice: a spinner and the alert on screen together (the spinner waits on the observations too), then
+    // the spinner leaves when they answer and the alert moves up by its height (measured 176 px; an error alert is T0).
+    // RED today: the loading status is on screen beside the alert.
+    const held = gate();
+    observationsGate = held.wait;
+    timelineFails = true;
+    renderAt(<TimelinePage />, '/timeline');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not load timeline');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    held.open();
+    await settle();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('HC-UIPIN-001: a refetch of a failed observations query (window focus) does not take the cards away', async () => {
+    // Would not notice: cards that unmount while the failed query refetches (isLoading is true again for a query with
+    // no data), so a focus change blanks the page and every card re-enters. The refetch is held to make it visible.
+    // RED today: the cards are gone while the refetch is in flight.
+    observationsFail = true;
+    renderAt(<TimelinePage />, '/timeline');
+    await screen.findByText('Lab results (4 analytes)');
+    await settle();
+    expect(document.querySelector('[data-timeline-analytes]')).toBeNull();
+
+    const held = gate();
+    observationsGate = held.wait;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await settle();
+    expect(apiGet.mock.calls.filter(([path]) => path === '/observations/').length).toBeGreaterThan(1);
+    expect(screen.getByText('Lab results (4 analytes)')).toBeInTheDocument();
+    expect(screen.getByText('Lab results (1 analyte)')).toBeInTheDocument();
+    held.open();
+    await settle();
+    expect(screen.getByText('Lab results (4 analytes)')).toBeInTheDocument();
+  });
+
+  it('HC-UIPIN-001: Try again asks for the timeline and the observations again, keeps focus on the page, and the names arrive with the cards', async () => {
+    // Would not notice: a Try again that refetches only the timeline, so the observations stay failed and the cards
+    // come back unnamed after the backend recovered; or a button that unmounts with focus on it, which drops focus on
+    // <body>. Both queries fail first; both recover before the click.
+    // RED today: the observations are not asked for again, and focus ends on <body>.
+    const user = userEvent.setup();
+    timelineFails = true;
+    observationsFail = true;
+    renderAt(<TimelinePage />, '/timeline');
+    await screen.findByRole('alert');
+    await waitFor(() => expect(apiGet.mock.calls.filter(([path]) => path === '/observations/').length).toBe(1));
+    await settle();
+
+    timelineFails = false;
+    observationsFail = false;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(screen.getByLabelText('Event type')).toHaveFocus();
+    await screen.findByText('Lab results (4 analytes)');
+    expect(analytesOf('Lab results (4 analytes)')).toHaveTextContent('Glucose, ldl_cholesterol');
+    expect(screen.getByLabelText('Event type')).toHaveFocus();
+  });
+
+  it('HC-UIPIN-001: observations cached before an import do not leave the new lab card unnamed on the first visit', async () => {
+    // Would not notice: the names come from ['observations'], which useImportDocument does not invalidate and the app
+    // keeps for 5 minutes. The test loads the observations first, then adds a row on the server, then opens the page
+    // again with the same cache (the timeline is gone from it, as on a first visit). Every other test starts with an
+    // empty cache and cannot see this.
+    // RED today: the card says "Lab results (1 analyte) fresh" with no name, and the page never asks again.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 300_000 }, mutations: { retry: false } },
+    });
+    const first = renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (4 analytes)');
+    first.unmount();
+    await settle();
+
+    extraObservations = [obs('o-new', 'Ferritin', 'ferritin')];
+    timelineAll = {
+      events: [event({ event_id: 'ev-new', title: 'Lab results (1 analyte) fresh', related_ids: ['o-new'], event_date: '2026-04-01' })],
+      undated: [],
+    };
+    client.removeQueries({ queryKey: ['timeline'] });
+    renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (1 analyte) fresh');
+    // In the same step as the card: the cards were held while the observations were asked for once more.
+    expect(analytesOf('Lab results (1 analyte) fresh')).toHaveTextContent(/^Ferritin$/);
+    expect(apiGet.mock.calls.filter(([path]) => path === '/observations/')).toHaveLength(2);
+  });
+
+  it('HC-UIPIN-001: an id that stays unmatched after that one refresh asks once, and a later refetch does not hold the cards', async () => {
+    // Would not notice: a refresh loop for an id that no observation has (a deleted row), or cards that blink on every
+    // window focus. The held refetch after the first settle must leave the cards in place.
+    // RED today: no refresh at all, so the call count below is 1... and the cards never blink either; the check that
+    // matters is the held-focus half, which fails if the hold is applied to a later refetch.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 300_000 }, mutations: { retry: false } },
+    });
+    const first = renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (4 analytes)');
+    first.unmount();
+    await settle();
+    client.removeQueries({ queryKey: ['timeline'] });
+    renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (4 analytes)');
+    await settle();
+    // o-missing is in no row: one refresh, no more.
+    expect(apiGet.mock.calls.filter(([path]) => path === '/observations/')).toHaveLength(2);
+
+    const held = gate();
+    observationsGate = held.wait;
+    client.invalidateQueries({ queryKey: ['observations'] });
+    await settle();
+    expect(screen.getByText('Lab results (4 analytes)')).toBeInTheDocument();
+    held.open();
+    await settle();
+    expect(screen.getByText('Lab results (4 analytes)')).toBeInTheDocument();
+    expect(apiGet.mock.calls.filter(([path]) => path === '/observations/')).toHaveLength(3);
+  });
+
+  it('HC-UIPIN-001: two spellings of one canonical analyte are named once, and the names are sorted so every card reads the same way', async () => {
+    // Would not notice: names deduped on the exact spelling while the title counts canonical analytes, so
+    // "Lab results (2 analytes)" sat over "Albumin, Glucose, GLUCOSE"; or an order that follows the random id sort of
+    // the backend, so two cards list the same analytes in different orders.
+    // RED today: the names are "Albumin, Glucose, GLUCOSE" (related ids in the order o7, o6, o1).
+    timelineAll = {
+      events: [event({ event_id: 'ev-6', title: 'Lab results (2 analytes) canonical', related_ids: ['o7', 'o6', 'o1'] })],
+      undated: [],
+    };
+    renderAt(<TimelinePage />, '/timeline');
+    await screen.findByText('Lab results (2 analytes) canonical');
+    expect(analytesOf('Lab results (2 analytes) canonical')).toHaveTextContent(/^Albumin, Glucose$/);
+  });
+
   it('HC-UIPIN-001: the observations are asked for without the page filters, and a second answer has its own names', async () => {
     // Would not notice: an observations query that takes the date filters, so ids in the other window go unnamed.
     // The lab_results filter returns another event with its own ids; its names must be its own (recurring #17).
@@ -370,7 +530,7 @@ describe('HC-UIPIN-001 timeline cards name their analytes', () => {
     );
     await user.selectOptions(screen.getByLabelText('Event type'), 'lab_results');
     await screen.findByText('Lab results (2 analytes)');
-    expect(analytesOf('Lab results (2 analytes)')).toHaveTextContent(/^Sodium, Glucose$/);
+    expect(analytesOf('Lab results (2 analytes)')).toHaveTextContent(/^Glucose, Sodium$/);
 
     const asked = apiGet.mock.calls.filter(([path]) => path === '/observations/');
     expect(asked.length).toBeGreaterThan(0);
@@ -585,6 +745,20 @@ describe('HC-UIPIN-003 search echoes its query', () => {
     await screen.findByText('Diagnoses migraine');
   });
 
+  it('HC-UIPIN-003: Try again leaves focus in the page: the search box, not <body>', async () => {
+    // Would not notice: a Try again button that unmounts with focus on it while the query refetches, so a keyboard user
+    // is dropped on <body> and starts again from the top.
+    // RED today: focus ends on <body>.
+    const user = userEvent.setup();
+    searchFails = true;
+    renderAt(<SearchPage />, '/search?q=migraine');
+    await screen.findByRole('alert');
+    searchFails = false;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await screen.findByText('Diagnoses migraine');
+    expect(screen.getByRole('searchbox', { name: 'Search health records' })).toHaveFocus();
+  });
+
   it('HC-UIPIN-003: the empty search focuses the box, and "no matching records" clears the query and every filter', async () => {
     // Would not notice: an action that clears only the query and leaves a filter that makes the next search empty
     // again, or one that moves focus nowhere.
@@ -781,6 +955,84 @@ describe('HC-UIPIN-002 pinboard rename and delete use dialogs', () => {
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(apiDelete).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: 'Board A' })).toBeInTheDocument();
+  });
+
+  it('HC-UIPIN-002: a confirmed delete does not ask for the deleted board\'s items (the real route answers 404)', async () => {
+    // Would not notice: the mutation invalidates every pinboard query by prefix, so the deleted board's items are asked
+    // for again while it is still selected; the real route answers 404 (a console error, and with the app's one retry
+    // the dialog stays open for about 2 s). The fake server counts those requests. A mock that answered 200 for a
+    // deleted board (as the e2e one did) could not see it.
+    // RED today: the fake counts one 404.
+    const user = userEvent.setup();
+    boardItems = {
+      'board-a': [{ id: 'it-1', pinboard_id: 'board-a', item_type: 'document', item_id: 'doc-9', created_at: '' }],
+    };
+    await renderLoaded();
+    await waitFor(() => expect(document.querySelector('[data-pinboard-item-id]')).not.toBeNull());
+    await user.click(screen.getByRole('button', { name: 'Delete pinboard' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await screen.findByRole('heading', { name: 'Board B' });
+    await settle();
+    expect(itemsNotFound).toBe(0);
+  });
+
+  it('HC-UIPIN-002: while a DELETE is in flight Escape and Cancel do nothing, the panel keeps its items, and one DELETE is sent', async () => {
+    // Would not notice: a dialog that closes on Escape or Cancel while the request runs, after which the board is
+    // deleted anyway with no undo, and a later failure shows nowhere. Overlaps are the point (recurring #17): the
+    // request is held, Escape and a click on Cancel are tried, then the request is released.
+    // RED today: Escape closes the dialog while the DELETE is still pending.
+    const user = userEvent.setup();
+    boardItems = {
+      'board-a': [{ id: 'it-1', pinboard_id: 'board-a', item_type: 'document', item_id: 'doc-9', created_at: '' }],
+    };
+    await renderLoaded();
+    await waitFor(() => expect(document.querySelector('[data-pinboard-item-id]')).not.toBeNull());
+    const held = gate();
+    deleteGate = held.wait;
+    await user.click(screen.getByRole('button', { name: 'Delete pinboard' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(apiDelete).toHaveBeenCalledTimes(1));
+
+    await user.keyboard('{Escape}');
+    await settle();
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    // Behind the dialog the panel did not change while the request ran.
+    expect(document.querySelector('[data-pinboard-item-id]')).not.toBeNull();
+
+    held.open();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(apiDelete).toHaveBeenCalledTimes(1);
+    expect(apiDelete).toHaveBeenCalledWith('/pinboards/board-a');
+  });
+
+  it('HC-UIPIN-002: while a PATCH is in flight Escape and Cancel do nothing, and the dialog closes when it completes', async () => {
+    // Would not notice: the same overlap as the delete, for Rename: the dialog gone while the rename is still on its
+    // way, and a failure after that has no dialog to show it in.
+    // RED today: Escape closes the dialog while the PATCH is pending.
+    const user = userEvent.setup();
+    await renderLoaded();
+    const held = gate();
+    patchGate = held.wait;
+    await user.click(screen.getByRole('button', { name: 'Rename' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Rename pinboard' });
+    const input = within(dialog).getByLabelText('Pinboard name');
+    await user.clear(input);
+    await user.type(input, 'Slow name');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(apiPatch).toHaveBeenCalledTimes(1));
+
+    await user.keyboard('{Escape}');
+    await settle();
+    expect(screen.getByRole('dialog', { name: 'Rename pinboard' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+
+    held.open();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await screen.findByRole('heading', { name: 'Slow name' });
+    expect(apiPatch).toHaveBeenCalledTimes(1);
   });
 
   it('HC-UIPIN-002: deleting the board that was selected focuses the next board\'s Delete button, and deleting the last one focuses the new-pinboard box', async () => {
