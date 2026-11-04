@@ -2254,13 +2254,17 @@ def _driver_error(code):
     return error
 
 
-# SQLite result codes: PERM 3, BUSY 5, LOCKED 6, CANTOPEN 14 are the environment;
-# ERROR 1 (a page that fails its HMAC), IOERR 10 (a bad sector), CORRUPT 11 and
-# NOTADB 26 are the file. Extended codes carry the primary code in the low byte.
+# SQLite result codes: PERM 3, BUSY 5, LOCKED 6, IOERR 10, CANTOPEN 14 are the
+# environment (IOERR: the disk failed to answer, which says nothing about the
+# file); ERROR 1 (a page that fails its HMAC), CORRUPT 11 and NOTADB 26 are the
+# file. Extended codes carry the primary code in the low byte.
 @pytest.mark.parametrize(
     "code",
-    [None, 3, 5, 6, 14, 5 | (1 << 8), 14 | (2 << 8), 8, 13],
-    ids=["no-code", "PERM", "BUSY", "LOCKED", "CANTOPEN", "BUSY_RECOVERY", "CANTOPEN_ISDIR", "READONLY", "FULL"],
+    [None, 3, 5, 6, 14, 5 | (1 << 8), 14 | (2 << 8), 8, 13, 10, 10 | (1 << 8)],
+    ids=[
+        "no-code", "PERM", "BUSY", "LOCKED", "CANTOPEN", "BUSY_RECOVERY", "CANTOPEN_ISDIR",
+        "READONLY", "FULL", "IOERR", "IOERR_READ",
+    ],
 )
 def test_hc_fks_026_a_driver_error_code_that_is_not_damage_refuses_and_moves_nothing(
     vault016, mig_log, monkeypatch, code
@@ -2283,14 +2287,14 @@ def test_hc_fks_026_a_driver_error_code_that_is_not_damage_refuses_and_moves_not
 
 
 @pytest.mark.parametrize(
-    "code", [1, 10, 11, 26, 10 | (1 << 8), 11 | (4 << 8)],
-    ids=["ERROR", "IOERR", "CORRUPT", "NOTADB", "IOERR_READ", "CORRUPT_VTAB"],
+    "code", [1, 11, 26, 11 | (4 << 8)],
+    ids=["ERROR", "CORRUPT", "NOTADB", "CORRUPT_VTAB"],
 )
 def test_hc_fks_026_a_driver_error_code_that_is_damage_moves_the_snapshot_aside(
     vault016, monkeypatch, code
 ):
-    """IOERR is damage: a bad sector in the snapshot raises it, and refusing would
-    lock the patient out of an intact vault."""
+    """ERROR, CORRUPT and NOTADB name the file as damaged, so it is moved aside.
+    IOERR is not here: it is on the refuse list above."""
     path, _cfg = vault016
     _seed(path, ["P2"])
     damaged = b"stands in for a snapshot the driver cannot read" * 50

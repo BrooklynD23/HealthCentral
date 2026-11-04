@@ -239,12 +239,15 @@ class _SnapshotInvalid(Exception):
 
 # SQLite primary result codes (the low byte of ``sqlite_errorcode``; an extended
 # code keeps the primary one there) that say the snapshot FILE is damaged:
-# ERROR 1 (what a page that fails its HMAC raises, measured), IOERR 10 (a bad
-# sector in the file: refusing on it would lock a patient out of an intact vault),
-# CORRUPT 11 and NOTADB 26. Every other code, and a missing code, is a fault of
-# the environment (PERM 3, BUSY 5, LOCKED 6, CANTOPEN 14: no permission, a lock,
-# no file handles left) or unknown, and says nothing about the file.
-_DAMAGE_RESULT_CODES = frozenset({1, 10, 11, 26})
+# ERROR 1 (what a page that fails its HMAC raises, measured), CORRUPT 11 and
+# NOTADB 26. Every other code, and a missing code, is a fault of the environment
+# (PERM 3, BUSY 5, LOCKED 6, IOERR 10, CANTOPEN 14: no permission, a lock, a disk
+# that did not answer, no file handles left) or unknown, and says nothing about
+# the file. IOERR 10 means the disk failed to answer, not that the file is bad:
+# the same kind of fault as PERM and CANTOPEN, so it refuses with nothing moved.
+# A read fault partway through the file comes back as CORRUPT 11 and is still
+# treated as damage; the two are not told apart.
+_DAMAGE_RESULT_CODES = frozenset({1, 11, 26})
 
 
 def _says_file_is_damaged(exc: BaseException) -> bool:
