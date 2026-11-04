@@ -184,6 +184,10 @@ interface RecordsControl {
   /** The next PATCH / DELETE is refused with a 500. */
   failNextPatch: boolean;
   failNextDelete: boolean;
+  /** While set, GET /timeline/ answers 500, or an empty timeline; GET /search/ answers 500. */
+  timelineFail: boolean;
+  timelineEmpty: boolean;
+  searchFail: boolean;
   /** While set, GET /observations/ waits for it (or answers 500 when `observationsFail`). */
   observationsGate: Promise<void> | null;
   observationsFail: boolean;
@@ -204,13 +208,17 @@ async function mockRecords(page: Page): Promise<RecordsControl> {
     searches: [],
     failNextPatch: false,
     failNextDelete: false,
+    timelineFail: false,
+    timelineEmpty: false,
+    searchFail: false,
     observationsGate: null,
     observationsFail: false,
   };
 
   await page.route(/\/api\/v1\/timeline\/?(\?.*)?$/, async (route, request) => {
     if (request.method() !== 'GET') return route.fallback();
-    return json(route, TIMELINE);
+    if (control.timelineFail) return json(route, { detail: 'refused' }, 500);
+    return json(route, control.timelineEmpty ? { events: [], undated: [] } : TIMELINE);
   });
 
   await page.route(/\/api\/v1\/observations\/?(\?.*)?$/, async (route, request) => {
@@ -224,6 +232,7 @@ async function mockRecords(page: Page): Promise<RecordsControl> {
     if (request.method() !== 'GET') return route.fallback();
     const q = new URL(request.url()).searchParams.get('q') ?? '';
     control.searches.push(q);
+    if (control.searchFail) return json(route, { detail: 'refused' }, 500);
     return json(route, searchFor(q));
   });
 
@@ -235,6 +244,9 @@ async function mockRecords(page: Page): Promise<RecordsControl> {
   await page.route(/\/api\/v1\/pinboards\/([^/?]+)\/items\/?(\?.*)?$/, async (route, request) => {
     if (request.method() !== 'GET') return route.fallback();
     const id = /\/pinboards\/([^/?]+)\/items/.exec(new URL(request.url()).pathname)![1];
+    // The real route answers 404 for a board that is gone (api/pinboards.py), and so does this one: a page that asks for
+    // a deleted board's items fails the console guard.
+    if (!control.boards.some((b) => b.id === id)) return json(route, { detail: 'Not found' }, 404);
     return json(route, ITEMS[id] ?? []);
   });
 
@@ -329,6 +341,21 @@ async function openPinboards(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'Rename', exact: true })).toBeVisible();
   await expect(page.locator('[data-pinboard-item-id]').first()).toBeVisible();
   await settle(page);
+}
+
+/** The rule the page applies: each canonical analyte once, under its raw name (else the canonical one), sorted by name. */
+function namesLine(rows: Array<Pick<Observation, 'analyte_raw' | 'analyte_canonical'>>): string {
+  const named = rows
+    .map((row) => ({ name: row.analyte_raw || row.analyte_canonical, canonical: row.analyte_canonical }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en'));
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const row of named) {
+    if (seen.has(row.canonical)) continue;
+    seen.add(row.canonical);
+    names.push(row.name);
+  }
+  return names.join(', ');
 }
 
 const cardOf = (page: Page, title: string): Locator => page.locator('li').filter({ hasText: title }).first();
@@ -462,6 +489,39 @@ test.describe('HC-UIPIN-001 timeline analytes', () => {
     await expect(page.locator('[data-timeline-analytes]')).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(asked.length, 'the observations were asked for').toBeGreaterThan(0);
+  });
+});
+
+test.describe('HC-UIPIN-001 timeline error', () => {
+  test.use({ viewport: DESKTOP });
+
+  test('HC-UIPIN-001: a failed timeline shows its alert alone and it does not move when the observations answer; Try again names the cards', async ({ page }) => {
+    // Would not notice: a spinner beside the alert (the spinner waits on the observations too), which leaves when they
+    // answer and moves the T0 alert up by its own height (measured 176 px). The observations are held until the alert
+    // has been read once, then released.
+    // RED today: the loading status is on screen beside the alert and the alert moves.
+    const { control } = await setup(page);
+    control.timelineFail = true;
+    let release!: () => void;
+    control.observationsGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.goto('/timeline');
+    const alert = page.locator('[data-timeline-error] [role="alert"]');
+    await expect(alert).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('status')).toHaveCount(0);
+    const before = (await alert.boundingBox())!;
+    release();
+    await page.waitForTimeout(600);
+    const after = (await alert.boundingBox())!;
+    expect(after.y, 'the alert did not move').toBe(before.y);
+
+    // Both recover; Try again asks for both, and the first card that paints has its names.
+    control.timelineFail = false;
+    control.observationsGate = null;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('[data-timeline-analytes]').first()).toBeVisible();
+    await expect(cardOf(page, TITLE_TWO).locator('[data-timeline-analytes]')).toHaveText('Glucose, LDL');
   });
 });
 
@@ -752,21 +812,37 @@ test.describe('M3 add-to-pinboard menu enter', () => {
 // ---------------------------------------------------------------------------------------------------------------
 test.describe('Gate G on the records routes', () => {
   for (const theme of THEMES) {
-    test(`G1 axe on /timeline, with the pin menu open (${theme})`, async ({ page }) => {
-      // Would not notice: a white native select or a divider that fails in dark, or a menu scanned half-faded.
+    test(`G1 axe on /timeline: cards, the pin menu, the error card and the empty state (${theme})`, async ({ page }) => {
+      // Would not notice: a white native select or a divider that fails in dark, a menu scanned half-faded, or an error
+      // card and an empty state that were never scanned. The theme is applied again after every load.
       // RED today: the event-type select is bg-white with ink text (color-contrast in dark).
-      await setup(page);
+      const { control } = await setup(page);
       await openTimeline(page);
       await applyTheme(page, theme);
       expect(await axeBlocking(page), `G1 timeline ${theme}`).toEqual([]);
       await openPinMenu(page);
       expect(await axeBlocking(page), `G1 pin menu ${theme}`).toEqual([]);
       await page.keyboard.press('Escape');
+
+      control.timelineFail = true;
+      await page.goto('/timeline');
+      await expect(page.locator('[data-timeline-error]')).toBeVisible({ timeout: 15_000 });
+      await applyTheme(page, theme);
+      expect(await axeBlocking(page), `G1 timeline error ${theme}`).toEqual([]);
+
+      control.timelineFail = false;
+      control.timelineEmpty = true;
+      await page.goto('/timeline');
+      await expect(page.getByRole('heading', { name: 'No events yet' })).toBeVisible();
+      await applyTheme(page, theme);
+      // The empty state enters as an S1 group (480 ms): scan it once it has settled.
+      await opaque(page.getByRole('link', { name: 'Import a document' }));
+      expect(await axeBlocking(page), `G1 timeline empty ${theme}`).toEqual([]);
     });
 
-    test(`G1 axe on /search: results, zero results, and the empty page (${theme})`, async ({ page }) => {
+    test(`G1 axe on /search: results, zero results, the error card and the empty page (${theme})`, async ({ page }) => {
       // RED today: both native selects are bg-white with ink text (color-contrast in dark).
-      await setup(page);
+      const { control } = await setup(page);
       await openSearch(page);
       await applyTheme(page, theme);
       expect(await axeBlocking(page), `G1 results ${theme}`).toEqual([]);
@@ -780,9 +856,15 @@ test.describe('Gate G on the records routes', () => {
       await expect(page.getByRole('heading', { name: 'Search your records' })).toBeVisible();
       await opaque(page.getByRole('button', { name: 'Start a search' }));
       expect(await axeBlocking(page), `G1 empty ${theme}`).toEqual([]);
+
+      control.searchFail = true;
+      await page.goto('/search?q=glucose');
+      await expect(page.locator('[data-search-error]')).toBeVisible({ timeout: 15_000 });
+      await applyTheme(page, theme);
+      expect(await axeBlocking(page), `G1 search error ${theme}`).toEqual([]);
     });
 
-    test(`G1 axe on /pinboards: page, Rename open with an error, Delete open (${theme})`, async ({ page }) => {
+    test(`G1 axe on /pinboards: page, Rename open with an error, Delete open, the empty page (${theme})`, async ({ page }) => {
       // RED today: window.prompt throws, and the list divider is black/5.
       const { control } = await setup(page);
       await openPinboards(page);
@@ -806,6 +888,18 @@ test.describe('Gate G on the records routes', () => {
       await expect(deleteDialog(page)).toBeVisible();
       await opaque(deleteDialog(page));
       expect(await axeBlocking(page), `G1 delete ${theme}`).toEqual([]);
+      control.failNextDelete = true;
+      await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+      await expect(deleteDialog(page).getByRole('alert')).toBeVisible();
+      expect(await axeBlocking(page), `G1 delete error ${theme}`).toEqual([]);
+      await page.keyboard.press('Escape');
+
+      control.boards = [];
+      await page.goto('/pinboards');
+      await expect(page.getByRole('heading', { name: 'No pinboards yet' })).toBeVisible();
+      await applyTheme(page, theme);
+      await opaque(page.getByRole('button', { name: 'Name a pinboard' }));
+      expect(await axeBlocking(page), `G1 pinboards empty ${theme}`).toEqual([]);
     });
   }
 
@@ -884,10 +978,14 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
   const TIMELINE_T0 = ['[data-timeline-date]', '[data-timeline-analytes]', '[data-timeline-verification]'];
   const SEARCH_T0 = ['[data-search-title]', '[data-search-snippet]', '[data-search-date]', '[data-search-verification]'];
   const PINBOARD_T0 = ['[data-pinboard-item-label]', '[data-pinboard-item-id]'];
+  const inRoute = (selectors: string[]) => selectors.map((s) => `${ROUTE_CONTAINER_SELECTOR} ${s}`);
 
+  // G2: one measurement per route. measureCls counts per document and registers its observer for every document of
+  // the page, so a test that navigates reads only the last route; each route is its own test and its own page.
   for (const theme of THEMES) {
-    test(`QUIET-BOX G2 on the records routes (${theme})`, async ({ page }) => {
-      // The observations are held 700 ms, so the cards' arrival lands outside the 500 ms hadRecentInput window.
+    test(`QUIET-BOX G2 on /timeline (${theme})`, async ({ page }) => {
+      // Would not notice: cards that paint and then gain their name line. The observations are held 700 ms after the
+      // timeline has answered, so the cards' arrival lands outside the 500 ms hadRecentInput window.
       const { control } = await setup(page);
       let release!: () => void;
       control.observationsGate = new Promise<void>((resolve) => {
@@ -900,30 +998,73 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         await expect(page.getByText(TITLE_TWO, { exact: true })).toBeVisible();
         await settle(page);
         await applyTheme(page, theme);
+        // The filter: the cards leave and come back with their names.
+        await page.getByLabel('Event type').selectOption('lab_results');
+        await expect(page.getByText(TITLE_TWO, { exact: true })).toBeVisible();
+        await settle(page);
         await openPinMenu(page);
         await page.keyboard.press('Escape');
+      });
+      expect(cls, `G2 timeline ${theme}`).toBeLessThan(0.1);
+    });
 
+    test(`QUIET-BOX G2 on /search (${theme})`, async ({ page }) => {
+      const { control } = await setup(page);
+      const cls = await measureCls(page, async () => {
         await page.goto('/search?q=glucose');
         await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+        await settle(page);
+        await applyTheme(page, theme);
         await page.getByRole('searchbox', { name: 'Search health records' }).fill('nothing');
         await page.keyboard.press('Enter');
         await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible();
+        await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose');
+        await page.keyboard.press('Enter');
+        await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+        // The error card and Try again.
+        control.searchFail = true;
+        await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose again');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('[data-search-error]')).toBeVisible({ timeout: 15_000 });
+        control.searchFail = false;
+        await page.getByRole('button', { name: 'Try again' }).click();
+        await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+      });
+      expect(cls, `G2 search ${theme}`).toBeLessThan(0.1);
+    });
 
+    test(`QUIET-BOX G2 on /pinboards (${theme})`, async ({ page }) => {
+      await setup(page);
+      const cls = await measureCls(page, async () => {
         await page.goto('/pinboards');
         await expect(renameButton(page)).toBeVisible();
+        await settle(page);
+        await applyTheme(page, theme);
         await renameButton(page).click();
         await expect(renameDialog(page)).toBeVisible();
         await page.keyboard.press('Escape');
+        await expect(renameDialog(page)).toHaveCount(0);
+        // Save: the heading takes its new text.
+        await renameButton(page).click();
+        await renameDialog(page).getByLabel('Pinboard name').fill('Cardiology visit');
+        await renameDialog(page).getByRole('button', { name: 'Save' }).click();
+        await expect(renameDialog(page)).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: 'Cardiology visit' })).toBeVisible();
+        // Delete confirm: the board leaves and the next one takes its place.
         await deleteButton(page).click();
         await expect(deleteDialog(page)).toBeVisible();
         await page.keyboard.press('Escape');
         await expect(deleteDialog(page)).toHaveCount(0);
+        await deleteButton(page).click();
+        await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+        await expect(deleteDialog(page)).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: LONG_BOARD })).toBeVisible();
       });
-      expect(cls, `G2 ${theme}`).toBeLessThan(0.1);
+      expect(cls, `G2 pinboards ${theme}`).toBeLessThan(0.1);
     });
 
     test(`QUIET-BOX G3 on the records routes (${theme})`, async ({ page }) => {
-      await setup(page);
+      const { control } = await setup(page);
       await openTimeline(page);
       await applyTheme(page, theme);
       const timeline = await maxEventDuration(
@@ -932,6 +1073,13 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
           await page.getByLabel('Event type').selectOption('lab_results');
           await openPinMenu(page);
           await page.keyboard.press('Escape');
+          // Try again: the filter changes to a window that fails, then recovers.
+          control.timelineFail = true;
+          await page.getByLabel('Event type').selectOption('imaging');
+          await expect(page.locator('[data-timeline-error]')).toBeVisible({ timeout: 15_000 });
+          control.timelineFail = false;
+          await page.getByRole('button', { name: 'Try again' }).click();
+          await expect(page.locator('[data-timeline-date]').first()).toBeVisible();
         },
         { cpuRate: 4 }
       );
@@ -945,6 +1093,17 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
           await page.getByRole('searchbox', { name: 'Search health records' }).fill('nothing');
           await page.keyboard.press('Enter');
           await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible();
+          control.searchFail = true;
+          await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose');
+          await page.keyboard.press('Enter');
+          await expect(page.locator('[data-search-error]')).toBeVisible({ timeout: 15_000 });
+          control.searchFail = false;
+          await page.getByRole('button', { name: 'Try again' }).click();
+          await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+          // A result card: a click anywhere on it follows its link.
+          const at = (await page.locator('[data-search-snippet]').first().boundingBox())!;
+          await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+          await expect(page).toHaveURL(/\/verify$/);
         },
         { cpuRate: 4 }
       );
@@ -964,6 +1123,14 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
           await expect(deleteDialog(page)).toBeVisible();
           await deleteDialog(page).getByRole('button', { name: 'Cancel' }).click();
           await expect(deleteDialog(page)).toHaveCount(0);
+          // Save, then Delete confirm.
+          await renameButton(page).click();
+          await renameDialog(page).getByLabel('Pinboard name').fill('Short name');
+          await renameDialog(page).getByRole('button', { name: 'Save' }).click();
+          await expect(renameDialog(page)).toHaveCount(0);
+          await deleteButton(page).click();
+          await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+          await expect(deleteDialog(page)).toHaveCount(0);
         },
         { cpuRate: 4 }
       );
@@ -977,7 +1144,9 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
       // The pin menu is not in this snapshot: the page-wide read flags the Radix popper wrapper's static positioning
       // transform as motion (queue GATES-POPPER-TRANSFORM, a harness row). The menu's own reduced-motion behaviour is
       // read on the menu itself in M3 "under reduced motion" above.
-      const filter = await reducedMotionSnapshot(page, () => page.getByLabel('Event type').selectOption('lab_results'));
+      const filter = await reducedMotionSnapshot(page, async () => {
+        await page.getByLabel('Event type').selectOption('lab_results');
+      });
       expect(filter, `G5 timeline filter ${theme}`).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`timeline-${theme}-reduced.png`), fullPage: false });
 
@@ -1001,70 +1170,143 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
     });
 
     test(`QUIET-BOX G10 stillness on the records routes (${theme})`, async ({ page }, testInfo) => {
-      await setup(page);
+      const { control } = await setup(page);
       const nav = (name: string) =>
         page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true });
-      await page.goto('/inbox');
-      await settle(page);
-      await applyTheme(page, theme);
+      const probeNote = (name: string, report: unknown) =>
+        testInfo.annotations.push({ type: 'gate-g10', description: `${name} ${theme}: ${JSON.stringify(report)}` });
+      // A load drops data-theme, so every goto below is followed by applyTheme.
+      const inbox = async () => {
+        await page.goto('/inbox');
+        await settle(page);
+        await applyTheme(page, theme);
+      };
+      await inbox();
 
       // Navigation to /timeline: the dates, the analyte names and the verification words stay through the route fade.
-      const timelineNav = await stillnessProbe(page, {
-        trigger: () => nav('Timeline').click(),
-        expected: TIMELINE_T0.map((s) => `${ROUTE_CONTAINER_SELECTOR} ${s}`),
-        kind: 'navigation',
-        lazyRoute: true,
-      });
-      testInfo.annotations.push({ type: 'gate-g10', description: `timeline navigation ${theme}: ${JSON.stringify(timelineNav)}` });
+      probeNote(
+        'timeline navigation',
+        await stillnessProbe(page, {
+          trigger: () => nav('Timeline').click(),
+          expected: inRoute(TIMELINE_T0),
+          kind: 'navigation',
+          lazyRoute: true,
+        })
+      );
       await settle(page);
+
+      // The pin menu opens over the cards (M3, the row's one motion change): nothing behind it moves or changes.
+      probeNote(
+        'timeline pin menu',
+        await stillnessProbe(page, {
+          trigger: async () => {
+            await pinButton(page).click();
+            await expect(page.getByRole('menu').getByRole('menuitem', { name: 'Visit prep' })).toBeVisible();
+          },
+          expected: TIMELINE_T0,
+          kind: 'overlay',
+        })
+      );
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+
+      // The filter: the cards leave with the old key and return with the new one, their text and rects from the first sample.
+      probeNote(
+        'timeline filter',
+        await stillnessProbe(page, {
+          trigger: async () => {
+            await page.getByLabel('Event type').selectOption('lab_results');
+          },
+          expected: TIMELINE_T0,
+          kind: 'interaction',
+        })
+      );
+
+      // The error card is T0 text. It appears after the data's one retry, so the probe waits for the network to go quiet.
+      await inbox();
+      control.timelineFail = true;
+      probeNote(
+        'timeline error',
+        await stillnessProbe(page, {
+          trigger: () => nav('Timeline').click(),
+          expected: inRoute(['[data-timeline-error] [data-t0]']),
+          kind: 'navigation',
+          lazyRoute: true,
+        })
+      );
+      control.timelineFail = false;
 
       // Navigation to /search?q=: /search has no link in the desktop navigation (the header button opens the palette,
       // whose own exit would be a second overlay), so the router is driven the way the browser's Back button is.
-      const searchNav = await stillnessProbe(page, {
-        trigger: () =>
-          page.evaluate(() => {
-            window.history.pushState({}, '', '/search?q=glucose');
-            window.dispatchEvent(new PopStateEvent('popstate'));
-          }),
-        expected: SEARCH_T0.map((s) => `${ROUTE_CONTAINER_SELECTOR} ${s}`),
-        kind: 'navigation',
-        lazyRoute: true,
-      });
-      testInfo.annotations.push({ type: 'gate-g10', description: `search navigation ${theme}: ${JSON.stringify(searchNav)}` });
+      await inbox();
+      const toSearch = () =>
+        page.evaluate(() => {
+          window.history.pushState({}, '', '/search?q=glucose');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        });
+      probeNote(
+        'search navigation',
+        await stillnessProbe(page, {
+          trigger: toSearch,
+          expected: inRoute(SEARCH_T0),
+          kind: 'navigation',
+          lazyRoute: true,
+        })
+      );
       await settle(page);
 
       // The search submit: results appear from the empty page. Their text and rects stay from their first sample.
       await openSearch(page, '');
+      await applyTheme(page, theme);
       await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose');
-      const submit = await stillnessProbe(page, {
-        trigger: () => page.keyboard.press('Enter'),
-        expected: SEARCH_T0.map((s) => `${ROUTE_CONTAINER_SELECTOR} ${s}`),
-        kind: 'interaction',
-      });
-      testInfo.annotations.push({ type: 'gate-g10', description: `search submit ${theme}: ${JSON.stringify(submit)}` });
+      probeNote(
+        'search submit',
+        await stillnessProbe(page, {
+          trigger: () => page.keyboard.press('Enter'),
+          expected: inRoute(SEARCH_T0),
+          kind: 'interaction',
+        })
+      );
+
+      // The search error card.
+      await inbox();
+      control.searchFail = true;
+      probeNote(
+        'search error',
+        await stillnessProbe(page, {
+          trigger: toSearch,
+          expected: inRoute(['[data-search-error] [data-t0]']),
+          kind: 'navigation',
+          lazyRoute: true,
+        })
+      );
+      control.searchFail = false;
 
       // Navigation to /pinboards: the pinned label and id.
-      await page.goto('/inbox');
-      await settle(page);
-      const pinboardsNav = await stillnessProbe(page, {
-        trigger: () => nav('Pinboards').click(),
-        expected: PINBOARD_T0.map((s) => `${ROUTE_CONTAINER_SELECTOR} ${s}`),
-        kind: 'navigation',
-        lazyRoute: true,
-      });
-      testInfo.annotations.push({ type: 'gate-g10', description: `pinboards navigation ${theme}: ${JSON.stringify(pinboardsNav)}` });
+      await inbox();
+      probeNote(
+        'pinboards navigation',
+        await stillnessProbe(page, {
+          trigger: () => nav('Pinboards').click(),
+          expected: inRoute(PINBOARD_T0),
+          kind: 'navigation',
+          lazyRoute: true,
+        })
+      );
       await settle(page);
 
       // Rename and Delete open: the page behind them (the pinned label and id) does not move or change.
-      const renameOpen = await stillnessProbe(page, {
-        trigger: async () => {
-          await renameButton(page).click();
-          await expect(renameDialog(page)).toBeVisible();
-        },
-        expected: PINBOARD_T0,
-        kind: 'overlay',
-      });
-      testInfo.annotations.push({ type: 'gate-g10', description: `rename open ${theme}: ${JSON.stringify(renameOpen)}` });
+      probeNote(
+        'rename open',
+        await stillnessProbe(page, {
+          trigger: async () => {
+            await renameButton(page).click();
+            await expect(renameDialog(page)).toBeVisible();
+          },
+          expected: PINBOARD_T0,
+          kind: 'overlay',
+        })
+      );
       await page.keyboard.press('Escape');
       await expect(renameDialog(page)).toHaveCount(0);
       const deleteOpen = await stillnessProbe(page, {
@@ -1075,7 +1317,7 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         expected: PINBOARD_T0,
         kind: 'overlay',
       });
-      testInfo.annotations.push({ type: 'gate-g10', description: `delete open ${theme}: ${JSON.stringify(deleteOpen)}` });
+      probeNote('delete open', deleteOpen);
       expect(deleteOpen.nodes).toBeGreaterThan(0);
     });
   }
@@ -1090,15 +1332,18 @@ test.describe('HC-UIPIN-001 real backend', () => {
   test('HC-UIPIN-001: a card names the analytes of the observations its related ids point to', async ({ page, request }) => {
     // Would not notice (in the mocked cases above): a mismatch between the ids /timeline returns and the ids
     // /observations returns, so every real card would stay unnamed. A fresh CSV is imported through the write route;
-    // the expected names are read from the API by id (order of the sorted related ids, each name once), not typed in.
+    // the expected names are read from the API by id (each canonical analyte once, sorted by name), not typed in.
     // RED today: the card says only "Lab results (2 analytes)".
     const auth = await ensureE2EProfile(request);
     const headers = { Authorization: `Bearer ${auth.access_token}` };
     const stamp = Date.now() % 100_000;
+    // A collection date of its own for this run: a CI retry imports another document, and a card found by a shared date
+    // could be the first attempt's (its related ids list the names in another order).
+    const day = new Date(Date.UTC(1980, 0, 1) + (stamp % 12_000) * 86_400_000).toISOString().slice(0, 10);
     const csv =
       'Date,Analyte,Value,Unit,Reference Low,Reference High,Flag\n' +
-      `2017-05-06,Glucose,${(90 + stamp / 100_000).toFixed(5)},mg/dL,70,99,\n` +
-      `2017-05-06,Hemoglobin A1c,5.${String(stamp).padStart(5, '0')},%,4.0,5.6,\n`;
+      `${day},Glucose,${(90 + stamp / 100_000).toFixed(5)},mg/dL,70,99,\n` +
+      `${day},Hemoglobin A1c,5.${String(stamp).padStart(5, '0')},%,4.0,5.6,\n`;
     const imported = await request.post(`${E2E_API_URL}/documents/import`, {
       headers,
       multipart: { file: { name: `uipin-001-${stamp}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv) } },
@@ -1115,23 +1360,22 @@ test.describe('HC-UIPIN-001 real backend', () => {
     const observationsResponse = await request.get(`${E2E_API_URL}/observations/`, { headers });
     expect(observationsResponse.ok()).toBeTruthy();
     const byId = new Map(((await observationsResponse.json()) as Observation[]).map((o) => [o.id, o]));
-    const expected: string[] = [];
+    const rows: Observation[] = [];
     for (const id of event!.related_ids) {
       const row = byId.get(id);
       expect(row, `related id ${id} is an observation`).toBeTruthy();
-      const name = row!.analyte_raw || row!.analyte_canonical;
-      if (!expected.includes(name)) expected.push(name);
+      rows.push(row!);
     }
-    expect(expected.length, 'two analytes were seeded').toBeGreaterThanOrEqual(2);
+    expect(rows.length, 'two analytes were seeded').toBeGreaterThanOrEqual(2);
+    const expected = namesLine(rows);
 
     await openAuthenticatedPage(page, request, '/timeline');
-    // Found by the date and the backend title only, so the old page finds the card too and fails on the names.
+    // Found by this run's own date and the backend title only, so the old page finds the card too and fails on the names.
     const card = page
       .locator('li')
-      .filter({ hasText: '2017-05-06' })
-      .filter({ hasText: /Lab results \(/ })
-      .first();
-    await expect(card).toBeVisible({ timeout: 15_000 });
-    await expect(card.locator('[data-timeline-analytes]')).toHaveText(expected.join(', '));
+      .filter({ hasText: day })
+      .filter({ hasText: /Lab results \(/ });
+    await expect(card).toHaveCount(1, { timeout: 15_000 });
+    await expect(card.locator('[data-timeline-analytes]')).toHaveText(expected);
   });
 });
