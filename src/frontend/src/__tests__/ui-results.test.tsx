@@ -1,7 +1,7 @@
 /**
- * UI-PG-RESULTS (HC-UIRES-001 .. 017): the Results page that folds Trends and Interpret around the Range Ribbon.
+ * UI-PG-RESULTS (HC-UIRES-001 .. 028): the Results page that folds Trends and Interpret around the Range Ribbon.
  * Plan: docs/plans/2026-10-23-frontend-revamp-plan.md (UI-PG-RESULTS); L0 rulings on PR #476
- * (comments 6600140569 and 6600985053).
+ * (comments 6600140569, 6600985053, 6606545865 and 6615916306).
  *
  * The modules under test are loaded with a dynamic import inside each test, so before they exist every id fails on
  * its own line instead of the whole file failing to load. Only the network is mocked: the page, the ribbon and the
@@ -14,7 +14,9 @@
  * 018 a grounded explanation belongs to the result it was made for; 019 a panel interpretation belongs to its tab;
  * 020 the gauge prints no verdict on a scale that is not finite; 021 the logged-out route; 022 an empty panel;
  * 023 the card's toggle name; 024 no analyte name reaches browser storage, before or after a lock; 025 the tabs are the Tabs primitive;
- * 026 the Normal Range badge needs a range and a value inside it.
+ * 026 the range badge: Normal Range needs a range and a value inside it, Outside Range stands alone for a value outside it,
+ * flagged or not, and the printed Latest value is the cleaned number; 027 Interpret <panel> sends the panel's own date;
+ * 028 the exported SVG carries no aria-label or aria-valuetext (ruling 6615916306).
  *
  * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, ...). The panel fixtures list
  * the analytes a panel should hold for those names (the backend's PANEL_DEFINITIONS must agree, see the PR).
