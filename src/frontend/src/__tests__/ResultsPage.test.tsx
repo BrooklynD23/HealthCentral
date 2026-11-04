@@ -867,6 +867,14 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     await screen.findByText(/Second withheld message\./);
     fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
     expect(await screen.findByText('Grounded explanation')).toBeInTheDocument();
+    expect(screen.queryByText(LEAD)).toBeNull();
+
+    // And a withheld answer for LDL itself takes LDL's own grounded card away: a grounded explanation and a withheld
+    // notice never stand for the same result (the review's mutant deletes the setGrounded line in the withheld branch).
+    fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+    expect(await screen.findByText(LEAD)).toBeInTheDocument();
+    expect(posts).toBe(4);
+    expect(screen.queryByText('Grounded explanation')).toBeNull();
   });
 
   it('HC-IWM-FE-004 a withheld critical card shows the clinician line; a false or missing flag does not', async () => {
