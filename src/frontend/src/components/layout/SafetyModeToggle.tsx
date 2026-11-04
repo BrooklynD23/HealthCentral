@@ -6,6 +6,11 @@ import { Switch } from '@/components/ui/Switch';
 import { useSafetyMode } from '@/hooks/useSafetyMode';
 import { cn } from '@/utils/cn';
 
+// Stage 1 of the note (SAFETY-NOTE-WORDING, "Specific, staged"): the owner's words. One constant feeds the
+// desktop note and the phone popover. Later rows add one sentence each, before the last one.
+const SAFETY_MODE_NOTE =
+  "On: AI explanations of a single result need more verified support, and values you haven't checked get no explanation. The standard safety checks always run.";
+
 /**
  * The stricter safety mode switch (plan §3.6, wired by SAFETY-MODE-TOGGLE). It shows the per-profile
  * server value and sends a PATCH when changed. While that value is unknown (loading, a failed load, or a
@@ -20,9 +25,10 @@ export function SafetyModeToggle({ className }: { className?: string }) {
   const noteId = useId();
   const { checked, known, loading, setStrict } = useSafetyMode();
 
-  // The column has a fixed width on desktop. Its auto width came from the note's text, and that text
-  // measured 376.8 px in the fallback face and 307 px once Source Sans loaded, so the note moved
-  // while the page settled. 384 px holds the fallback on one line, so the note's rect stays put.
+  // The column has a fixed width on desktop (lg:w-96) and the note has a fixed height (lg:h-16: 4 lines of
+  // 16 px), so the note's rect does not move while the fonts load (its width came from the text, and the
+  // fallback face and Source Sans measure differently). Four lines is the room the plan reserves for the
+  // longest staged note (stage 3); the TopBar header (lg:h-24) is sized for it. HC-SMT-005 checks for clipping.
   return (
     <div className={cn('flex flex-col gap-1 lg:w-96', className)}>
       <div className="flex items-center gap-2">
@@ -54,18 +60,23 @@ export function SafetyModeToggle({ className }: { className?: string }) {
           {/* Phones have no visible note (it is lg-only below), so the note opens the popover, above the long text. */}
           <div className="max-w-xs space-y-2">
             <p data-t0 data-safety-toggle-popover-note className="text-sm font-medium text-ink">
-              Not available yet. The standard safety checks always run.
+              {SAFETY_MODE_NOTE}
             </p>
             <p data-t0 data-safety-toggle-popover className="text-sm text-ink">
               Asclexis checks every answer for medical advice and against your own records. These checks are always
-              on and cannot be turned off. A stricter mode is being designed; this switch will turn it on when it is
-              ready.
+              on and cannot be turned off. This switch turns on a stricter mode for this profile. It never turns the
+              standard checks off.
             </p>
           </div>
         </Popover>
       </div>
-      <p id={noteId} data-t0 data-safety-toggle-note className="hidden text-xs text-ink-secondary lg:block">
-        Not available yet. The standard safety checks always run.
+      <p
+        id={noteId}
+        data-t0
+        data-safety-toggle-note
+        className="hidden text-xs text-ink-secondary lg:block lg:h-16 lg:leading-4"
+      >
+        {SAFETY_MODE_NOTE}
       </p>
     </div>
   );
