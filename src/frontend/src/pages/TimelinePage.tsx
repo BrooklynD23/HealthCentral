@@ -204,7 +204,6 @@ export function TimelinePage() {
   const {
     data: observations,
     isLoading: observationsLoading,
-    isFetched: observationsFetched,
     dataUpdatedAt: observationsUpdatedAt,
     refetch: refetchObservations,
   } = useObservations({
@@ -240,11 +239,15 @@ export function TimelinePage() {
   }, [needsRefresh, refetchObservations]);
 
   // The names add a line to a card, so the cards wait for the answers: they would move every later card otherwise.
-  // Only the first answer of the observations holds them (a refetch of a failed query reads as loading again and would
-  // take the cards away), plus the one refresh above and a Try again. A failed observations query settles too: the
-  // cards render with their backend titles and no names, and the timeline is never hidden for it.
+  // Only the first answer of the observations on this visit holds them: the flag is per mount, not the query's own
+  // isFetched, which a failed answer from an earlier visit has already set (the cards would paint unnamed and move when
+  // the names arrive). A refetch of a failed query after that reads as loading again and must not take the cards away.
+  // Plus the one refresh above and a Try again. A failed observations query settles too: the cards render with their
+  // backend titles and no names, and the timeline is never hidden for it.
+  const [observationsSettled, setObservationsSettled] = useState(false);
+  if (!observationsLoading && !observationsSettled) setObservationsSettled(true);
   const holding =
-    timelineLoading || (observationsLoading && !observationsFetched) || needsRefresh || refreshing || retrying;
+    timelineLoading || (observationsLoading && !observationsSettled) || needsRefresh || refreshing || retrying;
   // A failed timeline shows its alert alone: a spinner beside it would leave when the observations answer and move the
   // alert (error text is T0).
   const showSpinner = holding && !isError;
