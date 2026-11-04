@@ -22,11 +22,20 @@ export function useSafetyMode() {
   const serverValue = query.data?.strict_safety_mode;
   const value = typeof serverValue === 'boolean' ? serverValue : undefined;
 
-  // Keyed on the error state, so a repeat failed refetch does not stack toasts.
+  // One toast per failure streak. With no data, each refetch puts the query back to pending and then to
+  // error again (isError goes false, then true), so an effect keyed on isError alone fires on every
+  // window-focus refetch. The ref remembers the toast and is cleared only once a real value is known.
   const loadFailed = query.isError;
+  const loadFailureShown = useRef(false);
   useEffect(() => {
-    if (loadFailed) notify({ message: "Couldn't load the stricter safety mode setting." });
-  }, [loadFailed]);
+    if (!loadFailed) {
+      if (value !== undefined) loadFailureShown.current = false;
+      return;
+    }
+    if (loadFailureShown.current) return;
+    loadFailureShown.current = true;
+    notify({ message: "Couldn't load the stricter safety mode setting." });
+  }, [loadFailed, value]);
 
   // A ref, not mutation.isPending: a second click before React re-renders must still be ignored.
   const inFlight = useRef(false);
@@ -40,14 +49,24 @@ export function useSafetyMode() {
       return { previous };
     },
     onError: (_error, _next, context) => {
-      if (context?.previous) queryClient.setQueryData(SAFETY_MODE_KEY, context.previous);
+      // The query is gone after queryClient.clear() (lock flow): a late write would hand the old
+      // profile's value to the next one.
+      if (queryClient.getQueryState(SAFETY_MODE_KEY)) {
+        if (context?.previous) queryClient.setQueryData(SAFETY_MODE_KEY, context.previous);
+        // The PATCH may have committed before it failed (the audit commit comes after the flag's), so the
+        // snapshot can be wrong. Read the server's value back instead of trusting it for the whole staleTime.
+        void queryClient.invalidateQueries({ queryKey: SAFETY_MODE_KEY });
+      }
       notify({ message: "Couldn't change the stricter safety mode setting." });
     },
     onSuccess: (response) => {
+      if (!queryClient.getQueryState(SAFETY_MODE_KEY)) return; // cleared by the lock flow, see onError
       queryClient.setQueryData(SAFETY_MODE_KEY, response);
       // Nothing shown under the old mode stays cached under the new one. The literals are the private
       // QUERY_KEY constants of services/interpretations.ts (:17) and services/observations.ts (:11).
-      void queryClient.invalidateQueries({ queryKey: ['interpretations'] });
+      // Explanations are reset, not invalidated: under the stricter mode the refetch of an unverified value
+      // is refused (409), and an invalidated query keeps its last good data through a failed refetch.
+      void queryClient.resetQueries({ queryKey: ['interpretations'] });
       void queryClient.invalidateQueries({ queryKey: ['observations', 'trends'] });
     },
     onSettled: () => {

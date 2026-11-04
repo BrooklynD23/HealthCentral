@@ -11,17 +11,21 @@
  *   backend; the route's own tests live in src/backend/tests);
  * - a screen that keeps an AI explanation in component state across the switch (the
  *   invalidations are checked on the cache, not on every screen that reads it);
- * - an invalidation of a key that no screen reads any more: the three keys are the ones the
+ * - a reset or invalidation of a key that no screen reads any more: the three keys are the ones the
  *   services use today, copied here by hand, so a renamed key in a service passes this file;
+ * - the real 409 body or the real refusal screen: the reader in HC-SMT-002 is a stand-in that shows
+ *   its data or its error, so a screen that ignores the error (the bug this test pins) is only
+ *   caught for a screen that reads the cache the way the stand-in does;
  * - header geometry (no clipping, the fixed four lines): jsdom has no layout, and HC-SMT-005 and
  *   HC-UISH-006 measure it in a browser;
  * - the 599 mock answer for a PATCH sent on page load: only the e2e GATE G tests see it.
  */
 
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { SafetyModeToggle } from '@/components/layout/SafetyModeToggle';
 import { AppToaster } from '@/components/ui/toast';
@@ -61,17 +65,23 @@ function deferred<T>(): Deferred<T> {
 
 /** A server that remembers the flag: a PATCH changes what the next GET returns. */
 function fakeServer(initial: boolean) {
-  const server = { value: initial, patchGate: null as Deferred<void> | null };
+  const server = {
+    value: initial,
+    patchGate: null as Deferred<void> | null,
+    /** The PATCH commits the flag and then answers 500, as update_safety_mode does when the audit commit fails. */
+    failAfterCommit: false,
+  };
   vi.mocked(api.apiGet).mockImplementation(async () => ({ strict_safety_mode: server.value }));
   vi.mocked(api.apiPatch).mockImplementation(async (_path: string, body: unknown) => {
     if (server.patchGate) await server.patchGate.promise;
     server.value = (body as { strict_safety_mode: boolean }).strict_safety_mode;
+    if (server.failAfterCommit) throw new Error('500');
     return { strict_safety_mode: server.value };
   });
   return server;
 }
 
-function renderToggle() {
+function renderToggle(extra?: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -79,6 +89,7 @@ function renderToggle() {
     <QueryClientProvider client={queryClient}>
       <SafetyModeToggle />
       <AppToaster />
+      {extra}
     </QueryClientProvider>
   );
   return queryClient;
@@ -125,8 +136,8 @@ describe('HC-SMT-001 the switch shows the server value', () => {
   });
 });
 
-describe('HC-SMT-002 a click sends one PATCH and invalidates what depends on the mode', () => {
-  it('sends the inverted value once, ignores a second click while pending, and invalidates three groups', async () => {
+describe('HC-SMT-002 a click sends one PATCH and drops what depends on the mode', () => {
+  it('sends the inverted value once, ignores a second click while pending, and refreshes three groups', async () => {
     const user = userEvent.setup();
     const server = fakeServer(false);
     const queryClient = renderToggle();
@@ -138,8 +149,12 @@ describe('HC-SMT-002 a click sends one PATCH and invalidates what depends on the
     };
     for (const key of Object.values(seeded)) queryClient.setQueryData(key, { seeded: true });
     const isInvalidated = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated;
-    // The seeds start clean, so a later "true" can only come from the switch.
-    for (const key of Object.values(seeded)) expect(isInvalidated(key)).toBe(false);
+    const hasData = (key: readonly unknown[]) => queryClient.getQueryData(key) !== undefined;
+    // The seeds start clean, so a later change can only come from the switch.
+    for (const key of Object.values(seeded)) {
+      expect(isInvalidated(key)).toBe(false);
+      expect(hasData(key)).toBe(true);
+    }
 
     const toggle = await knownSwitch();
     server.patchGate = deferred<void>();
@@ -154,15 +169,21 @@ describe('HC-SMT-002 a click sends one PATCH and invalidates what depends on the
     await user.click(toggle);
     expect(api.apiPatch).toHaveBeenCalledTimes(1);
     expect(toggle).toHaveAttribute('aria-checked', 'true');
-    for (const key of Object.values(seeded)) expect(isInvalidated(key)).toBe(false);
+    for (const key of Object.values(seeded)) {
+      expect(isInvalidated(key)).toBe(false);
+      expect(hasData(key)).toBe(true);
+    }
 
     await act(async () => {
       server.patchGate!.resolve();
     });
-    await waitFor(() => expect(isInvalidated(seeded.interpretation)).toBe(true));
-    expect(isInvalidated(seeded.recent)).toBe(true);
+    // Explanations are reset (their data is dropped, not kept for a failed refetch); trends are invalidated.
+    await waitFor(() => expect(hasData(seeded.interpretation)).toBe(false));
+    expect(hasData(seeded.recent)).toBe(false);
     expect(isInvalidated(seeded.trend)).toBe(true);
+    expect(hasData(seeded.trend)).toBe(true);
     expect(isInvalidated(seeded.unrelated)).toBe(false);
+    expect(hasData(seeded.unrelated)).toBe(true);
     expect(queryClient.getQueryData(KEY)).toEqual({ strict_safety_mode: true });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
 
@@ -173,6 +194,66 @@ describe('HC-SMT-002 a click sends one PATCH and invalidates what depends on the
     expect(api.apiPatch).toHaveBeenLastCalledWith(PATH, { strict_safety_mode: false });
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
     expect(server.value).toBe(false);
+  });
+});
+
+describe('HC-SMT-002b an explanation written under the old mode does not outlive the switch', () => {
+  /** A stand-in for a screen that shows the explanation it has, and a refusal when it has none. */
+  function ExplanationReader({ answer }: { answer: () => Promise<{ text: string }> }) {
+    const query = useQuery({ queryKey: ['interpretations', 'obs-1'], queryFn: answer });
+    if (query.data) return <p data-testid="explanation">{query.data.text}</p>;
+    if (query.isError) return <p data-testid="explanation">refused</p>;
+    return <p data-testid="explanation">loading</p>;
+  }
+
+  it('turning the mode on removes the explanation when the refetch is refused with 409', async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(false);
+    let strict = false;
+    const answer = vi.fn(async () => {
+      if (strict) throw new Error('409 unverified value in strict mode');
+      return { text: 'EXPLANATION WRITTEN UNDER OFF' };
+    });
+    renderToggle(<ExplanationReader answer={answer} />);
+
+    expect(await screen.findByText('EXPLANATION WRITTEN UNDER OFF')).toBeInTheDocument();
+    const toggle = await knownSwitch();
+    // The backend refuses once the flag is on: the fake server flips both together.
+    strict = true;
+    server.patchGate = null;
+    await user.click(toggle);
+
+    await waitFor(() => expect(screen.getByTestId('explanation')).toHaveTextContent('refused'));
+    expect(screen.queryByText('EXPLANATION WRITTEN UNDER OFF')).toBeNull();
+    expect(answer).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('HC-SMT-002c a PATCH that settles after the cache was cleared writes nothing', () => {
+  it.each([
+    ['succeeds', false],
+    ['fails', true],
+  ])('a PATCH that %s after queryClient.clear() leaves the cache empty', async (_label, reject) => {
+    const user = userEvent.setup();
+    const server = fakeServer(false);
+    const queryClient = renderToggle();
+    const toggle = await knownSwitch();
+    server.patchGate = deferred<void>();
+    await user.click(toggle);
+    await waitFor(() => expect(api.apiPatch).toHaveBeenCalledTimes(1));
+
+    // The lock flow clears the cache; whatever is read afterwards must come from the new profile's GET.
+    vi.mocked(api.apiGet).mockImplementation(() => new Promise(() => {}));
+    act(() => {
+      queryClient.clear();
+    });
+    await act(async () => {
+      if (reject) server.patchGate!.reject(new Error('503'));
+      else server.patchGate!.resolve();
+    });
+    await waitFor(() => expect(api.apiPatch).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    expect(queryClient.getQueryData(KEY)).toBeUndefined();
   });
 });
 
@@ -188,6 +269,8 @@ describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
     await user.click(toggle);
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
 
+    // The read-back after a failure is held open, so only the rollback itself can restore the old value.
+    vi.mocked(api.apiGet).mockImplementation(() => new Promise(() => {}));
     await act(async () => {
       server.patchGate!.reject(new Error('503'));
     });
@@ -196,7 +279,35 @@ describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
     expect(screen.queryAllByText(CHANGE_TOAST)).toHaveLength(1);
     expect(queryClient.getQueryData(KEY)).toEqual({ strict_safety_mode: false });
     expect(queryClient.getQueryState(['interpretations', 'obs-1'])?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryData(['interpretations', 'obs-1'])).toEqual({ seeded: true });
     expect(server.value).toBe(false);
+
+    // The switch is not stuck after a failure: the next click is a new request with the new value.
+    vi.mocked(api.apiGet).mockImplementation(async () => ({ strict_safety_mode: server.value }));
+    server.patchGate = null;
+    await user.click(toggle);
+    await waitFor(() => expect(api.apiPatch).toHaveBeenCalledTimes(2));
+    expect(api.apiPatch).toHaveBeenLastCalledWith(PATH, { strict_safety_mode: true });
+    await waitFor(() => expect(server.value).toBe(true));
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+  });
+
+  it('follows the server when the PATCH committed and then failed (audit commit error)', async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(false);
+    server.failAfterCommit = true;
+    renderToggle();
+
+    const toggle = await knownSwitch();
+    expect(api.apiGet).toHaveBeenCalledTimes(1);
+    await user.click(toggle);
+
+    expect(await screen.findByText(CHANGE_TOAST)).toBeInTheDocument();
+    // The server kept the new value, so the switch reads it back instead of showing the old snapshot.
+    expect(server.value).toBe(true);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    expect(api.apiGet).toHaveBeenCalledTimes(2);
+    expect(toggle).toBeEnabled();
   });
 
   it('restores an ON switch to ON when the PATCH to turn it off fails', async () => {
@@ -300,13 +411,26 @@ describe('HC-SMT-006 the unknown state is disabled and sends nothing', () => {
     await user.click(toggle);
     expect(api.apiPatch).not.toHaveBeenCalled();
 
-    // A repeat failed refetch must not stack a second toast.
-    await act(async () => {
-      await queryClient.refetchQueries({ queryKey: KEY });
+    // A repeat failed refetch must not stack a second toast. The refetch is held open so the
+    // pending state is committed (aria-busy returns) before it fails again, as a real window-focus
+    // refetch does: with no data the query goes back to pending, then to error.
+    const retry = deferred<never>();
+    vi.mocked(api.apiGet).mockImplementation(() => retry.promise);
+    act(() => {
+      void queryClient.refetchQueries({ queryKey: KEY });
     });
+    await waitFor(() => expect(getSwitch()).toHaveAttribute('aria-busy', 'true'));
+    await act(async () => {
+      retry.reject(new Error('503'));
+    });
+    await waitFor(() => expect(getSwitch()).not.toHaveAttribute('aria-busy', 'true'));
     expect(await queryStatus(queryClient)).toBe('error');
     expect(screen.queryAllByText(LOAD_TOAST)).toHaveLength(1);
     expect(getSwitch()).toBeDisabled();
+    vi.mocked(api.apiGet).mockImplementation(async () => {
+      if (fail) throw new Error('503');
+      return { strict_safety_mode: true };
+    });
 
     fail = false;
     await act(async () => {
@@ -314,6 +438,37 @@ describe('HC-SMT-006 the unknown state is disabled and sends nothing', () => {
     });
     await waitFor(() => expect(getSwitch()).toBeEnabled());
     expect(getSwitch()).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('a failed background refetch after a good load keeps the last value usable and toasts once', async () => {
+    const user = userEvent.setup();
+    let fail = false;
+    vi.mocked(api.apiGet).mockImplementation(async () => {
+      if (fail) throw new Error('503');
+      return { strict_safety_mode: true };
+    });
+    vi.mocked(api.apiPatch).mockResolvedValue({ strict_safety_mode: false });
+    const queryClient = renderToggle();
+
+    const toggle = await knownSwitch();
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByText(LOAD_TOAST)).toBeNull();
+
+    fail = true;
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: KEY });
+    });
+    expect(await screen.findByText(LOAD_TOAST)).toBeInTheDocument();
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: KEY });
+    });
+    expect(screen.queryAllByText(LOAD_TOAST)).toHaveLength(1);
+    // The last good value stays on screen and the switch still works: a stale value is not "unknown".
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await user.click(toggle);
+    await waitFor(() => expect(api.apiPatch).toHaveBeenCalledTimes(1));
+    expect(api.apiPatch).toHaveBeenLastCalledWith(PATH, { strict_safety_mode: false });
   });
 
   it.each([
