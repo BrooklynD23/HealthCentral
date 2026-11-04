@@ -944,7 +944,7 @@ describe('HC-UIRES-006 PNG and SVG export come from the ribbon', () => {
   // HC-UIRES-028 (L0 ruling 6615916306, point 1): the drawing shows no text, so a patient cannot see the live svg's
   // aria-label (the analyte name) and aria-valuetext (the active value and its date) before sharing the file. The
   // clone drops both; the live svg keeps them. D3 exempts only CSV and JSON, so this makes no new exception.
-  function expectNoHiddenValue(markup: string, live: SVGElement) {
+  function expectNoHiddenValue(markup: string, live: Element) {
     const text = live.getAttribute('aria-valuetext') ?? '';
     const [datePart, rest = ''] = text.split(': ');
     const valuePart = rest.split(', ')[0];
@@ -1483,10 +1483,21 @@ describe('HC-UIRES-019 a panel interpretation stays with the tab it was made for
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CBC/ }));
     fireEvent.click(await interpretButton('CBC'));
     expect(await screen.findByText('Generating panel interpretation...')).toBeInTheDocument();
+    // The button's icon follows the tab the request belongs to (L0 ruling 6615916306): CBC holds the spinner.
+    const spinnerIn = (button: HTMLElement) => button.querySelector('svg[class*="animate-spin"]');
+    const cbcButton = screen.getByRole('button', { name: 'Interpret CBC Panel' });
+    expect(cbcButton).toBeDisabled();
+    expect(spinnerIn(cbcButton), 'under CBC the request is in flight').not.toBeNull();
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: /^CMP/ }));
     await waitFor(() => expect(screen.getByRole('tab', { name: /^CMP/ })).toHaveAttribute('aria-selected', 'true'));
     expect(screen.queryByText('Generating panel interpretation...'), 'the CBC request is not a CMP spinner').toBeNull();
+    // CMP's own list has loaded, so the button is off for the request in flight, not for a missing date. A second
+    // mutate would drop the first call's onSuccess, so it stays disabled; it just does not spin.
+    await waitFor(() => expect(listNames().length).toBeGreaterThan(0));
+    const cmpButton = await screen.findByRole('button', { name: 'Interpret CMP Panel' });
+    expect(cmpButton).toBeDisabled();
+    expect(spinnerIn(cmpButton), 'the CBC request is not a CMP button spinner').toBeNull();
 
     await act(async () => {
       finish({
