@@ -35,11 +35,19 @@ const RECORD_META: Record<
   observation: { label: 'Observation', icon: FlaskConical, link: '/trends', linkLabel: 'View trends' },
 };
 
+/**
+ * One result is one link. The record link is stretched over the whole card (after:inset-0), so the card is the target;
+ * the link text and the target are unchanged. Card variant="interactive" is not used: its hover lifts the card, and a
+ * T0 value never sits inside an ancestor that moves (plan section 2.1).
+ */
 function ResultCard({ result }: { result: SearchResult }) {
   const meta = RECORD_META[result.type];
   const Icon = meta.icon;
   return (
-    <Card>
+    <Card
+      data-search-result
+      className="relative transition-colors duration-[var(--dur-hover)] ease-[var(--ease-out)] hover:bg-surface-muted has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-accent"
+    >
       <CardContent className="py-4">
         <div className="flex items-start gap-4">
           <div className="mt-0.5 rounded-xl bg-surface-muted p-2.5">
@@ -49,15 +57,28 @@ function ResultCard({ result }: { result: SearchResult }) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="accent">{meta.label}</Badge>
               {result.verified_status === 'unverified' && (
-                <Badge variant="caution">Needs verification</Badge>
+                <Badge variant="caution" data-t0 data-search-verification>
+                  Needs verification
+                </Badge>
               )}
               {result.category && <Badge>{result.category.replace('_', ' ')}</Badge>}
             </div>
-            <h2 className="mt-1.5 text-sm font-medium text-ink">{result.title}</h2>
-            <p className="mt-1 text-sm text-ink-secondary">{result.snippet}</p>
+            <h2 data-t0 data-search-title className="mt-1.5 text-sm font-medium text-ink [overflow-wrap:anywhere]">
+              {result.title}
+            </h2>
+            <p data-t0 data-search-snippet className="mt-1 text-sm text-ink-secondary [overflow-wrap:anywhere]">
+              {result.snippet}
+            </p>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-              {result.date && <span className="text-ink-tertiary">{result.date}</span>}
-              <Link to={meta.link} className="font-medium text-accent hover:underline">
+              {result.date && (
+                <span data-t0 data-search-date className="text-ink-tertiary">
+                  {result.date}
+                </span>
+              )}
+              <Link
+                to={meta.link}
+                className="font-medium text-accent hover:underline after:absolute after:inset-0 after:rounded-2xl focus-visible:outline-hidden"
+              >
                 {meta.linkLabel}
               </Link>
             </div>
@@ -72,6 +93,13 @@ export function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeQuery = searchParams.get('q') ?? '';
   const [queryInput, setQueryInput] = useState(activeQuery);
+  // The URL can change while this page stays mounted (the palette sends /search?q=... from /search, and the layout
+  // keys on the pathname only). The box follows it; set during render, so there is no frame with the old text.
+  const [syncedQuery, setSyncedQuery] = useState(activeQuery);
+  if (syncedQuery !== activeQuery) {
+    setSyncedQuery(activeQuery);
+    setQueryInput(activeQuery);
+  }
   const [provider, setProvider] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -96,7 +124,7 @@ export function SearchPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-8">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">Search records</h1>
         <p className="mt-1 text-sm text-ink-secondary">
@@ -161,6 +189,12 @@ export function SearchPage() {
           </div>
         </CardContent>
       </Card>
+
+      {activeQuery && (
+        <p data-search-query className="text-sm text-ink-secondary [overflow-wrap:anywhere]">
+          Searched for “{activeQuery}”
+        </p>
+      )}
 
       {isLoading && (
         <div className="flex justify-center py-16" role="status" aria-live="polite">
