@@ -940,6 +940,64 @@ describe('HC-UIRES-006 PNG and SVG export come from the ribbon', () => {
     expect(markup).toContain(`width="${w}"`);
     expect(markup).toContain(`height="${h}"`);
   });
+
+  // HC-UIRES-028 (L0 ruling 6615916306, point 1): the drawing shows no text, so a patient cannot see the live svg's
+  // aria-label (the analyte name) and aria-valuetext (the active value and its date) before sharing the file. The
+  // clone drops both; the live svg keeps them. D3 exempts only CSV and JSON, so this makes no new exception.
+  function expectNoHiddenValue(markup: string, live: SVGElement) {
+    const text = live.getAttribute('aria-valuetext') ?? '';
+    const [datePart, rest = ''] = text.split(': ');
+    const valuePart = rest.split(', ')[0];
+    expect(datePart, 'the live svg names a date').not.toBe('');
+    expect(valuePart, 'the live svg names a value').toMatch(/14\.2/);
+    expect(markup).not.toContain('aria-label');
+    expect(markup).not.toContain('aria-valuetext');
+    expect(markup.toLowerCase()).not.toContain('hemoglobin');
+    expect(markup).not.toContain(valuePart);
+    expect(markup).not.toContain(datePart);
+    expect(markup).not.toContain(text);
+  }
+
+  it('HC-UIRES-028: serializeRangeRibbonSvg drops aria-label and aria-valuetext from the clone only, and still parses as a slider', async () => {
+    const { RangeRibbon, serializeRangeRibbonSvg } = await loadRibbon();
+    const { container } = render(<RangeRibbon trend={trendFor('hemoglobin', 'HEMOGLOBIN')} />);
+    const live = container.querySelector('svg') as SVGSVGElement;
+    expect(live.getAttribute('aria-label')).toContain('HEMOGLOBIN');
+    const before = live.getAttribute('aria-valuetext');
+    const markup = serializeRangeRibbonSvg(live);
+    expectNoHiddenValue(markup, live);
+    expect(live.getAttribute('aria-label')).toContain('HEMOGLOBIN');
+    expect(live.getAttribute('aria-valuetext')).toBe(before);
+    const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml');
+    expect(parsed.getElementsByTagName('parsererror')).toHaveLength(0);
+    expect(parsed.documentElement.getAttribute('role')).toBe('slider');
+    expect(parsed.documentElement.hasAttribute('aria-label')).toBe(false);
+    expect(parsed.documentElement.hasAttribute('aria-valuetext')).toBe(false);
+  });
+
+  it('HC-UIRES-028: the page\'s Download chart as SVG button exports no aria-label or aria-valuetext, keeps the analyte in the filename, and leaves the live svg whole', async () => {
+    await renderPage();
+    await pageLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Download chart as SVG' }));
+    await waitFor(() => expect(anchors).toHaveLength(1));
+    expect(anchors[0].download).toBe('hemoglobin-trend.svg');
+    const markup = await readBlob(blobs[0]);
+    expectNoHiddenValue(markup, sliderOf());
+    expect(sliderOf().getAttribute('aria-label')).toContain('HEMOGLOBIN');
+    expect(sliderOf().getAttribute('aria-valuetext')).toMatch(/14\.2/);
+    expect(markup).toContain('role="slider"');
+    const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml');
+    expect(parsed.getElementsByTagName('parsererror')).toHaveLength(0);
+  });
+
+  it('HC-UIRES-028: the PNG path draws from the same serializer, so its markup has neither attribute either', async () => {
+    await renderPage();
+    await pageLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Download chart as PNG' }));
+    await waitFor(() => expect(anchors).toHaveLength(1));
+    expect(anchors[0].download).toBe('hemoglobin-trend.png');
+    expectNoHiddenValue(await readBlob(blobs[0]), sliderOf());
+  });
 });
 
 // ---------------------------------------------------------------------------
