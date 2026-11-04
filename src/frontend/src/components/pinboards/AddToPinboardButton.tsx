@@ -43,7 +43,15 @@ export function AddToPinboardButton({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="z-100 min-w-48 rounded-xl border border-border bg-surface-elevated p-1 text-ink shadow-lg"
+          className={[
+            'z-100 min-w-48 rounded-xl border border-border bg-surface-elevated p-1 text-ink shadow-lg',
+            // M3 (plan section 2.6): opacity and scale .96 to 1 from the Radix transform origin, 180 ms, on enter.
+            // `starting:` is the first frame of a node that was just inserted. The menu holds board names, no T0.
+            // Reduced motion keeps the opacity and drops the scale. Never transition-all.
+            'origin-[var(--radix-dropdown-menu-content-transform-origin)]',
+            'transition-[opacity,scale] duration-[var(--dur-sm)] ease-[var(--ease-out)]',
+            'starting:opacity-0 starting:scale-96 motion-reduce:starting:scale-100',
+          ].join(' ')}
           sideOffset={8}
           align="end"
         >
