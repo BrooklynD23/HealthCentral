@@ -529,7 +529,7 @@ export function ResultsPage() {
                 disabled={generatePanelInterp.isPending || !panelDate}
                 className="gap-2"
               >
-                {generatePanelInterp.isPending ? (
+                {panelPending ? (
                   <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
                 ) : (
                   <Sparkles className="h-4 w-4" />
