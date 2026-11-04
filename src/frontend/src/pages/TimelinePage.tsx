@@ -7,7 +7,7 @@
  * relevant existing page. Undated items are listed separately.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Badge, Card, CardContent, EmptyState, Input } from '@/components/ui';
+import { useObservations } from '@/services/observations';
+import type { Observation } from '@/services/types';
 import { useTimeline } from '@/services/timeline';
 import type {
   TimelineEvent,
@@ -30,6 +32,7 @@ import type {
   TimelineVerificationStatus,
 } from '@/services/timeline';
 import { AddToPinboardButton } from '@/components/pinboards/AddToPinboardButton';
+import { useAuthStore } from '@/stores/authStore';
 
 const EVENT_TYPE_OPTIONS: { value: TimelineEventType | ''; label: string }[] = [
   { value: '', label: 'All events' },
@@ -70,7 +73,26 @@ const DATE_SOURCE_LABELS: Record<string, string> = {
   recorded_date: 'recorded date',
 };
 
-function EventCard({ event }: { event: TimelineEvent }) {
+/** The name a patient sees for an observation: the same rule as SourceTrace (raw, then canonical). */
+function analyteName(observation: Observation): string {
+  return observation.analyte_raw || observation.analyte_canonical;
+}
+
+/**
+ * The analyte names of a lab card: its related ids are observation ids. Each name once, in order. An id that matches
+ * no observation adds nothing, and is never guessed. Only lab cards name analytes.
+ */
+function analyteNamesFor(event: TimelineEvent, nameById: Map<string, string>): string[] {
+  if (event.event_type !== 'lab_results') return [];
+  const names: string[] = [];
+  for (const id of event.related_ids) {
+    const name = nameById.get(id);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+function EventCard({ event, analytes }: { event: TimelineEvent; analytes: string[] }) {
   const meta = EVENT_META[event.event_type];
   const verification = VERIFICATION_META[event.verification_status];
   const Icon = meta.icon;
@@ -93,14 +115,25 @@ function EventCard({ event }: { event: TimelineEvent }) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="accent">{meta.label}</Badge>
               {verification && (
-                <Badge variant={verification.variant}>{verification.label}</Badge>
+                <Badge variant={verification.variant} data-t0 data-timeline-verification>
+                  {verification.label}
+                </Badge>
               )}
               {pinnableItems.length > 0 && (
                 <AddToPinboardButton items={pinnableItems} label={`Add ${event.title} to pinboard`} />
               )}
             </div>
             <p className="mt-1.5 text-sm font-medium text-ink truncate">{event.title}</p>
-            <p className="mt-0.5 text-xs text-ink-tertiary">
+            {analytes.length > 0 && (
+              <p
+                data-t0
+                data-timeline-analytes
+                className="mt-0.5 min-w-0 text-sm text-ink-secondary [overflow-wrap:anywhere]"
+              >
+                {analytes.join(', ')}
+              </p>
+            )}
+            <p data-t0 data-timeline-date className="mt-0.5 text-xs text-ink-tertiary">
               {event.event_date ? (
                 <>
                   {event.event_date}
@@ -134,17 +167,33 @@ export function TimelinePage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const { data, isLoading, isError } = useTimeline({
+  const { data, isLoading: timelineLoading, isError } = useTimeline({
     event_type: eventType,
     date_from: dateFrom,
     date_to: dateTo,
   });
 
+  // Related ids are observation ids, and the timeline carries no names. The observations are asked for unfiltered:
+  // the page's date filters would drop the rows an event in another window points at.
+  const { profileId } = useAuthStore();
+  const { data: observations, isLoading: observationsLoading } = useObservations({
+    profile_id: profileId || '',
+  });
+  const nameById = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const observation of observations ?? []) names.set(observation.id, analyteName(observation));
+    return names;
+  }, [observations]);
+
+  // The names add a line to a card, so the cards wait for both answers: they would move every later card otherwise.
+  // A failed observations query settles too: the cards render with their backend titles and no names.
+  const isLoading = timelineLoading || observationsLoading;
+
   const events = data?.events ?? [];
   const undated = data?.undated ?? [];
 
   return (
-    <div className="max-w-4xl mx-auto p-8 space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
           Timeline
@@ -214,7 +263,7 @@ export function TimelinePage() {
         />
       )}
 
-      {events.length > 0 && (
+      {!isLoading && events.length > 0 && (
         <section aria-label="Dated events" className="space-y-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-ink-secondary">
             <Calendar className="h-4 w-4" aria-hidden="true" />
@@ -223,14 +272,14 @@ export function TimelinePage() {
           <ol className="space-y-3">
             {events.map((event) => (
               <li key={event.event_id}>
-                <EventCard event={event} />
+                <EventCard event={event} analytes={analyteNamesFor(event, nameById)} />
               </li>
             ))}
           </ol>
         </section>
       )}
 
-      {undated.length > 0 && (
+      {!isLoading && undated.length > 0 && (
         <section aria-label="Undated items" className="space-y-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-ink-secondary">
             <CalendarOff className="h-4 w-4" aria-hidden="true" />
@@ -243,7 +292,7 @@ export function TimelinePage() {
           <ol className="space-y-3">
             {undated.map((event) => (
               <li key={event.event_id}>
-                <EventCard event={event} />
+                <EventCard event={event} analytes={analyteNamesFor(event, nameById)} />
               </li>
             ))}
           </ol>
