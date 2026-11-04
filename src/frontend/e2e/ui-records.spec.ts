@@ -1094,7 +1094,8 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
           await page.keyboard.press('Enter');
           await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible();
           control.searchFail = true;
-          await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose');
+          // A query the cache has not seen: a cached answer would show without asking, and fail nothing.
+          await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose panel');
           await page.keyboard.press('Enter');
           await expect(page.locator('[data-search-error]')).toBeVisible({ timeout: 15_000 });
           control.searchFail = false;
