@@ -1,4 +1,4 @@
-import { m } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
   Pill,
   Clock,
@@ -8,14 +8,11 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, Badge, Button } from '@/components/ui';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import type { Medication } from '@/services/types';
 
 interface MedicationCardProps {
   medication: Medication;
   onQuickLog: (medicationId: string) => void;
-  onViewDetail: (medicationId: string) => void;
-  index?: number;
   className?: string;
 }
 
@@ -30,32 +27,26 @@ const frequencyLabels: Record<string, string> = {
   custom: 'Custom',
 };
 
+/**
+ * One medication row. The details are a real link to the detail page (keyboard reachable, Enter opens it).
+ * The Log button sits beside the link, not inside it: a button inside an anchor is invalid markup.
+ * The dose and the schedule time are T0 (plan §2.7): they render with no motion.
+ */
 export function MedicationCard({
   medication,
   onQuickLog,
-  onViewDetail,
-  index = 0,
   className,
 }: MedicationCardProps) {
-  const prefersReducedMotion = useReducedMotion();
-
   const nextSchedule = medication.schedules.find((s) => s.is_active);
 
   return (
-    <m.div
-      initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-    >
-      <Card
-        className={cn(
-          'hover:shadow-elevated transition-shadow duration-200 cursor-pointer',
-          className
-        )}
-        onClick={() => onViewDetail(medication.id)}
-      >
-        <CardContent className="p-4">
-          <div className="flex items-start gap-4">
+    <Card className={className}>
+      <CardContent className="p-4">
+        <div className="flex items-start gap-4">
+          <Link
+            to={`/medications/${medication.id}`}
+            className="flex min-w-0 flex-1 items-start gap-4 rounded-xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          >
             {/* Icon */}
             <div
               className={cn(
@@ -92,7 +83,7 @@ export function MedicationCard({
 
               <div className="flex items-center gap-3 text-xs text-ink-secondary">
                 {medication.dosage_amount && (
-                  <span>
+                  <span data-t0="">
                     {medication.dosage_amount}
                     {medication.dosage_unit ?? ''}{' '}
                     {medication.dosage_form ?? ''}
@@ -104,7 +95,7 @@ export function MedicationCard({
               {nextSchedule && (
                 <div className="flex items-center gap-1.5 mt-2 text-xs text-ink-secondary">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>
+                  <span data-t0="">
                     Next: {nextSchedule.target_time} ({nextSchedule.schedule_label})
                   </span>
                 </div>
@@ -117,25 +108,23 @@ export function MedicationCard({
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onQuickLog(medication.id);
-                }}
-                className="gap-1.5"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                Log
-              </Button>
-              <ChevronRight className="w-4 h-4 text-ink-tertiary" />
-            </div>
+            <ChevronRight className="w-4 h-4 mt-1 shrink-0 text-ink-tertiary" aria-hidden="true" />
+          </Link>
+
+          {/* Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onQuickLog(medication.id)}
+              className="gap-1.5"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              Log
+            </Button>
           </div>
-        </CardContent>
-      </Card>
-    </m.div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

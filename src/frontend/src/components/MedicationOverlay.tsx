@@ -4,6 +4,7 @@
  * UX-001: Frontend-only temporal overlay using existing observation + medication data.
  */
 
+import { Link } from 'react-router-dom';
 import { Pill } from 'lucide-react';
 import { Badge } from '@/components/ui';
 import type { MedicationOverlayPeriod } from '@/services/types';
@@ -28,9 +29,9 @@ export function MedicationOverlay({ medications, className }: MedicationOverlayP
     <div className={className} data-testid="medication-overlay">
       <div className="flex flex-wrap gap-2">
         {medications.map((med) => (
-          <a
+          <Link
             key={med.medicationId}
-            href={`/medications/${med.medicationId}`}
+            to={`/medications/${med.medicationId}`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-subtle text-accent text-sm font-medium hover:bg-accent/10 transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2"
             aria-label={`View ${med.medicationName} details`}
           >
@@ -41,7 +42,7 @@ export function MedicationOverlay({ medications, className }: MedicationOverlayP
                 {med.dosageLabel}
               </Badge>
             )}
-          </a>
+          </Link>
         ))}
       </div>
     </div>

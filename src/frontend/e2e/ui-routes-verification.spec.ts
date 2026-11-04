@@ -58,7 +58,7 @@ test.describe('UI routes verification', () => {
       (r) => r.request().method() === 'POST' && /\/api\/v1\/assistant\/chat\/?(?:\?.*)?$/.test(r.url()),
       { timeout: 120_000 }
     );
-    const sendButton = page.getByRole('button').filter({ has: page.locator('svg') }).last();
+    const sendButton = page.getByRole('button', { name: 'Send question' });
     await sendButton.click();
 
     // CI has no model: the backend answers 200 with an abstain/fallback reply

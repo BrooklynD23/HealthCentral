@@ -2,7 +2,8 @@
  * UI-PROVENANCE e2e (plan section 7.6): HC-UIPV-001 (popover opens on click and
  * Enter, not hover; Escape closes and returns focus), HC-UIPV-002 (a tap opens it
  * in a hasTouch context), HC-UIPV-006 (popover part: stillnessProbe from the
- * opening click), and Gate G on the three routes that show the citation popover
+ * opening click; Source Trace sheet part: the same from "Show source"), HC-UIPV-007 (waitForSettled needs six fresh frames per call),
+ * and Gate G on the three routes that show the citation popover
  * or PageImageOverlay: /interpret, /inbox and /verify.
  *
  * Every /api/v1 request is answered by the spec-local mock below, typed from
@@ -137,6 +138,10 @@ const PAGE_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAZAAAABkCAIAAAAnqfEgAAABDUlEQVR42u3UQREAAAzCMPyrRQI6tksk9NEU4IhIABgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYgGEBGBaAYQGGBWBYgGEBGBaAYQGGBWBYAIYFGBaAYQEYFmBYAIYFYFiAYQEYFoBhAYYFYFgAhgUYFoBhARgWYFgAhgVgWIBhARgWgGEBhgVgWIBhARgWgGEBhgVgWACGBRgWgGEBGBZgWACGBWBYwF8DXxGNujLHPvkAAAAASUVORK5CYII=';
 const PAGE_PNG = Buffer.from(PAGE_PNG_BASE64, 'base64');
 
+/** Page 3's text. The Glucose line is the one line that holds the value 96 as a whole token (SOURCE-TRACE-WIRE). */
+const PAGE_THREE_MATCH_LINE = 'Glucose 96 mg/dL 70-99';
+const PAGE_THREE_TEXT = `Comprehensive Metabolic Panel\n${PAGE_THREE_MATCH_LINE}\nSodium 140 mmol/L 136-145`;
+
 /** Answers every /api/v1 request from the fixtures above; records the rest. */
 async function mockApi(page: Page): Promise<string[]> {
   const unmocked: string[] = [];
@@ -160,11 +165,13 @@ async function mockApi(page: Page): Promise<string[]> {
       if (path === '/documents') return json([documentFixture]);
       if (path === '/documents/highlights/summary') return json([]);
       if (path === '/pinboards') return json([]);
+      // SOURCE-TRACE-WIRE: "Show source" on /interpret reads the document's file name.
+      if (path === `/documents/${DOCUMENT_ID}`) return json(documentFixture);
       if (path === `/documents/${DOCUMENT_ID}/entities`) return json([]);
       if (path === `/documents/${DOCUMENT_ID}/pages`) {
         return json([
           { page_number: 1, text: '', has_tables: false },
-          { page_number: 3, text: '', has_tables: false },
+          { page_number: 3, text: PAGE_THREE_TEXT, has_tables: false },
         ]);
       }
       if (/^\/documents\/[^/]+\/pages\/\d+\/image$/.test(path)) {
@@ -206,19 +213,26 @@ async function seedSession(page: Page): Promise<void> {
 /**
  * Waits until the element's effective opacity is 1 and its box has not moved for
  * six frames. Playwright's visibility check accepts opacity 0, so a route that is
- * still fading in would otherwise look ready.
+ * still fading in would otherwise look ready. Every call counts its own frames: the
+ * count is cleared when the call starts and whenever the element is absent.
  */
 async function waitForSettled(page: Page, selector: string): Promise<void> {
+  await page.evaluate(() => {
+    (window as unknown as { __hcSettle?: unknown }).__hcSettle = undefined;
+  });
   await page.waitForFunction(
     (sel) => {
+      const w = window as unknown as { __hcSettle?: { x: number; y: number; frames: number } };
       const el = document.querySelector(sel);
-      if (!el) return false;
+      if (!el) {
+        w.__hcSettle = undefined;
+        return false;
+      }
       let opacity = 1;
       for (let node: Element | null = el; node; node = node.parentElement) {
         opacity *= Number(getComputedStyle(node).opacity);
       }
       const rect = el.getBoundingClientRect();
-      const w = window as unknown as { __hcSettle?: { x: number; y: number; frames: number } };
       const prev = w.__hcSettle;
       const stable = prev !== undefined && Math.abs(prev.x - rect.x) < 0.01 && Math.abs(prev.y - rect.y) < 0.01;
       const frames = stable ? prev.frames + 1 : 0;
@@ -438,7 +452,18 @@ const GATE_ROUTES: GateRoute[] = [
     interact: async (page) => {
       // Another page: PageImageOverlay refetches for page 1, its highlight unmounts and remounts,
       // and a fresh TraceMark mounts after reduced motion is emulated. Re-selecting the same row would not.
+      const preClickSrc = await page.locator(SOURCE_IMAGE).getAttribute('src');
       await page.getByText('Hemoglobin A1c', { exact: true }).first().click();
+      // For a frame after the click the old page-3 image already carries the "Page 1" alt, so PAGE_ONE_IMAGE
+      // matches it. Wait for a blob: src that is not the pre-click one, loaded, before settling it.
+      await page.waitForFunction(
+        ({ before, sel }) => {
+          const img = document.querySelector(sel) as HTMLImageElement | null;
+          return img !== null && img.src.startsWith('blob:') && img.src !== before && img.complete && img.naturalWidth > 0;
+        },
+        { before: preClickSrc, sel: PAGE_ONE_IMAGE },
+        { polling: 'raf', timeout: 10_000 }
+      );
       // toBeVisible accepts opacity 0, and the image is opacity 0 until onLoad. The highlight and its TraceMark
       // mount only after onLoad (PageImageOverlay.tsx), so wait for the settled page-1 image, then for its mark.
       await waitForSettled(page, PAGE_ONE_IMAGE);
@@ -527,11 +552,289 @@ test('HC-UIPV-006 the citation popover is still from its opening click (stillnes
   await waitForSettled(page, CHIP);
 
   const report = await stillnessProbe(page, {
+    kind: 'overlay',
     trigger: () => chip.click(),
     expected: [`${CHIP} [data-t0]`, `${POPOVER} [data-t0]`],
   });
   expect(report.postTriggerSamples).toBeGreaterThan(0);
   await expect(page.locator(POPOVER)).toBeVisible();
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIPV-006 (Source Trace sheet part, SOURCE-TRACE-WIRE): stillnessProbe from the
+// "Show source" click on /interpret. The sheet's rows and the excerpt lines (which mount
+// once the document and its pages have been fetched) must be still from the opening click.
+// ---------------------------------------------------------------------------
+/** "Show source" has no aria-label, so it is picked out as the dialog trigger that is not a citation chip. */
+const SHOW_SOURCE_TRIGGER = 'button[aria-haspopup="dialog"]:not([aria-label^="Citation"])';
+const SOURCE_SHEET = '[role="dialog"]';
+test('HC-UIPV-006 the Source Trace sheet is still from its opening click (stillnessProbe)', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  await seedSession(page);
+  await page.goto('/interpret');
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  // Scroll the trigger into view before the probe starts, as the popover test does: the
+  // click would otherwise scroll the page and the probe would measure that scroll.
+  await showSource.scrollIntoViewIfNeeded();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  const report = await stillnessProbe(page, {
+    kind: 'overlay',
+    trigger: () => showSource.click(),
+    expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-012 (SOURCE-TRACE-WIRE, review round 2): the same probe with a 51-character file name, at
+// the default 1280 px (the side sheet; below 1024 px the sheet is held at its full height and
+// HC-STW-013 covers that size, so this case covers the side sheet). The name arrives with the lazy document GET; if it wrapped, every row below it (Location,
+// Result, ...) would move down at that moment. The stored name is the uploaded file's name
+// (api/documents.py:450), so a long one is real. Only the document route is answered here; mockApi
+// is not edited. The excerpt lines are probed too, so it also goes red if the JetBrains Mono swap
+// moves them (rect [878,317.3,172.2,15] -> [878,316.3,171.6,17] without the early font load).
+// ---------------------------------------------------------------------------
+const LONG_SOURCE_NAME = 'quarterly-metabolic-panel-lab-report-final-2026.pdf';
+test('HC-STW-012 the Source Trace sheet stays still when the file name is long', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  await page.route(new RegExp(`/api/v1/documents/${DOCUMENT_ID}$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...documentFixture, source: LONG_SOURCE_NAME }),
+    })
+  );
+  await seedSession(page);
+  await page.goto('/interpret');
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible({ timeout: 20_000 });
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+  await showSource.scrollIntoViewIfNeeded();
+  await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+  const report = await stillnessProbe(page, {
+    kind: 'overlay',
+    trigger: () => showSource.click(),
+    expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+  });
+  expect(report.postTriggerSamples).toBeGreaterThan(0);
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet.getByText(LONG_SOURCE_NAME)).toBeVisible();
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-013 (SOURCE-TRACE-WIRE, review round 3): the same probe below 1024 px, where the sheet is
+// anchored to the bottom. The excerpt mounts when the lazy pages GET resolves; a bottom sheet that
+// grows with its content then moves every row above it up (measured at 390x844: the Result value
+// [136.5,515.2] -> [136.5,439.8] within 87 ms). The Sheet's own class keeps it at its full height
+// (min-h-[85dvh], which is the sheet's max-h) so nothing moves. 390x640 checks that a short phone is no different.
+// ---------------------------------------------------------------------------
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 390, height: 640 },
+]) {
+  test(`HC-STW-013 the Source Trace sheet stays still from its opening click at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const unmocked = await mockApi(page);
+    await seedSession(page);
+    await page.goto('/interpret');
+    const showSource = page.getByRole('button', { name: 'Show source' });
+    await expect(showSource).toBeVisible({ timeout: 20_000 });
+    await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+    await showSource.scrollIntoViewIfNeeded();
+    await waitForSettled(page, SHOW_SOURCE_TRIGGER);
+
+    const report = await stillnessProbe(page, {
+      kind: 'overlay',
+      trigger: () => showSource.click(),
+      expected: [`${SOURCE_SHEET} dd[data-t0]`, `${SOURCE_SHEET} ol [data-t0]`],
+    });
+    expect(report.postTriggerSamples).toBeGreaterThan(0);
+    const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+    expect(unmocked, 'every API request was mocked').toEqual([]);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// HC-UIPV-007: waitForSettled counts six fresh frames on every call. Its state used to live on
+// window across calls, so a second call on a replaced element returned on its first frame, and
+// frames counted before the element vanished survived its absence.
+// ---------------------------------------------------------------------------
+type FrameWindow = {
+  __rafCount: number;
+  __rafRun: number;
+  __rafAtReadd?: number;
+};
+
+/**
+ * Starts an in-page requestAnimationFrame counter. Each run owns a token, so a stopped loop can never
+ * revive and the count rises by exactly one per real frame. With `vanish`, the `.target` element is
+ * removed once waitForSettled has counted `removeAtSettleFrames` stable frames, and put back
+ * `readdAfterFrames` real frames later.
+ */
+async function startFrameCounter(
+  page: Page,
+  vanish?: { removeAtSettleFrames: number; readdAfterFrames: number }
+): Promise<void> {
+  await page.evaluate((plan) => {
+    const w = window as unknown as FrameWindow & { __hcSettle?: { frames: number } };
+    w.__rafCount = 0;
+    w.__rafAtReadd = undefined;
+    const run = (w.__rafRun = (w.__rafRun ?? 0) + 1);
+    let removed: Element | null = null;
+    let removedAt = 0;
+    // A stale count from an earlier call must not trigger the removal: only a count seen below the
+    // threshold means the wait under test has started counting.
+    let waitStarted = false;
+    const tick = () => {
+      if (run !== w.__rafRun) return;
+      w.__rafCount += 1;
+      const settleFrames = w.__hcSettle?.frames ?? 0;
+      if (settleFrames < (plan?.removeAtSettleFrames ?? 0)) waitStarted = true;
+      if (plan && waitStarted && !removed && w.__rafAtReadd === undefined && settleFrames >= plan.removeAtSettleFrames) {
+        removed = document.querySelector('.target');
+        removed?.remove();
+        removedAt = w.__rafCount;
+      }
+      if (plan && removed && w.__rafAtReadd === undefined && w.__rafCount - removedAt >= plan.readdAfterFrames) {
+        document.body.append(removed);
+        w.__rafAtReadd = w.__rafCount;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }, vanish);
+}
+
+async function stopFrameCounter(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const w = window as unknown as FrameWindow;
+    w.__rafRun += 1;
+    return w.__rafCount;
+  });
+}
+
+const SETTLE_BOX = '<div class="target" style="position:absolute;left:10px;top:10px;width:100px;height:40px">box</div>';
+
+test('HC-UIPV-007 waitForSettled needs six fresh frames on every call', async ({ page }) => {
+  await page.setContent(`<!doctype html><body style="margin:0">${SETTLE_BOX}</body>`);
+  await waitForSettled(page, '.target');
+
+  // Case 1: element A is settled; B replaces it at the same rect. The second call must still wait
+  // for six frames of its own, not inherit A's count.
+  await page.evaluate(() => {
+    const a = document.querySelector('.target')!;
+    const b = a.cloneNode(true) as HTMLElement;
+    b.id = 'b';
+    a.replaceWith(b);
+  });
+  await startFrameCounter(page);
+  await waitForSettled(page, '.target');
+  const framesAfterReplace = await stopFrameCounter(page);
+  expect.soft(framesAfterReplace, 'frames elapsed in a second waitForSettled on a replaced element').toBeGreaterThanOrEqual(6);
+  console.log(`HC-UIPV-007 case1 frames=${framesAfterReplace}`);
+
+  // Case 2: the element is removed for a few frames mid-wait and re-added at the same rect. The frames
+  // counted before it vanished must not count; six consecutive frames on the present element are needed.
+  await startFrameCounter(page, { removeAtSettleFrames: 3, readdAfterFrames: 3 });
+  await waitForSettled(page, '.target');
+  const result = await page.evaluate(() => {
+    const w = window as unknown as FrameWindow;
+    w.__rafRun += 1;
+    return { total: w.__rafCount, atReadd: w.__rafAtReadd };
+  });
+  expect(result.atReadd, 'waitForSettled returned before the element was re-added').toBeDefined();
+  const framesAfterReadd = result.total - (result.atReadd ?? result.total);
+  console.log(`HC-UIPV-007 case2 framesAfterReadd=${framesAfterReadd}`);
+  expect(framesAfterReadd, 'frames elapsed after the element came back').toBeGreaterThanOrEqual(6);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-005 (SOURCE-TRACE-WIRE): "Show source" on /interpret opens the Source Trace
+// sheet with the file, the page and the matching line from the report.
+// ---------------------------------------------------------------------------
+test('HC-STW-005 Show source on /interpret opens the Source Trace sheet with the file, the page and the matching line', async ({
+  page,
+}) => {
+  const unmocked = await mockApi(page);
+  await seedSession(page);
+  await page.goto('/interpret');
+
+  const showSource = page.getByRole('button', { name: 'Show source' });
+  await expect(showSource).toBeVisible();
+  await showSource.click();
+
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet).toContainText('provenance-report.pdf');
+  await expect(sheet).toContainText('Page 3');
+  const matchRow = sheet.locator('li', { hasText: 'Matching line:' });
+  await expect(matchRow).toHaveCount(1);
+  await expect(matchRow).toContainText(PAGE_THREE_MATCH_LINE);
+  await expect(sheet).toContainText('This is what your report states.');
+  expect(unmocked, 'every API request was mocked').toEqual([]);
+});
+
+// ---------------------------------------------------------------------------
+// HC-STW-009 (SOURCE-TRACE-WIRE, review round 1 finding 2): on /interpret, with the matching line
+// on screen, "It matches, mark as checked" sends exactly one POST to the observation's verify
+// route, no interpretation route is written, and the card's interpreted text stays the same.
+// Functional, not timing.
+// ---------------------------------------------------------------------------
+test('HC-STW-009 verify on /interpret sends one verify POST and leaves the interpreted text alone', async ({ page }) => {
+  const unmocked = await mockApi(page);
+  // Registered after mockApi, so it answers the verify POST first; mockApi is not edited.
+  await page.route(new RegExp(`/api/v1/observations/${OBSERVATION_ID}/verify$`), (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...observation, user_verified: true }),
+    })
+  );
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() !== 'GET' && request.url().includes('/api/v1/')) {
+      writes.push(`${request.method()} ${new URL(request.url()).pathname.replace(/^.*\/api\/v1/, '')}`);
+    }
+  });
+  await seedSession(page);
+  await page.goto('/interpret');
+
+  const cardText = page.getByText(interpretation.interpretation_text).first();
+  // Generous: run alone, this is the first page the dev server compiles.
+  await expect(cardText).toBeVisible({ timeout: 20_000 });
+  const textBefore = await cardText.textContent();
+  expect(textBefore).toContain(interpretation.interpretation_text);
+
+  await page.getByRole('button', { name: 'Show source' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Source for Glucose' });
+  await expect(sheet.locator('li', { hasText: 'Matching line:' })).toContainText(PAGE_THREE_MATCH_LINE);
+  // Opening the sheet wrote nothing.
+  expect(writes).toEqual([]);
+
+  const markChecked = sheet.getByRole('button', { name: 'It matches, mark as checked' });
+  await expect(markChecked).toBeEnabled();
+  await markChecked.click();
+  await expect(sheet).toContainText('You have marked this value as checked.');
+
+  expect(writes).toEqual([`POST /observations/${OBSERVATION_ID}/verify`]);
+  expect(writes.filter((write) => write.includes('/interpretations'))).toEqual([]);
+  expect(await cardText.textContent()).toBe(textBefore);
+  expect(unmocked, 'every API request was mocked').toEqual([]);
 });
 
 // ---------------------------------------------------------------------------

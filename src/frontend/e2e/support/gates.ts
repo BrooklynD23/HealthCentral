@@ -26,8 +26,10 @@ export const STILLNESS_WINDOW_MS = 800;
 export const STILLNESS_SAMPLE_MS = 20;
 /** G10: no gap between samples may exceed this (the plan's upper sampling bound). */
 export const STILLNESS_MAX_GAP_MS = 40;
-/** G10 page changes (kind 'navigation'): owner STILLNESS-NAV-70, 2026-10-28. Every other stillness check keeps 40 ms. */
+/** G10 page changes (kind 'navigation'): owner STILLNESS-NAV-70, 2026-10-28. Interactions keep 40 ms; overlay opens have their own bound below. */
 export const STILLNESS_NAV_MAX_GAP_MS = 70;
+/** G10 overlay opens (kind 'overlay', a trigger that opens a Popover or a Modal): owner STILLNESS-OVERLAY-OPEN, 2026-11-01. */
+export const STILLNESS_OVERLAY_MAX_GAP_MS = 70;
 /** G10 lazy route: network idle is this long with nothing in flight (Playwright's networkidle quiet period). */
 export const NETWORK_IDLE_MS = 500;
 /** G10 lazy route: give up waiting for network idle after this long. */
@@ -411,10 +413,11 @@ export interface StillnessOptions {
   /**
    * A navigation enables the route-fade rules. During the fade window a [data-t0] node inside the route
    * container must match the container's opacity, and a node outside it (the Safety Rail) must stay at 1,
-   * because only the container fades (plan §2 T0 row, HC-UISH-009). An interaction, including an overlay,
-   * has no fade window. Default `interaction`.
+   * because only the container fades (plan §2 T0 row, HC-UISH-009). An interaction has no fade window. An
+   * overlay open (a trigger that opens a Popover or a Modal) follows the interaction rules (no fade window,
+   * effective opacity 1) with a 70 ms gap bound (owner STILLNESS-OVERLAY-OPEN). Default `interaction`.
    */
-  kind?: 'interaction' | 'navigation';
+  kind?: 'interaction' | 'navigation' | 'overlay';
   /**
    * A route that fetches its data after the trigger: the window starts only when no request is in flight and none
    * has started or finished for NETWORK_IDLE_MS (counted from the trigger), then runs windowMs more.
@@ -429,7 +432,7 @@ export interface StillnessReport {
   samples: number;
   /** Samples at or after the trigger; the probe needs at least windowMs / 40 of them. */
   postTriggerSamples: number;
-  /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40, or 70 for a navigation). */
+  /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40, or 70 for a navigation or an overlay open). */
   maxGapMs: number;
   /** Trigger to the end of the window, in ms (longer on a lazy route). */
   elapsedMs: number;
@@ -443,6 +446,14 @@ export class StillnessError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'StillnessError';
+  }
+}
+
+/** The start page of a navigation probe never settled (see settleStartPage). Its own name, so it is never read as a gap failure. */
+export class StillnessSettleError extends StillnessError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StillnessSettleError';
   }
 }
 
@@ -599,7 +610,7 @@ function stopSampler(): SamplerDump | null {
  * Pure analysis of the samples. Returns one message per failure; each names
  * the property that moved so a caller can match on it.
  */
-function analyse(snaps: Snap[], kind: 'interaction' | 'navigation', expected: string[]): string[] {
+function analyse(snaps: Snap[], kind: 'interaction' | 'navigation' | 'overlay', expected: string[]): string[] {
   const failures: string[] = [];
   const seen = new Set<string>();
   const fail = (key: string, message: string) => {
@@ -733,7 +744,9 @@ export interface SamplingCheck {
 /**
  * G10 sampling, checked on the sample times: at least windowMs / 40 samples at
  * or after the trigger, and no gap over maxGapMs (40 ms by default, 70 ms for a
- * navigation). The minimum always uses 40 ms. Pure, so the harness tests it on
+ * navigation or an overlay open). The minimum always uses 40 ms. `overlayOpen`
+ * only picks the failure text: an overlay miss names STILLNESS-OVERLAY-OPEN
+ * and not the page-change owner. Pure, so the harness tests it on
  * synthetic times. A probe whose sampler stalls or throws fails here instead of
  * passing on the few samples it did take.
  */
@@ -742,7 +755,8 @@ export function checkSampling(
   triggeredAt: number,
   windowMs: number,
   lastError: unknown,
-  maxGapMs = STILLNESS_MAX_GAP_MS
+  maxGapMs = STILLNESS_MAX_GAP_MS,
+  overlayOpen = false
 ): SamplingCheck {
   const failures: string[] = [];
   let largestGapMs = 0;
@@ -760,9 +774,11 @@ export function checkSampling(
     );
   }
   if (largestGapMs > maxGapMs) {
-    // Keys on the bound value: a caller that passes 70 gets the page-change text, so an interaction probe must never pass 70.
-    const bound =
-      maxGapMs === STILLNESS_NAV_MAX_GAP_MS
+    // overlayOpen is tested first: both bounds are 70, so keying on the value alone would print the page-change text for an overlay.
+    // Otherwise the text keys on the bound value: a caller that passes 70 gets the page-change text, so an interaction probe must never pass 70.
+    const bound = overlayOpen
+      ? `must be <= ${maxGapMs} ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms`
+      : maxGapMs === STILLNESS_NAV_MAX_GAP_MS
         ? `must be <= ${maxGapMs} ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms`
         : `must be <= ${maxGapMs} ms; G10 samples every 16-40 ms`;
     failures.push(`sampling gap of ${largestGapMs} ms (${bound})`);
@@ -804,9 +820,63 @@ function trackRequests(page: Page): NetworkTracker {
 }
 
 /**
+ * Waits for the page a navigation starts from to settle: no request in flight for NETWORK_IDLE_MS and the route
+ * container's entrance fade done (settleRoute's condition in ui-gates.spec.ts), both true at the same moment.
+ * It runs before the sampler starts, so the start page's own pending render is not in the gap window. A page
+ * that does not settle within LAZY_IDLE_TIMEOUT_MS throws StillnessSettleError; it never proceeds.
+ *
+ * The tracker is attached first and then seeded from page.requests(): a listener only sees requests that start
+ * after it, and the start page's own fetches began before the probe. Known limits: page.requests() holds the
+ * last 100 requests only, and a seeded request counts as done once its response headers arrive, so a pre-probe
+ * request whose body never ends is not detected.
+ */
+async function settleStartPage(page: Page): Promise<void> {
+  const network = trackRequests(page);
+  try {
+    for (const request of await page.requests()) {
+      if (STREAMING_TYPES.has(request.resourceType()) || request.failure() !== null) continue;
+      network.inFlight.add(request);
+      void request
+        .response()
+        .catch(() => null)
+        .finally(() => {
+          if (network.inFlight.delete(request)) network.lastEventAt = Date.now();
+        });
+    }
+    const quiet = () => network.inFlight.size === 0 && Date.now() - network.lastEventAt >= NETWORK_IDLE_MS;
+    const deadline = Date.now() + LAZY_IDLE_TIMEOUT_MS;
+    let opacity = Number.NaN;
+    for (;;) {
+      if (quiet()) {
+        opacity = await page.evaluate(
+          ({ container, fallback }) => {
+            const el = document.querySelector(container) ?? document.querySelector(fallback);
+            return el ? parseFloat(getComputedStyle(el).opacity) : Number.NaN;
+          },
+          { container: ROUTE_CONTAINER_SELECTOR, fallback: ROUTE_FALLBACK_SELECTOR }
+        );
+        if (opacity >= SETTLED_OPACITY && quiet()) return;
+      }
+      if (Date.now() >= deadline) break;
+      await sleep(20);
+    }
+    const pending = [...network.inFlight].map((request) => request.url());
+    throw new StillnessSettleError(
+      `stillnessProbe: the start page did not settle within ${LAZY_IDLE_TIMEOUT_MS} ms ` +
+        `(needs no request in flight for ${NETWORK_IDLE_MS} ms and the route element at opacity >= ${SETTLED_OPACITY}); ` +
+        `in flight: ${pending.length > 0 ? pending.join(', ') : 'none'}; ` +
+        (Number.isNaN(opacity) ? 'no route element' : `last route opacity ${opacity}`)
+    );
+  } finally {
+    network.stop();
+  }
+}
+
+/**
  * Samples every STILLNESS_SAMPLE_MS on the page's clock while `trigger` runs and
  * for the window after it, then throws a StillnessError listing every failure.
- * Resolves with a summary when the page stays still.
+ * Resolves with a summary when the page stays still. A navigation first waits for its start page to settle
+ * (settleStartPage), so the start page's own pending render is not counted against the trigger.
  *
  * The sampler runs in the page, so a full document load ends it and the probe
  * then fails with "lost its sampler". Use the probe for interactions and for
@@ -815,6 +885,7 @@ function trackRequests(page: Page): NetworkTracker {
 export async function stillnessProbe(page: Page, options: StillnessOptions): Promise<StillnessReport> {
   const kind = options.kind ?? 'interaction';
   const windowMs = options.windowMs ?? STILLNESS_WINDOW_MS;
+  if (kind === 'navigation') await settleStartPage(page);
   await page.evaluate(startSampler, { expected: options.expected, intervalMs: STILLNESS_SAMPLE_MS });
 
   let dump: SamplerDump | null = null;
@@ -861,7 +932,12 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
     triggeredAt,
     windowMs,
     dump.lastError,
-    kind === 'navigation' ? STILLNESS_NAV_MAX_GAP_MS : STILLNESS_MAX_GAP_MS
+    kind === 'navigation'
+      ? STILLNESS_NAV_MAX_GAP_MS
+      : kind === 'overlay'
+        ? STILLNESS_OVERLAY_MAX_GAP_MS
+        : STILLNESS_MAX_GAP_MS,
+    kind === 'overlay'
   );
   const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
   if (failures.length > 0) {

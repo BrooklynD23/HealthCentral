@@ -108,6 +108,18 @@ the exit commit never runs under test, and a failed exit commit could never turn
 into a 500. `tests/test_audit_order.py` HC-AUD-ORD-060 went red on both cases
 (200 instead of 5xx; `assert 0 == 1` rows) until `chat` committed explicitly.
 
+A 2026-10-31 instance in RAPIDOCR-BUNDLE (cross-ref §9, §3). The local-first
+test patched Python's `socket.connect` and saw nothing, while onnxruntime 1.31.0's
+native OneCollector telemetry client (static libcurl, mobile.events.data.microsoft.com)
+opened its own socket from a native thread about 9 s after the first session. A
+Python socket guard cannot see a native library. The plan's claim that an
+`LD_PRELOAD` probe had shown no traffic was never measured (§3). Opt-out is
+`ORT_DISABLE_TELEMETRY=1` before the first onnxruntime import. HC-OCR-001 and
+HC-OCR-015 now poll the process's real sockets in `/proc` and assert an empty-HOME
+tree; HC-OCR-017 keeps any other module from importing onnxruntime first.
+Recheck for a "no network" claim: a `/proc/net` socket poll after a wait longer
+than the library's first-upload delay, plus an empty-HOME file assert.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —
@@ -150,6 +162,15 @@ quote resurfaces every accepted task as a fresh candidate on each reprocess. The
 plan was written from the delete path alone; the reprocess path had a second,
 unrelated reason to need that column. Reading the consumer before editing the
 producer is what caught it.
+
+A 2026-11-03 instance in UI-PG-REVIEW (#452): the Source Trace sheet's "It
+matches, mark as checked" verified through the sheet's own mutation, so the
+page's `markChecked` (the hold and the ink) never ran, and the refetch dropped
+the row and unmounted the open sheet. Nothing in the diff touched that path; it
+was found only because the implementer listed it as a known unknown and
+measured it on the default `/verify`, where it failed. Recheck: when a page
+adds behaviour to one way of doing an action, list every other component that
+performs the same action and run each.
 
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
@@ -214,15 +235,23 @@ next full run. `docs_lint.py` does not check whether the generated index is
 current; only the pytest suite does. The documented command and the actual gate
 were two different things, and the passing one was the one that got run.
 
+**Box instance (2026-10-29, #410; queue bullet FOREIGN-CHROMIUM-ON-BOX).** The contaminant was the box, not the tree.
+- A stillness timing run's quiet-box precheck was `pgrep -fa "playwright|vitest|pytest"`.
+- Another repo's session was driving its own Chromium (`shoot.mjs`) on the same box at the time. The pattern could not see it.
+- The check also could never print nothing. Run from an agent's Bash tool, `pgrep -f` matches the agent's own `bash -c` command line, which contains the pattern (planner check, 2026-10-30). So every agent was already judging by eye which lines were its own.
+- The precheck now lives once, in [RUNBOOK](../plans/2026-10-15-build-program/RUNBOOK.md) §10.1, in bracket form (`[p]laywright|…`, which does not match itself), with Chromium, Rust and port checks added.
+
 **Recheck:** when anything else is editing the tree, verify commit-level gates in
 a throwaway `git worktree` detached at HEAD, not in place. Related: parallel
 agents running `git add` sweep each other's staged work — commit with explicit
 pathspecs (`git commit -m … -- <paths>`), and never `git reset` to clean up.
 And for **any** docs change, `scripts/docs_lint.py` passing is not sufficient —
 run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py
---link-graph`, or run the backend suite, which is the only place the freshness of
-those two generated files is actually asserted. A docs-only diff is not a reason
-to skip the suite; it is the case where the relevant check is least obvious.
+--link-graph`. CI no longer runs Backend Tests on a docs-only PR (path-scoped CI,
+#442), so see what it will do:
+`git diff --name-only origin/main...HEAD | python3 scripts/change_scope.py --repo-root .`
+(the Change Scope job's output). `docs_only=false` means a code path mentions one
+of your docs, a docs↔test coupling, and the full suite runs; run it locally too.
 
 ---
 
@@ -305,6 +334,13 @@ The owner answered RRSI-OQ-21 on that premise ("Adopt the Trends page's
 latest-vs-prior comparison"), so the answer names two different rules, and the
 CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
 code exists, not that the feature runs it.
+
+A 2026-11-02 instance in VERIFY-KEEPS-FLAG (#463): the comment in
+`modules/fhir_export.py` called `flag` a "short coded flag" while the flag was
+stored as printed, free text of up to 2000 characters from import. The comment
+read as authority and the line went out unredacted; it was exposed only once
+Verify stopped erasing free-text flags. Recheck: when a comment states the
+shape of a field, find where the field is written before relying on it.
 
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
@@ -394,7 +430,19 @@ instead.
 The class is now a test
 (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new
 unaudited `"C"` or `"A2"` row fails CI.
+The dynamic-call rule had the same gap: it flagged a def passed as a bare name or `self.<def>` but not a bound method of any other object (`asyncio.to_thread(selector.detect_hardware_tier)`), so that edge left the guard without a named key until AUDIT-GUARD-ATTR-DYNAMIC widened the rule.
 
+
+A 2026-10-31 instance in RAPIDOCR-BUNDLE (cross-ref §2). PDFium accepts one
+thread at a time (pypdfium2 METADATA). The rule was enforced at one site,
+`_ocr_pdf_pages` (`_PDFIUM_LOCK`), and not at the other caller in the same class,
+`api/documents.py::get_page_image`, which renders with pdfplumber `to_image` on the
+event-loop thread. Importing a scan while the viewer fetched a page image segfaulted
+the process in 4 of 8 probe runs (PR #421 comment 6547136926). The first fix, a lock
+held across the OCR call as well, fixed one site and nested two locks. HC-OCR-016
+now runs the real `get_page_image` against four OCR workers (exit -11 before the
+lock, 6 of 6 clean after). Recheck: `grep -rn "to_image(\|pypdfium2\|PdfDocument"
+src/backend` and confirm every hit is inside `_PDFIUM_LOCK`.
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
 a *category* ("verbatim document text", "credential material", "anything
@@ -427,6 +475,15 @@ before trusting its unit tests as a completeness signal. A module that is
 fully testable in isolation is not evidence it is reachable from `main.py` or
 any other entry point — check the call site, not just the callee.
 
+**Frontend instance (2026-10-29, #407 review; queue bullet SOURCE-TRACE-UNWIRED).**
+- The Source Trace sheet (`src/frontend/src/components/results/SourceTrace.tsx`, UI-PROVENANCE) has unit tests.
+- `CitationTooltip` renders the "Open source" button and the sheet only when it gets a `source` prop.
+- Neither call site passes one: `InterpretedResultCard.tsx:122` and `PanelInterpretationDashboard.tsx:110`.
+- The `/interpret` e2e mock has only a `knowledge_base` citation.
+- So the sheet cannot be reached in the browser, and a plan (#407's first draft) chose it as a test host.
+
+**Recheck for components:** for an optional prop that gates a feature, grep every call site of the component for that prop. Confirm that some e2e path renders the gated branch before you treat the component as shipped, or use it as a test host.
+
 ---
 
 ## 11. Harness rule text broader than the plan it summarises
@@ -458,3 +515,39 @@ Two rows returned while a background RED or mutation run was still in their work
 UI-SHELL (PR #370) failed CI's E2E job on twelve routes with stillness sampling gaps of 44-155 ms against the 40 ms G10 bound, and the 2026-10-25 handoff read it as load flake. On one production build, L0 timed the same navigations with a bare 20 ms `setInterval`: 20-30 ms on main and on the branch, apart from `/settings` on the branch (47-48 ms). `stillnessProbe` stamped each sample with `performance.now()` after reading every `[data-t0]` node's style and rect (`src/frontend/e2e/support/gates.ts`, `snapshot()`), so each gap included the probe's own forced layout. Moving the stamp to the start of `snapshot()` kept every HC-UIG-006 self-test result, and most route gaps fell under 40 ms. The same pass turned up a real defect that both readings had hidden behind the flake label: the Safety Mode note's rect changes on every navigation (376.8 → 307 px wide, about 40 ms in).
 
 **Recheck:** before ruling a timing failure "flake" or "load", time the same action with a bare instrument (a plain timer, a `PerformanceObserver` for `longtask`) on main and on the branch, using the same build. When a probe's result is a duration, find where it reads the clock relative to its own work. Read the probe's other failure lines too: a timing failure can hide a real one in the same run.
+
+---
+
+## 15. A test runner returns while its command is still queued or running, and the result reads as a test failure
+
+On 2026-11-02 PRs #398, #454 (C-P6), #457 and #399 each stopped with "tests failing" while no test had failed. The Haiku runner backgrounded the full suite, reported `exit_code -1` or NOT RUN, and `all_passed: false` sent the row to a stop. Slots can be held for over an hour by a quiet-box run, so a runner that does not wait for its command reports the queue as the result.
+
+Related trap, same day: a named workflow loads from the session's main checkout, so a session on an old branch runs an old `build-item.js`. That session ran a 366-line copy against main's 481 lines, without HARNESS-SPEEDUP's scope gating, so frontend-only rows ran the full backend suite. Ask whether a harness change you are relying on is in the copy this session actually runs.
+
+Second cause, same day: #399 (twice) and #454 stopped as "incomplete" with no failing test. In the #454 implementer's transcript (workflow run wf_33290fe3-3f3) the agent started commands with `run_in_background`, then sent the text-only message "Waiting for the background events." The harness replied `[structured-output-enforce] You MUST call the StructuredOutput tool`, so the run ended, and the background-command notice says such a command "is terminated when you give your final answer". The WAIT FOR EVERY COMMAND sentence reached only the runner prompts and said to keep checking, not how. `build-item.js` STYLE, which is appended to every agent prompt, now carries a HOW TO WAIT rule: a foreground `timeout 580 bash -c 'until grep -q "^EXIT=" <file>; do sleep 5; done'` loop (exit 124 only means not yet).
+
+**Recheck:** the runner prompt says to wait for every command, and a result with `exit_code -1` is never a finding. Before relying on a merged harness change, `diff` the session's `.claude/workflows/<name>.js` against origin/main, and use `scriptPath` with a copy of main's file if they differ. A stop that says a command had not finished is read in the agent's transcript, not in the stop text: a `[structured-output-enforce]` line right after a text-only message means the agent ended its own turn.
+
+---
+
+## 16. A deliberate break that never reached the code the test loaded
+
+UI-PG-DOCUMENTS (PR #464, 2026-11-03): to show HC-UIPAL-005 can still fail after the route-fade wait, the implementer added a slide to a palette option in `CommandPalette.tsx` and ran the cold test. It passed. The worktree is on `/mnt/e` (WSL drvfs), where `vite` gets no file-change events, so the dev server went on serving the module it had cached before the edit; `curl http://127.0.0.1:3101/src/components/layout/CommandPalette.tsx | grep -c translateX` printed 0. Restarted with `CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=300`, the same break failed the test with six lines naming the moved rects. A RED-by-break that is green is the same failure as mode 1, with a different cause: the break was real, and the test never saw it.
+
+**Recheck:** after a deliberate break, before running the test, fetch the served module and grep it for a string only the break contains (`curl -s <dev server>/<path> | grep -c <string>`). A break that passes is evidence about the server until the grep says the server has it. On `/mnt/e`, start `vite` with `CHOKIDAR_USEPOLLING=1`, or use `vite build` and `vite preview`.
+
+---
+
+## 17. A fixture that answers every call the same way hides the second event
+
+UI-PG-DOCUMENTS (PR #464, review round 1, 2026-11-03): the HC-UIDOC-006 jump tests for an import ran one import, against a mock (`mockDocuments`, `e2e/ui-documents.spec.ts`) that answered every `POST /documents/import` with the same document id. The import card committed with its row, the tests were green, and a second import in one visit still moved the rows three times (1091.5 -> 959.1 -> 1214.7 px on a production build): the old card left when the import resolved, and the new card and row arrived with the list. A retry after a failed import did the same with the alert (944.3 -> 835.8 -> 1091.5). The first event has no previous card or alert to leave, so no test of it could see the split. Same class, one cause: the fixture could only produce the first event, so the test could only fail on the first event.
+
+**Recheck:** for every UI state that a new event replaces (a card, an alert, a warning, a selection), the test runs the event twice in one visit, and the fixture gives the second answer its own id and name. A jump or flicker test that runs a state's first event alone is not a test of the state's replacement. Ask what the second and the retry would do, then make the mock able to ask it.
+
+Round 2 (same PR, 2026-11-03) found the same class one event later. The round-1 fix made an import "ready" only while its row was in the list or the list was not fetching. After a Remove, the removed import's row never comes back, so on the next refresh it was not ready again: the card of an older import, or the "Import failed" alert of a file the retry had already imported, returned for the length of the fetch. Rows held three positions in four sequences: import A, import B, Remove B, Remove an old row (735.1 -> 867.5 -> 734.8 px); the same, then import C (959.1 -> 1091.5 -> 1214.7); fail, retry, Remove, Remove an old row (835.8 -> 944.3 -> 712.6); fail, retry, Remove, import C (835.8 -> 944.3 -> 1091.5). Every one of these passed the tests that ran the event, then Remove, and stopped. The fix is in `importReady` (`removedIds`); the tests are HC-UIDOC-006 (q) to (t).
+
+**Recheck, widened:** after the replacement test passes, run the chain event, Remove of what the event made, then a refresh of the list (another Remove, another import). A state that depends on "is its row in the list" changes meaning when the row has been removed.
+
+Round 3 (same PR, 2026-11-03) found the class again, with two events that overlap in time. Round 2's chain ran Remove once, alone. A second Remove sent while the first DELETE was still in flight lost the first's record of the removed document: `confirmDelete` passed `onSuccess` to `mutate`, and a per-call `onSuccess` fires only for the observer's latest call (query-core `mutationObserver.ts`). The card and the "3 values ready to review" link stayed for a deleted document: `{"card":"Document imported: private-fresh.pdf","link":"3 values ready to review","rows":[]}`. The fix records the removal from `mutateAsync(id).then(...)`; the tests are HC-UIDOC-018 (vitest, and e2e with `holdDelete()` on the mock, RED at fb6e7ef2: the card count stayed 1). The same round added a 3 s timer that marks an import ready when the list refresh never settles. A timer is an event too: it fires after the Remove, and a fix that put it before the `removedIds` check brought the removed card and the retry alert back (HC-UIDOC-017 fails with that break: 2 failed of 2).
+
+**Recheck, widened again:** the chain also runs the events overlapping, not only in sequence: two Removes with the first held, a second import while the first is still in flight. Hold the first request, send the second, release both, and read the settled page for the state the first event owned. And any callback passed per call to a React Query `mutate` is read as "fires only for the latest call": state that must survive overlap goes in `mutateAsync(...).then`, or in the hook's own options. A timer or any deferred effect joins the chain: fire it after the Remove, not before.

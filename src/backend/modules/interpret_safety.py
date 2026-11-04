@@ -85,6 +85,7 @@ class InterpretationSafetyGuard:
         "sodium": {"critical_low": 120, "critical_high": 160},
         "platelets": {"critical_low": 50, "critical_high": 1000},
         "wbc": {"critical_low": 2.0, "critical_high": 30.0},
+        "white_blood_cells": {"critical_low": 2.0, "critical_high": 30.0},
     }
 
     def __init__(self):
@@ -192,7 +193,8 @@ class InterpretationSafetyGuard:
             )
             result.warnings.append("critical_low_value")
             logger.warning(
-                f"Critical value detected: {analyte_canonical}={value} < {c_low}"
+                "Critical value detected: %s below critical threshold",
+                analyte_canonical,
             )
 
         if c_high is not None and value > c_high:
@@ -202,7 +204,8 @@ class InterpretationSafetyGuard:
             )
             result.warnings.append("critical_high_value")
             logger.warning(
-                f"Critical value detected: {analyte_canonical}={value} > {c_high}"
+                "Critical value detected: %s above critical threshold",
+                analyte_canonical,
             )
 
         if not result.requires_physician_review:

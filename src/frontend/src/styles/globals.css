@@ -1,5 +1,13 @@
 @import 'tailwindcss';
 
+/* react-remove-scroll-bar sets this on body while a modal is open; inherited, it restyles every element.
+   Nothing reads it below body, so it does not inherit: read it from body. */
+@property --removed-body-scroll-bar-size {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 /*
  * Fallback metrics for the self-hosted families (plan §2.3). The local system
  * face is scaled and its vertical metrics overridden to the webfont's, so the
@@ -356,5 +364,47 @@
   .animate-ping {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
+  }
+}
+
+/*
+ * Toaster (TOAST-SHELL). Gate G5 (no transform 50 ms after an interaction under
+ * reduced motion, frontend-revamp plan section 6), M11 (the reduced-motion toast
+ * is opacity only) and TOAST-PHONE-CHROME (a toast must not cover the tab bar or
+ * the Safety Rail). sonner appends its own <style> to <head> after this file, so
+ * each selector carries a :root prefix: (0,3,0) beats sonner's (0,2,0) whatever
+ * the load order. Outside any layer, like the reduced-motion block above.
+ */
+
+/* Centre the list with auto margins, not translateX(-50%). The query is the exact complement of sonner's phone query. */
+@media not all and (max-width: 600px) {
+  :root [data-sonner-toaster][data-x-position='center'] {
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    transform: none;
+  }
+}
+
+/* Lift the list above the shell chrome (AppLayout writes --shell-bottom-h). Keep the mobile rule after the base rule. */
+:root [data-sonner-toaster][data-y-position='bottom'] {
+  bottom: calc(var(--shell-bottom-h, 0px) + var(--offset-bottom));
+}
+
+@media (max-width: 600px) {
+  :root [data-sonner-toaster][data-y-position='bottom'] {
+    bottom: calc(var(--shell-bottom-h, 0px) + var(--mobile-offset-bottom));
+  }
+}
+
+/*
+ * A collapsed back toast sits in the front toast's box and a removed toast is
+ * already transparent, so neither needs sonner's translateY or scale. An expanded
+ * stack and a swipe are left alone.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root [data-sonner-toast][data-expanded='false'][data-front='false'],
+  :root [data-sonner-toast][data-removed='true'] {
+    transform: none;
   }
 }
