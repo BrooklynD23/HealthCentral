@@ -610,17 +610,30 @@ class InterpretModule:
             parts.append(
                 f"The reference range is {obs.ref_low}-{obs.ref_high} {unit_str}."
             )
-        elif obs.ref_range_text:
+        elif (obs.ref_range_text or "").strip():
             parts.append(f"Reference range: {obs.ref_range_text}.")
 
-        # Status interpretation
-        if obs.is_abnormal:
-            if obs.flag in ["H", "HH", "HIGH"]:
+        # Status interpretation. VALUE-RANGE-COMPARE: the value is read against its
+        # numeric range. "disagrees" and "keep" take today's branch by the stored
+        # is_abnormal and the flag exactly as printed; no wording is written for them.
+        from api.observations import observation_range_status  # lazy: api imports modules
+
+        status = observation_range_status(obs.flag, obs.value, obs.ref_low, obs.ref_high)
+        is_abnormal, flag = obs.is_abnormal, obs.flag
+        if status == "above":
+            is_abnormal, flag = True, "H"
+        elif status == "below":
+            is_abnormal, flag = True, "L"
+        elif status in ("within", "normal_uncompared"):
+            is_abnormal = False
+
+        if is_abnormal:
+            if flag in ["H", "HH", "HIGH"]:
                 if kb:
                     parts.append(kb.high_interpretation + f" [KB:{kb.id}]")
                 else:
                     parts.append("This value is above the reference range.")
-            elif obs.flag in ["L", "LL", "LOW"]:
+            elif flag in ["L", "LL", "LOW"]:
                 if kb:
                     parts.append(kb.low_interpretation + f" [KB:{kb.id}]")
                 else:

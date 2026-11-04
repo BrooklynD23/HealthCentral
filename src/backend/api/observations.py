@@ -80,6 +80,50 @@ router = APIRouter()
 # the number. NO, FALSE and 0 are the plain negative of an `abnormal` column
 # (modules/import_structured.py:115, the `abnormal` alias).
 _NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
+_HIGH_FLAGS = frozenset({"H", "HH", "HIGH"})
+_LOW_FLAGS = frozenset({"L", "LL", "LOW"})
+
+
+def observation_range_status(flag, value, ref_low, ref_high) -> str:
+    """Read a result from its printed flag and its numeric range (VALUE-RANGE-COMPARE).
+
+    Returns one of: "above", "below", "within", "normal_uncompared", "disagrees", "keep".
+    "disagrees" is a printed normal word against a value outside the range, or a printed
+    H/L word against a value on the other side or inside: no wording is decided for it,
+    so callers fall back to the stored is_abnormal. "keep" is any case this helper does
+    not decide (another flag, or no flag and nothing to compare).
+
+    A value equal to a bound is inside, a bound of 0.0 is a real bound, and low is checked
+    first, as Verify and InterpretModule._classify_severity do. ref_range_text is never parsed.
+    """
+    if value is None or (ref_low is None and ref_high is None):
+        place = None
+    elif ref_low is not None and value < ref_low:
+        place = "below"
+    elif ref_high is not None and value > ref_high:
+        place = "above"
+    else:
+        place = "inside"
+
+    if flag is None:
+        return {"above": "above", "below": "below", "inside": "within"}.get(place, "keep")
+    word = flag.strip().upper()
+    if word in _NORMAL_FLAGS:
+        return {"inside": "within", None: "normal_uncompared"}.get(place, "disagrees")
+    if word in _HIGH_FLAGS:
+        return "above" if place in (None, "above") else "disagrees"
+    if word in _LOW_FLAGS:
+        return "below" if place in (None, "below") else "disagrees"
+    return "keep"
+
+
+def status_is_abnormal(status: str, fallback) -> bool:
+    """is_abnormal for a status; "disagrees" and "keep" return the fallback (the stored value)."""
+    if status in ("above", "below"):
+        return True
+    if status in ("within", "normal_uncompared"):
+        return False
+    return bool(fallback)
 
 
 # Panel definitions - maps panel IDs to the analyte names the normalizer stores, plus the
