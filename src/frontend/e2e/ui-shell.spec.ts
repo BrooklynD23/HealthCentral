@@ -1091,7 +1091,6 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
  * run once that row lands, so remove the entry then.
  */
 const PAGE_OVERFLOW: Record<string, { selector: string; fixBy: string }> = {
-  '/export': { selector: 'div.flex.items-center.gap-3', fixBy: 'UI-PG-EXPORT' },
 };
 
 test.describe('Gate G6 on every route', () => {
