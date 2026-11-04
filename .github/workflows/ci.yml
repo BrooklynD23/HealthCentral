@@ -398,6 +398,14 @@ jobs:
         working-directory: src/frontend
         run: npm run build
 
+      - name: TEMP deliberate G3 break (G3-CI-PREVIEW, reverted next commit)
+        working-directory: src/frontend
+        run: |
+          ENTRY=$(grep -E '<script[^>]*type="module"' dist/index.html | grep -oE 'src="[^"]+"' | head -1 | sed -E 's/src="\/?//; s/"$//')
+          echo "entry bundle: $ENTRY"
+          printf '\n/*HC_G3_BREAK*/addEventListener("click",()=>{if(location.pathname==="/care-tasks"){const t=performance.now();while(performance.now()-t<300);}},true);\n' >> "dist/$ENTRY"
+          grep -c HC_G3_BREAK "dist/$ENTRY"
+
       # The G3 set, picked by title (--grep '\bG3\b'), so a new mocked G3 spec joins with no change here:
       #   ui-documents:1024  /inbox
       #   ui-care:306        /care-tasks
@@ -427,6 +435,8 @@ jobs:
             sleep 1
           done
           curl -fsS -o /dev/null http://127.0.0.1:4173/ || { echo "vite preview never answered on 4173"; exit 1; }
+          ENTRY=$(grep -E '<script[^>]*type="module"' dist/index.html | grep -oE 'src="[^"]+"' | head -1 | sed -E 's/src="\/?//; s/"$//')
+          echo "served bundle HC_G3_BREAK count: $(curl -fsS "http://127.0.0.1:4173/$ENTRY" | grep -c HC_G3_BREAK)"
           npx playwright test --project chromium --list --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on'
           npx playwright test --project chromium --reporter=list --retries=0 --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on'
 
