@@ -6,7 +6,7 @@
  *                  consent dialog, the export confirm, the diagnostics dialog and the phone section sheet
  *
  * Every /api/v1 call is answered here: installMockApi serves the shared shell fixtures, and the routes registered
- * after it (they run first) give the settings calls realistic bodies (five tiers, eight diagnostics, memories), so the
+ * after it (they run first) give the settings calls realistic bodies (seven tiers, eight diagnostics, memories, one granted donation purpose), so the
  * heights below are not the height of an empty page. Run without the backend (recipe 2 in e2e/README.md):
  *   TMPDIR=/dev/shm npx playwright test e2e/ui-settings.spec.ts --project=chromium
  *
@@ -57,7 +57,9 @@ const capabilities = (context_size: number) => ({
 const tiersFixture: TiersListResponse = {
   recommended_tier: 'mid',
   tiers: [
+    // The seven rows GET /settings/model/tiers sends, in the backend's order (TIER_ORDER, then the template tier).
     { tier: 'high', name: 'Tier 3: High', model: 'BioMistral-7B', description: 'Medical-specialized model for best accuracy', available: false, downloaded: false, requirements: { ram_gb: 32, disk_gb: 5 }, can_run: false, capabilities: capabilities(8192) },
+    { tier: 'gemma4-12b', name: 'Template Mode', model: null, description: 'Template-based interpretations (no AI model)', available: false, downloaded: false, requirements: { ram_gb: 16, disk_gb: 8 }, can_run: false, capabilities: { context_size: 32768, multimodal: true, function_calling: true, agentic_capable: false } },
     { tier: 'mid', name: 'Tier 2: Mid', model: 'Phi-4-mini-instruct', description: 'Balanced quality and performance', available: false, downloaded: false, requirements: { ram_gb: 16, disk_gb: 3 }, can_run: true, capabilities: capabilities(16384) },
     { tier: 'gemma4-e4b', name: 'Template Mode', model: null, description: 'Template-based interpretations (no AI model)', available: false, downloaded: false, requirements: { ram_gb: 12, disk_gb: 4 }, can_run: true, capabilities: capabilities(16384) },
     { tier: 'gemma4-e2b', name: 'Template Mode', model: null, description: 'Template-based interpretations (no AI model)', available: false, downloaded: false, requirements: { ram_gb: 8, disk_gb: 2 }, can_run: true, capabilities: capabilities(8192) },
@@ -133,6 +135,17 @@ async function mockSettingsApi(page: Page, options: SettingsMockOptions = {}) {
   await answer(/\/api\/v1\/feedback\/stats\/?$/, feedbackFixture);
   await answer(/\/api\/v1\/memory\/?(\?.*)?$/, memoryFixture);
   await answer(/\/api\/v1\/settings\/model\/download-progress\/?$/, {});
+  // One purpose is granted, so the Stop and delete button (and its dialog) are on the page.
+  await answer(/\/api\/v1\/donation\/consents\/?$/, {
+    consents: (['fine_tune', 'synthetic_seed', 'agent_traces'] as const).map((purpose) => ({
+      purpose,
+      granted: purpose === 'fine_tune',
+      consent_text_version: purpose === 'fine_tune' ? '2026-10-27-v3' : null,
+      current: purpose === 'fine_tune',
+      granted_at: null,
+      revoked_at: null,
+    })),
+  });
 }
 
 async function settle(page: Page): Promise<void> {
@@ -170,6 +183,9 @@ const showAdvanced = (page: Page) => page.getByRole('button', { name: 'Show adva
 async function expandAdvanced(page: Page) {
   await showAdvanced(page).click();
   await expect(page.getByTestId('tier-row-mid')).toBeVisible({ timeout: 10_000 });
+  // The diagnostics list and the other panels arrive after the tiers: a height read before they do is not the page's height.
+  await expect(page.getByRole('button', { name: 'Fix Tesseract OCR' })).toBeVisible({ timeout: 10_000 });
+  await page.waitForLoadState('networkidle');
 }
 
 /** Opens a section on the page that is already loaded: the tab on a desktop, the section sheet on a phone. */
@@ -190,28 +206,29 @@ const pageHeight = (page: Page) => page.evaluate(() => document.documentElement.
 test.describe('HC-UISET-005: section height at 1440', () => {
   const BOUND = 2 * DESKTOP.height;
 
-  for (const { id } of SECTIONS) {
-    test(`HC-UISET-005: ${id} is at most 2 viewports tall${id === 'advanced' ? ' (collapsed)' : ''}`, async ({ page }) => {
+  for (const { id } of SECTIONS.filter((section) => section.id !== 'advanced')) {
+    test(`HC-UISET-005: ${id} is at most 2 viewports tall`, async ({ page }) => {
       await openSettings(page, id);
+      await page.waitForLoadState('networkidle');
       const height = await pageHeight(page);
-      console.log(`HC-UISET-005 ${id}${id === 'advanced' ? ' collapsed' : ''}: ${height} px (bound ${BOUND})`);
-      test.info().annotations.push({ type: 'height', description: `${id}${id === 'advanced' ? ' collapsed' : ''}: ${height} px (bound ${BOUND})` });
+      console.log(`HC-UISET-005 ${id}: ${height} px (bound ${BOUND})`);
+      test.info().annotations.push({ type: 'height', description: `${id}: ${height} px (bound ${BOUND})` });
       expect(height, `${id} height ${height} px`).toBeLessThanOrEqual(BOUND);
     });
   }
 
-  // Advanced is collapsed by default, and its bound is asserted in that state above. Expanded, it holds six cards and
-  // a tier list the length of the backend's (seven rows here), so the figure is measured and reported, not asserted
-  // against the bound (UI-PG-SETTINGS brief: "report it rather than assuming a reading"). The assertion that remains is
-  // that pressing the button did add content, so the number is not the collapsed page measured twice.
-  test('HC-UISET-005: Advanced expanded is measured and reported', async ({ page }) => {
+  // Advanced is collapsed by default, and collapsed it is only the button: the page is the viewport (900 px), so a bound
+  // asserted there could not fail. The bound is asserted on the state that has the content, expanded, with every panel
+  // loaded and the fixture the size of the backend's (seven tiers, eight diagnostics).
+  test('HC-UISET-005: advanced is at most 2 viewports tall expanded', async ({ page }) => {
     await openSettings(page, 'advanced');
     const collapsed = await pageHeight(page);
     await expandAdvanced(page);
     const expanded = await pageHeight(page);
-    console.log(`HC-UISET-005 advanced: collapsed ${collapsed} px, expanded ${expanded} px, bound ${BOUND} (expanded is reported, not asserted)`);
+    console.log(`HC-UISET-005 advanced: collapsed ${collapsed} px, expanded ${expanded} px (bound ${BOUND})`);
     test.info().annotations.push({ type: 'height', description: `advanced collapsed ${collapsed} px, expanded ${expanded} px (bound ${BOUND})` });
     expect(expanded, 'expanding Advanced added content').toBeGreaterThan(collapsed);
+    expect(expanded, `advanced expanded height ${expanded} px`).toBeLessThanOrEqual(BOUND);
   });
 });
 
@@ -303,6 +320,12 @@ for (const theme of THEMES) {
         await page.getByRole('switch', { name: 'Use External API' }).click();
         await expect(page.getByRole('alertdialog', { name: 'Privacy Notice' })).toBeVisible();
         await expectNoBlockingViolations(page, theme, 'consent dialog');
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('alertdialog')).toHaveCount(0);
+
+        await page.getByRole('button', { name: /^Stop and delete:/ }).click();
+        await expect(page.getByRole('alertdialog', { name: 'Confirm stop and delete' })).toBeVisible();
+        await expectNoBlockingViolations(page, theme, 'stop and delete dialog');
         await page.keyboard.press('Escape');
         await expect(page.getByRole('alertdialog')).toHaveCount(0);
 
@@ -412,26 +435,45 @@ test('UI-PG-SETTINGS GATE G2, G3, G5 on /settings (quiet box only)', async ({ pa
   const inp = await maxEventDuration(page, interactions, { cpuRate: 4 });
   expect(inp, 'G3 /settings').toBeLessThan(200);
 
-  // G5: reduced motion, no element with a transform 50 ms after each interaction.
+  // G5: reduced motion, one snapshot 50 ms after each interaction (plan G5), so a transform that one step leaves behind
+  // is not cleared by the next. The overlays are separate steps: opening and closing each of them.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/settings');
   await settle(page);
-  const offenders = await reducedMotionSnapshot(page, interactions);
+  const consentDialog = page.getByRole('alertdialog', { name: 'Privacy Notice' });
+  const stopDialog = page.getByRole('alertdialog', { name: 'Confirm stop and delete' });
+  const exportDialog = page.getByRole('alertdialog', { name: 'Export training data?' });
+  const diagnosticsDialog = page.getByRole('dialog', { name: 'Tesseract OCR' });
+  const steps: Array<[string, () => Promise<void>]> = [
+    ['Preferences tab', async () => { await page.getByRole('tab', { name: 'Preferences' }).click(); await expect(page.getByLabel('Time zone')).toBeVisible(); }],
+    ['Assistant & privacy tab', async () => { await page.getByRole('tab', { name: 'Assistant & privacy' }).click(); await expect(page.getByRole('switch', { name: 'Use External API' })).toBeVisible(); }],
+    ['consent dialog opens', async () => { await page.getByRole('switch', { name: 'Use External API' }).click(); await expect(consentDialog).toBeVisible(); }],
+    ['consent dialog closes', async () => { await page.keyboard.press('Escape'); await expect(consentDialog).toHaveCount(0); }],
+    ['Stop and delete dialog opens', async () => { await page.getByRole('button', { name: /^Stop and delete:/ }).click(); await expect(stopDialog).toBeVisible(); }],
+    ['Stop and delete dialog closes', async () => { await page.keyboard.press('Escape'); await expect(stopDialog).toHaveCount(0); }],
+    ['Advanced tab', async () => { await page.getByRole('tab', { name: 'Advanced' }).click(); await expect(showAdvanced(page)).toBeVisible(); }],
+    ['Show advanced settings', async () => { await showAdvanced(page).click(); await expect(page.getByTestId('tier-row-mid')).toBeVisible(); }],
+    ['export confirm opens', async () => { await page.getByRole('button', { name: 'Export training data' }).click(); await expect(exportDialog).toBeVisible(); }],
+    ['export confirm closes', async () => { await page.keyboard.press('Escape'); await expect(exportDialog).toHaveCount(0); }],
+    ['diagnostics dialog opens', async () => { await page.getByRole('button', { name: 'Fix Tesseract OCR' }).click(); await expect(diagnosticsDialog).toBeVisible(); }],
+    ['diagnostics dialog closes', async () => { await diagnosticsDialog.getByRole('button', { name: 'Close' }).click(); await expect(diagnosticsDialog).toHaveCount(0); }],
+  ];
+  const offenders: string[] = [];
+  for (const [name, step] of steps) {
+    offenders.push(...(await reducedMotionSnapshot(page, step)).map((offender) => `${name}: ${offender}`));
+  }
   expect(offenders, 'G5 /settings').toEqual([]);
-  const consent = await reducedMotionSnapshot(page, async () => {
-    await page.getByRole('tab', { name: 'Assistant & privacy' }).click();
-    await page.getByRole('switch', { name: 'Use External API' }).click();
-    await expect(page.getByRole('alertdialog', { name: 'Privacy Notice' })).toBeVisible();
-  });
-  expect(consent, 'G5 /settings consent dialog').toEqual([]);
-  // The diagnostics dialog is the one overlay here that is not a ui/Modal; its open is checked on its own.
-  const diagnostics = await reducedMotionSnapshot(page, async () => {
-    await page.getByRole('tab', { name: 'Advanced' }).click();
-    if ((await page.getByTestId('tier-row-mid').count()) === 0) await showAdvanced(page).click();
-    await page.getByRole('button', { name: 'Fix Tesseract OCR' }).click();
-    await expect(page.getByRole('dialog', { name: 'Tesseract OCR' })).toBeVisible();
-  });
-  expect(diagnostics, 'G5 /settings diagnostics dialog').toEqual([]);
+
+  // The phone section sheet.
+  await page.setViewportSize(PHONE);
+  await page.goto('/settings?section=preferences');
+  await settle(page);
+  const sheet = page.getByRole('dialog', { name: 'Settings sections' });
+  const sheetOffenders = [
+    ...(await reducedMotionSnapshot(page, async () => { await page.getByRole('button', { name: /Settings sections/ }).click(); await expect(sheet).toBeVisible(); })).map((o) => `section sheet opens: ${o}`),
+    ...(await reducedMotionSnapshot(page, async () => { await page.keyboard.press('Escape'); await expect(sheet).toHaveCount(0); })).map((o) => `section sheet closes: ${o}`),
+  ];
+  expect(sheetOffenders, 'G5 /settings section sheet').toEqual([]);
 });
 
 test.describe('UI-PG-SETTINGS GATE G10 (quiet box only)', () => {
@@ -490,11 +532,49 @@ test.describe('UI-PG-SETTINGS GATE G10 (quiet box only)', () => {
     });
     expect(report.nodes).toBeGreaterThan(0);
   });
+
+  // Rows of the donation card sat 52 px higher while this dialog was open when the button that opens it was removed.
+  test('UI-PG-SETTINGS GATE G10 on the Stop and delete dialog opening', async ({ page }) => {
+    await openSettings(page, 'assistant-privacy');
+    await page.evaluate(() => document.fonts.ready);
+    const report = await stillnessProbe(page, {
+      trigger: () => page.getByRole('button', { name: /^Stop and delete:/ }).click(),
+      expected: ['[id^="donation-desc-"][data-t0]'],
+      kind: 'overlay',
+    });
+    expect(report.nodes).toBeGreaterThan(0);
+    await expect(page.getByRole('alertdialog', { name: 'Confirm stop and delete' })).toBeVisible();
+  });
+
+  // Every Download button is disabled while a download runs; they turn grey and must not fade.
+  test('UI-PG-SETTINGS GATE G10 on pressing Download', async ({ page }) => {
+    await openSettings(page, 'advanced');
+    let started = false;
+    await page.route(/\/api\/v1\/settings\/model\/download\/?$/, (route) => {
+      started = true;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tier: 'mid', status: 'pending', progress: 0, downloaded_bytes: 0, total_bytes: 0, path: null, error: null }) });
+    });
+    await page.route(/\/api\/v1\/settings\/model\/download-progress\/?$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(started ? { mid: { tier: 'mid', status: 'downloading', progress: 0.3, downloaded_bytes: 1_000_000_000, total_bytes: 3_000_000_000, path: null, error: null } } : {}),
+      })
+    );
+    await expandAdvanced(page);
+    await page.evaluate(() => document.fonts.ready);
+    const report = await stillnessProbe(page, {
+      trigger: () => page.getByTestId('tier-row-mid').getByRole('button', { name: 'Download' }).click(),
+      expected: ['[data-testid^="tier-row-"] [data-t0]'],
+    });
+    expect(report.nodes).toBeGreaterThan(0);
+    expect(started, 'the Download press reached POST /settings/model/download').toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
 // Report-only: a bare 20 ms timer through /inbox -> /settings (recurring-failures #14). The page reads no DOM and
-// the test asserts nothing about the figure. L0 judges it against the 40 ms bound (owner ruling 6627952531, item 4).
+// the test asserts nothing about the figure. L0 judges it against the 40 ms bound (L0 ruling 6627952531 on #488, item 4).
 //   HC_REPORT_BARE_TIMER=1 HC_E2E_BASE_URL=<vite preview> npx playwright test e2e/ui-settings.spec.ts -g "report-only"
 // ---------------------------------------------------------------------------
 test('UI-PG-SETTINGS report-only: bare 20 ms timer gap through /inbox -> /settings', async ({ page }) => {

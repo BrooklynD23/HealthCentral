@@ -217,8 +217,11 @@ function AdvancedPanels() {
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
-        <div className="lg:col-span-2 space-y-6">
+      {/* Three columns from xl (1280 px), two from lg, one below. The tiers sit alone in the first column and nothing
+          above or beside them changes height when data arrives (G10); the diagnostics list, whose height does change,
+          sits in the last column. Expanded, no column is taller than the page may be (HC-UISET-005). */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
+        <div className="space-y-6">
           {/* Model Tier Selection */}
           <Card>
             <CardHeader className="border-b border-black/4">
@@ -239,7 +242,9 @@ function AdvancedPanels() {
                     key={tier.tier}
                     data-testid={`tier-row-${tier.tier}`}
                     className={cn(
-                      'flex flex-col gap-3 px-4 py-4 rounded-xl border sm:flex-row sm:items-center sm:justify-between',
+                      // A tier column is about 340 px wide from xl (three columns): the buttons go under the text there, and beside it
+                      // again from 2xl, where the columns are wide enough.
+                      'flex flex-col gap-3 px-4 py-4 rounded-xl border sm:flex-row sm:items-center sm:justify-between xl:flex-col xl:items-stretch 2xl:flex-row 2xl:items-center',
                       isSelected
                         ? 'border-accent bg-accent-subtle shadow-xs'
                         : 'border-black/6'
@@ -359,6 +364,9 @@ function AdvancedPanels() {
             </CardContent>
           </Card>
 
+        </div>
+
+        <div className="space-y-6">
           {/* Hardware Info */}
           <Card>
             <CardHeader className="border-b border-black/4">
@@ -471,6 +479,43 @@ function AdvancedPanels() {
             </CardContent>
           </Card>
 
+          {/* Current Status */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Current Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
+                <span className="text-sm text-ink-secondary">Active Tier</span>
+                <Badge variant="verified" className="capitalize font-bold">
+                  {settings?.current_tier || 'none'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
+                <span className="text-sm text-ink-secondary">Preferred</span>
+                <span className="text-sm font-bold text-ink capitalize">
+                  {settings?.preferred_tier || 'auto'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
+                <span className="text-sm text-ink-secondary">External API</span>
+                {/* A failed read is not "Off": the setting is unknown, and the patient has to be told so. */}
+                <Badge variant={externalApiError ? 'caution' : externalEnabled ? 'verified' : 'default'} className="font-bold">
+                  {externalApiError ? 'Unknown' : externalEnabled ? 'Enabled' : 'Off'}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
+                <span className="text-sm text-ink-secondary">OCR (profile)</span>
+                <Badge variant={settings?.ocr_effective ? 'verified' : 'attention'} className="font-bold">
+                  {settings?.ocr_effective ? 'Ready' : 'Blocked'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+
+        <div className="space-y-6 lg:col-span-2 xl:col-span-1">
           {/* Environment & tools */}
           <Card>
             <CardHeader className="border-b border-black/4">
@@ -540,44 +585,6 @@ function AdvancedPanels() {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Current Status */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Current Status</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
-                <span className="text-sm text-ink-secondary">Active Tier</span>
-                <Badge variant="verified" className="capitalize font-bold">
-                  {settings?.current_tier || 'none'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
-                <span className="text-sm text-ink-secondary">Preferred</span>
-                <span className="text-sm font-bold text-ink capitalize">
-                  {settings?.preferred_tier || 'auto'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
-                <span className="text-sm text-ink-secondary">External API</span>
-                {/* A failed read is not "Off": the setting is unknown, and the patient has to be told so. */}
-                <Badge variant={externalApiError ? 'caution' : externalEnabled ? 'verified' : 'default'} className="font-bold">
-                  {externalApiError ? 'Unknown' : externalEnabled ? 'Enabled' : 'Off'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
-                <span className="text-sm text-ink-secondary">OCR (profile)</span>
-                <Badge variant={settings?.ocr_effective ? 'verified' : 'attention'} className="font-bold">
-                  {settings?.ocr_effective ? 'Ready' : 'Blocked'}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* RL Training Data */}
           <Card>
             <CardHeader>
