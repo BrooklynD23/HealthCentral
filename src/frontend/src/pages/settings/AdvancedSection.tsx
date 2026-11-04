@@ -64,9 +64,6 @@ const tierDescriptions: Record<string, { label: string; desc: string; icon: type
   high: { label: 'High (BioMistral 7B)', desc: 'Best quality', icon: Cpu },
 };
 
-// The query key of useDownloadProgress (services/modelSettings.ts).
-const DOWNLOAD_PROGRESS_KEY = ['model-settings', 'download-progress'];
-
 function hasActiveDownloadEntry(progress: Record<string, DownloadProgress> | undefined): boolean {
   return Object.values(progress ?? {}).some((p) => p.status === 'pending' || p.status === 'downloading');
 }
@@ -92,7 +89,21 @@ function tierDescription(tier: TierStatus): string {
   return tier.description;
 }
 
-export function AdvancedSection() {
+/** What the last training-data export wrote: the only statement of the counts and where the file is. */
+export interface TrainingExportResult {
+  dpo: number;
+  sft: number;
+  grpo: number;
+  path: string;
+}
+
+interface AdvancedSectionProps {
+  /** Held by the page, which outlives the section: the result must still be there when the user comes back. */
+  exportResult: TrainingExportResult | null;
+  onExportResult: (result: TrainingExportResult) => void;
+}
+
+export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectionProps) {
   const [shown, setShown] = useState(false);
   const panelId = useId();
 
@@ -110,16 +121,15 @@ export function AdvancedSection() {
       </Button>
       {shown && (
         <div id={panelId}>
-          <AdvancedPanels />
+          <AdvancedPanels exportResult={exportResult} onExportResult={onExportResult} />
         </div>
       )}
     </div>
   );
 }
 
-function AdvancedPanels() {
+function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) {
   const [showExportDialog, setShowExportDialog] = useState(false);
-  const [exportResult, setExportResult] = useState<{ dpo: number; sft: number; grpo: number; path: string } | null>(null);
   const [diagToolId, setDiagToolId] = useState<string | null>(null);
 
   const { data: settings, isLoading, isError } = useModelSettings();
@@ -147,15 +157,13 @@ function AdvancedPanels() {
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
   // The panels unmount on Hide and on every change of section, and a download goes on in the backend meanwhile. The
-  // progress query is cached, so a download that was running when the user left is still in the cache when they return:
-  // follow it from the start, or the bar freezes, polling stops and Download is enabled while the tier is downloading.
-  const [downloadInitiated, setDownloadInitiated] = useState(() =>
-    hasActiveDownloadEntry(queryClient.getQueryData<Record<string, DownloadProgress>>(DOWNLOAD_PROGRESS_KEY))
-  );
-  const { data: downloadProgress } = useDownloadProgress(downloadInitiated);
+  // progress is asked for as soon as the panels open, not only after a press here: the page may have been left for longer
+  // than the query cache keeps an entry (5 minutes), and a download can also have been started by a reload or another
+  // window. Asking is what keeps the bar moving and Download disabled while the tier is downloading.
+  const { data: downloadProgress } = useDownloadProgress(true);
 
   // Derive active download status from progress data
-  const hasActiveDownload = downloadInitiated && hasActiveDownloadEntry(downloadProgress);
+  const hasActiveDownload = hasActiveDownloadEntry(downloadProgress);
   const isDownloading = hasActiveDownload || startDownload.isPending;
 
   // When a download transitions to completed, refresh tier list and settings
@@ -184,7 +192,6 @@ function AdvancedPanels() {
   };
 
   const handleStartDownload = (tier: string) => {
-    setDownloadInitiated(true);
     startDownload.mutate(tier);
   };
 
@@ -277,19 +284,20 @@ function AdvancedPanels() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          // T0: while a download runs the button is disabled, and disabled would fade it to half opacity.
-                          // It turns grey instead, so the text a patient reads does not change opacity.
-                          className="gap-1.5 h-8 border-black/6 text-xs font-bold disabled:opacity-100 disabled:text-ink-tertiary"
+                          // The word "Download" is T0 (the span below), and the Button around it must not move it: a disabled
+                          // Button is half opacity by default (disabled:opacity-100), a colour change would break G10 as the
+                          // opacity did (no disabled:text-*), and the press scale moves the word's rect (active:scale-100).
+                          // The spinner in place of the arrow is what says the tier is downloading.
+                          className="gap-1.5 h-8 border-black/6 text-xs font-bold disabled:opacity-100 active:scale-100"
                           onClick={() => handleStartDownload(tier.tier)}
                           disabled={isDownloading}
-                          data-t0=""
                         >
                           {isDownloading ? (
                             <Loader2 className="w-3 h-3 motion-safe:animate-spin" />
                           ) : (
                             <Download className="w-3 h-3" />
                           )}
-                          Download
+                          <span data-t0="">Download</span>
                         </Button>
                       ) : (
                         <Badge variant="default" data-t0="">Incompatible</Badge>
@@ -378,7 +386,7 @@ function AdvancedPanels() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-1.5 border-black/6"
+                  className="gap-1.5 whitespace-nowrap border-black/6"
                   onClick={handleDetectHardware}
                   disabled={detectHardware.isPending}
                 >
@@ -527,7 +535,7 @@ function AdvancedPanels() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="gap-1.5 border-black/6"
+                  className="gap-1.5 whitespace-nowrap border-black/6"
                   onClick={() => recheckDiagnostics.mutate()}
                   disabled={recheckDiagnostics.isPending || diagnosticsLoading}
                 >
@@ -553,8 +561,10 @@ function AdvancedPanels() {
                     className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-surface-muted border border-black/4"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-ink truncate">{c.label}</p>
-                      <p className="text-xs text-ink-tertiary truncate">{c.detail}</p>
+                      {/* The label wraps, the detail stops at two lines: the column is narrow from xl. The whole detail is the
+                          title and is printed whole by the fix dialog (Fix <label>). */}
+                      <p className="text-sm font-medium text-ink break-words">{c.label}</p>
+                      <p className="text-xs text-ink-tertiary line-clamp-2 break-words" title={c.detail}>{c.detail}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge
@@ -678,7 +688,7 @@ function AdvancedPanels() {
                 setShowExportDialog(false);
                 try {
                   const res = await exportDataset.mutateAsync({ confirmed: true });
-                  setExportResult({
+                  onExportResult({
                     dpo: res.dpo_pairs_count,
                     sft: res.sft_positives_count,
                     grpo: res.grpo_rewards_count,

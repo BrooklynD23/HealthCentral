@@ -1020,6 +1020,25 @@ describe('HC-UISET-017: the export result is still there after a section change 
     expectResult();
   });
 
+  // An export that is still running when the user leaves ends with its result on the page they come back to.
+  it('when the export finishes while the user is on another section', async () => {
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    let finish!: (value: unknown) => void;
+    vi.mocked(api.apiPost).mockImplementation((() => new Promise((resolve) => { finish = resolve; })) as never);
+    await user.click(screen.getByRole('button', { name: 'Export training data' }));
+    await user.click(within(await screen.findByRole('alertdialog', { name: 'Export training data?' })).getByRole('button', { name: 'Confirm Export' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    await screen.findByLabelText('Time zone');
+    await act(async () => {
+      finish({ dpo_pairs_count: 4, sft_positives_count: 7, grpo_rewards_count: 9, metadata_path: '/home/test/exports/run-1/metadata.json' });
+    });
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }));
+    await openAdvanced(user);
+    expectResult();
+  });
+
   it('after Hide advanced settings and Show', async () => {
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);

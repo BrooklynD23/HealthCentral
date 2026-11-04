@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { SecuritySection } from './settings/SecuritySection';
 import { PreferencesSection } from './settings/PreferencesSection';
 import { AssistantPrivacySection } from './settings/AssistantPrivacySection';
-import { AdvancedSection } from './settings/AdvancedSection';
+import { AdvancedSection, type TrainingExportResult } from './settings/AdvancedSection';
 
 const SECTIONS = [
   { id: 'security', label: 'Profile & security' },
@@ -106,15 +106,18 @@ export function SettingsPage() {
   // Profile & security holds state that cannot be asked for again: a recovery code is shown once (the old one is already
   // invalid by then), a code issued while the user is on another section would have nowhere to go, and a restore reports
   // its result there. So once visited it stays mounted, hidden while another section is on screen. The other sections
-  // only hold form fields and are cheap to mount again.
+  // mount again from the server's data. What they hold that the server cannot give back is lifted to this page, which
+  // outlives the section: the last training-data export's counts and file path (Advanced), the only statement of them.
+  // Advanced is not kept mounted: its hidden T0 nodes would change rect on a section change.
   const securityVisited = useRef(false);
   if (section === 'security') securityVisited.current = true;
+  const [exportResult, setExportResult] = useState<TrainingExportResult | null>(null);
 
   const bodies: Record<SectionId, ReactNode> = {
     security: <SecuritySection />,
     preferences: <PreferencesSection />,
     'assistant-privacy': <AssistantPrivacySection />,
-    advanced: <AdvancedSection />,
+    advanced: <AdvancedSection exportResult={exportResult} onExportResult={setExportResult} />,
   };
 
   // One tree for both layouts: only the control that chooses the section differs. A breakpoint change must not remount
