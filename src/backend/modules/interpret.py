@@ -382,7 +382,10 @@ class InterpretModule:
         abnormal_count = 0
         observation_ids = []
 
-        from api.observations import observation_range_status, status_is_abnormal  # lazy: api imports modules
+        from api.observations import (  # lazy: api imports modules
+            observation_range_status,
+            status_is_abnormal,
+        )
 
         for obs in observations:
             observation_ids.append(obs.id)
@@ -395,7 +398,10 @@ class InterpretModule:
                 # VALUE-RANGE-COMPARE: the same status the sentence uses; "disagrees" and
                 # "keep" fall back to the stored is_abnormal.
                 is_abnormal = status_is_abnormal(
-                    observation_range_status(obs.flag, obs.value, obs.ref_low, obs.ref_high),
+                    observation_range_status(
+                        obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                        bool((obs.ref_range_text or "").strip()),
+                    ),
                     obs.is_abnormal,
                 )
                 summary = {
@@ -626,7 +632,10 @@ class InterpretModule:
         # is_abnormal and the flag exactly as printed; no wording is written for them.
         from api.observations import observation_range_status  # lazy: api imports modules
 
-        status = observation_range_status(obs.flag, obs.value, obs.ref_low, obs.ref_high)
+        status = observation_range_status(
+            obs.flag, obs.value, obs.ref_low, obs.ref_high,
+            bool((obs.ref_range_text or "").strip()),
+        )
         is_abnormal, flag = obs.is_abnormal, obs.flag
         if status == "above":
             is_abnormal, flag = True, "H"

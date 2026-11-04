@@ -17,7 +17,7 @@ HC-VRC-007  other flags read today's sentence
 HC-VRC-008  no comparison possible
 HC-VRC-009  the real safety guard, in pipeline order
 HC-VRC-010  interpret over HTTP, severity agrees with the sentence
-HC-VRC-011  both import writers over HTTP (CSV and ruled-grid PDF)
+HC-VRC-011  both import writers over HTTP (CSV, FHIR and ruled-grid PDF)
 HC-VRC-012  GET /observations/?abnormal_only=true
 HC-VRC-013  panel summary over HTTP
 HC-VRC-014  the LLM prompt's Flag line
@@ -78,8 +78,10 @@ CLOSED = [ABOVE, BELOW, WITHIN, OUTSIDE, NO_RANGE]
 # ── the helper, reached lazily ───────────────────────────────────────────────
 
 
-def _status(flag, value, ref_low, ref_high):
-    return obs_api.observation_range_status(flag, value, ref_low, ref_high)
+def _status(flag, value, ref_low, ref_high, has_range_text=None):
+    if has_range_text is None:
+        return obs_api.observation_range_status(flag, value, ref_low, ref_high)
+    return obs_api.observation_range_status(flag, value, ref_low, ref_high, has_range_text)
 
 
 def _abnormal(status, fallback):
@@ -216,6 +218,29 @@ def test_hc_vrc_001_truth_table(flag, place, want):
     assert _status(flag, *ARGS[place]) == want
 
 
+@pytest.mark.parametrize("word", NORMAL_WORDS)
+@pytest.mark.parametrize(
+    "place,value,has_text,want",
+    [
+        ("text-only-number", 300.0, True, "keep"),            # value, no bounds, a range text
+        ("text-only-no-value", None, True, "normal_uncompared"),
+        ("no-text", 300.0, False, "normal_uncompared"),
+    ],
+)
+def test_hc_vrc_001_normal_word_with_a_text_only_range(word, place, value, has_text, want):
+    assert _status(word, value, None, None, has_text) == want
+
+
+@pytest.mark.parametrize("flag,want", [(None, "keep"), ("H", "above"), ("L", "below"), ("A", "keep")])
+def test_hc_vrc_001_text_only_range_does_not_change_other_flags(flag, want):
+    assert _status(flag, 300.0, None, None, True) == want
+
+
+def test_hc_vrc_001_numeric_bounds_win_over_range_text():
+    assert _status("N", 85.0, LO, HI, True) == "within"
+    assert _status("N", 300.0, LO, HI, True) == "disagrees"
+
+
 def test_hc_vrc_001_normal_words_come_from_the_existing_set():
     # The helper reuses _NORMAL_FLAGS, it does not copy it: every word in the real set
     # must take the normal-word rows, and the set is the one VERIFY-FLAG-WORDS defined.
@@ -242,9 +267,11 @@ def test_hc_vrc_001_status_to_abnormal_mapping():
 
 
 def test_hc_vrc_001_helper_takes_no_range_text():
-    # ref_range_text is never parsed: the helper cannot even receive it.
-    params = list(inspect.signature(obs_api.observation_range_status).parameters)
-    assert params == ["flag", "value", "ref_low", "ref_high"]
+    # ref_range_text is never parsed: the helper cannot receive the text, only whether
+    # one is present (a bool, default False).
+    params = inspect.signature(obs_api.observation_range_status).parameters
+    assert list(params) == ["flag", "value", "ref_low", "ref_high", "has_range_text"]
+    assert params["has_range_text"].default is False
 
 
 @pytest.mark.parametrize(
@@ -494,12 +521,19 @@ async def test_hc_vrc_008_normal_word_with_no_range_reads_the_no_range_sentence(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("stored", [True, False])
-async def test_hc_vrc_008_normal_word_with_range_text_only_reads_within(stored):
-    obs = _obs(flag="N", value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100", is_abnormal=stored)
-    text = await _text(obs)
-    assert WITHIN in text, text
-    assert "outside" not in text.lower(), text
+@pytest.mark.parametrize("word", ["N", "Normal", "WNL"])
+@pytest.mark.parametrize("value", [300.0, 85.0])
+async def test_hc_vrc_008_normal_word_with_range_text_only_stays_todays_sentence(value, word):
+    # A printed normal word on a number whose range exists only as text cannot be
+    # compared (the text is never parsed) and nothing says the number is normal, so the
+    # stored value decides, as on main. Stored True stays "outside"; no new reassurance.
+    stored_true = _obs(flag=word, value=value, ref_low=None, ref_high=None, ref_range_text="70-100", is_abnormal=True)
+    text = await _text(stored_true)
+    assert OUTSIDE in text, text
+    assert WITHIN not in text, text
+    stored_false = _obs(flag=word, value=value, ref_low=None, ref_high=None, ref_range_text="70-100", is_abnormal=False)
+    text = await _text(stored_false)
+    assert WITHIN in text and OUTSIDE not in text, text
 
 
 @pytest.mark.asyncio
@@ -708,7 +742,10 @@ class _ImportIngest:
             document_id=doc_id,
             path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
             content_hash=hashlib.sha256(data).hexdigest(),
-            doc_type="lab_csv" if filename.endswith(".csv") else "lab_pdf",
+            doc_type=(
+                "lab_csv" if filename.endswith(".csv")
+                else "fhir_bundle" if filename.endswith(".json") else "lab_pdf"
+            ),
             page_count=1,
             is_duplicate=False,
             metadata={},
@@ -768,6 +805,69 @@ async def test_hc_vrc_011_csv_import_stores_is_abnormal_from_the_range(dbs, monk
                  f"/interpretations/observations/{above.id}/interpret")
     assert resp.status_code == 201, resp.text
     assert ABOVE in resp.json()["interpretation_text"], resp.json()["interpretation_text"]
+
+
+# (code.text, value, numeric low/high or None, range text or None, printed interpretation,
+#  stored flag, stored is_abnormal)
+FHIR_ROWS = [
+    ("F-above", 300, (70, 100), None, None, None, True),
+    ("F-below", 40, (70, 100), None, None, None, True),
+    ("F-inside", 85, (70, 100), None, None, None, False),
+    ("F-text-only-no-flag", 300, None, "70-100", None, None, False),   # text is never parsed
+    ("F-N-inside", 85, (70, 100), None, "N", "N", False),
+    ("F-N-above", 300, (70, 100), None, "N", "N", True),               # disagrees: stored value kept
+    ("F-N-text-only", 300, None, "70-100", "N", "N", True),            # cannot compare: stored value kept
+    ("F-N-bounds-and-text", 85, (70, 100), "70-100", "N", "N", False),
+    ("F-H-text-only", 300, None, "70-100", "H", "H", True),
+    ("F-H-inside", 85, (70, 100), None, "H", "H", True),               # disagrees: stored value kept
+]
+
+
+def _fhir_bundle() -> bytes:
+    import json
+
+    entries = []
+    for name, value, bounds, text, interp, _f, _a in FHIR_ROWS:
+        resource = {
+            "resourceType": "Observation", "status": "final", "code": {"text": name},
+            "effectiveDateTime": "2026-06-01",
+            "valueQuantity": {"value": value, "unit": "mg/dL"},
+        }
+        rng = {}
+        if bounds:
+            rng["low"], rng["high"] = {"value": bounds[0]}, {"value": bounds[1]}
+        if text:
+            rng["text"] = text
+        if rng:
+            resource["referenceRange"] = [rng]
+        if interp:
+            resource["interpretation"] = [{"text": interp}]
+        entries.append({"resource": resource})
+    return json.dumps({"resourceType": "Bundle", "type": "collection", "entry": entries}).encode()
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_011_fhir_import_stores_is_abnormal_from_the_range(dbs, monkeypatch, tmp_path):
+    profile_db, master_db = dbs
+    resp = _post_import(monkeypatch, tmp_path, profile_db, "bundle.json", _fhir_bundle(), "application/json")
+    assert resp.status_code == 201, resp.text
+    by_raw = await _stored_by_raw(profile_db)
+    assert set(by_raw) == {r[0] for r in FHIR_ROWS}, sorted(by_raw)
+    wrong = {
+        raw: (by_raw[raw].flag, by_raw[raw].is_abnormal)
+        for raw, _v, _b, _t, _i, want_flag, want_abn in FHIR_ROWS
+        if (by_raw[raw].flag, by_raw[raw].is_abnormal) != (want_flag, want_abn)
+    }
+    assert wrong == {}, wrong
+
+    # Interpret the stored text-only rows through HTTP: a printed N on a number whose range
+    # is text only keeps main's sentence for its stored value; it is never newly "within".
+    n_text = by_raw["F-N-text-only"]
+    resp = _call(profile_db, master_db, interpretations_router, "/interpretations", "POST",
+                 f"/interpretations/observations/{n_text.id}/interpret")
+    assert resp.status_code == 201, resp.text
+    assert OUTSIDE in resp.json()["interpretation_text"], resp.json()["interpretation_text"]
+    assert WITHIN not in resp.json()["interpretation_text"], resp.json()["interpretation_text"]
 
 
 def _grid_pdf(rows):

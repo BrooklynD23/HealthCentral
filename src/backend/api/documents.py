@@ -662,6 +662,7 @@ async def _run_extraction_pipeline(
                     observation_range_status(
                         extracted_obs.flag, extracted_obs.value,
                         extracted_obs.ref_low, extracted_obs.ref_high,
+                        bool((extracted_obs.ref_range_text or "").strip()),
                     ),
                     extracted_obs.flag is not None,
                 ),
@@ -775,6 +776,7 @@ async def _run_structured_import_pipeline(
                 observation_range_status(
                     obs_data.get("flag"), obs_data.get("value"),
                     obs_data.get("ref_low"), obs_data.get("ref_high"),
+                    bool((obs_data.get("ref_range_text") or "").strip()),
                 ),
                 obs_data.get("flag") is not None,
             ),

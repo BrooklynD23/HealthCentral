@@ -84,7 +84,7 @@ _HIGH_FLAGS = frozenset({"H", "HH", "HIGH"})
 _LOW_FLAGS = frozenset({"L", "LL", "LOW"})
 
 
-def observation_range_status(flag, value, ref_low, ref_high) -> str:
+def observation_range_status(flag, value, ref_low, ref_high, has_range_text=False) -> str:
     """Read a result from its printed flag and its numeric range (VALUE-RANGE-COMPARE).
 
     Returns one of: "above", "below", "within", "normal_uncompared", "disagrees", "keep".
@@ -94,7 +94,10 @@ def observation_range_status(flag, value, ref_low, ref_high) -> str:
     not decide (another flag, or no flag and nothing to compare).
 
     A value equal to a bound is inside, a bound of 0.0 is a real bound, and low is checked
-    first, as Verify and InterpretModule._classify_severity do. ref_range_text is never parsed.
+    first, as Verify and InterpretModule._classify_severity do. ref_range_text is never parsed;
+    callers pass only whether it is non-blank. A printed normal word on a numeric value whose
+    range exists only as text cannot be compared, and nothing says it is normal, so that
+    case is "keep" (today's sentence by the stored is_abnormal), not "normal_uncompared".
     """
     if value is None or (ref_low is None and ref_high is None):
         place = None
@@ -109,6 +112,8 @@ def observation_range_status(flag, value, ref_low, ref_high) -> str:
         return {"above": "above", "below": "below", "inside": "within"}.get(place, "keep")
     word = flag.strip().upper()
     if word in _NORMAL_FLAGS:
+        if place is None and value is not None and has_range_text:
+            return "keep"
         return {"inside": "within", None: "normal_uncompared"}.get(place, "disagrees")
     if word in _HIGH_FLAGS:
         return "above" if place in (None, "above") else "disagrees"
@@ -389,7 +394,10 @@ async def list_observations(
         observations = [
             obs for obs in observations
             if status_is_abnormal(
-                observation_range_status(obs.flag, obs.value, obs.ref_low, obs.ref_high),
+                observation_range_status(
+                    obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                    bool((obs.ref_range_text or "").strip()),
+                ),
                 obs.is_abnormal,
             )
         ]
