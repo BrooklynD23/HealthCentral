@@ -124,6 +124,13 @@ export function SearchPage() {
     setSearchParams(q ? { q } : {});
   };
 
+  // The Try again button leaves with the error while the query refetches, so focus goes to the box rather than to
+  // <body>.
+  const tryAgain = () => {
+    searchInput.current?.focus();
+    void refetch();
+  };
+
   // Clears the query and every filter, so the next search is not empty again because of a forgotten filter. The
   // button leaves with the empty state, so focus goes to the box rather than to <body>.
   const clearSearch = () => {
@@ -228,7 +235,7 @@ export function SearchPage() {
                 Something went wrong loading matching records. Please try again.
               </p>
             </div>
-            <Button variant="secondary" className="mt-6" onClick={() => void refetch()}>
+            <Button variant="secondary" className="mt-6" onClick={tryAgain}>
               Try again
             </Button>
           </CardContent>

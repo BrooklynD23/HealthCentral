@@ -475,8 +475,7 @@ describe('HC-UIPIN-001 timeline cards name their analytes', () => {
   it('HC-UIPIN-001: an id that stays unmatched after that one refresh asks once, and a later refetch does not hold the cards', async () => {
     // Would not notice: a refresh loop for an id that no observation has (a deleted row), or cards that blink on every
     // window focus. The held refetch after the first settle must leave the cards in place.
-    // RED today: no refresh at all, so the call count below is 1... and the cards never blink either; the check that
-    // matters is the held-focus half, which fails if the hold is applied to a later refetch.
+    // RED today: no refresh at all, so the first count below is 1, not 2.
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: 300_000 }, mutations: { retry: false } },
     });

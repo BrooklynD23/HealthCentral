@@ -13,6 +13,7 @@ import {
   useRemovePinboardItem,
   useRenamePinboard,
   type Pinboard,
+  type PinboardItem,
 } from '@/services';
 
 const ITEM_LABELS = {
@@ -36,6 +37,7 @@ export function PinboardsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Pinboard | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
   const [deletedId, setDeletedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const renameButton = useRef<HTMLButtonElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const createBoard = useCreatePinboard();
@@ -44,7 +46,18 @@ export function PinboardsPage() {
   const removeItem = useRemovePinboardItem();
   const exportBoard = useExportPinboard();
   const newNameInput = useRef<HTMLInputElement>(null);
-  const { data: items = [] } = usePinboardItems(selectedId || undefined);
+
+  const selected = pinboards.find((board) => board.id === selectedId);
+  // The delete invalidates every pinboard query by prefix, which would ask for the deleted board's items once more while
+  // it is still selected, and the route answers 404. So a board's items are not observed once the list no longer has it,
+  // nor while its own delete is in flight; the panel keeps the items it showed.
+  // `deletingId` is set in the click handler, before the request: the mutation's own pending state reaches this
+  // component a render later, and a quick answer would invalidate before the observer had stopped.
+  const observedId = selected && selected.id !== deletingId ? selected.id : undefined;
+  const itemsQuery = usePinboardItems(observedId);
+  const shownItems = useRef<PinboardItem[]>([]);
+  if (observedId) shownItems.current = itemsQuery.data ?? [];
+  const items = observedId ? (itemsQuery.data ?? []) : shownItems.current;
 
   const selectBoard = (boardId: string) => {
     setSelectedId(boardId);
@@ -62,8 +75,6 @@ export function PinboardsPage() {
     // Selection changes intentionally reset export confirmation and results.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinboards, selectedId]);
-
-  const selected = pinboards.find((board) => board.id === selectedId);
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
@@ -92,6 +103,12 @@ export function PinboardsPage() {
     focusLater(() => renameButton.current);
   };
 
+  // Escape, the overlay and Cancel do nothing while the request runs: the rename would still go through with no dialog
+  // left to show a failure in.
+  const dismissRename = () => {
+    if (!renameBoard.isPending) closeRename();
+  };
+
   const submitRename = async (event: FormEvent) => {
     event.preventDefault();
     const name = renameValue.trim();
@@ -117,14 +134,22 @@ export function PinboardsPage() {
     focusLater(() => deleteButton.current);
   };
 
+  // Same for Delete: a delete cannot be undone, so a closed dialog must not hide one that is still on its way.
+  const dismissDelete = () => {
+    if (!deleteBoard.isPending) closeDelete();
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget || deleteBoard.isPending) return;
     const { id } = deleteTarget;
+    setDeletingId(id);
     try {
       await deleteBoard.mutateAsync(id);
     } catch {
       setDeleteFailed(true);
       return;
+    } finally {
+      setDeletingId(null);
     }
     setDeleteTarget(null);
     setDeleteFailed(false);
@@ -256,7 +281,7 @@ export function PinboardsPage() {
       <Dialog
         open={renameTarget !== null}
         onOpenChange={(open) => {
-          if (!open) closeRename();
+          if (!open) dismissRename();
         }}
         title="Rename pinboard"
       >
@@ -276,7 +301,7 @@ export function PinboardsPage() {
             </p>
           )}
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={closeRename}>
+            <Button type="button" variant="secondary" disabled={renameBoard.isPending} onClick={dismissRename}>
               Cancel
             </Button>
             <Button type="submit" disabled={!renameValue.trim() || renameBoard.isPending}>
@@ -289,7 +314,7 @@ export function PinboardsPage() {
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open) closeDelete();
+          if (!open) dismissDelete();
         }}
         title="Delete this pinboard?"
         className="[overflow-wrap:anywhere]"
@@ -301,7 +326,7 @@ export function PinboardsPage() {
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="secondary" data-alert-cancel onClick={closeDelete}>
+          <Button type="button" variant="secondary" data-alert-cancel disabled={deleteBoard.isPending} onClick={dismissDelete}>
             Cancel
           </Button>
           <Button type="button" variant="danger" disabled={deleteBoard.isPending} onClick={() => void confirmDelete()}>

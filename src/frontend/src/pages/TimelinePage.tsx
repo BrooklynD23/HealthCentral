@@ -7,7 +7,7 @@
  * relevant existing page. Undated items are listed separately.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Calendar,
@@ -78,16 +78,34 @@ function analyteName(observation: Observation): string {
   return observation.analyte_raw || observation.analyte_canonical;
 }
 
+interface NamedObservation {
+  name: string;
+  /** The key the backend title counts analytes by (modules/timeline.py). */
+  canonical: string;
+}
+
+const byName = (a: NamedObservation, b: NamedObservation) => a.name.localeCompare(b.name, 'en');
+
 /**
- * The analyte names of a lab card: its related ids are observation ids. Each name once, in order. An id that matches
- * no observation adds nothing, and is never guessed. Only lab cards name analytes.
+ * The analyte names of a lab card: its related ids are observation ids. Each canonical analyte once, so the line agrees
+ * with the "(N analytes)" the backend counts; sorted by name, because the backend lists the ids in a random order and
+ * two cards must read the same way. An id that matches no observation adds nothing, and is never guessed. Only lab cards
+ * name analytes.
  */
-function analyteNamesFor(event: TimelineEvent, nameById: Map<string, string>): string[] {
+function analyteNamesFor(event: TimelineEvent, byId: Map<string, NamedObservation>): string[] {
   if (event.event_type !== 'lab_results') return [];
-  const names: string[] = [];
+  const found: NamedObservation[] = [];
   for (const id of event.related_ids) {
-    const name = nameById.get(id);
-    if (name && !names.includes(name)) names.push(name);
+    const row = byId.get(id);
+    if (row) found.push(row);
+  }
+  found.sort(byName);
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const row of found) {
+    if (seen.has(row.canonical)) continue;
+    seen.add(row.canonical);
+    names.push(row.name);
   }
   return names;
 }
@@ -166,8 +184,15 @@ export function TimelinePage() {
   const [eventType, setEventType] = useState<TimelineEventType | ''>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const eventTypeSelect = useRef<HTMLSelectElement>(null);
 
-  const { data, isLoading: timelineLoading, isError, refetch } = useTimeline({
+  const {
+    data,
+    isLoading: timelineLoading,
+    isError,
+    refetch,
+    dataUpdatedAt: timelineUpdatedAt,
+  } = useTimeline({
     event_type: eventType,
     date_from: dateFrom,
     date_to: dateTo,
@@ -176,21 +201,60 @@ export function TimelinePage() {
   // Related ids are observation ids, and the timeline carries no names. The observations are asked for unfiltered:
   // the page's date filters would drop the rows an event in another window points at.
   const { profileId } = useAuthStore();
-  const { data: observations, isLoading: observationsLoading } = useObservations({
+  const {
+    data: observations,
+    isLoading: observationsLoading,
+    isFetched: observationsFetched,
+    dataUpdatedAt: observationsUpdatedAt,
+    refetch: refetchObservations,
+  } = useObservations({
     profile_id: profileId || '',
   });
-  const nameById = useMemo(() => {
-    const names = new Map<string, string>();
-    for (const observation of observations ?? []) names.set(observation.id, analyteName(observation));
-    return names;
+  const byId = useMemo(() => {
+    const rows = new Map<string, NamedObservation>();
+    for (const observation of observations ?? []) {
+      rows.set(observation.id, { name: analyteName(observation), canonical: observation.analyte_canonical });
+    }
+    return rows;
   }, [observations]);
-
-  // The names add a line to a card, so the cards wait for both answers: they would move every later card otherwise.
-  // A failed observations query settles too: the cards render with their backend titles and no names.
-  const isLoading = timelineLoading || observationsLoading;
 
   const events = data?.events ?? [];
   const undated = data?.undated ?? [];
+
+  // The observations are shared with other pages and kept for 5 minutes, and an import does not invalidate them, so a
+  // lab card can point at an id the cached answer does not have. Once per visit, when that happens and a cached answer
+  // exists (a failed query has none, and a refetch of it must not hold the cards) that is older than the timeline, they are asked for again, and the cards wait for that one answer.
+  const [refreshed, setRefreshed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const hasUnmatched = [...events, ...undated].some(
+    (e) => e.event_type === 'lab_results' && e.related_ids.some((id) => !byId.has(id))
+  );
+  const needsRefresh =
+    !!profileId && !refreshed && observationsUpdatedAt > 0 && hasUnmatched && observationsUpdatedAt < timelineUpdatedAt;
+  useEffect(() => {
+    if (!needsRefresh) return;
+    setRefreshed(true);
+    setRefreshing(true);
+    void refetchObservations({ cancelRefetch: false }).finally(() => setRefreshing(false));
+  }, [needsRefresh, refetchObservations]);
+
+  // The names add a line to a card, so the cards wait for the answers: they would move every later card otherwise.
+  // Only the first answer of the observations holds them (a refetch of a failed query reads as loading again and would
+  // take the cards away), plus the one refresh above and a Try again. A failed observations query settles too: the
+  // cards render with their backend titles and no names, and the timeline is never hidden for it.
+  const holding =
+    timelineLoading || (observationsLoading && !observationsFetched) || needsRefresh || refreshing || retrying;
+  // A failed timeline shows its alert alone: a spinner beside it would leave when the observations answer and move the
+  // alert (error text is T0).
+  const showSpinner = holding && !isError;
+
+  // Asks for both again. The button leaves with the error, so focus goes to the first filter rather than to <body>.
+  const tryAgain = () => {
+    setRetrying(true);
+    eventTypeSelect.current?.focus();
+    void Promise.allSettled([refetch(), refetchObservations()]).finally(() => setRetrying(false));
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -209,6 +273,7 @@ export function TimelinePage() {
             <label className="block text-sm">
               <span className="mb-1 block font-medium text-ink-secondary">Event type</span>
               <select
+                ref={eventTypeSelect}
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value as TimelineEventType | '')}
                 className="w-full rounded-xl border border-border bg-surface-elevated px-3 py-2 text-sm text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
@@ -240,7 +305,7 @@ export function TimelinePage() {
         </CardContent>
       </Card>
 
-      {isLoading && (
+      {showSpinner && (
         <div className="flex justify-center py-16" role="status" aria-live="polite">
           <Loader2 className="h-6 w-6 motion-safe:animate-spin text-ink-tertiary" />
           <span className="sr-only">Loading timeline...</span>
@@ -258,14 +323,14 @@ export function TimelinePage() {
                 Something went wrong loading your timeline. Please try again.
               </p>
             </div>
-            <Button variant="secondary" className="mt-6" onClick={() => void refetch()}>
+            <Button variant="secondary" className="mt-6" onClick={tryAgain}>
               Try again
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {!isLoading && !isError && events.length === 0 && undated.length === 0 && (
+      {!holding && !isError && events.length === 0 && undated.length === 0 && (
         <EmptyState
           icon={History}
           title="No events yet"
@@ -278,7 +343,7 @@ export function TimelinePage() {
         />
       )}
 
-      {!isLoading && events.length > 0 && (
+      {!holding && events.length > 0 && (
         <section aria-label="Dated events" className="space-y-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-ink-secondary">
             <Calendar className="h-4 w-4" aria-hidden="true" />
@@ -287,14 +352,14 @@ export function TimelinePage() {
           <ol className="space-y-3">
             {events.map((event) => (
               <li key={event.event_id}>
-                <EventCard event={event} analytes={analyteNamesFor(event, nameById)} />
+                <EventCard event={event} analytes={analyteNamesFor(event, byId)} />
               </li>
             ))}
           </ol>
         </section>
       )}
 
-      {!isLoading && undated.length > 0 && (
+      {!holding && undated.length > 0 && (
         <section aria-label="Undated items" className="space-y-3">
           <h2 className="flex items-center gap-2 text-sm font-medium text-ink-secondary">
             <CalendarOff className="h-4 w-4" aria-hidden="true" />
@@ -307,7 +372,7 @@ export function TimelinePage() {
           <ol className="space-y-3">
             {undated.map((event) => (
               <li key={event.event_id}>
-                <EventCard event={event} analytes={analyteNamesFor(event, nameById)} />
+                <EventCard event={event} analytes={analyteNamesFor(event, byId)} />
               </li>
             ))}
           </ol>
