@@ -251,8 +251,11 @@ describe('HC-SMT-002c a PATCH that settles after the cache was cleared writes no
       if (reject) server.patchGate!.reject(new Error('503'));
       else server.patchGate!.resolve();
     });
-    await waitFor(() => expect(api.apiPatch).toHaveBeenCalledTimes(1));
+    // A failure still tells the person; only the cache write is skipped.
+    if (reject) expect(await screen.findByText(CHANGE_TOAST)).toBeInTheDocument();
     await act(async () => {});
+    if (!reject) expect(screen.queryByText(CHANGE_TOAST)).toBeNull();
+    expect(api.apiPatch).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(KEY)).toBeUndefined();
   });
 });
@@ -296,7 +299,9 @@ describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
     const user = userEvent.setup();
     const server = fakeServer(false);
     server.failAfterCommit = true;
-    renderToggle();
+    const queryClient = renderToggle();
+    queryClient.setQueryData(['interpretations', 'obs-1'], { seeded: true });
+    queryClient.setQueryData(['observations', 'trends', 'glucose', undefined, undefined], { seeded: true });
 
     const toggle = await knownSwitch();
     expect(api.apiGet).toHaveBeenCalledTimes(1);
@@ -308,6 +313,90 @@ describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
     await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
     expect(api.apiGet).toHaveBeenCalledTimes(2);
     expect(toggle).toBeEnabled();
+    // The mode did change, so what was written under the old mode goes, exactly as after a clean PATCH.
+    await waitFor(() => expect(queryClient.getQueryData(['interpretations', 'obs-1'])).toBeUndefined());
+    expect(
+      queryClient.getQueryState(['observations', 'trends', 'glucose', undefined, undefined])?.isInvalidated
+    ).toBe(true);
+  });
+
+  it('keeps the explanations when the read-back confirms the old value', async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(false);
+    vi.mocked(api.apiPatch).mockRejectedValue(new Error('503'));
+    const queryClient = renderToggle();
+    queryClient.setQueryData(['interpretations', 'obs-1'], { seeded: true });
+    queryClient.setQueryData(['observations', 'trends', 'glucose', undefined, undefined], { seeded: true });
+
+    const toggle = await knownSwitch();
+    await user.click(toggle);
+    expect(await screen.findByText(CHANGE_TOAST)).toBeInTheDocument();
+    await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    // Nothing changed on the server, so nothing shown under the old mode is stale.
+    expect(server.value).toBe(false);
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(queryClient.getQueryData(['interpretations', 'obs-1'])).toEqual({ seeded: true });
+    expect(
+      queryClient.getQueryState(['observations', 'trends', 'glucose', undefined, undefined])?.isInvalidated
+    ).toBe(false);
+  });
+
+  it('with the backend down: one change toast, no load toast, a usable switch, explanations reset', async () => {
+    const user = userEvent.setup();
+    fakeServer(false);
+    const queryClient = renderToggle();
+    queryClient.setQueryData(['interpretations', 'obs-1'], { seeded: true });
+
+    const toggle = await knownSwitch();
+    // The PATCH and the read-back both fail, so the value cannot be confirmed: drop what depends on it.
+    vi.mocked(api.apiPatch).mockRejectedValue(new Error('down'));
+    vi.mocked(api.apiGet).mockRejectedValue(new Error('down'));
+    await user.click(toggle);
+
+    expect(await screen.findByText(CHANGE_TOAST)).toBeInTheDocument();
+    await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(queryClient.getQueryData(['interpretations', 'obs-1'])).toBeUndefined());
+    await act(async () => {});
+    expect(screen.queryAllByText(CHANGE_TOAST)).toHaveLength(1);
+    expect(screen.queryByText(LOAD_TOAST)).toBeNull();
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('a read-back that lands during the next click does not overwrite the new choice', async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(false);
+    renderToggle();
+
+    const toggle = await knownSwitch();
+    const readBack = deferred<unknown>();
+    vi.mocked(api.apiGet).mockImplementation(() => readBack.promise);
+    const first = deferred<void>();
+    server.patchGate = first;
+    await user.click(toggle);
+    await act(async () => {
+      first.reject(new Error('503'));
+    });
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+
+    const second = deferred<void>();
+    server.patchGate = second;
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    expect(api.apiPatch).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      readBack.resolve({ strict_safety_mode: false });
+      // The read-back's handlers run a few microtasks later; let a whole task pass before looking.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await act(async () => {
+      second.resolve();
+    });
+    await waitFor(() => expect(server.value).toBe(true));
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
   });
 
   it('restores an ON switch to ON when the PATCH to turn it off fails', async () => {

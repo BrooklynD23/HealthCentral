@@ -1,11 +1,22 @@
 import { useEffect, useRef } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { notify } from '@/components/ui/toast';
 import { getSafetyMode, setSafetyMode, type SafetyModeResponse } from '@/services/assistant';
 
 // Same shape as ['assistant', 'memory-settings'] (services/assistant.ts). The app's query defaults apply
 // (staleTime 5 min, retry 1): every GET writes an audit row, so the staleTime is not shortened here.
 const SAFETY_MODE_KEY = ['assistant', 'safety-mode'] as const;
+
+/**
+ * Nothing shown under the old mode stays cached under the new one. The literals are the private
+ * QUERY_KEY constants of services/interpretations.ts (:17) and services/observations.ts (:11).
+ * Explanations are reset, not invalidated: under the stricter mode the refetch of an unverified value
+ * is refused (409), and an invalidated query keeps its last good data through a failed refetch.
+ */
+function dropModeDependents(queryClient: QueryClient) {
+  void queryClient.resetQueries({ queryKey: ['interpretations'] });
+  void queryClient.invalidateQueries({ queryKey: ['observations', 'trends'] });
+}
 
 /**
  * The per-profile stricter safety mode. `checked` is the server's value once it is known. Until then
@@ -55,19 +66,25 @@ export function useSafetyMode() {
         if (context?.previous) queryClient.setQueryData(SAFETY_MODE_KEY, context.previous);
         // The PATCH may have committed before it failed (the audit commit comes after the flag's), so the
         // snapshot can be wrong. Read the server's value back instead of trusting it for the whole staleTime.
-        void queryClient.invalidateQueries({ queryKey: SAFETY_MODE_KEY });
+        // A plain call, not a refetch of the query: a failed read-back must not put the query in error,
+        // or the load toast would stack on the change toast, on a switch whose value is known.
+        void getSafetyMode().catch(() => undefined).then((response) => {
+          if (!queryClient.getQueryState(SAFETY_MODE_KEY)) return; // cleared meanwhile, as above
+          const readBack = response?.strict_safety_mode;
+          // A newer click owns the cache now; its own answer will settle it.
+          if (typeof readBack === 'boolean' && !inFlight.current) {
+            queryClient.setQueryData<SafetyModeResponse>(SAFETY_MODE_KEY, { strict_safety_mode: readBack });
+          }
+          // Unless the server confirms the old value, the mode may have changed (or cannot be told).
+          if (readBack !== context?.previous?.strict_safety_mode) dropModeDependents(queryClient);
+        });
       }
       notify({ message: "Couldn't change the stricter safety mode setting." });
     },
     onSuccess: (response) => {
       if (!queryClient.getQueryState(SAFETY_MODE_KEY)) return; // cleared by the lock flow, see onError
       queryClient.setQueryData(SAFETY_MODE_KEY, response);
-      // Nothing shown under the old mode stays cached under the new one. The literals are the private
-      // QUERY_KEY constants of services/interpretations.ts (:17) and services/observations.ts (:11).
-      // Explanations are reset, not invalidated: under the stricter mode the refetch of an unverified value
-      // is refused (409), and an invalidated query keeps its last good data through a failed refetch.
-      void queryClient.resetQueries({ queryKey: ['interpretations'] });
-      void queryClient.invalidateQueries({ queryKey: ['observations', 'trends'] });
+      dropModeDependents(queryClient);
     },
     onSettled: () => {
       inFlight.current = false;
@@ -85,7 +102,7 @@ export function useSafetyMode() {
     checked: value ?? false,
     /** True once the server's value is a real boolean. */
     known: value !== undefined,
-    /** True only while the first GET is pending. */
+    /** True while a GET is pending and there is no data yet. */
     loading: query.isPending,
     setStrict,
   };
