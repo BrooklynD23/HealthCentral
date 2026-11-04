@@ -212,7 +212,7 @@ export function PinboardsPage() {
                 {items.length === 0 ? <p className="text-sm text-ink-secondary">No pinned items yet.</p> : (
                   <ul className="divide-y divide-border">
                     {items.map((item) => <li key={item.id} className="flex items-center justify-between gap-3 py-3">
-                      <div className="min-w-0 [overflow-wrap:anywhere]">
+                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
                         <p data-t0 data-pinboard-item-label className="text-sm font-medium text-ink">{ITEM_LABELS[item.item_type]}</p>
                         <p data-t0 data-pinboard-item-id className="font-mono text-xs text-ink-tertiary">{item.item_id}</p></div>
                       <Button variant="ghost" size="icon" className="shrink-0" aria-label="Remove pinned item"

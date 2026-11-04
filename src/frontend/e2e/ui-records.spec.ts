@@ -742,6 +742,8 @@ test.describe('M3 add-to-pinboard menu enter', () => {
     const samples = await sampleEnter(page, () => pinButton(page).click());
     expect(samples[0].opacity, 'still fades').toBeLessThan(0.9);
     for (const s of samples) expect(s.scale === 'none' || parseFloat(s.scale) === 1, `scale ${s.scale} at ${s.t}`).toBe(true);
+    // The menu itself carries no transform at all (the popper wrapper around it positions it, and is not the menu).
+    expect(await page.getByRole('menu').evaluate((el) => getComputedStyle(el).transform)).toBe('none');
   });
 });
 
@@ -972,10 +974,12 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
       await setup(page);
       await openTimeline(page);
       await applyTheme(page, theme);
-      const pin = await reducedMotionSnapshot(page, () => pinButton(page).click());
-      expect(pin, `G5 pin menu ${theme}`).toEqual([]);
+      // The pin menu is not in this snapshot: the page-wide read flags the Radix popper wrapper's static positioning
+      // transform as motion (queue GATES-POPPER-TRANSFORM, a harness row). The menu's own reduced-motion behaviour is
+      // read on the menu itself in M3 "under reduced motion" above.
+      const filter = await reducedMotionSnapshot(page, () => page.getByLabel('Event type').selectOption('lab_results'));
+      expect(filter, `G5 timeline filter ${theme}`).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`timeline-${theme}-reduced.png`), fullPage: false });
-      await page.keyboard.press('Escape');
 
       await openSearch(page);
       await applyTheme(page, theme);
