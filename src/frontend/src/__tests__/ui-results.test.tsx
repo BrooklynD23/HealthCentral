@@ -1672,10 +1672,46 @@ describe('HC-UIRES-026 the Normal Range badge', () => {
     expect(screen.queryByText('Outside Range')).toBeNull();
   });
 
-  it('HC-UIRES-026: a value outside the range that the route left unflagged shows no Normal Range', async () => {
+  it('HC-UIRES-026: a value outside the range that the route left unflagged shows Outside Range, never Normal Range or Flagged (L0 ruling 6615916306)', async () => {
     await open(withLatest(130, { ref_low: 70, ref_high: 99 }));
     await screen.findByText(/Latest value: 130/);
+    expect(await screen.findByText('Outside Range')).toBeInTheDocument();
     expect(screen.queryByText('Normal Range')).toBeNull();
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: an unflagged value below the low bound shows Outside Range, never Normal Range or Flagged', async () => {
+    await open(withLatest(50, { ref_low: 70, ref_high: 99 }));
+    await screen.findByText(/Latest value: 50/);
+    expect(await screen.findByText('Outside Range')).toBeInTheDocument();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a flagged value below the low bound shows Outside Range alone', async () => {
+    await open(withLatest(50, { ref_low: 70, ref_high: 99 }, true));
+    expect(await screen.findByText('Outside Range')).toBeInTheDocument();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: float noise on the bound is not outside: the flag is the report\'s, an unflagged value is Normal Range', async () => {
+    // normalize.py can hand back 99.10010000000001 for a value the report printed as 99.1001; the ribbon cleans it
+    // to 12 significant digits, so the badge must read the same number.
+    await open(withLatest(99.10010000000001, { ref_low: 70, ref_high: 99.1001 }, true));
+    expect(await screen.findByText('Flagged on the report')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+    cleanup();
+    await open(withLatest(99.10010000000001, { ref_low: 70, ref_high: 99.1001 }));
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: the printed Latest value is the cleaned number the ribbon shows', async () => {
+    await open(withLatest(194.48000000000002, { ref_low: 70, ref_high: 99 }));
+    expect(await screen.findByText('Latest value: 194.48 g/dL')).toBeInTheDocument();
   });
 
   it('HC-UIRES-026: a flagged value outside the range shows Outside Range and never Normal Range', async () => {
