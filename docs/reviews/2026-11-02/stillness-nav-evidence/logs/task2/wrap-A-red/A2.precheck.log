@@ -1,0 +1,14 @@
+--- precheck before A2 at 2026-11-02T20:15:24-08:00
+ 20:15:24 up 2 days, 10:00,  1 user,  load average: 1.20, 7.53, 16.84
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1855425 bash /mnt/e/Programming/Github Repo/hc-verify-keeps-flag/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_ver
+[FOREIGN] 1860781 bash /mnt/e/Programming/Github Repo/hc-hc-uimo-003-timeout/scripts/pyslot.sh bash -c uptime; for i in $(seq 1 12); do timeout 400 sh -c "while :; do :; done" & do
+[FOREIGN] 1863787 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1863788 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1863793 bash /mnt/e/Programming/Github Repo/hc-c-p6/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_fk_audit.py test
+[FOREIGN] 1864514 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1866931 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[mine] 1868397 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1868397,fd=30))
+(own server pids: 1868397 )

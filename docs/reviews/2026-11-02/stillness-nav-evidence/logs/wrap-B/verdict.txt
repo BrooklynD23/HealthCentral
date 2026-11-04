@@ -1,0 +1,20 @@
+| unit | set | control misses (pooled; per batch) | variant misses (pooled; per batch) | control max | variant max | (i) | (ii) | note |
+|---|---|---|---|---|---|---|---|---|
+| c1-wait100 | probe | 6/15 (b1:2/5 b2:3/5 b3:1/5) | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 65 | 40 | yes | |  |
+| c2a-lazy-false | probe | 7/15 (b1:2/5 b2:2/5 b3:3/5) | 4/15 (b1:1/5 b2:1/5 b3:2/5) | 57 | 49 | no | |  |
+| c2b-bare-track | bare | 1/15 (b1:1/5 b2:0/5 b3:0/5) | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 44 | 39 | n/a (bare) | |  |
+| c3a-noguard | probe | 7/15 (b1:3/5 b2:1/5 b3:3/5) | 3/15 (b1:1/5 b2:1/5 b3:1/5) | 48 | 53 | no | |  |
+| c3b-nolisteners | probe | 8/15 (b1:4/5 b2:2/5 b3:2/5) | 5/15 (b1:0/5 b2:3/5 b3:2/5) | 59 | 55 | no | |  |
+| c4a-raf | probe | 6/15 (b1:2/5 b2:1/5 b3:3/5) | 1/15 (b1:0/5 b2:0/5 b3:1/5) | 55 | 41 | no | | diagnostic only |
+| c4b-unrounded | probe | 7/15 (b1:2/5 b2:4/5 b3:1/5) | 7/15 (b1:2/5 b2:3/5 b3:2/5) | 52 | 52 | no | | diagnostic only |
+| c5-barestamp | probe | 4/15 (b1:1/5 b2:3/5 b3:0/5) | 5/15 (b1:2/5 b2:2/5 b3:1/5) | 50 | 65 | no | |  |
+| c6a-mock50 | probe | 4/15 (b1:2/5 b2:1/5 b3:1/5) | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 45 | 37 | no | |  |
+| c6b-mock150 | probe | 4/15 (b1:1/5 b2:2/5 b3:1/5) | 1/15 (b1:1/5 b2:0/5 b3:0/5) | 48 | 45 | no | |  |
+| c7a-preview | probe | 5/15 (b1:2/5 b2:1/5 b3:2/5) | 3/15 (b1:2/5 b2:0/5 b3:1/5) | 60 | 47 | no | |  |
+| c7b-hmr-off | probe | 4/15 (b1:1/5 b2:2/5 b3:1/5) | 5/15 (b1:1/5 b2:1/5 b3:3/5) | 53 | 52 | no | |  |
+| c8-preload | probe | 3/15 (b1:2/5 b2:1/5 b3:0/5) | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 54 | 35 | no | | diagnostic only |
+| c9-reduced | probe | 1/15 (b1:0/5 b2:1/5 b3:0/5) | 6/15 (b1:2/5 b2:2/5 b3:2/5) | 53 | 58 | no | |  |
+| s1-bare-nowait | bare | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 4/15 (b1:2/5 b2:1/5 b3:1/5) | 38 | 51 | n/a (bare) | |  |
+| s3-bare-guard | bare | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 0/15 (b1:0/5 b2:0/5 b3:0/5) | 36 | 36 | n/a (bare) | |  |
+
+(ii) for c2a-lazy-false: bottom-up c2b-bare-track: bare timer with the factor added misses 0/15; needs >= 5 -> NOT met

@@ -1,0 +1,7 @@
+
+  VITE v7.3.7  ready in 741 ms
+
+  ➜  Local:   http://127.0.0.1:3000/
+5:41:10 PM [vite] http proxy error: /api/v1/search/?q=migraine&limit=50
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16)

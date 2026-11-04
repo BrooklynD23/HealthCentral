@@ -443,7 +443,7 @@ describe('ExportPage', () => {
       });
 
       // Toggle a section
-      const summaryToggle = screen.getByText('Results Summary').closest('button');
+      const summaryToggle = screen.getByRole('checkbox', { name: 'Results Summary' });
       if (summaryToggle) {
         await user.click(summaryToggle);
       }
@@ -465,7 +465,7 @@ describe('ExportPage', () => {
       });
 
       // Toggle questions section on
-      const questionsToggle = screen.getByText('Questions for Clinician').closest('button');
+      const questionsToggle = screen.getByRole('checkbox', { name: 'Questions for Clinician' });
       if (questionsToggle) {
         await user.click(questionsToggle);
       }

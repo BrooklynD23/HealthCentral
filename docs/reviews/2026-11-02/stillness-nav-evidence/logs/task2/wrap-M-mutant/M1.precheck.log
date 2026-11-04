@@ -1,0 +1,17 @@
+--- precheck before M1 at 2026-11-02T21:46:21-08:00
+ 21:46:21 up 2 days, 11:26,  1 user,  load average: 0.87, 4.21, 16.02
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1925302 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925303 bash scripts/pyslot.sh bash /tmp/claude-1000/ask/run-e2e.sh e2e/ui-ask.spec.ts --project=chromium --reporter=list -g HC-UIPV-004
+[FOREIGN] 1925305 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925602 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925607 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1925608 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh env PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-export.spec.ts --projec
+[mine] 1931166 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+[FOREIGN] 1931512 bash /mnt/e/Programming/Github Repo/hc-c-p6/scripts/pyslot.sh env /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_fk_migration_017.py tests/test_fk
+[FOREIGN] 1931829 /bin/bash /tmp/claude-1000/retry.sh /tmp/claude-1000/e2e-red.txt /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh env HC_E2E_BACKEND_PYTHON=/ho
+[FOREIGN] 1931831 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh env HC_E2E_BACKEND_PYTHON=/home/danny/venvs/asclexis-311/bin/python npx playwright test e
+[FOREIGN] 1932214 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1931166,fd=30))
+(own server pids: 1931166 )
