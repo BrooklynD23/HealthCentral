@@ -35,6 +35,7 @@ export function PinboardsPage() {
   const [renameFailed, setRenameFailed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Pinboard | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
+  const [deletedId, setDeletedId] = useState<string | null>(null);
   const renameButton = useRef<HTMLButtonElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const createBoard = useCreatePinboard();
@@ -127,11 +128,20 @@ export function PinboardsPage() {
     }
     setDeleteTarget(null);
     setDeleteFailed(false);
-    // The Delete button stays while another board is left to select; with none left it goes with the board panel,
-    // and focus moves to the new-pinboard box rather than to <body>.
-    if (pinboards.some((board) => board.id !== id)) focusLater(() => deleteButton.current);
-    else focusLater(() => newNameInput.current);
+    setDeletedId(id);
   };
+
+  // After a delete, focus goes to the Delete button of the board that takes its place, or to the new-pinboard box when
+  // none is left, so a keyboard user is never dropped on <body>. It waits for the list to drop the board and for the
+  // next one to be selected: until then the panel (and its buttons) is replaced, and a focus() would hit a dead node.
+  useEffect(() => {
+    if (!deletedId || deleteTarget) return;
+    if (pinboards.some((board) => board.id === deletedId)) return;
+    if (pinboards.length === 0) newNameInput.current?.focus();
+    else if (selected && selected.id !== deletedId) deleteButton.current?.focus();
+    else return;
+    setDeletedId(null);
+  }, [deletedId, deleteTarget, pinboards, selected]);
 
   const handleDownload = async () => {
     if (!exportBoard.data) return;
