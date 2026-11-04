@@ -1,5 +1,6 @@
 /**
- * UI-PG-SETTINGS (plan section 7.8): HC-UISET-001 to HC-UISET-005, plus HC-UISET-006 to 009 for the rest of the row.
+ * UI-PG-SETTINGS (plan section 7.8): HC-UISET-001 to HC-UISET-005, plus HC-UISET-006 to 017 for the rest of the row
+ * and for what the reviews found.
  *
  * The page is rendered whole, with the real hooks and the real cards, against a routed `apiGet` mock, so the sections
  * fetch what they would fetch in the app. Only the three auth and encryption cards are stubbed: they are rendered
@@ -14,6 +15,14 @@
  *   HC-UISET-007  honest tier copy
  *   HC-UISET-008  the switches keep their names and their payloads
  *   HC-UISET-009  on a phone the sections open from a sheet
+ *   HC-UISET-010  Profile & security keeps what its cards hold when the section or the layout changes
+ *   HC-UISET-011  a running download is followed after the user leaves Advanced and returns, however long they were away
+ *   HC-UISET-012  Stop and delete
+ *   HC-UISET-013  Current Status does not call an unread External API setting "Off"
+ *   HC-UISET-014  the export confirm hands the focus back
+ *   HC-UISET-015  the External API payloads carry what was typed
+ *   HC-UISET-016  the diagnostics link back to /settings stays in Advanced
+ *   HC-UISET-017  the export result is still there after a section change or Hide
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -155,8 +164,9 @@ function LocationProbe() {
   return <output data-testid="location">{location.search}</output>;
 }
 
-function renderSettings(url = '/settings') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+/** `gcTime` shortens how long the query cache keeps a query nobody observes (the app's default is 5 minutes). */
+function renderSettings(url = '/settings', gcTime?: number) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, ...(gcTime === undefined ? {} : { gcTime }) }, mutations: { retry: false } } });
   const user = userEvent.setup();
   const view = render(
     <QueryClientProvider client={client}>
@@ -563,7 +573,11 @@ describe('HC-UISET-006: T0 marks', () => {
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
     const ready = within(screen.getByTestId('tier-row-low')).getByText('Ready');
-    const download = within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' });
+    // The mark is on the word, not on the pressable Button: a Button changes its background on hover and its scale
+    // on press, and a T0 node holds still (G10).
+    const downloadButton = within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' });
+    expect(downloadButton).not.toHaveAttribute('data-t0');
+    const download = within(downloadButton).getByText('Download');
     const incompatible = within(screen.getByTestId('tier-row-high')).getByText('Incompatible');
     for (const node of [ready, download, incompatible]) {
       expect(node.closest('[data-t0]'), node.textContent ?? '').not.toBeNull();
@@ -789,10 +803,43 @@ describe('HC-UISET-011: a download that is running is followed after the user le
     downloadProgress = tierProgress('completed', 1);
     await waitFor(() => expect(tierFetches()).toBeGreaterThan(before), { timeout: 6000 });
     await waitFor(() => expect(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' })).toBeEnabled());
-    expect(screen.queryByText('90%')).not.toBeInTheDocument();
+    // The bar leaves through an exit animation: wait for it.
+    await waitFor(() => expect(screen.queryByText('90%')).not.toBeInTheDocument());
   }, 20000);
 
-  it('a Download button dims by colour, not by opacity, while a download runs (it is T0)', async () => {
+  // The query cache drops a query nobody observes after gcTime (5 minutes in the app). A model download can take longer.
+  it('the user is away longer than the cache keeps the progress: the bar and the disabled Download are still right', async () => {
+    vi.mocked(api.apiPost).mockResolvedValue({} as never);
+    const { user } = renderSettings('/settings?section=advanced', 20);
+    await openAdvanced(user);
+    downloadProgress = tierProgress('downloading', 0.4);
+    await user.click(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' }));
+    expect(await screen.findByText('40%')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    await screen.findByLabelText('Time zone');
+    // Away for ten times the cache time: the progress entry is gone from the cache.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 200)); });
+    downloadProgress = tierProgress('downloading', 0.9);
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }));
+    await openAdvanced(user);
+
+    expect(await screen.findByText('90%')).toBeInTheDocument();
+    expect(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' })).toBeDisabled();
+  }, 20000);
+
+  it('a download the page did not start (a reload, another window) is shown from the first look', async () => {
+    downloadProgress = tierProgress('downloading', 0.6);
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    expect(await screen.findByText('60%')).toBeInTheDocument();
+    expect(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' })).toBeDisabled();
+  });
+
+  // The word "Download" is T0 (G10 holds its opacity, colour and rect still). While a download runs the button is disabled,
+  // and a disabled Button is half opacity by default; a colour change would break the same rule, so nothing changes: the
+  // spinner in the button says the tier is downloading. The press scale and the hover colour act on the Button, not on the mark.
+  it('a Download button changes neither opacity nor colour while a download runs, and does not scale on press', async () => {
     vi.mocked(api.apiPost).mockResolvedValue({} as never);
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
@@ -803,6 +850,9 @@ describe('HC-UISET-011: a download that is running is followed after the user le
       const button = within(screen.getByTestId(row)).getByRole('button', { name: 'Download' });
       expect(button, row).toBeDisabled();
       expect(button.className, row).toContain('disabled:opacity-100');
+      expect(button.className, row).not.toMatch(/disabled:text-/);
+      expect(button.className, row).toContain('active:scale-100');
+      expect(button.querySelector('[data-t0]'), row).toHaveTextContent('Download');
     }
   });
 });
@@ -939,5 +989,44 @@ describe('HC-UISET-016: the diagnostics link back to /settings stays in Advanced
     await user.click(link);
     expect(screen.getByTestId('location')).toHaveTextContent('?section=advanced');
     expect(screen.getByRole('tab', { name: 'Advanced' })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('HC-UISET-017: the export result is still there after a section change or Hide', () => {
+  const exportOnce = async (user: ReturnType<typeof userEvent.setup>) => {
+    vi.mocked(api.apiPost).mockResolvedValue({
+      dpo_pairs_count: 4, sft_positives_count: 7, grpo_rewards_count: 9, metadata_path: '/home/test/exports/run-1/metadata.json',
+    } as never);
+    await user.click(screen.getByRole('button', { name: 'Export training data' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Export training data?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm Export' }));
+    expect(await screen.findByText('Export complete')).toBeInTheDocument();
+  };
+  const expectResult = () => {
+    expect(screen.getByText('Export complete')).toBeInTheDocument();
+    expect(screen.getByText(/4 DPO pairs · 7 SFT positives · 9 reward records/)).toBeInTheDocument();
+    expect(screen.getByText('/home/test/exports/run-1/metadata.json')).toBeInTheDocument();
+  };
+
+  // It is the only statement of how many records were written and where the file is.
+  it('after another section and back', async () => {
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await exportOnce(user);
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    await screen.findByLabelText('Time zone');
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }));
+    await openAdvanced(user);
+    expectResult();
+  });
+
+  it('after Hide advanced settings and Show', async () => {
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await exportOnce(user);
+    await user.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    expect(screen.queryByText('Export complete')).not.toBeInTheDocument();
+    await openAdvanced(user);
+    expectResult();
   });
 });

@@ -6,7 +6,7 @@
  *                  consent dialog, the export confirm, the diagnostics dialog and the phone section sheet
  *
  * Every /api/v1 call is answered here: installMockApi serves the shared shell fixtures, and the routes registered
- * after it (they run first) give the settings calls realistic bodies (seven tiers, eight diagnostics, memories, one granted donation purpose), so the
+ * after it (they run first) give the settings calls realistic bodies (seven tiers, seven diagnostics worded as modules/environment_diagnostics.py words them, memories, one granted donation purpose), so the
  * heights below are not the height of an empty page. Run without the backend (recipe 2 in e2e/README.md):
  *   TMPDIR=/dev/shm npx playwright test e2e/ui-settings.spec.ts --project=chromium
  *
@@ -68,15 +68,29 @@ const tiersFixture: TiersListResponse = {
   ],
 };
 
+// The seven components modules/environment_diagnostics.py returns, with its labels and its wording (its longest detail is the
+// SQLCipher one on Windows). A shorter label or detail would hide how much room the list needs.
 const diagnosticsFixture: DiagnosticsListResponse = {
   checked_at: '2026-11-01T08:00:00Z',
-  components: ['Tesseract OCR', 'Poppler', 'SQLCipher', 'Embedding model', 'Language model runtime', 'GPU runtime', 'Ollama', 'Disk space'].map((label, i) => ({
-    id: label.toLowerCase().replace(/\s+/g, '-'),
-    label,
-    status: (i % 3 === 0 ? 'error' : i % 3 === 1 ? 'warn' : 'ok') as 'ok' | 'warn' | 'error',
-    detail: i % 3 === 0 ? 'Not found on PATH' : 'Detected',
-    fix_actions: i % 3 === 0 ? [{ type: 'copy_command', label: 'Install', command: 'sudo apt install tesseract-ocr' }] : [],
-  })),
+  components: [
+    {
+      id: 'tesseract', label: 'Tesseract OCR', status: 'error', detail: 'Not on PATH — required for OCR of scans and images.',
+      fix_actions: [{ type: 'copy_command', label: 'Debian/Ubuntu', command: 'sudo apt install tesseract-ocr' }],
+    },
+    { id: 'ocr_python', label: 'OCR Python libraries', status: 'ok', detail: 'PIL: OK; pytesseract: OK; pdf2image: OK', fix_actions: [] },
+    { id: 'poppler', label: 'Poppler (pdftoppm)', status: 'warn', detail: 'Not on PATH — scanned PDF → image conversion may fail on some systems.', fix_actions: [] },
+    {
+      id: 'sqlcipher', label: 'SQLCipher (profile DB)', status: 'warn',
+      detail: 'sqlcipher3 not available. PyPI publishes Linux wheels only for sqlcipher3-binary, so pip usually cannot install it on Windows; the backend falls back to plain SQLite. Encryption is required in this configuration.',
+      fix_actions: [],
+    },
+    {
+      id: 'chat_model', label: 'Local chat model (GGUF)', status: 'ok', detail: 'At least one tier downloaded: low: qwen2.5-0.5b-instruct-q4_k_m.gguf',
+      fix_actions: [{ type: 'open_url', label: 'Open Settings', url: '/settings' }],
+    },
+    { id: 'embeddings', label: 'Embeddings (sentence-transformers)', status: 'ok', detail: 'sentence-transformers importable.', fix_actions: [] },
+    { id: 'gpu', label: 'GPU', status: 'ok', detail: 'NVIDIA GeForce RTX 3080 (10.0 GB VRAM)', fix_actions: [] },
+  ],
 };
 
 const feedbackFixture: FeedbackStatsResponse = {
@@ -219,7 +233,7 @@ test.describe('HC-UISET-005: section height at 1440', () => {
 
   // Advanced is collapsed by default, and collapsed it is only the button: the page is the viewport (900 px), so a bound
   // asserted there could not fail. The bound is asserted on the state that has the content, expanded, with every panel
-  // loaded and the fixture the size of the backend's (seven tiers, eight diagnostics).
+  // loaded and the fixture the size of the backend's (seven tiers, seven diagnostics, with the backend's wording).
   test('HC-UISET-005: advanced is at most 2 viewports tall expanded', async ({ page }) => {
     await openSettings(page, 'advanced');
     const collapsed = await pageHeight(page);
@@ -231,6 +245,32 @@ test.describe('HC-UISET-005: section height at 1440', () => {
     expect(expanded, `advanced expanded height ${expanded} px`).toBeLessThanOrEqual(BOUND);
   });
 });
+
+// The three columns are narrow (about 340 px each at 1280): a label that is cut, or a button whose caption wraps on its hyphen,
+// costs the patient the word. Detail text may be shortened to two lines only when the whole text can be read: from the title,
+// and from the fix dialog, which prints it whole.
+for (const width of [1280, 1440]) {
+  test(`HC-UISET-005: Advanced shows its diagnostics labels and buttons whole at ${width}`, async ({ page }) => {
+    await openSettings(page, 'advanced', { width, height: 900 });
+    await expandAdvanced(page);
+    for (const component of diagnosticsFixture.components) {
+      const row = page.getByRole('button', { name: `Fix ${component.label}` }).locator('xpath=ancestor::div[contains(@class,"bg-surface-muted")][1]');
+      const label = row.getByText(component.label, { exact: true });
+      const box = await label.evaluate((el) => ({ w: el.scrollWidth - el.clientWidth, h: el.scrollHeight - el.clientHeight }));
+      expect(box, `${width}: label "${component.label}" is cut`).toEqual({ w: 0, h: 0 });
+      const detail = row.getByText(component.detail, { exact: true });
+      const cut = await detail.evaluate((el) => el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight + 1);
+      if (cut) await expect(detail, `${width}: cut detail of "${component.label}" has its text as title`).toHaveAttribute('title', component.detail);
+    }
+    for (const name of ['Re-detect', 'Detect Hardware', 'Re-check']) {
+      const button = page.getByRole('button', { name });
+      if ((await button.count()) === 0) continue;
+      // A caption on one line is the button's minimum height (min-h-target); wrapped on the hyphen it is a line taller.
+      const { height } = (await button.boundingBox())!;
+      expect(height, `${width}: "${name}" is one line tall`).toBeLessThanOrEqual(48);
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // HC-UISET-002 / 004 on the real layout: the collapsed region and the dialogs.
@@ -563,8 +603,12 @@ test.describe('UI-PG-SETTINGS GATE G10 (quiet box only)', () => {
     );
     await expandAdvanced(page);
     await page.evaluate(() => document.fonts.ready);
+    // The Mid row is at the bottom edge of a 900 px viewport: if the click scrolled the page, every T0 rect would move
+    // inside the probe's window. Scroll first, so the probe sees the press and nothing else.
+    const download = page.getByTestId('tier-row-mid').getByRole('button', { name: 'Download' });
+    await download.scrollIntoViewIfNeeded();
     const report = await stillnessProbe(page, {
-      trigger: () => page.getByTestId('tier-row-mid').getByRole('button', { name: 'Download' }).click(),
+      trigger: () => download.click(),
       expected: ['[data-testid^="tier-row-"] [data-t0]'],
     });
     expect(report.nodes).toBeGreaterThan(0);
