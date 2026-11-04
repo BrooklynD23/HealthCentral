@@ -495,7 +495,7 @@ test.describe('UI-PG-SETTINGS GATE G10 (quiet box only)', () => {
 // ---------------------------------------------------------------------------
 // Report-only: a bare 20 ms timer through /inbox -> /settings (recurring-failures #14). The page reads no DOM and
 // the test asserts nothing about the figure. L0 judges it against the 40 ms bound (owner ruling 6627952531, item 4).
-//   HC_REPORT_BARE_TIMER=1 HC_E2E_BASE_URL=<vite preview> npx playwright test e2e/ui-settings.spec.ts -g "bare timer"
+//   HC_REPORT_BARE_TIMER=1 HC_E2E_BASE_URL=<vite preview> npx playwright test e2e/ui-settings.spec.ts -g "report-only"
 // ---------------------------------------------------------------------------
 test('UI-PG-SETTINGS report-only: bare 20 ms timer gap through /inbox -> /settings', async ({ page }) => {
   test.skip(process.env.HC_REPORT_BARE_TIMER !== '1', 'report-only; set HC_REPORT_BARE_TIMER=1 to run it');
