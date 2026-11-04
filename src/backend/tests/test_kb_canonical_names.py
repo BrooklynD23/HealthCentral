@@ -894,6 +894,17 @@ KNOWN_HIT_REASONS = {
 }
 
 
+def _strings(value) -> list[str]:
+    """Every string inside a decoded JSON value, in order."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [s for v in value.values() for s in _strings(v)]
+    if isinstance(value, list):
+        return [s for v in value for s in _strings(v)]
+    return []
+
+
 def _reachable_fields() -> dict[tuple[str, str], str]:
     fields: dict[tuple[str, str], str] = {}
     for d in map(_as_new, skb.BIOMARKER_DATA):
@@ -912,6 +923,8 @@ def _reachable_fields() -> dict[tuple[str, str], str]:
             fields[(subject, f)] = d[f]
         if d["contraindications_json"]:
             fields[(subject, "contraindications_json")] = "; ".join(json.loads(d["contraindications_json"]))
+        if d["details_json"]:
+            fields[(subject, "details_json")] = "; ".join(_strings(json.loads(d["details_json"])))
     for d in map(_as_new, skb.RELATIONSHIP_DATA):
         if d["panel_name"] != "lipid" and (d["primary_analyte"], d["related_analyte"]) != ("glucose", "hba1c"):
             continue
