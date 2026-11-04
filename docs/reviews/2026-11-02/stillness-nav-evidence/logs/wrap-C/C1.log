@@ -1,0 +1,263 @@
+=== batch C1 plan=C batch=1 start 2026-11-02T18:15:55-08:00 cases=50
+ 18:15:55 up 2 days,  8:06,  1 user,  load average: 1.18, 2.29, 2.60
+(node:1721076) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 50 tests using 1 worker
+
+[1A[2K(node:1721156) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K(node:1721156) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+[1A[2K(node:1721156) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1A[2K[1/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c1
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c1
+CONFIG	trace="off"	video="off"	screenshot="off"	workers=1	retries=0	viewport={"width":1280,"height":720}
+
+[1A[2KPROBECOST	/timeline	maxGap=31	durBeforeGap=0.3	durAtGap=0.2	maxDur=0.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=71	gapStartsAtMs=-25	gapEndsAtMs=6	windowMs=1396	triggeredAt=506
+
+[1A[2KREQLOG	start:-1:/api/v1/pinboards/ end:10:/api/v1/pinboards/ start:72:/favicon.svg start:80:/src/pages/TimelinePage.tsx end:82:/favicon.svg end:86:/src/pages/TimelinePage.tsx start:91:/api/v1/timeline/ end:94:/api/v1/timeline/
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.timeline.c1","set":"probe","unit":"trace","role":"base","batch":1,"route":"/timeline","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.14,"measured":true,"maxGap":31,"gapStartMs":-25,"gapEndMs":6,"windowMs":1396,"postSamples":71,"meanDur":0.2,"maxDur":0.4,"triggeredAt":506,"anchorPage":465.30000001192093,"longtasks":[],"loaf":[{"s":-206,"d":98,"blocking":36,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|83"]}],"reqlog":"start:-1:/api/v1/pinboards/ end:10:/api/v1/pinboards/ start:72:/favicon.svg start:80:/src/pages/TimelinePage.tsx end:82:/favicon.svg end:86:/src/pages/TimelinePage.tsx start:91:/api/v1/timeline/ end:94:/api/v1/timeline/","probeError":"","guardProblems":0,"tracePath":null,"load1End":1.14}
+
+[1A[2K[2/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c1
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c1
+PROBECOST	/search	maxGap=31	durBeforeGap=0.1	durAtGap=0.2	maxDur=1.8	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=14	gapEndsAtMs=45	windowMs=1393	triggeredAt=357
+
+[1A[2KREQLOG	start:3:/api/v1/documents/ start:4:/api/v1/documents/highlights/summary end:14:/api/v1/documents/ end:14:/api/v1/documents/highlights/summary start:39:/api/v1/pinboards/ end:47:/api/v1/pinboards/ start:75:/favicon.svg start:84:/src/pages/SearchPage.tsx end:87:/favicon.svg end:90:/src/pages/SearchPage.tsx start:95:/api/v1/search/ end:99:/api/v1/search/ start:1102:/api/v1/search/ end:1105:/api/v1/search/
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.search.c1","set":"probe","unit":"trace","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.14,"measured":true,"maxGap":31,"gapStartMs":14,"gapEndMs":45,"windowMs":1393,"postSamples":70,"meanDur":0.2,"maxDur":1.8,"triggeredAt":357,"anchorPage":343.80000001192093,"longtasks":[],"loaf":[{"s":-127,"d":80,"blocking":22,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|68"]}],"reqlog":"start:3:/api/v1/documents/ start:4:/api/v1/documents/highlights/summary end:14:/api/v1/documents/ end:14:/api/v1/documents/highlights/summary start:39:/api/v1/pinboards/ end:47:/api/v1/pinboards/ start:75:/favicon.svg start:84:/src/pages/SearchPage.tsx end:87:/favicon.svg end:90:/src/pages/SearchPage.tsx start:95:/api/v1/search/ end:99:/api/v1/search/ start:1102:/api/v1/search/ end:1105:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":null,"load1End":1.04}
+
+[1A[2K[3/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c1
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c1
+PROBECOST	/medications/med-fixture-1	maxGap=30	durBeforeGap=0.3	durAtGap=0.3	maxDur=0.5	meanDur=0.2	nodesMax=10	nodesAtGap=3	postSamples=71	gapStartsAtMs=-7	gapEndsAtMs=23	windowMs=1413	triggeredAt=368
+
+[1A[2KREQLOG	start:9:/api/v1/documents/ start:10:/api/v1/documents/highlights/summary start:19:/favicon.svg start:24:/src/pages/MedicationDetail.tsx end:25:/api/v1/documents/ end:25:/api/v1/documents/highlights/summary end:34:/favicon.svg end:35:/src/pages/MedicationDetail.tsx start:39:/src/components/medication-coach/index.ts start:40:/src/services/medications.ts end:44:/src/components/medication-coach/index.ts end:45:/src/services/medications.ts start:46:/src/components/medication-coach/MedicationCard.tsx start:46:/src/components/medication-coach/MedicationForm.tsx start:47:/src/components/medication-coach/DoseLoggingModal.tsx start:47:/src/components/medication-coach/AdherenceDashboard.tsx start:47:/src/components/medication-coach/StreakDisplay.tsx start:47:/src/components/medication-coach/ScheduleEditor.tsx start:48:/src/components/medication-coach/BadgeToast.tsx start:48:/src/components/medication-coach/AchievementsWidget.tsx start:48:/src/components/medication-coach/VoiceFirstUseModal.tsx start:48:/src/components/medication-coach/RemindersPanel.tsx end:61:/src/components/medication-coach/MedicationCard.tsx end:61:/src/components/medication-coach/MedicationForm.tsx end:61:/src/components/medication-coach/DoseLoggingModal.tsx end:68:/src/components/medication-coach/AdherenceDashboard.tsx end:68:/src/components/medication-coach/StreakDisplay.tsx end:68:/src/components/medication-coach/ScheduleEditor.tsx end:69:/src/components/medication-coach/AchievementsWidget.tsx end:69:/src/components/medication-coach/VoiceFirstUseModal.tsx end:69:/src/components/medication-coach/BadgeToast.tsx end:69:/src/components/medication-coach/RemindersPanel.tsx start:74:/api/v1/medications/med-fixture-1 start:76:/api/v1/medications/med-fixture-1/stats start:77:/api/v1/medications/med-fixture-1/doses start:78:/api/v1/medications/med-fixture-1/correlations end:80:/api/v1/medications/med-fixture-1 start:97:/api/v1/settings/model/gamification end:105:/api/v1/medications/med-fixture-1/stats end:105:/api/v1/medications/med-fixture-1/doses end:105:/api/v1/medications/med-fixture-1/correlations end:107:/api/v1/settings/model/gamification
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.med.c1","set":"probe","unit":"trace","role":"base","batch":1,"route":"/medications/med-fixture-1","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.04,"measured":true,"maxGap":30,"gapStartMs":-7,"gapEndMs":23,"windowMs":1413,"postSamples":71,"meanDur":0.2,"maxDur":0.5,"triggeredAt":368,"anchorPage":358.5,"longtasks":[],"loaf":[{"s":-134,"d":88,"blocking":29,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|75"]}],"reqlog":"start:9:/api/v1/documents/ start:10:/api/v1/documents/highlights/summary start:19:/favicon.svg start:24:/src/pages/MedicationDetail.tsx end:25:/api/v1/documents/ end:25:/api/v1/documents/highlights/summary end:34:/favicon.svg end:35:/src/pages/MedicationDetail.tsx start:39:/src/components/medication-coach/index.ts start:40:/src/services/medications.ts end:44:/src/components/medication-coach/index.ts end:45:/src/services/medications.ts start:46:/src/components/medication-coach/MedicationCard.tsx start:46:/src/components/medication-coach/MedicationForm.tsx start:47:/src/components/medication-coach/DoseLoggingModal.tsx start:47:/src/components/medication-coach/AdherenceDashboard.tsx start:47:/src/components/medication-coach/StreakDisplay.tsx start:47:/src/components/medication-coach/ScheduleEditor.tsx start:48:/src/components/medication-coach/BadgeToast.tsx start:48:/src/components/medication-coach/AchievementsWidget.tsx start:48:/src/components/medication-coach/VoiceFirstUseModal.tsx start:48:/src/components/medication-coach/RemindersPanel.tsx end:61:/src/components/medication-coach/MedicationCard.tsx end:61:/src/components/medication-coach/MedicationForm.tsx end:61:/src/components/medication-coach/DoseLoggingModal.tsx end:68:/src/components/medication-coach/AdherenceDashboard.tsx end:68:/src/components/medication-coach/StreakDisplay.tsx end:68:/src/components/medication-coach/ScheduleEditor.tsx end:69:/src/components/medication-coach/AchievementsWidget.tsx end:69:/src/components/medication-coach/VoiceFirstUseModal.tsx end:69:/src/components/medication-coach/BadgeToast.tsx end:69:/src/components/medication-coach/RemindersPanel.tsx start:74:/api/v1/medications/med-fixture-1 start:76:/api/v1/medications/med-fixture-1/stats start:77:/api/v1/medications/med-fixture-1/doses start:78:/api/v1/medications/med-fixture-1/correlations end:80:/api/v1/medications/med-fixture-1 start:97:/api/v1/settings/model/gamification end:105:/api/v1/medications/med-fixture-1/stats end:105:/api/v1/medications/med-fixture-1/doses end:105:/api/v1/medications/med-fixture-1/correlations end:107:/api/v1/settings/model/gamification","probeError":"","guardProblems":0,"tracePath":null,"load1End":1.04}
+
+[1A[2K[4/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c1
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c1
+PROBECOST	/medications	maxGap=38	durBeforeGap=4.6	durAtGap=0.2	maxDur=1.4	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=74	gapStartsAtMs=-33	gapEndsAtMs=5	windowMs=1451	triggeredAt=411
+
+[1A[2KREQLOG	end:-24:/api/v1/documents/ end:-23:/api/v1/documents/highlights/summary start:-1:/api/v1/pinboards/ end:10:/api/v1/pinboards/ start:62:/favicon.svg start:69:/src/pages/NotificationSettings.tsx end:70:/favicon.svg end:74:/src/pages/NotificationSettings.tsx start:81:/favicon.svg start:90:/src/pages/MedicationCoach.tsx end:91:/favicon.svg end:95:/src/pages/MedicationCoach.tsx start:96:/src/components/ui/Tabs.tsx start:96:/src/components/medication-coach/index.ts start:96:/src/services/medications.ts end:104:/src/components/medication-coach/index.ts start:106:/src/components/medication-coach/MedicationCard.tsx start:106:/src/components/medication-coach/MedicationForm.tsx start:106:/src/components/medication-coach/DoseLoggingModal.tsx start:107:/src/components/medication-coach/AdherenceDashboard.tsx start:108:/src/components/medication-coach/StreakDisplay.tsx start:108:/src/components/medication-coach/ScheduleEditor.tsx end:108:/src/components/ui/Tabs.tsx start:108:/src/components/medication-coach/BadgeToast.tsx end:108:/src/services/medications.ts start:108:/src/components/medication-coach/AchievementsWidget.tsx start:109:/src/components/medication-coach/VoiceFirstUseModal.tsx start:109:/src/components/medication-coach/RemindersPanel.tsx start:109:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:117:/src/components/medication-coach/MedicationCard.tsx end:117:/src/components/medication-coach/MedicationForm.tsx end:117:/src/components/medication-coach/DoseLoggingModal.tsx end:118:/src/components/medication-coach/AdherenceDashboard.tsx end:118:/src/components/medication-coach/StreakDisplay.tsx end:118:/src/components/medication-coach/ScheduleEditor.tsx end:126:/src/components/medication-coach/BadgeToast.tsx end:126:/src/components/medication-coach/AchievementsWidget.tsx end:126:/src/components/medication-coach/VoiceFirstUseModal.tsx end:127:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:127:/src/components/medication-coach/RemindersPanel.tsx start:130:/api/v1/medications/ end:135:/api/v1/medications/ start:145:/api/v1/medications/ start:146:/api/v1/notifications/scheduler/status end:147:/api/v1/medications/ end:154:/api/v1/notifications/scheduler/status
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.notif.c1","set":"probe","unit":"trace","role":"base","batch":1,"route":"/notifications","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.04,"measured":true,"maxGap":38,"gapStartMs":-33,"gapEndMs":5,"windowMs":1451,"postSamples":74,"meanDur":0.1,"maxDur":1.4,"triggeredAt":411,"anchorPage":372.69999998807907,"longtasks":[],"loaf":[{"s":-164,"d":86,"blocking":26,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|71"]}],"reqlog":"end:-24:/api/v1/documents/ end:-23:/api/v1/documents/highlights/summary start:-1:/api/v1/pinboards/ end:10:/api/v1/pinboards/ start:62:/favicon.svg start:69:/src/pages/NotificationSettings.tsx end:70:/favicon.svg end:74:/src/pages/NotificationSettings.tsx start:81:/favicon.svg start:90:/src/pages/MedicationCoach.tsx end:91:/favicon.svg end:95:/src/pages/MedicationCoach.tsx start:96:/src/components/ui/Tabs.tsx start:96:/src/components/medication-coach/index.ts start:96:/src/services/medications.ts end:104:/src/components/medication-coach/index.ts start:106:/src/components/medication-coach/MedicationCard.tsx start:106:/src/components/medication-coach/MedicationForm.tsx start:106:/src/components/medication-coach/DoseLoggingModal.tsx start:107:/src/components/medication-coach/AdherenceDashboard.tsx start:108:/src/components/medication-coach/StreakDisplay.tsx start:108:/src/components/medication-coach/ScheduleEditor.tsx end:108:/src/components/ui/Tabs.tsx start:108:/src/components/medication-coach/BadgeToast.tsx end:108:/src/services/medications.ts start:108:/src/components/medication-coach/AchievementsWidget.tsx start:109:/src/components/medication-coach/VoiceFirstUseModal.tsx start:109:/src/components/medication-coach/RemindersPanel.tsx start:109:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:117:/src/components/medication-coach/MedicationCard.tsx end:117:/src/components/medication-coach/MedicationForm.tsx end:117:/src/components/medication-coach/DoseLoggingModal.tsx end:118:/src/components/medication-coach/AdherenceDashboard.tsx end:118:/src/components/medication-coach/StreakDisplay.tsx end:118:/src/components/medication-coach/ScheduleEditor.tsx end:126:/src/components/medication-coach/BadgeToast.tsx end:126:/src/components/medication-coach/AchievementsWidget.tsx end:126:/src/components/medication-coach/VoiceFirstUseModal.tsx end:127:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:127:/src/components/medication-coach/RemindersPanel.tsx start:130:/api/v1/medications/ end:135:/api/v1/medications/ start:145:/api/v1/medications/ start:146:/api/v1/notifications/scheduler/status end:147:/api/v1/medications/ end:154:/api/v1/notifications/scheduler/status","probeError":"","guardProblems":0,"tracePath":null,"load1End":0.96}
+
+[1A[2K[5/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c1
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c1
+PROBECOST	/care-tasks	maxGap=43	durBeforeGap=5.1	durAtGap=0.2	maxDur=0.4	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=71	gapStartsAtMs=-9	gapEndsAtMs=34	windowMs=1416	triggeredAt=373
+
+[1A[2KREQLOG	end:-2:/api/v1/documents/ end:-2:/api/v1/documents/highlights/summary start:24:/api/v1/pinboards/ end:35:/api/v1/pinboards/ start:84:/favicon.svg start:93:/src/pages/CareTasksPage.tsx end:95:/favicon.svg end:100:/src/pages/CareTasksPage.tsx start:104:/api/v1/care-tasks/ end:106:/api/v1/care-tasks/
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.care.c1","set":"probe","unit":"trace","role":"base","batch":1,"route":"/care-tasks","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":0.96,"measured":true,"maxGap":43,"gapStartMs":-9,"gapEndMs":34,"windowMs":1416,"postSamples":71,"meanDur":0.1,"maxDur":0.4,"triggeredAt":373,"anchorPage":358.7000000178814,"longtasks":[],"loaf":[{"s":-139,"d":83,"blocking":24,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|70"]}],"reqlog":"end:-2:/api/v1/documents/ end:-2:/api/v1/documents/highlights/summary start:24:/api/v1/pinboards/ end:35:/api/v1/pinboards/ start:84:/favicon.svg start:93:/src/pages/CareTasksPage.tsx end:95:/favicon.svg end:100:/src/pages/CareTasksPage.tsx start:104:/api/v1/care-tasks/ end:106:/api/v1/care-tasks/","probeError":"","guardProblems":0,"tracePath":"/mnt/e/Programming/Github Repo/hc-stillness-nav-late/docs/reviews/2026-11-02/stillness-nav-evidence/logs/wrap-C/C.b1.trace.base.probe.care.c1.json","load1End":0.96}
+
+[1A[2K[6/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c2
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c2
+PROBECOST	/timeline	maxGap=38	durBeforeGap=4.3	durAtGap=0.1	maxDur=0.4	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=71	gapStartsAtMs=-7	gapEndsAtMs=31	windowMs=1417	triggeredAt=381
+
+[1A[2KREQLOG	end:-1:/api/v1/documents/ end:-1:/api/v1/documents/highlights/summary start:23:/api/v1/pinboards/ end:33:/api/v1/pinboards/ start:93:/favicon.svg start:103:/src/pages/TimelinePage.tsx end:105:/favicon.svg end:110:/src/pages/TimelinePage.tsx start:115:/api/v1/timeline/ end:119:/api/v1/timeline/
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.timeline.c2","set":"probe","unit":"trace","role":"base","batch":1,"route":"/timeline","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":0.96,"measured":true,"maxGap":38,"gapStartMs":-7,"gapEndMs":31,"windowMs":1417,"postSamples":71,"meanDur":0.1,"maxDur":0.4,"triggeredAt":381,"anchorPage":367.30000001192093,"longtasks":[],"loaf":[{"s":-142,"d":84,"blocking":26,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|71"]}],"reqlog":"end:-1:/api/v1/documents/ end:-1:/api/v1/documents/highlights/summary start:23:/api/v1/pinboards/ end:33:/api/v1/pinboards/ start:93:/favicon.svg start:103:/src/pages/TimelinePage.tsx end:105:/favicon.svg end:110:/src/pages/TimelinePage.tsx start:115:/api/v1/timeline/ end:119:/api/v1/timeline/","probeError":"","guardProblems":0,"tracePath":null,"load1End":0.96}
+
+[1A[2K[7/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c2
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c2
+PROBECOST	/search	maxGap=35	durBeforeGap=4.2	durAtGap=0.3	maxDur=0.4	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=-7	gapEndsAtMs=28	windowMs=1397	triggeredAt=363
+
+[1A[2KREQLOG	end:0:/api/v1/documents/ end:1:/api/v1/documents/highlights/summary start:21:/api/v1/pinboards/ end:30:/api/v1/pinboards/ start:66:/favicon.svg start:73:/src/pages/SearchPage.tsx end:75:/favicon.svg end:79:/src/pages/SearchPage.tsx start:84:/api/v1/search/ end:89:/api/v1/search/ start:1099:/api/v1/search/ end:1102:/api/v1/search/
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.search.c2","set":"probe","unit":"trace","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":0.96,"measured":true,"maxGap":35,"gapStartMs":-7,"gapEndMs":28,"windowMs":1397,"postSamples":70,"meanDur":0.1,"maxDur":0.4,"triggeredAt":363,"anchorPage":351.09999999403954,"longtasks":[],"loaf":[{"s":-133,"d":84,"blocking":25,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|70"]}],"reqlog":"end:0:/api/v1/documents/ end:1:/api/v1/documents/highlights/summary start:21:/api/v1/pinboards/ end:30:/api/v1/pinboards/ start:66:/favicon.svg start:73:/src/pages/SearchPage.tsx end:75:/favicon.svg end:79:/src/pages/SearchPage.tsx start:84:/api/v1/search/ end:89:/api/v1/search/ start:1099:/api/v1/search/ end:1102:/api/v1/search/","probeError":"","guardProblems":4,"tracePath":null,"load1End":1.28}
+
+[1A[2K[8/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c2
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c2
+PROBECOST	/medications/med-fixture-1	maxGap=32	durBeforeGap=0.3	durAtGap=0.3	maxDur=0.4	meanDur=0.2	nodesMax=10	nodesAtGap=3	postSamples=71	gapStartsAtMs=-9	gapEndsAtMs=23	windowMs=1411	triggeredAt=358
+
+[1A[2KREQLOG	end:-4:/node_modules/.vite/deps/chunk-BHXDLLGK.js start:4:/api/v1/documents/ start:5:/api/v1/documents/highlights/summary start:18:/favicon.svg start:24:/src/pages/MedicationDetail.tsx end:25:/api/v1/documents/ end:25:/api/v1/documents/highlights/summary end:35:/favicon.svg end:36:/src/pages/MedicationDetail.tsx start:39:/src/components/medication-coach/index.ts start:39:/src/services/medications.ts end:44:/src/components/medication-coach/index.ts end:44:/src/services/medications.ts start:46:/src/components/medication-coach/MedicationCard.tsx start:46:/src/components/medication-coach/MedicationForm.tsx start:46:/src/components/medication-coach/DoseLoggingModal.tsx start:47:/src/components/medication-coach/AdherenceDashboard.tsx start:47:/src/components/medication-coach/StreakDisplay.tsx start:47:/src/components/medication-coach/ScheduleEditor.tsx start:48:/src/components/medication-coach/BadgeToast.tsx start:48:/src/components/medication-coach/AchievementsWidget.tsx start:48:/src/components/medication-coach/VoiceFirstUseModal.tsx start:48:/src/components/medication-coach/RemindersPanel.tsx end:58:/src/components/medication-coach/MedicationCard.tsx end:58:/src/components/medication-coach/MedicationForm.tsx end:58:/src/components/medication-coach/DoseLoggingModal.tsx end:58:/src/components/medication-coach/AdherenceDashboard.tsx end:58:/src/components/medication-coach/StreakDisplay.tsx end:59:/src/components/medication-coach/ScheduleEditor.tsx end:64:/src/components/medication-coach/BadgeToast.tsx end:64:/src/components/medication-coach/AchievementsWidget.tsx end:64:/src/components/medication-coach/VoiceFirstUseModal.tsx end:65:/src/components/medication-coach/RemindersPanel.tsx start:70:/api/v1/medications/med-fixture-1 start:71:/api/v1/medications/med-fixture-1/stats start:72:/api/v1/medications/med-fixture-1/doses start:73:/api/v1/medications/med-fixture-1/correlations end:76:/api/v1/medications/med-fixture-1 end:77:/api/v1/medications/med-fixture-1/stats end:77:/api/v1/medications/med-fixture-1/doses end:78:/api/v1/medications/med-fixture-1/correlations start:95:/api/v1/settings/model/gamification end:110:/api/v1/settings/model/gamification
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.med.c2","set":"probe","unit":"trace","role":"base","batch":1,"route":"/medications/med-fixture-1","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.28,"measured":true,"maxGap":32,"gapStartMs":-9,"gapEndMs":23,"windowMs":1411,"postSamples":71,"meanDur":0.2,"maxDur":0.4,"triggeredAt":358,"anchorPage":347.5,"longtasks":[],"loaf":[{"s":-128,"d":83,"blocking":24,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|70"]}],"reqlog":"end:-4:/node_modules/.vite/deps/chunk-BHXDLLGK.js start:4:/api/v1/documents/ start:5:/api/v1/documents/highlights/summary start:18:/favicon.svg start:24:/src/pages/MedicationDetail.tsx end:25:/api/v1/documents/ end:25:/api/v1/documents/highlights/summary end:35:/favicon.svg end:36:/src/pages/MedicationDetail.tsx start:39:/src/components/medication-coach/index.ts start:39:/src/services/medications.ts end:44:/src/components/medication-coach/index.ts end:44:/src/services/medications.ts start:46:/src/components/medication-coach/MedicationCard.tsx start:46:/src/components/medication-coach/MedicationForm.tsx start:46:/src/components/medication-coach/DoseLoggingModal.tsx start:47:/src/components/medication-coach/AdherenceDashboard.tsx start:47:/src/components/medication-coach/StreakDisplay.tsx start:47:/src/components/medication-coach/ScheduleEditor.tsx start:48:/src/components/medication-coach/BadgeToast.tsx start:48:/src/components/medication-coach/AchievementsWidget.tsx start:48:/src/components/medication-coach/VoiceFirstUseModal.tsx start:48:/src/components/medication-coach/RemindersPanel.tsx end:58:/src/components/medication-coach/MedicationCard.tsx end:58:/src/components/medication-coach/MedicationForm.tsx end:58:/src/components/medication-coach/DoseLoggingModal.tsx end:58:/src/components/medication-coach/AdherenceDashboard.tsx end:58:/src/components/medication-coach/StreakDisplay.tsx end:59:/src/components/medication-coach/ScheduleEditor.tsx end:64:/src/components/medication-coach/BadgeToast.tsx end:64:/src/components/medication-coach/AchievementsWidget.tsx end:64:/src/components/medication-coach/VoiceFirstUseModal.tsx end:65:/src/components/medication-coach/RemindersPanel.tsx start:70:/api/v1/medications/med-fixture-1 start:71:/api/v1/medications/med-fixture-1/stats start:72:/api/v1/medications/med-fixture-1/doses start:73:/api/v1/medications/med-fixture-1/correlations end:76:/api/v1/medications/med-fixture-1 end:77:/api/v1/medications/med-fixture-1/stats end:77:/api/v1/medications/med-fixture-1/doses end:78:/api/v1/medications/med-fixture-1/correlations start:95:/api/v1/settings/model/gamification end:110:/api/v1/settings/model/gamification","probeError":"","guardProblems":0,"tracePath":null,"load1End":1.28}
+
+[1A[2K[9/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c2
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c2
+PROBECOST	/medications	maxGap=42	durBeforeGap=0.3	durAtGap=0.1	maxDur=1.8	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=73	gapStartsAtMs=-9	gapEndsAtMs=33	windowMs=1471	triggeredAt=351
+
+[1A[2KREQLOG	start:-6:/api/v1/documents/ start:-5:/api/v1/documents/highlights/summary end:2:/api/v1/documents/ end:2:/api/v1/documents/highlights/summary start:27:/api/v1/pinboards/ end:36:/api/v1/pinboards/ start:81:/favicon.svg start:89:/src/pages/NotificationSettings.tsx end:91:/favicon.svg end:95:/src/pages/NotificationSettings.tsx start:101:/favicon.svg start:109:/src/pages/MedicationCoach.tsx end:110:/favicon.svg end:113:/src/pages/MedicationCoach.tsx start:114:/src/components/ui/Tabs.tsx start:114:/src/components/medication-coach/index.ts start:115:/src/services/medications.ts end:119:/src/components/medication-coach/index.ts start:120:/src/components/medication-coach/MedicationCard.tsx start:121:/src/components/medication-coach/MedicationForm.tsx start:121:/src/components/medication-coach/DoseLoggingModal.tsx start:121:/src/components/medication-coach/AdherenceDashboard.tsx start:122:/src/components/medication-coach/StreakDisplay.tsx start:122:/src/components/medication-coach/ScheduleEditor.tsx end:122:/src/components/ui/Tabs.tsx end:122:/src/services/medications.ts start:122:/src/components/medication-coach/BadgeToast.tsx start:122:/src/components/medication-coach/AchievementsWidget.tsx start:122:/src/components/medication-coach/VoiceFirstUseModal.tsx start:122:/src/components/medication-coach/RemindersPanel.tsx start:123:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:129:/src/components/medication-coach/MedicationCard.tsx end:129:/src/components/medication-coach/MedicationForm.tsx end:130:/src/components/medication-coach/DoseLoggingModal.tsx end:130:/src/components/medication-coach/AdherenceDashboard.tsx end:130:/src/components/medication-coach/StreakDisplay.tsx end:130:/src/components/medication-coach/ScheduleEditor.tsx end:135:/src/components/medication-coach/BadgeToast.tsx end:136:/src/components/medication-coach/AchievementsWidget.tsx end:136:/src/components/medication-coach/VoiceFirstUseModal.tsx end:137:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:137:/src/components/medication-coach/RemindersPanel.tsx start:140:/api/v1/medications/ end:145:/api/v1/medications/ start:154:/api/v1/medications/ start:155:/api/v1/notifications/scheduler/status end:157:/api/v1/medications/ end:164:/api/v1/notifications/scheduler/status
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.notif.c2","set":"probe","unit":"trace","role":"base","batch":1,"route":"/notifications","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.28,"measured":true,"maxGap":42,"gapStartMs":-9,"gapEndMs":33,"windowMs":1471,"postSamples":73,"meanDur":0.1,"maxDur":1.8,"triggeredAt":351,"anchorPage":335,"longtasks":[],"loaf":[{"s":-132,"d":84,"blocking":25,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|71"]}],"reqlog":"start:-6:/api/v1/documents/ start:-5:/api/v1/documents/highlights/summary end:2:/api/v1/documents/ end:2:/api/v1/documents/highlights/summary start:27:/api/v1/pinboards/ end:36:/api/v1/pinboards/ start:81:/favicon.svg start:89:/src/pages/NotificationSettings.tsx end:91:/favicon.svg end:95:/src/pages/NotificationSettings.tsx start:101:/favicon.svg start:109:/src/pages/MedicationCoach.tsx end:110:/favicon.svg end:113:/src/pages/MedicationCoach.tsx start:114:/src/components/ui/Tabs.tsx start:114:/src/components/medication-coach/index.ts start:115:/src/services/medications.ts end:119:/src/components/medication-coach/index.ts start:120:/src/components/medication-coach/MedicationCard.tsx start:121:/src/components/medication-coach/MedicationForm.tsx start:121:/src/components/medication-coach/DoseLoggingModal.tsx start:121:/src/components/medication-coach/AdherenceDashboard.tsx start:122:/src/components/medication-coach/StreakDisplay.tsx start:122:/src/components/medication-coach/ScheduleEditor.tsx end:122:/src/components/ui/Tabs.tsx end:122:/src/services/medications.ts start:122:/src/components/medication-coach/BadgeToast.tsx start:122:/src/components/medication-coach/AchievementsWidget.tsx start:122:/src/components/medication-coach/VoiceFirstUseModal.tsx start:122:/src/components/medication-coach/RemindersPanel.tsx start:123:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:129:/src/components/medication-coach/MedicationCard.tsx end:129:/src/components/medication-coach/MedicationForm.tsx end:130:/src/components/medication-coach/DoseLoggingModal.tsx end:130:/src/components/medication-coach/AdherenceDashboard.tsx end:130:/src/components/medication-coach/StreakDisplay.tsx end:130:/src/components/medication-coach/ScheduleEditor.tsx end:135:/src/components/medication-coach/BadgeToast.tsx end:136:/src/components/medication-coach/AchievementsWidget.tsx end:136:/src/components/medication-coach/VoiceFirstUseModal.tsx end:137:/node_modules/.vite/deps/@radix-ui_react-tabs.js end:137:/src/components/medication-coach/RemindersPanel.tsx start:140:/api/v1/medications/ end:145:/api/v1/medications/ start:154:/api/v1/medications/ start:155:/api/v1/notifications/scheduler/status end:157:/api/v1/medications/ end:164:/api/v1/notifications/scheduler/status","probeError":"","guardProblems":0,"tracePath":"/mnt/e/Programming/Github Repo/hc-stillness-nav-late/docs/reviews/2026-11-02/stillness-nav-evidence/logs/wrap-C/C.b1.trace.base.probe.notif.c2.json","load1End":1.18}
+
+[1A[2K[10/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c2
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c2
+PROBECOST	/care-tasks	maxGap=42	durBeforeGap=4.7	durAtGap=0.1	maxDur=1.0	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=-8	gapEndsAtMs=34	windowMs=1397	triggeredAt=382
+
+[1A[2KREQLOG	end:2:/api/v1/documents/ end:2:/api/v1/documents/highlights/summary start:23:/api/v1/pinboards/ end:35:/api/v1/pinboards/ start:82:/favicon.svg start:91:/src/pages/CareTasksPage.tsx end:93:/favicon.svg end:97:/src/pages/CareTasksPage.tsx start:100:/api/v1/care-tasks/ end:102:/api/v1/care-tasks/
+
+[1A[2KRESULT	{"id":"C.b1.trace.base.probe.care.c2","set":"probe","unit":"trace","role":"base","batch":1,"route":"/care-tasks","base":"http://127.0.0.1:3000","flags":["trace"],"load1Start":1.18,"measured":true,"maxGap":42,"gapStartMs":-8,"gapEndMs":34,"windowMs":1397,"postSamples":70,"meanDur":0.1,"maxDur":1,"triggeredAt":382,"anchorPage":368.2999999821186,"longtasks":[],"loaf":[{"s":-139,"d":86,"blocking":26,"scripts":["event-listener|deps/chunk-IZHK4E3M.js?v=e78cc856|performWorkUntilDeadline|72"]}],"reqlog":"end:2:/api/v1/documents/ end:2:/api/v1/documents/highlights/summary start:23:/api/v1/pinboards/ end:35:/api/v1/pinboards/ start:82:/favicon.svg start:91:/src/pages/CareTasksPage.tsx end:93:/favicon.svg end:97:/src/pages/CareTasksPage.tsx start:100:/api/v1/care-tasks/ end:102:/api/v1/care-tasks/","probeError":"","guardProblems":0,"tracePath":"/mnt/e/Programming/Github Repo/hc-stillness-nav-late/docs/reviews/2026-11-02/stillness-nav-evidence/logs/wrap-C/C.b1.trace.base.probe.care.c2.json","load1End":1.18}
+
+[1A[2K[11/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c3
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c3
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c3","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[12/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c3
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c3
+RESULT	{"id":"C.b1.trace.base.probe.search.c3","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[13/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c3
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c3
+RESULT	{"id":"C.b1.trace.base.probe.med.c3","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[14/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c3
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c3
+RESULT	{"id":"C.b1.trace.base.probe.notif.c3","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[15/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c3
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c3
+RESULT	{"id":"C.b1.trace.base.probe.care.c3","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[16/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c4
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c4
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c4","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[17/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c4
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c4
+RESULT	{"id":"C.b1.trace.base.probe.search.c4","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[18/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c4
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c4
+RESULT	{"id":"C.b1.trace.base.probe.med.c4","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[19/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c4
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c4
+RESULT	{"id":"C.b1.trace.base.probe.notif.c4","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[20/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c4
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c4
+RESULT	{"id":"C.b1.trace.base.probe.care.c4","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[21/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c5
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c5
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c5","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[22/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c5
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c5
+RESULT	{"id":"C.b1.trace.base.probe.search.c5","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[23/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c5
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c5
+RESULT	{"id":"C.b1.trace.base.probe.med.c5","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[24/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c5
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c5
+RESULT	{"id":"C.b1.trace.base.probe.notif.c5","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[25/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c5
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c5
+RESULT	{"id":"C.b1.trace.base.probe.care.c5","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[26/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c6
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c6
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c6","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[27/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c6
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c6
+RESULT	{"id":"C.b1.trace.base.probe.search.c6","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[28/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c6
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c6
+RESULT	{"id":"C.b1.trace.base.probe.med.c6","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[29/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c6
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c6
+RESULT	{"id":"C.b1.trace.base.probe.notif.c6","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[30/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c6
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c6
+RESULT	{"id":"C.b1.trace.base.probe.care.c6","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[31/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c7
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c7
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c7","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[32/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c7
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c7
+RESULT	{"id":"C.b1.trace.base.probe.search.c7","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[33/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c7
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c7
+RESULT	{"id":"C.b1.trace.base.probe.med.c7","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[34/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c7
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c7
+RESULT	{"id":"C.b1.trace.base.probe.notif.c7","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[35/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c7
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c7
+RESULT	{"id":"C.b1.trace.base.probe.care.c7","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[36/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c8
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c8
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c8","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[37/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c8
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c8
+RESULT	{"id":"C.b1.trace.base.probe.search.c8","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[38/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c8
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c8
+RESULT	{"id":"C.b1.trace.base.probe.med.c8","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[39/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c8
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c8
+RESULT	{"id":"C.b1.trace.base.probe.notif.c8","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[40/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c8
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c8
+RESULT	{"id":"C.b1.trace.base.probe.care.c8","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[41/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c9
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c9
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c9","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[42/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c9
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c9
+RESULT	{"id":"C.b1.trace.base.probe.search.c9","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[43/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c9
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c9
+RESULT	{"id":"C.b1.trace.base.probe.med.c9","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[44/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c9
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c9
+RESULT	{"id":"C.b1.trace.base.probe.notif.c9","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[45/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c9
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c9
+RESULT	{"id":"C.b1.trace.base.probe.care.c9","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K[46/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c10
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.timeline.c10
+RESULT	{"id":"C.b1.trace.base.probe.timeline.c10","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/timeline"}
+
+[1A[2K[47/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c10
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.search.c10
+RESULT	{"id":"C.b1.trace.base.probe.search.c10","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/search"}
+
+[1A[2K[48/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c10
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.med.c10
+RESULT	{"id":"C.b1.trace.base.probe.med.c10","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/medications/med-fixture-1"}
+
+[1A[2K[49/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c10
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.notif.c10
+RESULT	{"id":"C.b1.trace.base.probe.notif.c10","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/notifications"}
+
+[1A[2K[50/50] [chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c10
+[1A[2K[chromium] › nav-sets.spec.ts:174:7 › C.b1.trace.base.probe.care.c10
+RESULT	{"id":"C.b1.trace.base.probe.care.c10","skippedBecause":"3 traces already kept","set":"probe","unit":"trace","role":"base","route":"/care-tasks"}
+
+[1A[2K  50 passed (31.2s)
+playwright exit=0
+=== batch C1 end 2026-11-02T18:16:33-08:00
+ 18:16:33 up 2 days,  8:07,  1 user,  load average: 1.33, 2.18, 2.55

@@ -31,11 +31,11 @@ export function AddToPinboardButton({
   };
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger asChild>
         <Button type="button" variant="ghost" size="icon" aria-label={label}>
           {addItem.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
           ) : (
             <Pin className="h-4 w-4" />
           )}
@@ -43,7 +43,7 @@ export function AddToPinboardButton({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="z-100 min-w-48 rounded-xl border border-black/8 bg-white p-1 shadow-lg"
+          className="z-100 min-w-48 rounded-xl border border-border bg-surface-elevated p-1 text-ink shadow-lg"
           sideOffset={8}
           align="end"
         >

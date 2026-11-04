@@ -1,0 +1,58 @@
+### c1-wait100
+- probe variant: 0 of 5 over 40 ms (pooled); per batch b1:0/5; unmeasured 0; max 31
+  gaps: timeline=29 search=26 med=28 notif=31 care=31
+- probe control: 3 of 5 over 40 ms (pooled); per batch b1:3/5; unmeasured 0; max 55
+  gaps: timeline=45 search=55 med=41 notif=36 care=29
+
+### c2a-lazy-false
+- probe control: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 45
+  gaps: timeline=31 search=37 med=27 notif=27 care=45
+- probe variant: 2 of 5 over 40 ms (pooled); per batch b1:2/5; unmeasured 0; max 41
+  gaps: timeline=41 search=27 med=40 notif=28 care=41
+
+### c2b-bare-track
+- bare variant: 0 of 5 over 40 ms (pooled); per batch b1:0/5; unmeasured 0; max 34
+  gaps: timeline=33 search=28 med=23 notif=34 care=29
+- bare control: 0 of 5 over 40 ms (pooled); per batch b1:0/5; unmeasured 0; max 36
+  gaps: timeline=34 search=33 med=35 notif=34 care=36
+
+### c3a-noguard
+- probe control: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 51
+  gaps: timeline=30 search=37 med=30 notif=29 care=51
+- probe variant: 3 of 5 over 40 ms (pooled); per batch b1:3/5; unmeasured 0; max 48
+  gaps: timeline=32 search=48 med=43 notif=30 care=44
+
+### c3b-nolisteners
+- probe variant: 2 of 5 over 40 ms (pooled); per batch b1:2/5; unmeasured 0; max 46
+  gaps: timeline=27 search=42 med=46 notif=29 care=34
+- probe control: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 58
+  gaps: timeline=29 search=58 med=29 notif=31 care=30
+
+### c4a-raf
+- probe control: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 48
+  gaps: timeline=33 search=48 med=32 notif=40 care=28
+- probe variant: 0 of 5 over 40 ms (pooled); per batch b1:0/5; unmeasured 0; max 34
+  gaps: timeline=29 search=33 med=23 notif=34 care=26
+
+### c4b-unrounded
+- probe variant: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 55.9
+  gaps: timeline=31.3 search=55.9 med=37.7 notif=26.4 care=33.8
+- probe control: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 41
+  gaps: timeline=29 search=40 med=34 notif=25 care=41
+
+### c5-barestamp
+- probe control: 4 of 5 over 40 ms (pooled); per batch b1:4/5; unmeasured 0; max 55
+  gaps: timeline=54 search=55 med=43 notif=48 care=29
+- probe variant: 2 of 5 over 40 ms (pooled); per batch b1:2/5; unmeasured 0; max 59
+  gaps: timeline=40 search=59 med=48 notif=26 care=28
+
+### c6a-mock50
+- probe variant: 0 of 5 over 40 ms (pooled); per batch b1:0/5; unmeasured 0; max 35
+  gaps: timeline=31 search=25 med=28 notif=30 care=35
+- probe control: 2 of 5 over 40 ms (pooled); per batch b1:2/5; unmeasured 0; max 44
+  gaps: timeline=32 search=44 med=41 notif=29 care=28
+
+### c6b-mock150
+- probe control: 1 of 2 over 40 ms (pooled); per batch b1:1/2; unmeasured 0; max 45
+  gaps: timeline=33 search=45
+

@@ -1,0 +1,126 @@
+hold_slots: holding pytest slots 1-8, TMPDIR=/dev/shm
+quiet_run: prechecks passed after 0s
+ 22:04:22 up 2 days, 11:43,  1 user,  load average: 0.57, 1.28, 6.75
+pgrep: (empty)  ss 3000/4173/5173/8000: (empty)
+(node:1950830) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1A[2K[2m[WebServer] [22mINFO:     Started server process [1950933]
+[2m[WebServer] [22mINFO:     Waiting for application startup.
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hdl_cholesterol already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker triglycerides already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker glucose_fasting already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin_a1c already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker wbc already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker platelets already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker tsh already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker creatinine already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker vitamin_d already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Revised 0 installed biomarker text(s)
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Saturated Fat Intake for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Increase Soluble Fiber for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Quit Smoking for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Refined Carbohydrates for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Physical Activity for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Vitamin D Supplementation for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Safe Sun Exposure for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship total_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship hdl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship triglycerides -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship tsh -> free_t4 already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship glucose_fasting -> hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Seeding complete: {'biomarkers': 0, 'interventions': 0, 'relationships': 0}
+
+[1A[2K[2m[WebServer] [22mINFO:modules.backup_scheduler:Backup scheduler started
+
+[1A[2K[2m[WebServer] [22mINFO:modules.platform_notifications:Notification service initialized with desktop_notifier
+
+[1A[2K[2m[WebServer] [22mINFO:modules.notification_scheduler:Notification scheduler started
+
+[1A[2K[2m[WebServer] [22mINFO:     Application startup complete.
+
+[1A[2K[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+[1A[2K[2m[WebServer] [22mINFO:core.audit:AUDIT: profile.login - profile.login
+
+[1A[2K[2m[WebServer] [22mINFO:api.profiles:Profile logged in: fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Running profile database migrations for data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db...
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Context impl SQLiteImpl.
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Will assume non-transactional DDL.
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Profile database at data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db already at head revision 016_strict_safety_mode.
+
+[1A[2K[2m[WebServer] [22mINFO:core.profile_database:Opened encrypted database for profile fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.auth:Opened profile database for fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/login", "client_ip": "127.0.0.1", "status": 200, "duration_ms": 530.54, "correlation_id": "aebde1e9-5dd5-47f2-8848-5a8a2b1524b1"}
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/test/reset", "client_ip": "127.0.0.1", "status": 204, "duration_ms": 84.91, "correlation_id": "7fae73e8-5042-4e23-9fee-c905f391d52e"}
+
+
+Running 29 tests using 1 worker
+
+[1A[2K(node:1951036) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[1/29] [chromium] › e2e/ui-care.spec.ts:219:3 › HC-UIFU-002 and HC-UIFU-001 end to end › HC-UIFU-002: /care-tasks shows one h1 that reads "Follow-ups"
+[1A[2K[2/29] [chromium] › e2e/ui-care.spec.ts:230:3 › HC-UIFU-002 and HC-UIFU-001 end to end › HC-UIFU-001: Done shows the status toast; Undo restores the task and PATCHes the previous status
+[1A[2K[3/29] [chromium] › e2e/ui-care.spec.ts:254:3 › HC-UIFU-002 and HC-UIFU-001 end to end › HC-UIFU-001: Ignore on a task in review shows the toast; Undo PATCHes needs_review back
+[1A[2K[4/29] [chromium] › e2e/ui-care.spec.ts:279:3 › Gate G on /care-tasks › Gate G1 /care-tasks has no serious or critical axe violation in light or dark
+[1A[2K[5/29] [chromium] › e2e/ui-care.spec.ts:291:3 › Gate G on /care-tasks › Gate G2 /care-tasks: CLS stays under 0.1 over the load, the Done click and Undo
+[1A[2K[6/29] [chromium] › e2e/ui-care.spec.ts:306:3 › Gate G on /care-tasks › Gate G3 /care-tasks: the Done click and the Undo click each stay under 200 ms with CPU throttled x4
+[1A[2K[7/29] [chromium] › e2e/ui-care.spec.ts:325:3 › Gate G on /care-tasks › Gate G5 /care-tasks: no element has a transform 50 ms after the Done click or the Undo click under reduced motion
+[1A[2K[8/29] [chromium] › e2e/ui-care.spec.ts:348:5 › Gate G on /care-tasks › Gate G6 /care-tasks: no horizontal scroll at 390x844, before and after Done
+[1A[2K[9/29] [chromium] › e2e/ui-care.spec.ts:348:5 › Gate G on /care-tasks › Gate G6 /care-tasks: no horizontal scroll at 320x640, before and after Done
+[1A[2K[10/29] [chromium] › e2e/ui-care.spec.ts:363:3 › Gate G on /care-tasks › Gate G7 /care-tasks: no console error, no non-localhost request and no unmocked API call
+[1A[2K[11/29] [chromium] › e2e/ui-care.spec.ts:375:3 › Gate G on /care-tasks › Gate G9 /care-tasks: the Safety Rail is in the viewport at full opacity at first paint, after Done and after Undo
+[1A[2K[12/29] [chromium] › e2e/ui-care.spec.ts:400:3 › Gate G on /care-tasks › Gate G10 /care-tasks: the navigation to the page is still for the follow-up dates (stillnessProbe, navigation)
+[1A[2K[13/29] [chromium] › e2e/ui-care.spec.ts:423:3 › Gate G on /care-tasks › Gate G10 /care-tasks: the Done click is still for the follow-up dates (stillnessProbe, interaction)
+[1A[2K[14/29] [chromium] › e2e/ui-care.spec.ts:445:3 › Gate G on /care-tasks › Gate G10 /care-tasks: the Undo click is still for the follow-up dates (stillnessProbe, interaction)
+[1A[2K[15/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications (light)
+[1A[2K[16/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications/med-fixture-1 (light)
+[1A[2K[17/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications?tab=reminders (light)
+[1A[2K[18/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /notifications (light)
+[1A[2K[19/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications (dark)
+[1A[2K[20/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications/med-fixture-1 (dark)
+[1A[2K[21/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /medications?tab=reminders (dark)
+[1A[2K[22/29] [chromium] › e2e/ui-meds.spec.ts:254:5 › UI-PG-MEDS GATE G1-G10 on /notifications (dark)
+[1A[2K[23/29] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /medications: no horizontal scroll at 390 and 320
+[1A[2K[24/29] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /medications/med-fixture-1: no horizontal scroll at 390 and 320
+[1A[2K[25/29] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /medications?tab=reminders: no horizontal scroll at 390 and 320
+[1A[2K[26/29] [chromium] › e2e/ui-meds.spec.ts:315:3 › UI-PG-MEDS GATE G6 on /notifications: no horizontal scroll at 390 and 320
+[1A[2K[27/29] [chromium] › e2e/ui-meds.spec.ts:332:3 › HC-UIMED-002: the dose sheet › Escape closes it, Tab stays inside it, and focus returns to the Log button
+[1A[2K[28/29] [chromium] › e2e/ui-meds.spec.ts:353:3 › HC-UIMED-002: the dose sheet › the dose text passes the stillness probe from the Log click
+[1A[2K[29/29] [chromium] › e2e/ui-meds.spec.ts:372:1 › HC-UIMED-004: /notifications redirects to the Reminders tab with the same settings
+[1A[2K  29 passed (1.5m)
+EXIT=0

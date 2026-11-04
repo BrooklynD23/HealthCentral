@@ -163,6 +163,15 @@ plan was written from the delete path alone; the reprocess path had a second,
 unrelated reason to need that column. Reading the consumer before editing the
 producer is what caught it.
 
+A 2026-11-03 instance in UI-PG-REVIEW (#452): the Source Trace sheet's "It
+matches, mark as checked" verified through the sheet's own mutation, so the
+page's `markChecked` (the hold and the ink) never ran, and the refetch dropped
+the row and unmounted the open sheet. Nothing in the diff touched that path; it
+was found only because the implementer listed it as a known unknown and
+measured it on the default `/verify`, where it failed. Recheck: when a page
+adds behaviour to one way of doing an action, list every other component that
+performs the same action and run each.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
@@ -518,3 +527,27 @@ Related trap, same day: a named workflow loads from the session's main checkout,
 Second cause, same day: #399 (twice) and #454 stopped as "incomplete" with no failing test. In the #454 implementer's transcript (workflow run wf_33290fe3-3f3) the agent started commands with `run_in_background`, then sent the text-only message "Waiting for the background events." The harness replied `[structured-output-enforce] You MUST call the StructuredOutput tool`, so the run ended, and the background-command notice says such a command "is terminated when you give your final answer". The WAIT FOR EVERY COMMAND sentence reached only the runner prompts and said to keep checking, not how. `build-item.js` STYLE, which is appended to every agent prompt, now carries a HOW TO WAIT rule: a foreground `timeout 580 bash -c 'until grep -q "^EXIT=" <file>; do sleep 5; done'` loop (exit 124 only means not yet).
 
 **Recheck:** the runner prompt says to wait for every command, and a result with `exit_code -1` is never a finding. Before relying on a merged harness change, `diff` the session's `.claude/workflows/<name>.js` against origin/main, and use `scriptPath` with a copy of main's file if they differ. A stop that says a command had not finished is read in the agent's transcript, not in the stop text: a `[structured-output-enforce]` line right after a text-only message means the agent ended its own turn.
+
+---
+
+## 16. A deliberate break that never reached the code the test loaded
+
+UI-PG-DOCUMENTS (PR #464, 2026-11-03): to show HC-UIPAL-005 can still fail after the route-fade wait, the implementer added a slide to a palette option in `CommandPalette.tsx` and ran the cold test. It passed. The worktree is on `/mnt/e` (WSL drvfs), where `vite` gets no file-change events, so the dev server went on serving the module it had cached before the edit; `curl http://127.0.0.1:3101/src/components/layout/CommandPalette.tsx | grep -c translateX` printed 0. Restarted with `CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=300`, the same break failed the test with six lines naming the moved rects. A RED-by-break that is green is the same failure as mode 1, with a different cause: the break was real, and the test never saw it.
+
+**Recheck:** after a deliberate break, before running the test, fetch the served module and grep it for a string only the break contains (`curl -s <dev server>/<path> | grep -c <string>`). A break that passes is evidence about the server until the grep says the server has it. On `/mnt/e`, start `vite` with `CHOKIDAR_USEPOLLING=1`, or use `vite build` and `vite preview`.
+
+---
+
+## 17. A fixture that answers every call the same way hides the second event
+
+UI-PG-DOCUMENTS (PR #464, review round 1, 2026-11-03): the HC-UIDOC-006 jump tests for an import ran one import, against a mock (`mockDocuments`, `e2e/ui-documents.spec.ts`) that answered every `POST /documents/import` with the same document id. The import card committed with its row, the tests were green, and a second import in one visit still moved the rows three times (1091.5 -> 959.1 -> 1214.7 px on a production build): the old card left when the import resolved, and the new card and row arrived with the list. A retry after a failed import did the same with the alert (944.3 -> 835.8 -> 1091.5). The first event has no previous card or alert to leave, so no test of it could see the split. Same class, one cause: the fixture could only produce the first event, so the test could only fail on the first event.
+
+**Recheck:** for every UI state that a new event replaces (a card, an alert, a warning, a selection), the test runs the event twice in one visit, and the fixture gives the second answer its own id and name. A jump or flicker test that runs a state's first event alone is not a test of the state's replacement. Ask what the second and the retry would do, then make the mock able to ask it.
+
+Round 2 (same PR, 2026-11-03) found the same class one event later. The round-1 fix made an import "ready" only while its row was in the list or the list was not fetching. After a Remove, the removed import's row never comes back, so on the next refresh it was not ready again: the card of an older import, or the "Import failed" alert of a file the retry had already imported, returned for the length of the fetch. Rows held three positions in four sequences: import A, import B, Remove B, Remove an old row (735.1 -> 867.5 -> 734.8 px); the same, then import C (959.1 -> 1091.5 -> 1214.7); fail, retry, Remove, Remove an old row (835.8 -> 944.3 -> 712.6); fail, retry, Remove, import C (835.8 -> 944.3 -> 1091.5). Every one of these passed the tests that ran the event, then Remove, and stopped. The fix is in `importReady` (`removedIds`); the tests are HC-UIDOC-006 (q) to (t).
+
+**Recheck, widened:** after the replacement test passes, run the chain event, Remove of what the event made, then a refresh of the list (another Remove, another import). A state that depends on "is its row in the list" changes meaning when the row has been removed.
+
+Round 3 (same PR, 2026-11-03) found the class again, with two events that overlap in time. Round 2's chain ran Remove once, alone. A second Remove sent while the first DELETE was still in flight lost the first's record of the removed document: `confirmDelete` passed `onSuccess` to `mutate`, and a per-call `onSuccess` fires only for the observer's latest call (query-core `mutationObserver.ts`). The card and the "3 values ready to review" link stayed for a deleted document: `{"card":"Document imported: private-fresh.pdf","link":"3 values ready to review","rows":[]}`. The fix records the removal from `mutateAsync(id).then(...)`; the tests are HC-UIDOC-018 (vitest, and e2e with `holdDelete()` on the mock, RED at fb6e7ef2: the card count stayed 1). The same round added a 3 s timer that marks an import ready when the list refresh never settles. A timer is an event too: it fires after the Remove, and a fix that put it before the `removedIds` check brought the removed card and the retry alert back (HC-UIDOC-017 fails with that break: 2 failed of 2).
+
+**Recheck, widened again:** the chain also runs the events overlapping, not only in sequence: two Removes with the first held, a second import while the first is still in flight. Hold the first request, send the second, release both, and read the settled page for the state the first event owned. And any callback passed per call to a React Query `mutate` is read as "fires only for the latest call": state that must survive overlap goes in `mutateAsync(...).then`, or in the hook's own options. A timer or any deferred effect joins the chain: fire it after the Remove, not before.

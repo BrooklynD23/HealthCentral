@@ -3440,6 +3440,18 @@ Plan: QWEN3-4B-TIER. Queue row: queue.md (`QWEN3-4B-TIER`). Judge context: judge
 
 Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-27`
 
+## `docs/reviews/2026-11-02/stillness-nav-evidence/README.md`
+
+**STILLNESS-NAV-LATE Task 1: why page changes run late under the stillness probe (MEASURE)**
+
+Row: STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "STILLNESS-NAV-LATE", Task 1) with NAV70-CI-MISS folded in (docs/plans/2026-10-30-followups-plan.md). Draft PR #469, branch…
+
+## `docs/reviews/2026-11-02/stillness-nav-evidence/l0-2026-10-27/RECOVERY.md`
+
+**L0 2026-10-27 evidence copy: recovery note and sha256 check**
+
+Task 1 step 1 of STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "Evidence to keep").
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
