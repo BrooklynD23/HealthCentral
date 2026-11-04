@@ -618,6 +618,10 @@ export function serializeRangeRibbonSvg(svg: SVGSVGElement): string {
   const size = viewBoxSize(svg);
   clone.setAttribute('width', String(size.width));
   clone.setAttribute('height', String(size.height));
+  // The drawing shows no text, so a patient cannot see these two before sharing the file, and they hold the analyte,
+  // a lab value and its date (L0 ruling 6615916306). They stay on the live svg.
+  clone.removeAttribute('aria-label');
+  clone.removeAttribute('aria-valuetext');
   const computed = window.getComputedStyle(document.documentElement);
   const markup = new XMLSerializer().serializeToString(clone);
   return markup.replace(/var\((--[\w-]+)\)/g, (_match, token: string) => {
