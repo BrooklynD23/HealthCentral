@@ -628,7 +628,16 @@ class InterpretModule:
             else:
                 parts.append("This value is outside the normal reference range.")
         else:
-            if kb:
+            if (
+                obs.ref_low is None
+                and obs.ref_high is None
+                and not (obs.ref_range_text or "").strip()
+            ):
+                parts.append(
+                    "This report did not include a reference range, "
+                    "so this result can't be compared to one."
+                )
+            elif kb:
                 parts.append(kb.normal_interpretation + f" [KB:{kb.id}]")
             else:
                 parts.append("This value is within the normal reference range.")

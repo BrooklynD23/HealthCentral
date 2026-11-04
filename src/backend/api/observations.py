@@ -74,24 +74,32 @@ def verify_observation_access(observation: Observation, session: Session) -> Non
 
 router = APIRouter()
 
+# Words (after strip().upper()) that mean "within range". A plain Verify
+# recalculates a row with a value whose stored flag is one of these, or that
+# has no flag; any other stored flag is kept, even one that disagrees with
+# the number. NO, FALSE and 0 are the plain negative of an `abnormal` column
+# (modules/import_structured.py:115, the `abnormal` alias).
+_NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
 
-# Panel definitions - maps panel IDs to canonical analyte names
+
+# Panel definitions - maps panel IDs to the analyte names the normalizer stores, plus the
+# older names listed before it, kept so existing matches still match (order = display order).
 PANEL_DEFINITIONS = {
     "cbc": {
         "name": "Complete Blood Count",
-        "analytes": ["wbc", "rbc", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
+        "analytes": ["wbc", "white_blood_cells", "rbc", "red_blood_cells", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
     },
     "cmp": {
         "name": "Comprehensive Metabolic Panel",
-        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "calcium", "protein_total", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
+        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "carbon_dioxide", "calcium", "protein_total", "total_protein", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
     },
     "lipid": {
         "name": "Lipid Panel",
-        "analytes": ["cholesterol_total", "triglycerides", "hdl", "ldl", "vldl"],
+        "analytes": ["cholesterol_total", "total_cholesterol", "triglycerides", "hdl", "hdl_cholesterol", "ldl", "ldl_cholesterol", "vldl"],
     },
     "thyroid": {
         "name": "Thyroid Panel",
-        "analytes": ["tsh", "t3_free", "t4_free", "t3_total", "t4_total"],
+        "analytes": ["tsh", "t3_free", "free_t3", "t4_free", "free_t4", "t3_total", "t4_total"],
     },
 }
 
@@ -463,8 +471,27 @@ async def verify_observation(
     observation.verified_at = utcnow()
     observation.version += 1
 
-    # Recalculate abnormal status
-    if observation.value is not None:
+    # Recalculate abnormal status when this request really changed value,
+    # ref_low or ref_high AND a range exists after the edit, or whenever the
+    # row has no flag or a normal word (_NORMAL_FLAGS). Any other stored flag
+    # is kept with its is_abnormal exactly, by a plain Verify (even one that
+    # disagrees with the number) and by a real edit with both bounds null after
+    # the edit (owner row VERIFY-EDIT-NO-RANGE; normal words per
+    # VERIFY-FLAG-WORDS and the L0 ruling on #479): with no range there is
+    # nothing to recalculate against, and the report's own flag must not be
+    # erased by a corrected number. The bounds are read from the row after the
+    # edit block, never from verify_data, where None means "not sent".
+    numbers_changed = any(
+        f in changes and changes[f]["old"] != changes[f]["new"]
+        for f in ("value", "ref_low", "ref_high")
+    )
+    keeps_flag = (
+        observation.flag is not None
+        and observation.flag.strip().upper() not in _NORMAL_FLAGS
+    )
+    has_range = observation.ref_low is not None or observation.ref_high is not None
+    recalculate = (numbers_changed and has_range) or not keeps_flag
+    if recalculate and observation.value is not None:
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"

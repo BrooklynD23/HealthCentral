@@ -1,0 +1,19 @@
+--- precheck before warmB at 2026-11-02T17:49:23-08:00
+ 17:49:23 up 2 days,  7:41,  1 user,  load average: 1.39, 2.56, 4.67
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1666812 bash -c "/mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh" npx vitest run src/__tests__/ui-motion.test.tsx; echo EXIT=$?
+[FOREIGN] 1666815 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-motion.test.tsx
+[FOREIGN] 1669271 bash /mnt/e/Programming/Github Repo/hc-c-p6/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_fk_migration_017
+[FOREIGN] 1672406 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1672408 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1672409 bash /mnt/e/Programming/Github Repo/hc-verify-keeps-flag/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/ --colle
+[FOREIGN] 1678676 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1678677 timeout 580 bash -c until grep -q "^EXIT=" /tmp/claude-1000/uipg-r3/vitest-motion.txt; do sleep 5; done
+[FOREIGN] 1678678 bash -c until grep -q "^EXIT=" /tmp/claude-1000/uipg-r3/vitest-motion.txt; do sleep 5; done
+[mine] 1684223 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+[mine] 1684267 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir /tmp/clau
+[mine] 1684323 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --config /tmp/claude-1000/snl-scratch-B/vite.nohmr.config.ts --host 
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:4173       0.0.0.0:*    users:(("node-MainThread",pid=1684267,fd=30))
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1684223,fd=30))
+(own server pids: 1684223 1684267 1684323 )
