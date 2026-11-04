@@ -388,7 +388,7 @@ export function ExplainAssistant() {
       hdl_cholesterol: 'HDL Cholesterol',
       total_cholesterol: 'Total Cholesterol',
       triglycerides: 'Triglycerides',
-      hemoglobin_a1c: 'A1C',
+      hba1c: 'A1C',
       glucose_fasting: 'Fasting Glucose',
       glucose: 'Glucose',
       hemoglobin: 'Hemoglobin',
