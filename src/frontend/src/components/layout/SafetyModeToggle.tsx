@@ -3,11 +3,14 @@ import { Info } from 'lucide-react';
 import { IconButton } from '@/components/ui/IconButton';
 import { Popover } from '@/components/ui/Popover';
 import { Switch } from '@/components/ui/Switch';
+import { useSafetyMode } from '@/hooks/useSafetyMode';
 import { cn } from '@/utils/cn';
 
 /**
- * The relabelled safety toggle (plan §3.6, until SAFETY-MODE-TOGGLE wires real
- * behaviour). It is a disabled, off switch: it changes no state anywhere.
+ * The stricter safety mode switch (plan §3.6, wired by SAFETY-MODE-TOGGLE). It shows the per-profile
+ * server value and sends a PATCH when changed. While that value is unknown (loading, a failed load, or a
+ * body with no boolean) it is disabled and off, and a click sends nothing. The standard safety checks run
+ * in every state; the switch never turns them off.
  *
  * Desktop shows the note beside the switch. Phones show an info button whose
  * popover carries the same copy. The note stays in the DOM for the description.
@@ -15,6 +18,7 @@ import { cn } from '@/utils/cn';
 export function SafetyModeToggle({ className }: { className?: string }) {
   const switchId = useId();
   const noteId = useId();
+  const { checked, known, loading, setStrict } = useSafetyMode();
 
   // The column has a fixed width on desktop. Its auto width came from the note's text, and that text
   // measured 376.8 px in the fallback face and 307 px once Source Sans loaded, so the note moved
@@ -24,9 +28,10 @@ export function SafetyModeToggle({ className }: { className?: string }) {
       <div className="flex items-center gap-2">
         <Switch
           id={switchId}
-          checked={false}
-          disabled
-          aria-disabled="true"
+          checked={checked}
+          disabled={!known}
+          aria-busy={loading || undefined}
+          onCheckedChange={setStrict}
           aria-describedby={noteId}
         />
         <label
