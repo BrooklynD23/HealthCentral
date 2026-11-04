@@ -374,8 +374,8 @@ async def list_observations(
     if to_date:
         query = query.where(Observation.collected_at <= to_date)
 
-    if abnormal_only:
-        query = query.where(Observation.is_abnormal == True)
+    # abnormal_only is filtered below in Python, not here: the stored is_abnormal alone
+    # cannot say that an unflagged 300 against 70-100 is abnormal (VALUE-RANGE-COMPARE).
 
     if needs_verification:
         query = query.where(Observation.user_verified == False)
@@ -384,6 +384,15 @@ async def list_observations(
 
     result = await profile_db.execute(query)
     observations = result.scalars().all()
+
+    if abnormal_only:
+        observations = [
+            obs for obs in observations
+            if status_is_abnormal(
+                observation_range_status(obs.flag, obs.value, obs.ref_low, obs.ref_high),
+                obs.is_abnormal,
+            )
+        ]
 
     await audit_and_commit(
         master_db,
