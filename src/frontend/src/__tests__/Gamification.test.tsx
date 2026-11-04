@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { toast } from 'sonner';
 import { AppToaster } from '@/components/ui/toast';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { BadgeInfo, BadgeStatus, StreakResponse } from '@/services/types';
 
@@ -313,10 +313,11 @@ describe('streaks_hidden (C-GAM2B)', () => {
   });
 
   describe('Show streaks switch', () => {
+    // The switch is in the Preferences section. A MemoryRouter keeps the URL out of the other tests.
     const renderSettings = () =>
       render(
         <QueryClientProvider client={new QueryClient()}>
-          <BrowserRouter><SettingsPage /></BrowserRouter>
+          <MemoryRouter initialEntries={['/settings?section=preferences']}><SettingsPage /></MemoryRouter>
         </QueryClientProvider>
       );
 

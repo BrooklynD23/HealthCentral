@@ -359,7 +359,7 @@ describe('HC-UISET-003: the break-glass warning keeps its text and role (D12) an
   ])('on the page, the %s warning has no animated ancestor', async (_state, flags, role) => {
     externalApi = { ...externalApi, ...flags } as typeof externalApi;
     renderSettings('/settings?section=assistant-privacy');
-    const warning = await findWarning(role);
+    const warning = await findWarning(role as 'alert' | 'status');
     for (let node: HTMLElement | null = warning; node; node = node.parentElement) {
       expect(node.getAttribute('style') ?? '', `${node.tagName}.${node.className}`).not.toMatch(/opacity|transform/);
     }
@@ -402,7 +402,8 @@ describe('HC-UISET-004: the external API consent is a still AlertDialog and its 
     await screen.findByRole('alertdialog', { name: 'Privacy Notice' });
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
-    expect(toggle).toHaveFocus();
+    // Radix hands focus back on a timer once the content has unmounted.
+    await waitFor(() => expect(toggle).toHaveFocus());
     expect(api.apiPut).not.toHaveBeenCalled();
   });
 
@@ -526,7 +527,7 @@ describe('HC-UISET-006: T0 marks', () => {
     renderSettings('/settings?section=assistant-privacy');
     const intro = await screen.findByText(/Donating is optional and off by default/);
     expect(intro.closest('[data-t0]')).not.toBeNull();
-    expect(screen.getByText(PURPOSE_COPY.fine_tune.description).closest('[data-t0]')).not.toBeNull();
+    expect((await screen.findByText(PURPOSE_COPY.fine_tune.description)).closest('[data-t0]')).not.toBeNull();
   });
 
   it('each tier row’s Ready, Download or Incompatible is T0', async () => {
@@ -554,8 +555,11 @@ describe('HC-UISET-007: honest tier copy', () => {
   it('states the RAM a tier needs from the tier’s own requirements', async () => {
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
-    expect(within(screen.getByTestId('tier-row-high')).getByText(/needs 32GB\+ RAM/)).toBeInTheDocument();
-    expect(screen.queryByText(/needs 8GB\+ RAM/)).not.toBeInTheDocument();
+    const high = within(screen.getByTestId('tier-row-high'));
+    expect(high.getByText(/needs 32GB\+ RAM/)).toBeInTheDocument();
+    expect(high.queryByText(/8GB/)).not.toBeInTheDocument();
+    // Another tier states its own figure.
+    expect(within(screen.getByTestId('tier-row-gemma4-e2b')).getByText(/needs 8GB\+ RAM/)).toBeInTheDocument();
   });
 
   it('never says "no AI model" for a tier that has a model', async () => {

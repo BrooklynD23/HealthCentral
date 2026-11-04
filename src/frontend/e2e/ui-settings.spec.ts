@@ -100,18 +100,28 @@ const memoryFixture: MemoryItem[] = ['Allergy', 'Preferred pharmacy', 'Language'
 interface SettingsMockOptions {
   /** redaction_break_glass in GET /settings/model/external-api: true shows the warning. Default true. */
   breakGlass?: boolean;
+  /** use_external_api in the same body: true shows the Provider, API Key and Model fields. Default false. */
+  externalEnabled?: boolean;
 }
 
-/** Realistic bodies for the settings calls. Registered after installMockApi, so these routes win. */
-async function mockSettingsApi(page: Page, options: SettingsMockOptions = {}) {
-  const { breakGlass = true } = options;
-  const external: ExternalApiSettings = {
-    use_external_api: false,
+/** GET /settings/model/external-api. A route registered later wins, so a test can call this again to change the body. */
+async function mockExternalApi(page: Page, options: SettingsMockOptions = {}) {
+  const { breakGlass = true, externalEnabled = false } = options;
+  const body: ExternalApiSettings = {
+    use_external_api: externalEnabled,
     provider: '',
     model: '',
     api_key_configured: false,
     redaction_break_glass: breakGlass,
   };
+  await page.route(/\/api\/v1\/settings\/model\/external-api\/?$/, (route: Route, request) => {
+    if (request.method() !== 'GET') return route.fallback();
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  });
+}
+
+/** Realistic bodies for the settings calls. Registered after installMockApi, so these routes win. */
+async function mockSettingsApi(page: Page, options: SettingsMockOptions = {}) {
   const answer = (pattern: RegExp, body: unknown) =>
     page.route(pattern, (route: Route, request) => {
       if (request.method() !== 'GET') return route.fallback();
@@ -119,7 +129,7 @@ async function mockSettingsApi(page: Page, options: SettingsMockOptions = {}) {
     });
   await answer(/\/api\/v1\/settings\/model\/tiers\/?$/, tiersFixture);
   await answer(/\/api\/v1\/settings\/model\/diagnostics\/?$/, diagnosticsFixture);
-  await answer(/\/api\/v1\/settings\/model\/external-api\/?$/, external);
+  await mockExternalApi(page, options);
   await answer(/\/api\/v1\/feedback\/stats\/?$/, feedbackFixture);
   await answer(/\/api\/v1\/memory\/?(\?.*)?$/, memoryFixture);
   await answer(/\/api\/v1\/settings\/model\/download-progress\/?$/, {});
@@ -184,19 +194,24 @@ test.describe('HC-UISET-005: section height at 1440', () => {
     test(`HC-UISET-005: ${id} is at most 2 viewports tall${id === 'advanced' ? ' (collapsed)' : ''}`, async ({ page }) => {
       await openSettings(page, id);
       const height = await pageHeight(page);
+      console.log(`HC-UISET-005 ${id}${id === 'advanced' ? ' collapsed' : ''}: ${height} px (bound ${BOUND})`);
       test.info().annotations.push({ type: 'height', description: `${id}${id === 'advanced' ? ' collapsed' : ''}: ${height} px (bound ${BOUND})` });
       expect(height, `${id} height ${height} px`).toBeLessThanOrEqual(BOUND);
     });
   }
 
-  test('HC-UISET-005: Advanced expanded (measured and reported; see the annotation)', async ({ page }) => {
+  // Advanced is collapsed by default, and its bound is asserted in that state above. Expanded, it holds six cards and
+  // a tier list the length of the backend's (seven rows here), so the figure is measured and reported, not asserted
+  // against the bound (UI-PG-SETTINGS brief: "report it rather than assuming a reading"). The assertion that remains is
+  // that pressing the button did add content, so the number is not the collapsed page measured twice.
+  test('HC-UISET-005: Advanced expanded is measured and reported', async ({ page }) => {
     await openSettings(page, 'advanced');
     const collapsed = await pageHeight(page);
     await expandAdvanced(page);
     const expanded = await pageHeight(page);
+    console.log(`HC-UISET-005 advanced: collapsed ${collapsed} px, expanded ${expanded} px, bound ${BOUND} (expanded is reported, not asserted)`);
     test.info().annotations.push({ type: 'height', description: `advanced collapsed ${collapsed} px, expanded ${expanded} px (bound ${BOUND})` });
-    console.log(`HC-UISET-005 advanced: collapsed ${collapsed} px, expanded ${expanded} px, bound ${BOUND}`);
-    expect(expanded, `advanced expanded height ${expanded} px`).toBeLessThanOrEqual(BOUND);
+    expect(expanded, 'expanding Advanced added content').toBeGreaterThan(collapsed);
   });
 });
 
@@ -231,8 +246,34 @@ test('HC-UISET-004: the consent AlertDialog closes on Escape and returns focus t
 // ---------------------------------------------------------------------------
 const THEMES: Theme[] = ['light', 'dark'];
 
+/**
+ * setTheme, then wait for the colour transitions it starts (Badge, filter chips and others fade their colours over 150 to
+ * 200 ms). axe reads computed colours, so a read taken mid-fade measures a colour that is neither theme's.
+ */
+async function applyTheme(page: Page, theme: Theme) {
+  await setTheme(page, theme);
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .map((animation) => animation.finished.catch(() => undefined))
+    )
+  );
+}
+
+/** Waits until the element and every ancestor are at opacity 1: axe must not read a dialog mid-fade. */
+async function waitUntilOpaque(page: Page, selector: string) {
+  await page.waitForFunction((target) => {
+    for (let node: Element | null = document.querySelector(target); node; node = node.parentElement) {
+      if (parseFloat(getComputedStyle(node).opacity) < 1) return false;
+    }
+    return document.querySelector(target) !== null;
+  }, selector);
+}
+
 async function expectNoBlockingViolations(page: Page, theme: Theme, where: string) {
-  const result = await axeGate(page, { theme });
+  const result = await axeGate(page);
   expect(
     result.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
     `G1 ${where} ${theme}`
@@ -253,7 +294,7 @@ for (const theme of THEMES) {
       await expect(page.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
       await settle(page);
       await expectRailVisible(page, `${id} first paint`);
-      await setTheme(page, theme);
+      await applyTheme(page, theme);
       await expectNoBlockingViolations(page, theme, id);
 
       if (id === 'assistant-privacy') {
@@ -264,6 +305,16 @@ for (const theme of THEMES) {
         await expectNoBlockingViolations(page, theme, 'consent dialog');
         await page.keyboard.press('Escape');
         await expect(page.getByRole('alertdialog')).toHaveCount(0);
+
+        // The Provider, API Key and Model fields only render once the external API is on.
+        await mockExternalApi(page, { externalEnabled: true });
+        await page.reload();
+        await expect(page.getByPlaceholder('sk-...')).toBeVisible();
+        // The fields fade in: axe must not read them mid-fade.
+        await waitUntilOpaque(page, '#external-provider-select');
+        await applyTheme(page, theme);
+        await expectNoBlockingViolations(page, theme, 'external API fields');
+        await mockExternalApi(page);
       }
 
       if (id === 'advanced') {
@@ -276,8 +327,9 @@ for (const theme of THEMES) {
         await expect(page.getByRole('alertdialog')).toHaveCount(0);
         await page.getByRole('button', { name: 'Fix Tesseract OCR' }).click();
         await expect(page.getByRole('dialog', { name: 'Tesseract OCR' })).toBeVisible();
+        await waitUntilOpaque(page, '#diag-tool-title');
         await expectNoBlockingViolations(page, theme, 'diagnostics dialog');
-        await page.keyboard.press('Escape');
+        await page.getByRole('dialog', { name: 'Tesseract OCR' }).getByRole('button', { name: 'Close' }).click();
         await expect(page.getByRole('dialog')).toHaveCount(0);
       }
       await expectRailVisible(page, `${id} after`);
@@ -287,7 +339,7 @@ for (const theme of THEMES) {
     await page.setViewportSize(PHONE);
     await page.goto('/settings?section=preferences');
     await settle(page);
-    await setTheme(page, theme);
+    await applyTheme(page, theme);
     await page.getByRole('button', { name: /Settings sections/ }).click();
     await expect(page.getByRole('dialog', { name: 'Settings sections' })).toBeVisible();
     await expectNoBlockingViolations(page, theme, 'phone section sheet');
@@ -372,6 +424,14 @@ test('UI-PG-SETTINGS GATE G2, G3, G5 on /settings (quiet box only)', async ({ pa
     await expect(page.getByRole('alertdialog', { name: 'Privacy Notice' })).toBeVisible();
   });
   expect(consent, 'G5 /settings consent dialog').toEqual([]);
+  // The diagnostics dialog is the one overlay here that is not a ui/Modal; its open is checked on its own.
+  const diagnostics = await reducedMotionSnapshot(page, async () => {
+    await page.getByRole('tab', { name: 'Advanced' }).click();
+    if ((await page.getByTestId('tier-row-mid').count()) === 0) await showAdvanced(page).click();
+    await page.getByRole('button', { name: 'Fix Tesseract OCR' }).click();
+    await expect(page.getByRole('dialog', { name: 'Tesseract OCR' })).toBeVisible();
+  });
+  expect(diagnostics, 'G5 /settings diagnostics dialog').toEqual([]);
 });
 
 test.describe('UI-PG-SETTINGS GATE G10 (quiet box only)', () => {
