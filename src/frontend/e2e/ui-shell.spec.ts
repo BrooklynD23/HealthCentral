@@ -162,7 +162,8 @@ function visibleNav(page: Page) {
 /** Navigates the way a user does: a nav link, the search form, or the profile menu. */
 async function navigateTo(page: Page, route: string): Promise<void> {
   if (route === '/search') {
-    await page.getByRole('banner').getByRole('searchbox').fill('migraine');
+    await page.getByRole('banner').getByRole('button', { name: /search/i }).click();
+    await page.getByRole('dialog', { name: 'Command palette' }).getByRole('combobox').fill('migraine');
     await page.keyboard.press('Enter');
     return;
   }
@@ -311,11 +312,10 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
     });
   }
 
-  // /explain is left out of HC-UISH-009 until UI-PG-ASK lands (L0 ruling 2026-10-25). /settings is left out until
-  // UI-PG-SETTINGS lands (L0 ruling 2026-10-26T07:12:53Z): a bare 20 ms timer on /inbox -> /settings reads a max gap
-  // of 58-72 ms on this branch (median 60, 5 runs) and 48-55 ms on origin/main (median 49, 5 runs), interleaved on
-  // preview, and this case fails 3 of 3 on preview with 60-64 ms gaps.
-  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/explain' && candidate !== '/settings')) {
+  // /settings is left out of HC-UISH-009 until UI-PG-SETTINGS lands (L0 ruling 2026-10-26T07:12:53Z): a bare 20 ms
+  // timer on /inbox -> /settings reads a max gap of 58-72 ms on this branch (median 60, 5 runs) and 48-55 ms on
+  // origin/main (median 49, 5 runs), interleaved on preview, and this case fails 3 of 3 on preview with 60-64 ms gaps.
+  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/settings')) {
     test(`HC-UISH-009: the Safety Rail stays still through the navigation to ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
@@ -633,8 +633,7 @@ test.describe('HC-UISH-004 and HC-UISH-006 round 2: phone top bar and toggle lab
       await openRoute(page, '/inbox');
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
       const banner = page.getByRole('banner');
-      await expect(banner.getByRole('search')).toBeVisible();
-      await expect(banner.getByRole('searchbox', { name: 'Search health records' })).toBeVisible();
+      await expect(banner.getByRole('button', { name: /search/i })).toBeVisible();
       await expect(banner.getByRole('link', { name: 'Search', exact: true })).toBeHidden();
     });
   }
@@ -1092,8 +1091,6 @@ test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365
  * run once that row lands, so remove the entry then.
  */
 const PAGE_OVERFLOW: Record<string, { selector: string; fixBy: string }> = {
-  '/inbox': { selector: 'div.flex.items-center.gap-1', fixBy: 'UI-PG-DOCUMENTS' },
-  '/explain': { selector: 'div.w-80.space-y-4', fixBy: 'UI-PG-ASK' },
   '/export': { selector: 'div.flex.items-center.gap-3', fixBy: 'UI-PG-EXPORT' },
 };
 

@@ -14,10 +14,10 @@ Hard invariants enforced here (do not weaken):
 - Redaction: every free-text string sourced from user or document narrative
   (display name, entity values, quotes, task titles, medication names/
   instructions, dosage units, document metadata titles, observation analyte
-  names/units) is passed through
+  names/units, observation flags) is passed through
   ``modules.redaction.RedactionEngine(policy_level="strict")`` before it is
   placed in the bundle. Structured fields (ISO-8601 dates, numeric values,
-  coded enums like status/frequency/flag) are left as-is.
+  coded enums like status/frequency) are left as-is.
 - No invented dates: a missing date/datetime is omitted from the resource
   entirely rather than defaulted to "now" or an empty string.
 """
@@ -141,8 +141,9 @@ def build_observation(obs: dict, patient_ref: str, redact) -> dict:
         resource["referenceRange"] = [ref_range]
 
     if obs.get("flag"):
-        # Short coded flag (H/L/critical/...), not narrative — unredacted.
-        resource["interpretation"] = [{"text": obs["flag"]}]
+        # A flag is stored as printed and a plain Verify keeps it, so it can
+        # be free text: redacted like other narrative.
+        resource["interpretation"] = [{"text": redact(obs["flag"])}]
 
     effective = _iso(obs.get("collected_at"))
     if effective:

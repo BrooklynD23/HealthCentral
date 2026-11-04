@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { m } from 'framer-motion';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   TrendingUp,
   TrendingDown,
@@ -104,6 +105,18 @@ export function TrendsDashboard() {
   const { profileId } = useAuthStore();
   const [activePanel, setActivePanel] = useState('cbc');
   const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
+  // ?analyte= (the command palette, the medication page). AppLayout keys the route container on the pathname, so
+  // /trends -> /trends?analyte=x does not remount this page: a click made earlier would still win. A navigation is
+  // the later choice, so each new location (its key, not the URL: picking the same analyte twice is the same URL)
+  // that names an analyte drops the click.
+  const [searchParams] = useSearchParams();
+  const { key: locationKey } = useLocation();
+  const requestedAnalyte = searchParams.get('analyte');
+  const [seenLocationKey, setSeenLocationKey] = useState(locationKey);
+  if (locationKey !== seenLocationKey) {
+    setSeenLocationKey(locationKey);
+    if (requestedAnalyte) setSelectedAnalyte(null);
+  }
 
   // Fetch all observations to get list of analytes
   const {
@@ -126,8 +139,11 @@ export function TrendsDashboard() {
     return Array.from(uniqueAnalytes.values());
   }, [observations]);
 
-  // Auto-select first analyte if none selected
-  const effectiveSelectedAnalyte = selectedAnalyte || analyteList[0]?.analyte_canonical;
+  // A click wins, then ?analyte= if it names a listed analyte (the raw URL value never reaches useTrend), else the first.
+  const effectiveSelectedAnalyte =
+    selectedAnalyte ||
+    analyteList.find((o) => o.analyte_canonical === requestedAnalyte)?.analyte_canonical ||
+    analyteList[0]?.analyte_canonical;
 
   // Fetch trend data for selected analyte
   const {

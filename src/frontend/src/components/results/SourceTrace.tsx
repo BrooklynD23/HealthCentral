@@ -4,13 +4,25 @@
  * Shows where a value came from: the source file, the page, the excerpt with the
  * matching line highlighted, the collected date, the reference range and the read
  * confidence in words. For an unchecked value it offers "It matches, mark as
- * checked" (useVerifyObservation) and a link to Review values.
+ * checked" (useVerifyObservation) and a link to Review values. The button is enabled
+ * only while an excerpt is on screen and the source has loaded (sourceStatus), so a
+ * value is never marked as checked with nothing to compare it with; otherwise it is
+ * disabled and a short reason is shown beside it.
  *
  * The content holds T0 values, so the sheet is `still` (M0). The only moving
  * element is the TraceMark, a separate background with no data-t0. The text never
- * moves.
+ * moves. The File value is clamped to two lines and always reserves both (full name in
+ * its title), ObservationSourceTrace loads the monospace face before the sheet opens, and
+ * below 1024 px, where the sheet is anchored to the bottom, the sheet is kept at its full
+ * height (min-h-[85dvh], its max-h), so neither the name, the font swap nor the excerpt that arrives later
+ * shifts a T0 row. The scrollbar gutter is reserved (scrollbar-gutter: stable), so a classic scrollbar
+ * that appears once the excerpt makes the sheet scroll does not narrow the text and re-wrap it.
+ * While its own GET is pending, the sheet says "Loading the file name…" or "Loading the excerpt…"
+ * as plain text, with no spinner (the sheet is still, and the TraceMark is its only motion). Once that
+ * GET settles, or if a caller has nothing to load, a value with nothing to show reads "Source file not
+ * available" or "Excerpt not available." That includes a page that has no single matching line.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
@@ -18,14 +30,20 @@ import { Sheet } from '@/components/ui/Sheet';
 import { notify } from '@/components/ui/toast';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ease } from '@/motion/tokens';
+import { useDocument, useDocumentPages } from '@/services/documents';
 import { useVerifyObservation } from '@/services/observations';
-import type { Observation } from '@/services/types';
+import type { DocumentPage, Observation } from '@/services/types';
 import { cn } from '@/utils/cn';
 
 const DRAW_MS = 420;
 const DRAW_DELAY_MS = 160;
 const FADE_MS = 150;
 const DRAW_EASE: [number, number, number, number] = [...ease.out];
+
+/** The face of the excerpt (`font-mono`, weight 400). */
+const MONO_FONT = '400 12px "JetBrains Mono"';
+const REASON_LOADING = 'Loading the source to compare.';
+const REASON_UNAVAILABLE = 'The source is not available to compare, so this cannot be marked here.';
 
 /**
  * The trace mark: a background that draws across its positioned parent once
@@ -68,6 +86,18 @@ export interface TraceSource {
 }
 
 export interface SourceTraceProps extends TraceSource {
+  /**
+   * Whether the source behind `excerptLines` is still being fetched, could not be fetched, or is
+   * ready. Default 'ready': a caller that passes the excerpt itself has nothing to load.
+   */
+  sourceStatus?: 'loading' | 'failed' | 'ready';
+  /**
+   * Whether the document GET (the file name) is still pending, and whether the pages GET (the excerpt)
+   * is. Each decides only its own wording, so a failed document GET beside a pending pages GET does not
+   * say "Excerpt not available.". Default false: a caller that passes the values itself has nothing to load.
+   */
+  sourceFileLoading?: boolean;
+  excerptLoading?: boolean;
   /** Controlled open state. Omit it and use a `trigger` for uncontrolled use. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -119,6 +149,9 @@ export function SourceTrace({
   sourceFile = null,
   excerptLines = [],
   matchIndex = null,
+  sourceStatus = 'ready',
+  sourceFileLoading = false,
+  excerptLoading = false,
   open,
   onOpenChange,
   trigger,
@@ -135,6 +168,9 @@ export function SourceTrace({
   // The row verified here is kept by id, so a sheet reused for another row does not show it as checked.
   const [checkedId, setCheckedId] = useState<string | null>(null);
   const isChecked = observation.user_verified || checkedId === observation.id;
+  // "Mark as checked" says the value matches the report, so there must be a report line to compare.
+  const canCompare = sourceStatus === 'ready' && excerptLines.length > 0;
+  const reasonId = useId();
 
   // A different row starts with no verify state: no stale error, no in-flight flag.
   useEffect(() => {
@@ -160,11 +196,25 @@ export function SourceTrace({
   };
 
   return (
-    <Sheet still open={open} onOpenChange={onOpenChange} trigger={trigger} title={`Source for ${name}`}>
+    // Below 1024 px the sheet grows upward from the bottom edge, so an excerpt that mounts later would move every row above
+    // it. min-h-[85dvh] is the bottom sheet's own max-h, so it is the same height before and after, whatever its padding and title.
+    // [scrollbar-gutter:stable] is on the same overflow-y-auto element: when the excerpt makes it scroll, a classic scrollbar
+    // takes its width from the gutter that was already reserved, not from the text, which would re-wrap.
+    <Sheet
+      still
+      open={open}
+      onOpenChange={onOpenChange}
+      trigger={trigger}
+      title={`Source for ${name}`}
+      className="min-h-[85dvh] [scrollbar-gutter:stable]"
+    >
       <div className="space-y-5">
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm">
           <dt className="text-ink-secondary">File</dt>
-          <dd className="min-w-0 break-words text-ink">{sourceFile ?? 'Source file not available'}</dd>
+          {/* Two lines at most, and both always reserved (min-h-10 is two text-sm lines): the name arrives with the document, and a name that wrapped then would push every row below it down. The end of a longer name is cut; the title has all of it. */}
+          <dd className="min-h-10 min-w-0 line-clamp-2 break-words text-ink" title={sourceFile ?? undefined}>
+            {sourceFile ?? (sourceFileLoading ? 'Loading the file name…' : 'Source file not available')}
+          </dd>
 
           <dt className="text-ink-secondary">Location</dt>
           <dd className="min-w-0 break-words text-ink" data-t0="">
@@ -218,18 +268,32 @@ export function SourceTrace({
               })}
             </ol>
           ) : (
-            <p className="text-sm text-ink-secondary">Excerpt not available.</p>
+            <p className="text-sm text-ink-secondary">
+              {excerptLoading ? 'Loading the excerpt…' : 'Excerpt not available.'}
+            </p>
           )}
-          <p className="text-sm font-medium text-ink">This is what your report states.</p>
+          {excerptLines.length > 0 ? (
+            <p className="text-sm font-medium text-ink">This is what your report states.</p>
+          ) : null}
         </section>
 
         {isChecked ? (
           <p className="text-sm text-ink-secondary">You have marked this value as checked.</p>
         ) : (
           <div className="space-y-3">
-            <Button type="button" onClick={markChecked} disabled={verify.isPending}>
+            <Button
+              type="button"
+              onClick={markChecked}
+              disabled={verify.isPending || !canCompare}
+              aria-describedby={canCompare ? undefined : reasonId}
+            >
               It matches, mark as checked
             </Button>
+            {canCompare ? null : (
+              <p id={reasonId} className="text-sm text-ink-secondary">
+                {sourceStatus === 'loading' ? REASON_LOADING : REASON_UNAVAILABLE}
+              </p>
+            )}
             {verify.isError ? (
               <p role="alert" className="text-sm text-status-attention">
                 It could not be marked as checked. Try again.
@@ -247,5 +311,98 @@ export function SourceTrace({
         )}
       </div>
     </Sheet>
+  );
+}
+
+const EXCERPT_CONTEXT_LINES = 2;
+const NO_EXCERPT = { excerptLines: [] as string[], matchIndex: null as number | null };
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The lines of the report around a value, or nothing. The sheet says "This is what your
+ * report states.", so a wrong highlighted line would be a false provenance claim: a line
+ * matches only when it names the analyte (case-insensitive) AND holds the value as a
+ * whole whitespace-delimited token ("96" is not in "196", "96.5", "-96" or "70-99").
+ * Exactly one matching line on the observation's source page gives that line and up to
+ * 2 lines either side; zero or several, no source page, or no such page give nothing.
+ * An empty analyte or value never matches (`includes('')` would match every line).
+ */
+export function excerptFromPage(
+  pages: readonly DocumentPage[] | undefined,
+  observation: Observation
+): { excerptLines: string[]; matchIndex: number | null } {
+  const { source_page: sourcePage, analyte_raw: analyteRaw, value, value_text: valueText } = observation;
+  if (sourcePage === null || !pages) return NO_EXCERPT;
+  const page = pages.find((candidate) => candidate.page_number === sourcePage);
+  if (!page) return NO_EXCERPT;
+
+  const analyte = (analyteRaw ?? '').trim().toLowerCase();
+  const valueToken = (value !== null ? String(value) : (valueText ?? '')).trim();
+  if (analyte === '' || valueToken === '') return NO_EXCERPT;
+
+  const valuePattern = new RegExp(`(^|\\s)${escapeRegExp(valueToken)}(\\s|$)`);
+  const lines = page.text.split(/\r?\n/);
+  const matches: number[] = [];
+  lines.forEach((line, index) => {
+    if (line.toLowerCase().includes(analyte) && valuePattern.test(line)) matches.push(index);
+  });
+  if (matches.length !== 1) return NO_EXCERPT;
+
+  const start = Math.max(0, matches[0] - EXCERPT_CONTEXT_LINES);
+  const end = Math.min(lines.length, matches[0] + EXCERPT_CONTEXT_LINES + 1);
+  return { excerptLines: lines.slice(start, end), matchIndex: matches[0] - start };
+}
+
+/**
+ * The Source Trace sheet for an observation, opened from `trigger` (SOURCE-TRACE-WIRE).
+ * The document and its pages are fetched only once the sheet has been opened, so a page
+ * that only offers the trigger makes no request. Opening the sheet writes nothing: the
+ * file name and the excerpt come from the stored document. The sheet's own "It matches,
+ * mark as checked" button still sends a verify POST when the patient clicks it, but only
+ * while both requests have succeeded and an excerpt is on screen: it is disabled, with a
+ * reason, while either is loading or failed, when the document has no file name, and when
+ * no single line matches.
+ */
+export function ObservationSourceTrace({
+  observation,
+  trigger,
+}: {
+  observation: Observation;
+  trigger: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  // The excerpt is set in JetBrains Mono (font-display: swap). Loading it now, not when the sheet opens,
+  // keeps the excerpt lines from moving when the face arrives after they mount. Absent in some
+  // environments (jsdom), and a failed load only means the fallback face stays.
+  useEffect(() => {
+    window.document.fonts?.load(MONO_FONT)?.catch(() => undefined);
+  }, []);
+  const documentId = open ? observation.doc_id : undefined;
+  const documentQuery = useDocument(documentId);
+  const pagesQuery = useDocumentPages(documentId);
+  const document = documentQuery.data;
+  const { excerptLines, matchIndex } = excerptFromPage(pagesQuery.data, observation);
+  // isSuccess/isError, not data: react-query keeps the old data after a failed refetch.
+  let sourceStatus: 'loading' | 'failed' | 'ready' = 'ready';
+  if (documentQuery.isError || pagesQuery.isError) sourceStatus = 'failed';
+  else if (!documentQuery.isSuccess || !pagesQuery.isSuccess) sourceStatus = 'loading';
+  else if (!documentQuery.data.source) sourceStatus = 'failed';
+
+  return (
+    <SourceTrace
+      open={open}
+      onOpenChange={setOpen}
+      trigger={trigger}
+      observation={observation}
+      sourceFile={document?.source ?? null}
+      excerptLines={excerptLines}
+      matchIndex={matchIndex}
+      sourceStatus={sourceStatus}
+      sourceFileLoading={documentQuery.isPending}
+      excerptLoading={pagesQuery.isPending}
+    />
   );
 }
