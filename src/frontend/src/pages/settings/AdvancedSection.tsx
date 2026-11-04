@@ -49,7 +49,7 @@ import {
   useRecheckDiagnostics,
 } from '@/services';
 import { useFeedbackStats, useExportDataset } from '@/services/feedback';
-import type { TierStatus } from '@/services/modelSettings';
+import type { DownloadProgress, TierStatus } from '@/services/modelSettings';
 import { SwitchRow } from './PreferencesSection';
 
 const OCR_BLOCKER_LABELS: Record<string, string> = {
@@ -63,6 +63,13 @@ const tierDescriptions: Record<string, { label: string; desc: string; icon: type
   mid: { label: 'Mid (Phi-4-mini)', desc: 'Balanced speed and quality', icon: Server },
   high: { label: 'High (BioMistral 7B)', desc: 'Best quality', icon: Cpu },
 };
+
+// The query key of useDownloadProgress (services/modelSettings.ts).
+const DOWNLOAD_PROGRESS_KEY = ['model-settings', 'download-progress'];
+
+function hasActiveDownloadEntry(progress: Record<string, DownloadProgress> | undefined): boolean {
+  return Object.values(progress ?? {}).some((p) => p.status === 'pending' || p.status === 'downloading');
+}
 
 /** RAM in GB that the tier asks for, from the tier's own requirements; null when it asks for none or none were sent. */
 function requiredRamGb(tier: TierStatus): number | null {
@@ -79,7 +86,7 @@ function tierDescription(tier: TierStatus): string {
   const ram = requiredRamGb(tier);
   const needs = ram === null ? '' : ` — needs ${ram}GB+ RAM`;
   const known = tierDescriptions[tier.tier];
-  if (known) return tier.tier === 'high' ? `${known.desc}${needs}` : known.desc;
+  if (known) return tier.tier === 'high' || tier.tier === 'low' ? `${known.desc}${needs}` : known.desc;
   const hasModel = (tier.capabilities?.context_size ?? 0) > 0;
   if (tier.tier !== 'template' && hasModel) return `Runs a local model${needs}`;
   return tier.description;
@@ -120,7 +127,7 @@ function AdvancedPanels() {
   const detectHardware = useDetectHardware();
   const setTier = useSetTier();
   const startDownload = useStartDownload();
-  const { data: externalApiData } = useExternalApiSettings();
+  const { data: externalApiData, isError: externalApiError } = useExternalApiSettings();
   const saveOcr = useSaveOcrPreference();
   const { data: diagnostics, isLoading: diagnosticsLoading } = useEnvironmentDiagnostics();
   const { data: feedbackStats } = useFeedbackStats();
@@ -139,13 +146,16 @@ function AdvancedPanels() {
   const focusedDiag = diagnostics?.components.find((c) => c.id === diagToolId) ?? null;
   const queryClient = useQueryClient();
   const prefersReducedMotion = useReducedMotion();
-  const [downloadInitiated, setDownloadInitiated] = useState(false);
+  // The panels unmount on Hide and on every change of section, and a download goes on in the backend meanwhile. The
+  // progress query is cached, so a download that was running when the user left is still in the cache when they return:
+  // follow it from the start, or the bar freezes, polling stops and Download is enabled while the tier is downloading.
+  const [downloadInitiated, setDownloadInitiated] = useState(() =>
+    hasActiveDownloadEntry(queryClient.getQueryData<Record<string, DownloadProgress>>(DOWNLOAD_PROGRESS_KEY))
+  );
   const { data: downloadProgress } = useDownloadProgress(downloadInitiated);
 
   // Derive active download status from progress data
-  const hasActiveDownload = downloadInitiated && Object.values(downloadProgress || {}).some(
-    (p) => p.status === 'pending' || p.status === 'downloading'
-  );
+  const hasActiveDownload = downloadInitiated && hasActiveDownloadEntry(downloadProgress);
   const isDownloading = hasActiveDownload || startDownload.isPending;
 
   // When a download transitions to completed, refresh tier list and settings
@@ -262,7 +272,9 @@ function AdvancedPanels() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="gap-1.5 h-8 border-black/6 text-xs font-bold"
+                          // T0: while a download runs the button is disabled, and disabled would fade it to half opacity.
+                          // It turns grey instead, so the text a patient reads does not change opacity.
+                          className="gap-1.5 h-8 border-black/6 text-xs font-bold disabled:opacity-100 disabled:text-ink-tertiary"
                           onClick={() => handleStartDownload(tier.tier)}
                           disabled={isDownloading}
                           data-t0=""
@@ -552,8 +564,9 @@ function AdvancedPanels() {
               </div>
               <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
                 <span className="text-sm text-ink-secondary">External API</span>
-                <Badge variant={externalEnabled ? 'verified' : 'default'} className="font-bold">
-                  {externalEnabled ? 'Enabled' : 'Off'}
+                {/* A failed read is not "Off": the setting is unknown, and the patient has to be told so. */}
+                <Badge variant={externalApiError ? 'caution' : externalEnabled ? 'verified' : 'default'} className="font-bold">
+                  {externalApiError ? 'Unknown' : externalEnabled ? 'Enabled' : 'Off'}
                 </Badge>
               </div>
               <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
@@ -734,7 +747,9 @@ function AdvancedPanels() {
                         <div className="mt-2">
                           {a.url.startsWith('/') ? (
                             <Link
-                              to={a.url}
+                              // The backend sends url="/settings" (environment_diagnostics.py), which is now Profile & security.
+                              // This dialog opens in Advanced, so the link goes back there.
+                              to={a.url === '/settings' ? '/settings?section=advanced' : a.url}
                               className="text-sm font-medium text-accent hover:underline"
                               onClick={() => setDiagToolId(null)}
                             >

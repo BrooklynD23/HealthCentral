@@ -7,7 +7,7 @@
  * sections are chosen from a sheet instead of a tab list.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui';
@@ -103,6 +103,13 @@ export function SettingsPage() {
 
   const select = (id: SectionId) => setSearchParams({ section: id }, { replace: true });
 
+  // Profile & security holds state that cannot be asked for again: a recovery code is shown once (the old one is already
+  // invalid by then), a code issued while the user is on another section would have nowhere to go, and a restore reports
+  // its result there. So once visited it stays mounted, hidden while another section is on screen. The other sections
+  // only hold form fields and are cheap to mount again.
+  const securityVisited = useRef(false);
+  if (section === 'security') securityVisited.current = true;
+
   const bodies: Record<SectionId, ReactNode> = {
     security: <SecuritySection />,
     preferences: <PreferencesSection />,
@@ -110,6 +117,8 @@ export function SettingsPage() {
     advanced: <AdvancedSection />,
   };
 
+  // One tree for both layouts: only the control that chooses the section differs. A breakpoint change must not remount
+  // the panels, so nothing below branches on isPhone except that control and the panel's role.
   return (
     <div className="space-y-6">
       <div>
@@ -121,13 +130,10 @@ export function SettingsPage() {
         </p>
       </div>
 
-      {isPhone ? (
-        <>
+      <Tabs value={section} onValueChange={(value) => select(readSection(value))}>
+        {isPhone ? (
           <SectionSheet section={section} onSelect={select} />
-          <div>{bodies[section]}</div>
-        </>
-      ) : (
-        <Tabs value={section} onValueChange={(value) => select(readSection(value))}>
+        ) : (
           <TabsList aria-label="Settings sections">
             {SECTIONS.map((candidate) => (
               <TabsTrigger key={candidate.id} value={candidate.id}>
@@ -135,15 +141,28 @@ export function SettingsPage() {
               </TabsTrigger>
             ))}
           </TabsList>
-          {SECTIONS.map((candidate) => (
+        )}
+        {SECTIONS.map((candidate) => {
+          const keepMounted = candidate.id === 'security' && securityVisited.current;
+          const active = candidate.id === section;
+          return (
             // Radix makes a tabpanel a Tab stop. These panels hold focusable controls and are taller than the screen, so the
             // panel's own focus ring would sit under the Safety Rail (WCAG 2.4.11, ui-shell "focus is not obscured").
-            <TabsContent key={candidate.id} value={candidate.id} tabIndex={-1}>
+            // On a phone there is no tab list for the panel to be labelled by, so it is a labelled region instead.
+            <TabsContent
+              key={candidate.id}
+              value={candidate.id}
+              tabIndex={-1}
+              forceMount={keepMounted ? true : undefined}
+              hidden={!active}
+              {...(isPhone ? { role: 'region', 'aria-labelledby': undefined, 'aria-label': candidate.label } : {})}
+              className={isPhone ? 'mt-6' : undefined}
+            >
               {bodies[candidate.id]}
             </TabsContent>
-          ))}
-        </Tabs>
-      )}
+          );
+        })}
+      </Tabs>
     </div>
   );
 }

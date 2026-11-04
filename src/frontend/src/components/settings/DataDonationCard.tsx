@@ -53,18 +53,19 @@ export function DataDonationCard() {
   const setConsent = useSetDonationConsent();
   // The purpose stays after the dialog closes, so the sentence does not change while the scrim fades out.
   const [confirm, setConfirm] = useState<{ purpose: DonationPurpose; open: boolean } | null>(null);
-  const confirming = confirm?.open ? confirm.purpose : null;
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The dialog has no Trigger, so Radix has nothing to return focus to: whatever opened it (the switch or the
   // Stop and delete button) gets focus back once the dialog has closed. Not in the close handler: the focus trap is
-  // still on there.
+  // still on there. The Stop and delete button stays on the page while its dialog is open (the rows below it must not
+  // move), so after Cancel or Escape it is still the node to return to. After a successful stop `opener` is cleared:
+  // the purpose is not yet read as off, so the button is still there, but it is about to go.
   const opener = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
   useEffect(() => {
     const open = confirm?.open === true;
     if (wasOpen.current && !open) {
-      // The Stop and delete button is gone once the purpose is off, so its switch takes the focus then.
+      // No opener left (cleared on success) or it was removed: the purpose's switch takes the focus.
       const target = opener.current?.isConnected
         ? opener.current
         : document.getElementById(`donation-switch-${confirm?.purpose}`);
@@ -105,6 +106,7 @@ export function DataDonationCard() {
         granted: false,
         consent_text_version: CONSENT_TEXT_VERSION,
       });
+      opener.current = null;
       closeConfirm();
       setMessage(
         `Stopped. ${result.deleted_count} donated ${result.deleted_count === 1 ? 'copy was' : 'copies were'} deleted.`,
@@ -177,7 +179,7 @@ export function DataDonationCard() {
                     </div>
                   )}
 
-                  {on && confirming !== purpose && (
+                  {on && (
                     <Button
                       size="sm"
                       variant="secondary"
