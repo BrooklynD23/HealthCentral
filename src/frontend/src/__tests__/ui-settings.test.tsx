@@ -18,12 +18,13 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { CONSENT_TEXT_VERSION, PURPOSE_COPY } from '@/components/settings/DataDonationCard';
+import { useAuthStore } from '@/stores/authStore';
 import * as api from '@/services/api';
 
 vi.mock('@/services/api', async (importOriginal) => {
@@ -38,8 +39,13 @@ vi.mock('@/services/api', async (importOriginal) => {
   };
 });
 
-// Rendered unchanged by this row; their own tests cover them.
-vi.mock('@/components/settings/RecoveryCodeCard', () => ({ RecoveryCodeCard: () => <div data-testid="recovery-card" /> }));
+// Rendered unchanged by this row; their own tests cover them. The recovery code card is the real one only when a test
+// asks for it (HC-UISET-010: what it holds in state must survive a section change); it sits in the same wrapper either way.
+const realCard = vi.hoisted(() => ({ recovery: false }));
+vi.mock('@/components/settings/RecoveryCodeCard', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/settings/RecoveryCodeCard')>();
+  return { RecoveryCodeCard: () => <div data-testid="recovery-card">{realCard.recovery ? <actual.RecoveryCodeCard /> : null}</div> };
+});
 vi.mock('@/components/settings/BackupCard', () => ({ BackupCard: () => <div data-testid="backup-card" /> }));
 vi.mock('@/components/settings/DangerZone', () => ({ DangerZone: () => <div data-testid="danger-zone" /> }));
 
@@ -102,6 +108,11 @@ const tiers = {
   ],
 };
 
+const GB = 1_073_741_824;
+let downloadProgress: Record<string, unknown> = {};
+let donationRefetch: Promise<void> | null = null;
+let donationGranted = true;
+
 let externalApi: { use_external_api: boolean; provider: string; model: string; api_key_configured: boolean; redaction_break_glass?: boolean };
 let externalApiFails = false;
 let unmocked: string[] = [];
@@ -109,7 +120,7 @@ let unmocked: string[] = [];
 const responses: Record<string, () => unknown> = {
   '/settings/model': () => modelSettings,
   '/settings/model/tiers': () => tiers,
-  '/settings/model/download-progress': () => ({}),
+  '/settings/model/download-progress': () => downloadProgress,
   '/settings/model/external-api': () => {
     if (externalApiFails) throw new Error('external-api down');
     return externalApi;
@@ -121,6 +132,8 @@ const responses: Record<string, () => unknown> = {
     checked_at: '2026-11-01T08:00:00Z',
     components: [
       { id: 'tesseract', label: 'Tesseract OCR', status: 'error', detail: 'Not found on PATH', fix_actions: [] },
+      // The backend sends this link as url="/settings" (modules/environment_diagnostics.py).
+      { id: 'ollama', label: 'Ollama', status: 'warn', detail: 'Not running', fix_actions: [{ type: 'open_url', label: 'Open settings', url: '/settings' }] },
     ],
   }),
   '/feedback/stats': () => ({
@@ -130,10 +143,11 @@ const responses: Record<string, () => unknown> = {
   '/memory/': () => [],
   '/donation/consents': () => ({
     consents: (['fine_tune', 'synthetic_seed', 'agent_traces'] as const).map((purpose) => ({
-      purpose, granted: purpose === 'fine_tune', consent_text_version: purpose === 'fine_tune' ? CONSENT_TEXT_VERSION : null,
+      purpose, granted: purpose === 'fine_tune' && donationGranted, consent_text_version: purpose === 'fine_tune' ? CONSENT_TEXT_VERSION : null,
       current: purpose === 'fine_tune', granted_at: null, revoked_at: null,
     })),
   }),
+  '/profiles/': () => [{ id: 'p1', has_recovery_code: true }],
 };
 
 function LocationProbe() {
@@ -165,6 +179,11 @@ const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
 beforeEach(() => {
   vi.clearAllMocks();
   unmocked = [];
+  realCard.recovery = false;
+  downloadProgress = {};
+  donationRefetch = null;
+  donationGranted = true;
+  useAuthStore.setState({ profileId: 'p1' } as never);
   externalApiFails = false;
   externalApi = { use_external_api: false, provider: '', model: '', api_key_configured: false, redaction_break_glass: false };
   vi.mocked(api.apiGet).mockImplementation(async (path: string) => {
@@ -173,6 +192,8 @@ beforeEach(() => {
       unmocked.push(path);
       throw new Error(`unmocked GET ${path}`);
     }
+    // A refetch of the donation choices a test holds back, to see what the page does before it arrives.
+    if (path === '/donation/consents' && donationRefetch) await donationRefetch;
     return respond() as never;
   });
   vi.mocked(api.apiPut).mockResolvedValue({} as never);
@@ -255,7 +276,8 @@ describe('HC-UISET-001: /settings lands on Profile & security; each ?section= re
     await user.click(screen.getByRole('tab', { name: 'Preferences' }));
     expect(await screen.findByLabelText('Time zone')).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('?section=preferences');
-    expect(screen.queryByTestId('recovery-card')).not.toBeInTheDocument();
+    // Hidden, not unmounted: HC-UISET-010 is why.
+    expect(screen.getByTestId('recovery-card')).not.toBeVisible();
   });
 
   it('landing on Profile & security fetches no model settings, tiers or diagnostics', async () => {
@@ -409,7 +431,7 @@ describe('HC-UISET-004: the external API consent is a still AlertDialog and its 
     await screen.findByRole('alertdialog', { name: 'Privacy Notice' });
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
-    // Radix hands focus back on a timer once the content has unmounted.
+    // The section hands the focus back by hand once the dialog has closed: the dialog has no Trigger for Radix to return it to.
     await waitFor(() => expect(toggle).toHaveFocus());
     expect(api.apiPut).not.toHaveBeenCalled();
   });
@@ -565,6 +587,10 @@ describe('HC-UISET-007: honest tier copy', () => {
     const high = within(screen.getByTestId('tier-row-high'));
     expect(high.getByText(/needs 32GB\+ RAM/)).toBeInTheDocument();
     expect(high.queryByText(/8GB/)).not.toBeInTheDocument();
+    // Low asks for 8 GB too, so it no longer says only "works on most hardware".
+    const low = within(screen.getByTestId('tier-row-low'));
+    expect(low.getByText(/lightweight/)).toBeInTheDocument();
+    expect(low.getByText(/needs 8GB\+ RAM/)).toBeInTheDocument();
     // Another tier states its own figure.
     expect(within(screen.getByTestId('tier-row-gemma4-e2b')).getByText(/needs 8GB\+ RAM/)).toBeInTheDocument();
   });
@@ -622,8 +648,10 @@ describe('HC-UISET-008: the switches keep their names and their payloads', () =>
 });
 
 describe('HC-UISET-009: on a phone the sections open from a sheet', () => {
-  const realMatchMedia = window.matchMedia;
+  // Read when each test starts: the setup file defines matchMedia after collection, and later describes need it back.
+  let realMatchMedia: typeof window.matchMedia;
   beforeEach(() => {
+    realMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: /max-width/.test(query),
       media: query,
@@ -654,5 +682,262 @@ describe('HC-UISET-009: on a phone the sections open from a sheet', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('?section=assistant-privacy');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Settings sections' })).not.toBeInTheDocument());
     expect(screen.queryByLabelText('Time zone')).not.toBeInTheDocument();
+  });
+});
+
+describe('HC-UISET-010: Profile & security keeps what its cards hold when the section or the layout changes', () => {
+  const CODE = 'AAAA-BBBB-CCCC-DDDD';
+  type User = ReturnType<typeof userEvent.setup>;
+
+  beforeEach(() => {
+    realCard.recovery = true;
+  });
+
+  const issueCode = async (user: User) => {
+    await user.type(await screen.findByLabelText('Confirm your password'), 'pw');
+    await user.click(screen.getByRole('button', { name: /recovery code/i }));
+  };
+
+  // A recovery code is shown once. The old code is invalid the moment the new one is issued (recovery card text).
+  it('a code on screen is still there after the user visits another section and comes back', async () => {
+    vi.mocked(api.apiPost).mockResolvedValue({ recovery_code: CODE } as never);
+    const { user } = renderSettings();
+    await issueCode(user);
+    expect(await screen.findByTestId('recovery-code-value')).toHaveTextContent(CODE);
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    expect(screen.getByTestId('recovery-code-value')).not.toBeVisible();
+    await user.click(screen.getByRole('tab', { name: 'Profile & security' }));
+    expect(screen.getByTestId('recovery-code-value')).toBeVisible();
+    expect(screen.getByTestId('recovery-code-value')).toHaveTextContent(CODE);
+  });
+
+  it('a code the server issues while the user is on another section is shown when they come back', async () => {
+    let issued!: (value: unknown) => void;
+    vi.mocked(api.apiPost).mockImplementation((() => new Promise((resolve) => { issued = resolve; })) as never);
+    const { user } = renderSettings();
+    await issueCode(user);
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    await act(async () => { issued({ recovery_code: CODE }); });
+    await user.click(screen.getByRole('tab', { name: 'Profile & security' }));
+    expect(await screen.findByTestId('recovery-code-value')).toHaveTextContent(CODE);
+  });
+
+  describe('when the viewport crosses the shell breakpoint', () => {
+    let realMatchMedia: typeof window.matchMedia;
+    beforeEach(() => {
+      realMatchMedia = window.matchMedia;
+    });
+    afterEach(() => {
+      window.matchMedia = realMatchMedia;
+    });
+
+    it('a code on screen is still there', async () => {
+      vi.mocked(api.apiPost).mockResolvedValue({ recovery_code: CODE } as never);
+      const listeners: Array<(event: { matches: boolean }) => void> = [];
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: (_type: string, listener: (event: { matches: boolean }) => void) => { listeners.push(listener); },
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })) as unknown as typeof window.matchMedia;
+      const { user } = renderSettings();
+      await issueCode(user);
+      await screen.findByTestId('recovery-code-value');
+      await act(async () => { listeners.forEach((listener) => listener({ matches: true })); });
+      await waitFor(() => expect(screen.queryByRole('tablist')).not.toBeInTheDocument());
+      expect(screen.getByTestId('recovery-code-value')).toHaveTextContent(CODE);
+    });
+  });
+
+  it('a section that was never visited is not mounted (no request, no card)', async () => {
+    realCard.recovery = false;
+    renderSettings('/settings?section=preferences');
+    await screen.findByLabelText('Time zone');
+    expect(screen.queryByTestId('recovery-card')).not.toBeInTheDocument();
+    expect(vi.mocked(api.apiGet).mock.calls.map(([path]) => path)).not.toContain('/profiles/');
+  });
+});
+
+describe('HC-UISET-011: a download that is running is followed after the user leaves Advanced and returns', () => {
+  const tierProgress = (status: string, progress: number) => ({
+    mid: { tier: 'mid', status, progress, downloaded_bytes: progress * GB, total_bytes: GB, path: null, error: null },
+  });
+
+  it('start, leave, return: the bar advances, Download stays disabled, and completion refreshes the tiers', async () => {
+    vi.mocked(api.apiPost).mockResolvedValue({} as never);
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    downloadProgress = tierProgress('downloading', 0.4);
+    await user.click(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' }));
+    expect(await screen.findByText('40%')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    await screen.findByLabelText('Time zone');
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }));
+    downloadProgress = tierProgress('downloading', 0.9);
+    await openAdvanced(user);
+
+    expect(await screen.findByText('90%')).toBeInTheDocument();
+    expect(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' })).toBeDisabled();
+
+    const tierFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/tiers').length;
+    const before = tierFetches();
+    downloadProgress = tierProgress('completed', 1);
+    await waitFor(() => expect(tierFetches()).toBeGreaterThan(before), { timeout: 6000 });
+    await waitFor(() => expect(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' })).toBeEnabled());
+    expect(screen.queryByText('90%')).not.toBeInTheDocument();
+  }, 20000);
+
+  it('a Download button dims by colour, not by opacity, while a download runs (it is T0)', async () => {
+    vi.mocked(api.apiPost).mockResolvedValue({} as never);
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    downloadProgress = tierProgress('downloading', 0.4);
+    await user.click(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' }));
+    await screen.findByText('40%');
+    for (const row of ['tier-row-mid', 'tier-row-gemma4-e2b']) {
+      const button = within(screen.getByTestId(row)).getByRole('button', { name: 'Download' });
+      expect(button, row).toBeDisabled();
+      expect(button.className, row).toContain('disabled:opacity-100');
+    }
+  });
+});
+
+describe('HC-UISET-012: Stop and delete', () => {
+  const label = PURPOSE_COPY.fine_tune.label;
+  const stopName = `Stop and delete: ${label}`;
+
+  it('stays where it is while its dialog is open, and Cancel gives it the focus back', async () => {
+    const { user } = renderSettings('/settings?section=assistant-privacy');
+    const stop = await screen.findByRole('button', { name: stopName });
+    await user.click(stop);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Confirm stop and delete' });
+    // The button is not removed under the dialog: it is the node the focus goes back to, and the rows below it stay put
+    // (jsdom has no layout; e2e/ui-settings.spec.ts G10 measures the rows).
+    expect(stop.isConnected).toBe(true);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(stop).toHaveFocus());
+    expect(api.apiPut).not.toHaveBeenCalled();
+  });
+
+  it('Escape gives the focus back to the button too', async () => {
+    const { user } = renderSettings('/settings?section=assistant-privacy');
+    const stop = await screen.findByRole('button', { name: stopName });
+    await user.click(stop);
+    await screen.findByRole('alertdialog', { name: 'Confirm stop and delete' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(stop).toHaveFocus());
+  });
+
+  it('on success the focus ends on the purpose switch, also while the refetch is still on its way', async () => {
+    vi.mocked(api.apiPut).mockResolvedValue({ deleted_count: 2 } as never);
+    const { user } = renderSettings('/settings?section=assistant-privacy');
+    const toggle = await screen.findByRole('switch', { name: label });
+    const stop = await screen.findByRole('button', { name: stopName });
+    await user.click(stop);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Confirm stop and delete' });
+
+    // The save succeeded, the choices have not been read again: the button is still on the page.
+    let release!: () => void;
+    donationRefetch = new Promise<void>((resolve) => { release = resolve; });
+    donationGranted = false;
+    await user.click(within(dialog).getByRole('button', { name: 'Yes, stop and delete' }));
+    expect(await screen.findByText('Stopped. 2 donated copies were deleted.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(stop.isConnected).toBe(true);
+    await waitFor(() => expect(toggle).toHaveFocus());
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.queryByRole('button', { name: stopName })).not.toBeInTheDocument());
+    expect(toggle).toHaveFocus();
+  });
+});
+
+describe('HC-UISET-013: Current Status does not call an unread External API setting "Off"', () => {
+  it('shows Unknown when the External API request fails', async () => {
+    externalApiFails = true;
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    const row = screen.getByText('External API').closest('div')!;
+    await waitFor(() => expect(within(row).getByText('Unknown')).toBeInTheDocument());
+    expect(within(row).queryByText('Off')).not.toBeInTheDocument();
+  });
+
+  it('shows Off and Enabled when it is read', async () => {
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await waitFor(() => expect(within(screen.getByText('External API').closest('div')!).getByText('Off')).toBeInTheDocument());
+  });
+});
+
+describe('HC-UISET-014: the export confirm hands the focus back', () => {
+  it.each([
+    ['Cancel', async (dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) => { await user.click(within(dialog).getByRole('button', { name: 'Cancel' })); }],
+    ['Escape', async (_dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) => { await user.keyboard('{Escape}'); }],
+  ])('%s returns the focus to Export training data', async (_name, close) => {
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    const opener = screen.getByRole('button', { name: 'Export training data' });
+    await user.click(opener);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Export training data?' });
+    await close(dialog, user);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
+    expect(api.apiPost).not.toHaveBeenCalled();
+  });
+});
+
+describe('HC-UISET-015: the External API payloads carry what was typed', () => {
+  it('off sends the provider and an empty key; off then on sends the typed provider, key and model', async () => {
+    externalApi = { ...externalApi, use_external_api: true, redaction_break_glass: false };
+    vi.mocked(api.apiPut).mockImplementation((async (path: string, body: { use_external_api: boolean }) => {
+      if (path === '/settings/model/external-api') externalApi = { ...externalApi, use_external_api: body.use_external_api };
+      return {};
+    }) as never);
+    const { user } = renderSettings('/settings?section=assistant-privacy');
+    const toggle = await screen.findByRole('switch', { name: 'Use External API' });
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    await user.selectOptions(await screen.findByLabelText('Provider'), 'openai');
+    await user.type(screen.getByPlaceholderText('sk-...'), 'sk-typed-key');
+    await user.type(screen.getByPlaceholderText('e.g. gpt-4o, claude-sonnet'), 'gpt-4o');
+
+    await user.click(toggle);
+    expect(api.apiPut).toHaveBeenLastCalledWith('/settings/model/external-api', {
+      use_external_api: false,
+      provider: 'openai',
+      api_key: '',
+      consent_acknowledged: true,
+    });
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'false'));
+
+    await user.click(toggle);
+    const dialog = await screen.findByRole('alertdialog', { name: 'Privacy Notice' });
+    await user.click(within(dialog).getByRole('button', { name: 'I Understand, Enable' }));
+    expect(api.apiPut).toHaveBeenLastCalledWith('/settings/model/external-api', {
+      use_external_api: true,
+      provider: 'openai',
+      api_key: 'sk-typed-key',
+      model: 'gpt-4o',
+      consent_acknowledged: true,
+    });
+  });
+});
+
+describe('HC-UISET-016: the diagnostics link back to /settings stays in Advanced', () => {
+  it('Open /settings from a fix dialog goes to ?section=advanced', async () => {
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await user.click(await screen.findByRole('button', { name: 'Fix Ollama' }));
+    const link = await screen.findByRole('link', { name: 'Open /settings' });
+    expect(link).toHaveAttribute('href', '/settings?section=advanced');
+    await user.click(link);
+    expect(screen.getByTestId('location')).toHaveTextContent('?section=advanced');
+    expect(screen.getByRole('tab', { name: 'Advanced' })).toHaveAttribute('aria-selected', 'true');
   });
 });
