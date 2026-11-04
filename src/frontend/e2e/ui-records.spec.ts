@@ -350,10 +350,23 @@ async function axeBlocking(page: Page): Promise<string[]> {
   return axe.blocking.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 }
 
-/** Waits until the element's own opacity is 1, so an axe scan never reads a half-faded surface. */
+/**
+ * Waits until the element's effective opacity (its own times every ancestor's) is 1, so an axe scan never reads a
+ * half-faded surface: an EmptyState's action rises in an S1 group, and a dialog fades in.
+ */
 async function opaque(locator: Locator): Promise<void> {
   await expect
-    .poll(() => locator.evaluate((el) => parseFloat(getComputedStyle(el).opacity)), { timeout: 5_000 })
+    .poll(
+      () =>
+        locator.evaluate((el) => {
+          let opacity = 1;
+          for (let node: Element | null = el; node; node = node.parentElement) {
+            opacity *= parseFloat(getComputedStyle(node).opacity);
+          }
+          return opacity;
+        }),
+      { timeout: 5_000 }
+    )
     .toBeGreaterThanOrEqual(0.99);
 }
 
@@ -758,9 +771,12 @@ test.describe('Gate G on the records routes', () => {
       await page.getByRole('searchbox', { name: 'Search health records' }).fill('nothing');
       await page.keyboard.press('Enter');
       await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible();
+      // The empty state enters as an S1 group (480 ms): scan it once it has settled.
+      await opaque(page.getByRole('button', { name: 'Clear search and filters' }));
       expect(await axeBlocking(page), `G1 zero results ${theme}`).toEqual([]);
       await page.getByRole('button', { name: 'Clear search and filters' }).click();
       await expect(page.getByRole('heading', { name: 'Search your records' })).toBeVisible();
+      await opaque(page.getByRole('button', { name: 'Start a search' }));
       expect(await axeBlocking(page), `G1 empty ${theme}`).toEqual([]);
     });
 
