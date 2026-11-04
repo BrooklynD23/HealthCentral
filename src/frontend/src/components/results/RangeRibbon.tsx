@@ -126,7 +126,7 @@ interface Layout {
   band: { top: number; height: number } | null;
 }
 
-type BandSide = 'above' | 'below' | 'within' | 'none';
+export type BandSide = 'above' | 'below' | 'within' | 'none';
 
 function bandSideOf(value: number, low: number | null, high: number | null): BandSide {
   if (low === null && high === null) return 'none';
@@ -165,6 +165,21 @@ function cleanNumber(n: number): number {
 
 function finiteOrNull(n: number | null): number | null {
   return typeof n === 'number' && Number.isFinite(n) ? cleanNumber(n) : null;
+}
+
+/**
+ * Where a result sits against a reference range, as the ribbon reads it: the value and both bounds are cleaned
+ * (binary noise dropped), then compared. The Results page uses this for its badge and its printed Latest value, so
+ * the badge, the number and the ribbon never disagree. Null when the value is not a finite number.
+ */
+export function bandOfValue(
+  value: unknown,
+  refLow: number | null | undefined,
+  refHigh: number | null | undefined
+): { value: number; side: BandSide } | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const cleaned = cleanNumber(value);
+  return { value: cleaned, side: bandSideOf(cleaned, finiteOrNull(refLow ?? null), finiteOrNull(refHigh ?? null)) };
 }
 
 function viewHeightOf(requested: number | undefined): number {

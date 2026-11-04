@@ -50,7 +50,7 @@ import { findActiveMedications } from '@/utils/correlation';
 import { MedicationOverlay } from '@/components/MedicationOverlay';
 import { UnverifiedTrendNote } from '@/components/TrendVerificationMarkers';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
-import { RangeRibbon, serializeRangeRibbonSvg } from '@/components/results/RangeRibbon';
+import { RangeRibbon, bandOfValue, serializeRangeRibbonSvg } from '@/components/results/RangeRibbon';
 import { DisclaimerBanner } from '@/components/lab-interpreter/DisclaimerBanner';
 import { InterpretedResultCard } from '@/components/lab-interpreter/InterpretedResultCard';
 import { PanelInterpretationDashboard } from '@/components/lab-interpreter/PanelInterpretationDashboard';
@@ -237,16 +237,14 @@ export function ResultsPage() {
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
   // The trend route sends is_abnormal false for a point that has no range, so "Normal Range" is claimed only when the
   // chart has a range and the latest value sits inside it. Otherwise no badge: absence is not normality. "Outside
-  // Range" is claimed only for a value that is outside the band; a flag the band does not bear out is shown as the
-  // report's own flag, so it is never hidden and never contradicts the ribbon.
-  const latestPlace = (() => {
-    if (!trendData || !latestValue) return 'unknown';
-    const low = Number.isFinite(trendData.ref_low) ? (trendData.ref_low as number) : null;
-    const high = Number.isFinite(trendData.ref_high) ? (trendData.ref_high as number) : null;
-    const value = latestValue.value;
-    if ((low === null && high === null) || typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
-    return (low === null || value >= low) && (high === null || value <= high) ? 'inside' : 'outside';
-  })();
+  // Range" is shown whenever the value is outside the band, flagged or not (import sets is_abnormal only from a printed
+  // flag, so a report with ranges and no flags lands here), and it stands alone. "Flagged on the report" is the
+  // report's own flag where the band does not bear it out, so it is never hidden and never contradicts the ribbon.
+  // The band is read by the ribbon's own helper, on the same cleaned number the ribbon draws.
+  const latestBand = latestValue
+    ? bandOfValue(latestValue.value, trendData?.ref_low, trendData?.ref_high)
+    : null;
+  const latestPlace = !latestBand || latestBand.side === 'none' ? 'unknown' : latestBand.side === 'within' ? 'inside' : 'outside';
   const latestInsideRange = latestPlace === 'inside' && !latestValue?.is_abnormal;
   const unverifiedPointCount = useMemo(
     () => trendData?.data_points.filter((point) => point.user_verified !== true).length ?? 0,
@@ -465,14 +463,13 @@ export function ResultsPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <p data-t0 className="text-sm text-ink">
                   <strong>
-                    Latest value: {latestValue?.value} {trendData.unit}
+                    Latest value: {latestBand?.value ?? latestValue?.value} {trendData.unit}
                     {latestValue && latestValue.user_verified !== true && ' (unverified)'}
                   </strong>
                 </p>
                 {latestInsideRange && <Badge variant="verified">Normal Range</Badge>}
-                {latestValue?.is_abnormal && (
-                  <Badge variant="attention">{latestPlace === 'outside' ? 'Outside Range' : 'Flagged on the report'}</Badge>
-                )}
+                {latestPlace === 'outside' && <Badge variant="attention">Outside Range</Badge>}
+                {latestPlace !== 'outside' && latestValue?.is_abnormal && <Badge variant="attention">Flagged on the report</Badge>}
               </div>
               {trendData.summary && (
                 <p data-t0 className="mt-1 text-sm text-ink-secondary">
