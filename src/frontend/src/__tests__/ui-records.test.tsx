@@ -472,6 +472,119 @@ describe('HC-UIPIN-001 timeline cards name their analytes', () => {
     expect(apiGet.mock.calls.filter(([path]) => path === '/observations/')).toHaveLength(2);
   });
 
+  /** A cache that keeps the observations for 5 minutes, as the app does. */
+  const appClient = () =>
+    new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 300_000 }, mutations: { retry: false } } });
+
+  /** Loads the page once, then returns the cache with a new lab card whose observation the cached answer lacks. */
+  async function cacheThenImport(client: QueryClient) {
+    const first = renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (4 analytes)');
+    first.unmount();
+    await settle();
+    extraObservations = [obs('o-new', 'Ferritin', 'ferritin')];
+    timelineAll = {
+      events: [event({ event_id: 'ev-new', title: 'Lab results (1 analyte) fresh', related_ids: ['o-new'], event_date: '2026-04-01' })],
+      undated: [],
+    };
+    client.removeQueries({ queryKey: ['timeline'] });
+  }
+  const observationCalls = () => apiGet.mock.calls.filter(([path]) => path === '/observations/').length;
+
+  it('HC-UIPIN-001: while the one refresh of cached observations is held, no card shows; the names arrive with the card', async () => {
+    // Would not notice: a refresh whose answer is not waited for. The test above answers the refresh at once, so a page
+    // that paints the card unnamed and names it a moment later reads the same; here the refresh is held, and the card
+    // must not exist until it is released (a name line added later moves every card below it).
+    // RED if the hold on `needsRefresh || refreshing` is removed: the unnamed card shows while the refresh is held.
+    const client = appClient();
+    await cacheThenImport(client);
+    const held = gate();
+    observationsGate = held.wait;
+    renderAt(<TimelinePage />, '/timeline', client);
+    await waitFor(() => expect(observationCalls()).toBe(2));
+    await waitFor(() => expect(timelineAnswers).toBe(2));
+    await settle();
+    expect(screen.queryByText('Lab results (1 analyte) fresh')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading timeline');
+
+    held.open();
+    await screen.findByText('Lab results (1 analyte) fresh');
+    expect(analytesOf('Lab results (1 analyte) fresh')).toHaveTextContent(/^Ferritin$/);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('HC-UIPIN-001: a refused refresh of cached observations still shows the card, with no names and no status left behind', async () => {
+    // Would not notice: a refresh that never counts as done when it fails, so the cards stay held for good (a spinner
+    // with the timeline answered and nothing on screen), or a refresh that retries on every render.
+    // RED if `setRefreshed(true)` is removed: needsRefresh stays true after the failed refresh and the cards never show.
+    const client = appClient();
+    await cacheThenImport(client);
+    observationsFail = true;
+    renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (1 analyte) fresh');
+    await settle();
+    expect(analytesOf('Lab results (1 analyte) fresh')).toBeNull();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(observationCalls()).toBe(2);
+  });
+
+  it('HC-UIPIN-001: Try again holds the cards until the observations answer too, so the names arrive with them', async () => {
+    // Would not notice: a Try again whose timeline answer paints the cards while the observations (failed before, so
+    // fetched already) are still on their way; the names then arrive as a new line and move every later card. The
+    // observations are held before the click, which the test above (answered at once) cannot see.
+    // RED if `|| retrying` is removed: the unnamed cards show while the observations are held.
+    const user = userEvent.setup();
+    timelineFails = true;
+    observationsFail = true;
+    renderAt(<TimelinePage />, '/timeline');
+    await screen.findByRole('alert');
+    await waitFor(() => expect(observationCalls()).toBe(1));
+    await settle();
+
+    timelineFails = false;
+    observationsFail = false;
+    const held = gate();
+    observationsGate = held.wait;
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(timelineAnswers).toBe(1));
+    await waitFor(() => expect(observationCalls()).toBe(2));
+    await settle();
+    expect(screen.queryByText('Lab results (4 analytes)')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Loading timeline');
+
+    held.open();
+    await screen.findByText('Lab results (4 analytes)');
+    expect(analytesOf('Lab results (4 analytes)')).toHaveTextContent('Glucose, ldl_cholesterol');
+  });
+
+  it('HC-UIPIN-001: a later visit after a failed observations query holds the cards for the new answer too', async () => {
+    // Would not notice: the hold read from the query's own isFetched, which the failed answer of the first visit has
+    // already set. The second visit then paints the cached timeline at once, unnamed, and the names arrive later and
+    // move every card (measured 66 px). The hold is per visit. The first visit's observations fail; the second's are held.
+    // RED with `observationsFetched` in place of the per-visit flag: the unnamed cards show while the answer is held.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    observationsFail = true;
+    const first = renderAt(<TimelinePage />, '/timeline', client);
+    await screen.findByText('Lab results (4 analytes)');
+    await waitFor(() => expect(observationCalls()).toBe(1));
+    await settle();
+    first.unmount();
+    await settle();
+
+    observationsFail = false;
+    const held = gate();
+    observationsGate = held.wait;
+    renderAt(<TimelinePage />, '/timeline', client);
+    await waitFor(() => expect(observationCalls()).toBe(2));
+    await settle();
+    expect(screen.queryByText('Lab results (4 analytes)')).not.toBeInTheDocument();
+
+    held.open();
+    await screen.findByText('Lab results (4 analytes)');
+    expect(analytesOf('Lab results (4 analytes)')).toHaveTextContent('Glucose, ldl_cholesterol');
+  });
+
   it('HC-UIPIN-001: an id that stays unmatched after that one refresh asks once, and a later refetch does not hold the cards', async () => {
     // Would not notice: a refresh loop for an id that no observation has (a deleted row), or cards that blink on every
     // window focus. The held refetch after the first settle must leave the cards in place.
