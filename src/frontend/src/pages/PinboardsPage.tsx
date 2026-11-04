@@ -40,6 +40,8 @@ export function PinboardsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const renameButton = useRef<HTMLButtonElement>(null);
   const deleteButton = useRef<HTMLButtonElement>(null);
+  const saveButton = useRef<HTMLButtonElement>(null);
+  const confirmDeleteButton = useRef<HTMLButtonElement>(null);
   const createBoard = useCreatePinboard();
   const renameBoard = useRenamePinboard();
   const deleteBoard = useDeletePinboard();
@@ -167,6 +169,18 @@ export function PinboardsPage() {
     else return;
     setDeletedId(null);
   }, [deletedId, deleteTarget, pinboards, selected]);
+
+  // A refused Save or Delete re-enables the button the patient clicked, but the browser had already moved focus off it
+  // when it was disabled for the request, so focus sits on <body>. It goes back to that button, only when it fell to
+  // <body> (an Enter in the name box keeps focus where it is).
+  useEffect(() => {
+    if (renameFailed && !renameBoard.isPending && document.activeElement === document.body) saveButton.current?.focus();
+  }, [renameFailed, renameBoard.isPending]);
+  useEffect(() => {
+    if (deleteFailed && !deleteBoard.isPending && document.activeElement === document.body) {
+      confirmDeleteButton.current?.focus();
+    }
+  }, [deleteFailed, deleteBoard.isPending]);
 
   const handleDownload = async () => {
     if (!exportBoard.data) return;
@@ -304,7 +318,7 @@ export function PinboardsPage() {
             <Button type="button" variant="secondary" disabled={renameBoard.isPending} onClick={dismissRename}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!renameValue.trim() || renameBoard.isPending}>
+            <Button ref={saveButton} type="submit" disabled={!renameValue.trim() || renameBoard.isPending}>
               Save
             </Button>
           </div>
@@ -329,7 +343,7 @@ export function PinboardsPage() {
           <Button type="button" variant="secondary" data-alert-cancel disabled={deleteBoard.isPending} onClick={dismissDelete}>
             Cancel
           </Button>
-          <Button type="button" variant="danger" disabled={deleteBoard.isPending} onClick={() => void confirmDelete()}>
+          <Button ref={confirmDeleteButton} type="button" variant="danger" disabled={deleteBoard.isPending} onClick={() => void confirmDelete()}>
             Delete
           </Button>
         </div>
