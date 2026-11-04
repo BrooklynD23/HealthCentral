@@ -875,6 +875,24 @@ async def test_hc_vrc_012_abnormal_only_follows_the_range_status(dbs):
 
 
 @pytest.mark.asyncio
+async def test_hc_vrc_012_audit_count_is_the_filtered_count(dbs):
+    # The audit call sits after the Python filter, so its count is what the patient was shown.
+    import json
+
+    from models.audit import AuditLog
+
+    profile_db, master_db = dbs
+    for raw, kw, _listed in ABNORMAL_ONLY:
+        await _seed(profile_db, analyte_raw=raw, **kw)
+    resp = _call(profile_db, master_db, obs_api.router, "/observations", "GET",
+                 "/observations/", params={"abnormal_only": "true"})
+    assert resp.status_code == 200, resp.text
+    rows = (await master_db.execute(select(AuditLog).where(AuditLog.event_type == "observation.view"))).scalars().all()
+    assert len(rows) == 1, [r.event_type for r in rows]
+    assert json.loads(rows[0].details_json)["count"] == len(resp.json()) == sum(1 for *_x, listed in ABNORMAL_ONLY if listed)
+
+
+@pytest.mark.asyncio
 async def test_hc_vrc_012_without_the_filter_every_row_is_listed(dbs):
     profile_db, master_db = dbs
     for raw, kw, _listed in ABNORMAL_ONLY:
