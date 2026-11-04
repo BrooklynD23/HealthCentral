@@ -136,7 +136,7 @@ export const MemoryManager: FC = () => {
           className={cn(
             'px-3 py-1 rounded-lg text-xs font-medium transition-colors',
             !categoryFilter
-              ? 'bg-accent text-white'
+              ? 'bg-accent text-[var(--on-accent)]'
               : 'bg-surface-muted text-ink-secondary hover:bg-surface-sunken'
           )}
         >
@@ -149,7 +149,7 @@ export const MemoryManager: FC = () => {
             className={cn(
               'px-3 py-1 rounded-lg text-xs font-medium transition-colors capitalize',
               categoryFilter === cat
-                ? 'bg-accent text-white'
+                ? 'bg-accent text-[var(--on-accent)]'
                 : 'bg-surface-muted text-ink-secondary hover:bg-surface-sunken'
             )}
           >
