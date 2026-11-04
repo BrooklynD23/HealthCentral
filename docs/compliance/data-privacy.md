@@ -100,11 +100,13 @@ copy of the vault file.
   check, it is moved, with any journal, WAL or shm files beside it, to
   `vault.pre017.snapshot.aside` in the same folder, and a new snapshot is
   taken. The aside file is the original file: same key, same bytes, never
-  decrypted. Only a file the database reports as damaged is moved. A snapshot
-  that cannot be opened for another reason (no permission, a lock, no file
-  handles left) is not moved: the migration is refused and nothing is touched.
-  It follows the same 30-day rule, counted from the time the
-  original snapshot was made, not from the move. Because it is a full copy of
+  decrypted. Only a file the database reports as damaged is moved. A read fault
+  partway through the file can be reported as damage, so a good copy can still
+  be moved aside; it is kept, not deleted. A snapshot that cannot be opened or
+  read for another reason (no permission, a lock, no file handles left, a disk
+  read error on the first read) is not moved: the migration is refused and
+  nothing is touched. The aside file follows the same 30-day rule, counted from
+  the time the original snapshot was made, not from the move. Because it is a full copy of
   the vault as it was, a profile can hold two full copies of its patient data,
   the aside and the new snapshot, until the purge removes the aside. That lasts
   at least until day 30 and has no limit while 017 cannot complete. If the
@@ -117,8 +119,10 @@ copy of the vault file.
   hand. Deleting the profile would also remove them, but that needs a signed-in
   session, and login and unlock create the session only after the vault has
   opened, so a patient whose vault is refused cannot normally get one: the
-  practical exit is removing the aside files by hand, which reopens the vault but
-  discards the original that was moved there.
+  practical exit is removing the aside files by hand. That lets the open
+  continue, and the vault opens only if 017 then completes. If 017 still fails,
+  the vault stays closed, and the removed file, the original that was moved
+  there, may be the only intact pre-017 copy.
 - **Deleted.** With the profile (the vault-folder sweep in step 4 below) and by
   the synthetic-profile test reset. Both remove the snapshot, the aside copy and
   their journal, WAL and shm files.
@@ -138,11 +142,17 @@ copy of the vault file.
   days, for as long as it takes, until 017 completes. Deleting the profile
   also removes them, but that needs a signed-in session that a refused login
   cannot create. What removing files by hand does depends on why the vault is
-  closed: if the aside name is occupied, removing the occupying files reopens the
-  vault and can discard the original; if 017 fails, or the file matches no
-  schema, there is no exit until the cause is repaired, and removing the snapshot
-  does not open the vault, ends the retention and discards the only copy of the
-  rows 017 deletes (the next open then snapshots the live vault). This extends the
+  closed. If the aside name is occupied, removing the occupying files lets the
+  open continue; the vault opens only if 017 then completes, and if 017 still
+  fails it stays closed and the removed file may be the only intact pre-017
+  copy. If the snapshot cannot be read (no permission, a lock, a disk read
+  error), the vault stays closed until the fault is repaired and nothing needs
+  removing; removing the snapshot lets the open continue and the vault opens if
+  017 then completes, but it discards the original. If 017 fails, or the file
+  matches no schema, there is no exit until the cause is repaired, and removing
+  the snapshot does not open the vault, ends the retention and discards the only
+  copy of the rows 017 deletes (the next open then snapshots the live vault).
+  This extends the
   retention of that data beyond 30 days on purpose: the
   snapshot is the only copy of the rows 017 deletes. The snapshot and the aside
   copy are each judged by their own time, which is the time the original
@@ -323,10 +333,16 @@ already-open session does not purge them until the vault is opened again). A
 vault that cannot complete 017 keeps them past 30 days, until it completes.
 Deleting the profile removes them too, but that needs a signed-in session that
 a refused login cannot create. For a locked-out patient, removing files by hand
-means different things: with the aside name occupied it reopens the vault and can
-discard the original; while 017 fails, or the file matches no schema, nothing
-opens the vault until the cause is repaired, and removing the snapshot only ends
-the retention and discards the only copy of the rows 017 deletes. The copies are encrypted with the same key as the
+means different things. With the aside name occupied, removing the aside files
+lets the open continue; the vault opens only if 017 then completes, and if 017
+still fails it stays closed and the removed file may be the only intact pre-017
+copy. With a snapshot that cannot be read (no permission, a lock, a disk read
+error), the vault stays closed until the fault is repaired and nothing needs
+removing; removing the snapshot lets the open continue and the vault opens if
+017 then completes, but it discards the original. While 017 fails, or the file
+matches no schema, nothing opens the vault until the cause is repaired, and
+removing the snapshot only ends the retention and discards the only copy of the
+rows 017 deletes. The copies are encrypted with the same key as the
 vault, so they expose nothing that the vault key did not already open; the gap
 is only that a deletion is not final until then, and the purge needs a vault
 open, so a vault that is never opened keeps the copies. Deleting the whole
