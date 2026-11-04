@@ -702,6 +702,8 @@ test.describe('HC-UIPIN-002 pinboards', () => {
     await renameDialog(page).getByRole('button', { name: 'Save' }).click();
     await expect(renameDialog(page).getByRole('alert')).toContainText('Could not rename');
     await expect(renameDialog(page).getByLabel('Pinboard name')).toHaveValue('Second try');
+    // The button was disabled for the request, which drops focus on <body>; a refused Save puts it back on Save.
+    await expect(renameDialog(page).getByRole('button', { name: 'Save' })).toBeFocused();
     await renameDialog(page).getByRole('button', { name: 'Save' }).click();
     await expect(renameDialog(page)).toHaveCount(0);
     expect(control.patches.map((p) => p.name)).toEqual(['Second try', 'Second try']);
@@ -710,6 +712,7 @@ test.describe('HC-UIPIN-002 pinboards', () => {
     await deleteButton(page).click();
     await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(deleteDialog(page).getByRole('alert')).toContainText('Could not delete');
+    await expect(deleteDialog(page).getByRole('button', { name: 'Delete', exact: true })).toBeFocused();
     expect(control.boards.map((b) => b.id)).toContain(BOARD_A);
     await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
     await expect(deleteDialog(page)).toHaveCount(0);
@@ -943,6 +946,9 @@ test.describe('Gate G on the records routes', () => {
     await openPinMenu(page);
     await expectRail(page, 'pin menu open');
     await page.keyboard.press('Escape');
+    await page.getByLabel('Event type').selectOption('lab_results');
+    await expect(page.getByText(TITLE_TWO, { exact: true })).toBeVisible();
+    await expectRail(page, 'timeline filter');
 
     await openSearch(page);
     await expectRail(page, 'search first paint');
@@ -950,6 +956,14 @@ test.describe('Gate G on the records routes', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'No matching records' })).toBeVisible();
     await expectRail(page, 'after a search');
+    // A click on a result card follows its link.
+    await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+    const at = (await page.locator('[data-search-snippet]').first().boundingBox())!;
+    await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+    await expect(page).toHaveURL(/\/verify$/);
+    await expectRail(page, 'after a result click');
 
     await openPinboards(page);
     await expectRail(page, 'pinboards first paint');
@@ -960,11 +974,71 @@ test.describe('Gate G on the records routes', () => {
     await expectRail(page, 'delete open');
     await page.keyboard.press('Escape');
     await expectRail(page, 'dialogs closed');
+    // Escape sent nothing.
+    expect(control.patches).toEqual([]);
+    expect(control.deletes).toEqual([]);
+
+    // Save and Delete confirm complete, and the rail is still there after each.
+    await renameButton(page).click();
+    await renameDialog(page).getByLabel('Pinboard name').fill('Cardiology visit');
+    await renameDialog(page).getByRole('button', { name: 'Save' }).click();
+    await expect(renameDialog(page)).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Cardiology visit' })).toBeVisible();
+    await expectRail(page, 'after Save');
+    await deleteButton(page).click();
+    await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(deleteDialog(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Cardiology visit' })).toHaveCount(0);
+    await expectRail(page, 'after Delete confirm');
 
     guard.assertClean();
     expect(mock.unmocked, 'G7 unmocked').toEqual([]);
-    expect(control.patches).toEqual([]);
-    expect(control.deletes).toEqual([]);
+    expect(control.patches).toEqual([{ id: BOARD_A, name: 'Cardiology visit' }]);
+    expect(control.deletes).toEqual([BOARD_A]);
+  });
+});
+
+test.describe('Gate G on the records routes, refused requests', () => {
+  test.use({ viewport: DESKTOP });
+
+  test('G9: the Safety Rail is visible on the error cards and after Try again; the only console errors are the refused requests', async ({ page }) => {
+    // Would not notice: a rail that fades or leaves with the error card, or a Try again that takes it away. The mock
+    // refuses on purpose, so the browser logs "Failed to load resource ... 500" for each refusal: assertClean would
+    // fail on those, so the guard is read instead. Anything else it caught (a page error, an outside request, an
+    // unmocked call, another kind of console error) still fails here.
+    const { guard, mock, control } = await setup(page);
+    await openTimeline(page);
+    control.timelineFail = true;
+    await page.getByLabel('Event type').selectOption('imaging');
+    await expect(page.locator('[data-timeline-error]')).toBeVisible({ timeout: 15_000 });
+    await expectRail(page, 'timeline error');
+    control.timelineFail = false;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('[data-timeline-date]').first()).toBeVisible();
+    await expectRail(page, 'timeline try again');
+
+    await openSearch(page);
+    // A query the cache has not seen: a cached answer would show without asking, and fail nothing.
+    control.searchFail = true;
+    await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose panel');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-search-error]')).toBeVisible({ timeout: 15_000 });
+    await expectRail(page, 'search error');
+    control.searchFail = false;
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+    await expectRail(page, 'search try again');
+
+    const report = guard.report();
+    expect(report.externalRequests, 'G7 outside requests').toEqual([]);
+    expect(report.unmockedApi, 'G7 unmocked').toEqual([]);
+    expect(mock.unmocked).toEqual([]);
+    expect(report.consoleErrors.length, 'the refusals were logged').toBeGreaterThan(0);
+    for (const text of report.consoleErrors) {
+      expect(text, 'only the refused requests are logged').toMatch(
+        /^Failed to load resource: the server responded with a status of 500/
+      );
+    }
   });
 });
 
@@ -1004,6 +1078,13 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         await settle(page);
         await openPinMenu(page);
         await page.keyboard.press('Escape');
+        // The error card and Try again: the cards come back with their names in one step.
+        control.timelineFail = true;
+        await page.getByLabel('Event type').selectOption('imaging');
+        await expect(page.locator('[data-timeline-error]')).toBeVisible({ timeout: 15_000 });
+        control.timelineFail = false;
+        await page.getByRole('button', { name: 'Try again' }).click();
+        await expect(page.locator('[data-timeline-analytes]').first()).toBeVisible();
       });
       expect(cls, `G2 timeline ${theme}`).toBeLessThan(0.1);
     });
@@ -1139,7 +1220,7 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
     });
 
     test(`QUIET-BOX G5 on the records routes (${theme})`, async ({ page }, testInfo) => {
-      await setup(page);
+      const { control } = await setup(page);
       await openTimeline(page);
       await applyTheme(page, theme);
       // The pin menu is not in this snapshot: the page-wide read flags the Radix popper wrapper's static positioning
@@ -1150,6 +1231,16 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
       });
       expect(filter, `G5 timeline filter ${theme}`).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`timeline-${theme}-reduced.png`), fullPage: false });
+      // Try again: the error card leaves and the cards come back.
+      control.timelineFail = true;
+      await page.getByLabel('Event type').selectOption('imaging');
+      await expect(page.locator('[data-timeline-error]')).toBeVisible({ timeout: 15_000 });
+      control.timelineFail = false;
+      const timelineRetry = await reducedMotionSnapshot(page, async () => {
+        await page.getByRole('button', { name: 'Try again' }).click();
+        await expect(page.locator('[data-timeline-analytes]').first()).toBeVisible();
+      });
+      expect(timelineRetry, `G5 timeline Try again ${theme}`).toEqual([]);
 
       await openSearch(page);
       await applyTheme(page, theme);
@@ -1159,6 +1250,23 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
       });
       expect(search, `G5 search ${theme}`).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`search-${theme}-reduced.png`), fullPage: false });
+      // Try again after a refused search (a query the cache has not seen), then a click on a result card.
+      control.searchFail = true;
+      await page.getByRole('searchbox', { name: 'Search health records' }).fill('glucose panel');
+      await page.keyboard.press('Enter');
+      await expect(page.locator('[data-search-error]')).toBeVisible({ timeout: 15_000 });
+      control.searchFail = false;
+      const searchRetry = await reducedMotionSnapshot(page, async () => {
+        await page.getByRole('button', { name: 'Try again' }).click();
+        await expect(page.getByRole('heading', { name: 'Glucose 118 mg/dL' })).toBeVisible();
+      });
+      expect(searchRetry, `G5 search Try again ${theme}`).toEqual([]);
+      const resultClick = await reducedMotionSnapshot(page, async () => {
+        const at = (await page.locator('[data-search-snippet]').first().boundingBox())!;
+        await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+        await expect(page).toHaveURL(/\/verify$/);
+      });
+      expect(resultClick, `G5 search result click ${theme}`).toEqual([]);
 
       await openPinboards(page);
       await applyTheme(page, theme);
@@ -1168,6 +1276,24 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
       await page.keyboard.press('Escape');
       const remove = await reducedMotionSnapshot(page, () => deleteButton(page).click());
       expect(remove, `G5 delete ${theme}`).toEqual([]);
+      await page.keyboard.press('Escape');
+      await expect(deleteDialog(page)).toHaveCount(0);
+      // Save closes the dialog and the heading takes its new text; Delete confirm removes the board.
+      await renameButton(page).click();
+      await renameDialog(page).getByLabel('Pinboard name').fill('Cardiology visit');
+      const save = await reducedMotionSnapshot(page, async () => {
+        await renameDialog(page).getByRole('button', { name: 'Save' }).click();
+        await expect(renameDialog(page)).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: 'Cardiology visit' })).toBeVisible();
+      });
+      expect(save, `G5 save ${theme}`).toEqual([]);
+      await deleteButton(page).click();
+      const confirm = await reducedMotionSnapshot(page, async () => {
+        await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+        await expect(deleteDialog(page)).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Cardiology visit' })).toHaveCount(0);
+      });
+      expect(confirm, `G5 delete confirm ${theme}`).toEqual([]);
     });
 
     test(`QUIET-BOX G10 stillness on the records routes (${theme})`, async ({ page }, testInfo) => {
@@ -1236,6 +1362,19 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         })
       );
       control.timelineFail = false;
+
+      // Try again on that error card: the card leaves and the cards come back, each T0 node still from its first sample.
+      probeNote(
+        'timeline try again',
+        await stillnessProbe(page, {
+          trigger: async () => {
+            await page.getByRole('button', { name: 'Try again' }).click();
+            await expect(page.locator('[data-timeline-analytes]').first()).toBeVisible();
+          },
+          expected: TIMELINE_T0,
+          kind: 'interaction',
+        })
+      );
 
       // Navigation to /search?q=: /search has no link in the desktop navigation (the header button opens the palette,
       // whose own exit would be a second overlay), so the router is driven the way the browser's Back button is.
@@ -1320,6 +1459,43 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
       });
       probeNote('delete open', deleteOpen);
       expect(deleteOpen.nodes).toBeGreaterThan(0);
+      await page.keyboard.press('Escape');
+      await expect(deleteDialog(page)).toHaveCount(0);
+
+      // Save: the dialog closes and the heading takes its new text; the pinned label and id stay as they were.
+      await renameButton(page).click();
+      await expect(renameDialog(page)).toBeVisible();
+      await renameDialog(page).getByLabel('Pinboard name').fill('Cardiology visit');
+      probeNote(
+        'rename save',
+        await stillnessProbe(page, {
+          trigger: async () => {
+            await renameDialog(page).getByRole('button', { name: 'Save' }).click();
+            await expect(renameDialog(page)).toHaveCount(0);
+            await expect(page.getByRole('heading', { name: 'Cardiology visit' })).toBeVisible();
+          },
+          expected: PINBOARD_T0,
+          kind: 'interaction',
+        })
+      );
+
+      // Delete confirm, on the second board (no items): the first board takes its place, and its pinned label and id
+      // appear. Nothing that was on screen before moves.
+      await page.getByRole('button', { name: LONG_BOARD }).click();
+      await deleteButton(page).click();
+      await expect(deleteDialog(page)).toBeVisible();
+      probeNote(
+        'delete confirm',
+        await stillnessProbe(page, {
+          trigger: async () => {
+            await deleteDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+            await expect(deleteDialog(page)).toHaveCount(0);
+            await expect(page.getByRole('heading', { name: 'Cardiology visit' })).toBeVisible();
+          },
+          expected: PINBOARD_T0,
+          kind: 'interaction',
+        })
+      );
     });
   }
 });
