@@ -8,9 +8,11 @@
  * Bump CONSENT_TEXT_VERSION whenever the wording changes.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { AlertDialog } from '@/components/ui/AlertDialog';
+import { Switch } from '@/components/ui/Switch';
 import {
   DONATION_PURPOSES,
   useDonationConsents,
@@ -49,9 +51,33 @@ export const PURPOSE_COPY: Record<DonationPurpose, { label: string; description:
 export function DataDonationCard() {
   const { data, isLoading, isError } = useDonationConsents();
   const setConsent = useSetDonationConsent();
-  const [confirming, setConfirming] = useState<DonationPurpose | null>(null);
+  // The purpose stays after the dialog closes, so the sentence does not change while the scrim fades out.
+  const [confirm, setConfirm] = useState<{ purpose: DonationPurpose; open: boolean } | null>(null);
+  const confirming = confirm?.open ? confirm.purpose : null;
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The dialog has no Trigger, so Radix has nothing to return focus to: whatever opened it (the switch or the
+  // Stop and delete button) gets focus back once the dialog has closed. Not in the close handler: the focus trap is
+  // still on there.
+  const opener = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    const open = confirm?.open === true;
+    if (wasOpen.current && !open) {
+      // The Stop and delete button is gone once the purpose is off, so its switch takes the focus then.
+      const target = opener.current?.isConnected
+        ? opener.current
+        : document.getElementById(`donation-switch-${confirm?.purpose}`);
+      target?.focus();
+    }
+    wasOpen.current = open;
+  }, [confirm?.open, confirm?.purpose]);
+  const askToStop = (purpose: DonationPurpose) => {
+    setError(null);
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConfirm({ purpose, open: true });
+  };
+  const closeConfirm = () => setConfirm((current) => (current ? { ...current, open: false } : null));
 
   const granted = new Set(
     (data?.consents ?? []).filter((c) => c.granted).map((c) => c.purpose),
@@ -79,7 +105,7 @@ export function DataDonationCard() {
         granted: false,
         consent_text_version: CONSENT_TEXT_VERSION,
       });
-      setConfirming(null);
+      closeConfirm();
       setMessage(
         `Stopped. ${result.deleted_count} donated ${result.deleted_count === 1 ? 'copy was' : 'copies were'} deleted.`,
       );
@@ -94,7 +120,7 @@ export function DataDonationCard() {
         <CardTitle>Data donation</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
+        <div className="space-y-2" data-t0="">
           {CONSENT_INTRO.split('\n\n').map((para) => (
             <p key={para} className="text-sm text-ink-secondary">
               {para}
@@ -115,41 +141,25 @@ export function DataDonationCard() {
               const copy = PURPOSE_COPY[purpose];
               return (
                 <li key={purpose} className="space-y-2">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={on}
-                    aria-label={copy.label}
-                    aria-describedby={`donation-desc-${purpose}`}
-                    disabled={setConsent.isPending}
-                    onClick={() => (on ? setConfirming(purpose) : grant(purpose))}
+                  <div
                     className={cn(
                       'w-full flex items-center justify-between gap-4 px-4 py-3 rounded-xl text-left',
-                      'transition-all duration-300 ease-in-out',
-                      on
-                        ? 'bg-accent-subtle border border-accent/20'
-                        : 'bg-surface-muted border border-transparent hover:bg-surface-sunken',
+                      on ? 'bg-accent-subtle border border-accent/20' : 'bg-surface-muted border border-transparent',
                     )}
                   >
-                    <span>
+                    <label htmlFor={`donation-switch-${purpose}`}>
                       <span className="block text-sm font-medium">{copy.label}</span>
-                      <span id={`donation-desc-${purpose}`} className="block text-xs text-ink-secondary">{copy.description}</span>
-                    </span>
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'w-10 h-6 shrink-0 rounded-full relative transition-colors duration-300',
-                        on ? 'bg-accent' : 'bg-black/12',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
-                          on ? 'translate-x-5' : 'translate-x-1',
-                        )}
-                      />
-                    </span>
-                  </button>
+                      <span id={`donation-desc-${purpose}`} data-t0="" className="block text-xs text-ink-secondary">{copy.description}</span>
+                    </label>
+                    <Switch
+                      id={`donation-switch-${purpose}`}
+                      checked={on}
+                      aria-label={copy.label}
+                      aria-describedby={`donation-desc-${purpose}`}
+                      disabled={setConsent.isPending}
+                      onCheckedChange={() => (on ? askToStop(purpose) : grant(purpose))}
+                    />
+                  </div>
 
                   {stale.has(purpose) && (
                     <div className="space-y-2">
@@ -172,32 +182,41 @@ export function DataDonationCard() {
                       size="sm"
                       variant="secondary"
                       aria-label={`Stop and delete: ${copy.label}`}
-                      onClick={() => setConfirming(purpose)}
+                      onClick={() => askToStop(purpose)}
                     >
                       Stop and delete
                     </Button>
                   )}
 
-                  {confirming === purpose && (
-                    <div role="alertdialog" aria-label="Confirm stop and delete" className="space-y-2">
-                      <p className="text-sm">
-                        Stop donating for &ldquo;{copy.label}&rdquo; and delete its donated copies? This cannot be undone.
-                      </p>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => stop(purpose)} disabled={setConsent.isPending}>
-                          Yes, stop and delete
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={() => setConfirming(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </li>
               );
             })}
           </ul>
         )}
+
+        <AlertDialog
+          open={confirm?.open === true}
+          onOpenChange={(open) => (open ? undefined : closeConfirm())}
+          still
+          title="Confirm stop and delete"
+        >
+          <p className="text-sm">
+            Stop donating for &ldquo;{confirm ? PURPOSE_COPY[confirm.purpose].label : ''}&rdquo; and delete its donated copies? This cannot be undone.
+          </p>
+          {error && (
+            <p role="alert" className="mt-2 text-sm text-status-critical">
+              {error}
+            </p>
+          )}
+          <div className="mt-4 flex gap-2 justify-end">
+            <Button size="sm" variant="secondary" data-alert-cancel="" onClick={closeConfirm}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={() => confirm && stop(confirm.purpose)} disabled={setConsent.isPending}>
+              Yes, stop and delete
+            </Button>
+          </div>
+        </AlertDialog>
 
         {message && (
           <p role="status" className="text-sm text-ink-secondary">
