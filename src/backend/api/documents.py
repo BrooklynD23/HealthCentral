@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.observations import observation_range_status, status_is_abnormal
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import ProfileDbSession, RequireAuth, Session
 from core.config import compute_ocr_effective, settings, user_ocr_preference_enabled
@@ -657,7 +658,13 @@ async def _run_extraction_pipeline(
                 ref_high=extracted_obs.ref_high,
                 ref_range_text=extracted_obs.ref_range_text,
                 flag=extracted_obs.flag,
-                is_abnormal=extracted_obs.flag is not None,
+                is_abnormal=status_is_abnormal(
+                    observation_range_status(
+                        extracted_obs.flag, extracted_obs.value,
+                        extracted_obs.ref_low, extracted_obs.ref_high,
+                    ),
+                    extracted_obs.flag is not None,
+                ),
                 extraction_confidence=extracted_obs.confidence,
                 source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
                 source_bbox_json=json.dumps(list(extracted_obs.provenance.bbox))
@@ -764,7 +771,13 @@ async def _run_structured_import_pipeline(
             ref_high=obs_data.get("ref_high"),
             ref_range_text=obs_data.get("ref_range_text"),
             flag=obs_data.get("flag"),
-            is_abnormal=obs_data.get("flag") is not None,
+            is_abnormal=status_is_abnormal(
+                observation_range_status(
+                    obs_data.get("flag"), obs_data.get("value"),
+                    obs_data.get("ref_low"), obs_data.get("ref_high"),
+                ),
+                obs_data.get("flag") is not None,
+            ),
             extraction_confidence=obs_data.get("confidence"),
             collected_at=_parse_date_string(obs_data.get("collected_at")),
             user_verified=False,
