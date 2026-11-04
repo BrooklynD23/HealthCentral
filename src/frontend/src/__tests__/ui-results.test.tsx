@@ -954,6 +954,10 @@ describe('HC-UIRES-006 PNG and SVG export come from the ribbon', () => {
     expect(valuePart, 'the live svg names a value').toMatch(/14\.2/);
     expect(markup).not.toContain('aria-label');
     expect(markup).not.toContain('aria-valuetext');
+    // data-side can read "conflict", a flag disagreement no mark on the drawing shows (L0 ruling "For L0" at ccc51841).
+    expect(markup).not.toContain('data-side');
+    // A bare value in a new attribute would pass the unit-bearing check below.
+    expect(markup).not.toMatch(/(?<![\d.])14\.2(?!\d)/);
     expect(markup.toLowerCase()).not.toContain('hemoglobin');
     expect(markup).not.toContain(valuePart);
     expect(markup).not.toContain(datePart);
@@ -968,6 +972,7 @@ describe('HC-UIRES-006 PNG and SVG export come from the ribbon', () => {
     const before = live.getAttribute('aria-valuetext');
     const markup = serializeRangeRibbonSvg(live);
     expectNoHiddenValue(markup, live);
+    expect(live.querySelector('[data-side]'), 'the live svg keeps data-side').not.toBeNull();
     expect(live.getAttribute('aria-label')).toContain('HEMOGLOBIN');
     expect(live.getAttribute('aria-valuetext')).toBe(before);
     const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml');
@@ -1720,6 +1725,22 @@ describe('HC-UIRES-026 the Normal Range badge', () => {
     expect(await screen.findByText('Normal Range')).toBeInTheDocument();
     expect(screen.queryByText('Outside Range')).toBeNull();
     expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: a flag pointing the other way still shows Outside Range alone (the badge reads the band; the ribbon says they disagree)', async () => {
+    await open((canonical) => ({
+      ...withLatest(130, { ref_low: 70, ref_high: 99 })(canonical),
+      data_points: [trendPoint('2026-01-10T00:00:00', 130, { is_abnormal: true, flag: 'L' })],
+    }));
+    expect(await screen.findByText('Outside Range')).toBeInTheDocument();
+    expect(screen.queryByText('Normal Range')).toBeNull();
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+  });
+
+  it('HC-UIRES-026: float noise on the low bound is cleaned too: a value on the bound is Normal Range', async () => {
+    await open(withLatest(99.1001, { ref_low: 99.10010000000001, ref_high: 120 }));
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
   });
 
   it('HC-UIRES-026: the printed Latest value is the cleaned number the ribbon shows', async () => {

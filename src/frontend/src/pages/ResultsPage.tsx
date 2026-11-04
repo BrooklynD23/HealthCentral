@@ -239,7 +239,8 @@ export function ResultsPage() {
   // chart has a range and the latest value sits inside it. Otherwise no badge: absence is not normality. "Outside
   // Range" is shown whenever the value is outside the band, flagged or not (import sets is_abnormal only from a printed
   // flag, so a report with ranges and no flags lands here), and it stands alone. "Flagged on the report" is the
-  // report's own flag where the band does not bear it out, so it is never hidden and never contradicts the ribbon.
+  // report's own flag where the band does not bear it out, so it is never hidden. The badge reads the band alone, so a flag
+  // pointing the other way still gets "Outside Range" while the ribbon says the flag and the range disagree.
   // The band is read by the ribbon's own helper, on the same cleaned number the ribbon draws.
   const latestBand = latestValue
     ? bandOfValue(latestValue.value, trendData?.ref_low, trendData?.ref_high)

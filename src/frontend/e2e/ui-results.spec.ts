@@ -714,6 +714,10 @@ test.describe('HC-UIRES-006 export', () => {
       expect(svg).toContain(`height="${vbH}"`);
       expect(svg).not.toContain('var(--');
       expect(svg).not.toContain('currentColor');
+      // The drawing shows no text, so the file must not carry the analyte, a value or a date, or a flag disagreement.
+      expect(svg).not.toContain('aria-label');
+      expect(svg).not.toContain('aria-valuetext');
+      expect(svg).not.toContain('data-side');
     });
   }
 });

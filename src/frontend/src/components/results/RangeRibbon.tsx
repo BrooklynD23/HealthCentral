@@ -126,7 +126,7 @@ interface Layout {
   band: { top: number; height: number } | null;
 }
 
-export type BandSide = 'above' | 'below' | 'within' | 'none';
+type BandSide = 'above' | 'below' | 'within' | 'none';
 
 function bandSideOf(value: number, low: number | null, high: number | null): BandSide {
   if (low === null && high === null) return 'none';
@@ -170,7 +170,8 @@ function finiteOrNull(n: number | null): number | null {
 /**
  * Where a result sits against a reference range, as the ribbon reads it: the value and both bounds are cleaned
  * (binary noise dropped), then compared. The Results page uses this for its badge and its printed Latest value, so
- * the badge, the number and the ribbon never disagree. Null when the value is not a finite number.
+ * the badge and the number follow the ribbon's band. The ribbon also weighs the flag's direction, which the badge does
+ * not. Null when the value is not a finite number.
  */
 export function bandOfValue(
   value: unknown,
@@ -634,9 +635,11 @@ export function serializeRangeRibbonSvg(svg: SVGSVGElement): string {
   clone.setAttribute('width', String(size.width));
   clone.setAttribute('height', String(size.height));
   // The drawing shows no text, so a patient cannot see these two before sharing the file, and they hold the analyte,
-  // a lab value and its date (L0 ruling 6615916306). They stay on the live svg.
+  // a lab value and its date (L0 ruling 6615916306). data-side can read "conflict", a flag disagreement no mark shows.
+  // All three stay on the live svg.
   clone.removeAttribute('aria-label');
   clone.removeAttribute('aria-valuetext');
+  clone.querySelectorAll('[data-side]').forEach((el) => el.removeAttribute('data-side'));
   const computed = window.getComputedStyle(document.documentElement);
   const markup = new XMLSerializer().serializeToString(clone);
   return markup.replace(/var\((--[\w-]+)\)/g, (_match, token: string) => {

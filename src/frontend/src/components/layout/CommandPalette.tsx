@@ -58,7 +58,7 @@ const RECORD_LINK: Record<SearchRecordType, { icon: LucideIcon; to: string }> = 
   observation: { icon: FlaskConical, to: '/results' },
 };
 
-/** /trends names its analyte with ?analyte= (the page reads it; without it the chart is the first analyte's). */
+/** /results names its analyte with ?analyte= (the page reads it; without it the chart is the first analyte's). */
 const trendsFor = (analyte: string) => `/results?${new URLSearchParams({ analyte }).toString()}`;
 
 /** The most recent observation of each analyte, newest date first (an undated one counts as oldest). */
