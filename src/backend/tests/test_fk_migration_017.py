@@ -1870,7 +1870,10 @@ def _damaged_mid_page_flip(vault: Path) -> bytes:
     """A real encrypted vault copy with one byte flipped inside a page, past the
     header. The page's HMAC then fails: the driver raises OperationalError (code
     1, "SQL logic error"), not NOTADB. A rule that read every OperationalError as
-    "not damage" would turn this real damage into a lockout."""
+    "not damage" would turn this real damage into a lockout. Plain SQLite has no
+    page HMAC, so without SQLCipher a flipped byte is not detected: skipped."""
+    if not is_sqlcipher_available():
+        pytest.skip("plain SQLite has no page HMAC")
     real = bytearray(vault.read_bytes())
     assert len(real) > 3 * 4096
     real[2 * 4096 + 100] ^= 0xFF
@@ -2106,10 +2109,10 @@ def test_hc_fks_019r_relative_vault_a_corrupted_snapshot_is_moved_aside_and_a_ne
 def test_hc_fks_022_a_verifier_error_that_says_nothing_about_the_file_refuses_and_moves_nothing(
     vault016, mig_log, monkeypatch, error
 ):
-    """Only a failed check (the verifier's own refusal, or a database error) means
-    the snapshot is damaged. Anything else (here a bug) says nothing about the
-    file, so the good snapshot must not be moved. An environment fault from the
-    driver is HC-FKS-024..026."""
+    """Only a failed check (the verifier's own refusal, or a driver error whose
+    code is on the damage list) means the snapshot is damaged. Anything else
+    (here a bug) says nothing about the file, so the good snapshot must not be
+    moved. An environment fault from the driver is HC-FKS-024..026."""
     path, _orphan_id = _vault_with_orphan_and_blocker(vault016)
     with pytest.raises(Exception):
         migrations.run_profile_migration(path, KEY)  # the failed 017 leaves a good snapshot
@@ -2136,8 +2139,9 @@ def test_hc_fks_022_a_verifier_error_that_says_nothing_about_the_file_refuses_an
 
 
 def test_hc_fks_023_a_database_error_from_the_verifier_counts_as_damage(vault016, monkeypatch):
-    """The other side of HC-FKS-022: the driver's own DatabaseError (what a garbage
-    file raises) is damage and the file is moved aside."""
+    """The other side of HC-FKS-022: a driver error whose code is on the damage list
+    (here the DatabaseError a garbage file raises, NOTADB) is damage and the file
+    is moved aside. The code decides, not the class."""
     path, _cfg = vault016
     _seed(path, ["P2"])
     damaged = b"not a database" * 100
@@ -2166,10 +2170,18 @@ def test_hc_fks_023_a_database_error_from_the_verifier_counts_as_damage(vault016
 # --------------------------------------------------------------------------
 
 
+def _require_proc_fd():
+    if not os.path.isdir("/proc/self/fd"):
+        pytest.skip("needs /proc/self/fd (Linux only)")
+
+
 @contextlib.contextmanager
 def _no_free_fds():
     """Every file descriptor this process may open is taken, so the next open()
-    fails with EMFILE. Unix only."""
+    fails with EMFILE. Linux only: it counts the open descriptors through
+    /proc/self/fd. Callers skip first (``_require_proc_fd``), before the migration
+    runs, so this check never fires inside the migration's own handlers."""
+    _require_proc_fd()
     resource = pytest.importorskip("resource")
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     held: list[int] = []
@@ -2226,6 +2238,7 @@ def test_hc_fks_025_a_snapshot_that_cannot_be_opened_for_lack_of_file_handles_is
     vault016, mig_log, monkeypatch
 ):
     """Real descriptor exhaustion (RLIMIT_NOFILE) around the one read-only verify."""
+    _require_proc_fd()  # here, not only in the helper: the helper runs inside the migration
     path, before = _vault_with_good_snapshot(vault016)
     real_verify = migrations._verify_snapshot
 
@@ -2287,7 +2300,7 @@ def test_hc_fks_026_a_driver_error_code_that_is_not_damage_refuses_and_moves_not
 
 
 @pytest.mark.parametrize(
-    "code", [1, 11, 26, 11 | (4 << 8)],
+    "code", [1, 11, 26, 11 | (1 << 8)],
     ids=["ERROR", "CORRUPT", "NOTADB", "CORRUPT_VTAB"],
 )
 def test_hc_fks_026_a_driver_error_code_that_is_damage_moves_the_snapshot_aside(

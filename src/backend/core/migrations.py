@@ -209,7 +209,8 @@ _SNAPSHOT_REVISION = "017_fk_cascade_alignment"
 # rglob("*.db"), and a snapshot in a backup would outlive the profile's delete.
 _SNAPSHOT_NAME = "vault.pre017.snapshot"
 _SNAPSHOT_TMP_NAME = "vault.pre017.snapshot.tmp"
-# A snapshot that fails verification is moved here, never overwritten or deleted.
+# A snapshot that the damage rule below calls damaged is moved here, never
+# overwritten or deleted.
 # It is the original file (same key, same bytes), so it follows the same 30-day
 # rule, counted from the original's mtime, and it is removed wherever the
 # snapshot is removed.
@@ -411,7 +412,9 @@ def _ensure_pre017_snapshot(vault_path: Path, hex_key: str) -> None:
     sidecars, to the aside name (sidecars first, the main file last) and a new
     snapshot is taken through the temp name. It is never overwritten and never
     deleted: it is the original file. If the aside name is already occupied the
-    migration is refused and nothing is touched. A failed copy of the new
+    migration is refused and nothing is touched. A snapshot that cannot be read
+    (no permission, a lock, a disk read error, no file handles left) also
+    refuses, with nothing moved. A failed copy of the new
     snapshot leaves nothing at the temp name and publishes nothing; after a move
     the final name is then empty and the aside holds the original.
 
