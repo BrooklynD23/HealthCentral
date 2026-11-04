@@ -11,7 +11,7 @@ The fix renames the seed (names only, never a word of seeded text) and adds mast
 migration 003 to rename rows already installed.
 
 Every test builds the master DB the way main does (run_master_migrations() on a tmp dir,
-then the three seed functions) on a tmp engine. None touches the module-level master engine.
+then seed_all as main.py calls it) on a tmp engine. None touches the module-level master engine.
 
 HC-KCN-001  WBC / HbA1c / Glucose labels load their KB row through normalize -> loader ->
             interpret, and HbA1c high gets its interventions.
@@ -23,6 +23,9 @@ HC-KCN-005  migration 003: rename, no-op rerun, collisions, seed afterwards, dow
 HC-KCN-006  no word of seeded text changed (sha256 pins taken on origin/main d1f05349).
 HC-KCN-007  prohibited-pattern guard over every newly reachable text field.
 HC-KCN-008  the Explain chip key for a stored `hba1c` name.
+
+Known gap (HC-KCN-007 reader scan, HC-KCN-008): scripts/change_scope.py gives backend=false for a
+PR that touches only src/frontend, so a frontend-only PR does not run this file. See HC-KCN-007.
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ import uuid
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -161,10 +165,34 @@ ITV = InterventionMapping.__table__
 REL = BiomarkerRelationship.__table__
 
 
-def _install_old_names() -> dict[str, list[str]]:
-    """What an install made by the old seed holds: every row under its old name."""
+def _oldest_texts() -> dict[tuple[str, str], str]:
+    """(stored name, field) -> the oldest text _TEXT_REVISIONS knows for it (first entry per pair)."""
+    oldest: dict[tuple[str, str], str] = {}
+    for analyte, field, old_text, _new in skb._TEXT_REVISIONS:
+        # RENAMES.get: a revision key left on the old name must still count as this analyte's
+        # oldest text, or the test would follow the broken key instead of catching it.
+        oldest.setdefault((RENAMES.get(analyte, analyte), field), old_text)
+    return oldest
+
+
+def _install_old_names(old_text: bool = False) -> dict[str, list[str]]:
+    """What an install made by the old seed holds: every row under its old name.
+
+    old_text=True also puts the oldest revised text back on the renamed analytes, as an install
+    made before the _TEXT_REVISIONS entries would hold them.
+    """
+    bio_rows = _seed_rows("biomarker_knowledge", _as_old)
+    if old_text:
+        oldest = _oldest_texts()
+        for row in bio_rows:
+            stored = RENAMES.get(row["analyte_canonical"])
+            if stored is None:
+                continue
+            for (analyte, field), text_ in oldest.items():
+                if analyte == stored:
+                    row[field] = text_
     return {
-        "biomarker_knowledge": _insert(BIO, _seed_rows("biomarker_knowledge", _as_old)),
+        "biomarker_knowledge": _insert(BIO, bio_rows),
         "intervention_mappings": _insert(ITV, _seed_rows("intervention_mappings", _as_old)),
         "biomarker_relationships": _insert(REL, _seed_rows("biomarker_relationships", _as_old)),
     }
@@ -215,16 +243,16 @@ def _counts(dump) -> dict[str, int]:
 
 
 def _run_seed() -> tuple[int, int, int]:
-    """The three seed functions on a tmp session (never the module-level engine)."""
+    """seed_all, as main.py calls it (skip_db_init=True), with its session maker pointed at a tmp
+    engine (pattern of test_biomarker_assistant.py:266). Never the module-level master engine."""
 
     async def _go():
         engine = create_async_engine(_async_url())
         try:
-            async with AsyncSession(engine, expire_on_commit=False) as session:
-                b = await skb.seed_biomarker_knowledge(session)
-                i = await skb.seed_intervention_mappings(session)
-                r = await skb.seed_biomarker_relationships(session)
-            return b, i, r
+            maker = lambda: AsyncSession(engine, expire_on_commit=False)  # noqa: E731
+            with patch.object(skb, "async_session_maker", maker):
+                r = await skb.seed_all(skip_db_init=True)
+            return r["biomarkers"], r["interventions"], r["relationships"]
         finally:
             await engine.dispose()
 
@@ -243,10 +271,9 @@ async def master(data_root):
     """Master DB built the way main builds it: master migrations, then the seed."""
     run_master_migrations()
     engine = create_async_engine(_async_url())
-    async with AsyncSession(engine, expire_on_commit=False) as session:
-        await skb.seed_biomarker_knowledge(session)
-        await skb.seed_intervention_mappings(session)
-        await skb.seed_biomarker_relationships(session)
+    maker = lambda: AsyncSession(engine, expire_on_commit=False)  # noqa: E731
+    with patch.object(skb, "async_session_maker", maker):
+        await skb.seed_all(skip_db_init=True)
     session = AsyncSession(engine, expire_on_commit=False)
     try:
         yield session
@@ -443,6 +470,9 @@ async def test_hc_kcn_003_lipid_ratio_insights_attach_when_both_values_exist(mas
     }, insights
     assert insights["total_cholesterol_hdl_cholesterol_ratio"]["value"] == 5.5
     assert insights["ldl_cholesterol_hdl_cholesterol_ratio"]["value"] == 3.75
+    # 5.5 and 3.75 are above the seed's `optimal` upper bounds (3.5 and 2.0): status `high`
+    assert insights["total_cholesterol_hdl_cholesterol_ratio"]["status"] == "high"
+    assert insights["ldl_cholesterol_hdl_cholesterol_ratio"]["status"] == "high"
     by_ratio = {
         (d["primary_analyte"], d["related_analyte"]): d["clinical_significance"]
         for d in skb.RELATIONSHIP_DATA if d["relationship_type"] == "ratio"
@@ -453,6 +483,55 @@ async def test_hc_kcn_003_lipid_ratio_insights_attach_when_both_values_exist(mas
     # the five panel-relationship citations (interpret.py:437) attach too
     citations = json.loads(panel.citations_json)
     assert [c["type"] for c in citations] == ["relationship"] * 5, citations
+
+
+# (total, hdl, ldl) -> (Total/HDL, LDL/HDL), and the status interpret.py:1172 gives each.
+# interpret.py compares the ratio with the seed's `optimal` band only; the seed's `normal` band
+# (Total/HDL 3.5-5.0, LDL/HDL 2.0-3.5) is never read. So a ratio inside `normal` returns `high`.
+# The case below pins that CURRENT behaviour as evidence for the owner, it does not endorse it:
+# PanelInterpretationDashboard.tsx:146,150 shows this status as a badge beside the raw label
+# `total_cholesterol_hdl_cholesterol_ratio`, but not the value. The fix is a code change in
+# modules/interpret.py, outside this row (L0 shows the owner as is, or opens a row). When that
+# fix lands, the `normal-band` ids below change to "normal" in the same commit.
+RATIO_STATUS_CASES = [
+    pytest.param(150.0, 50.0, 90.0, 3.0, 1.8, "optimal", "optimal", id="optimal-band"),
+    pytest.param(200.0, 50.0, 110.0, 4.0, 2.2, "high", "high", id="normal-band-reads-as-high"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("total,hdl,ldl,r_total,r_ldl,s_total,s_ldl", RATIO_STATUS_CASES)
+async def test_hc_kcn_003_ratio_status_the_panel_badge_shows(
+    master, profile_db, total, hdl, ldl, r_total, r_ldl, s_total, s_ldl
+):
+    """Would not notice: the badge rendering (PanelInterpretationDashboard.tsx); this reads the
+    status interpret_panel hands it."""
+    profile_db.add_all([
+        _obs("total_cholesterol", total, 0.0, 200.0, "mg/dL"),
+        _obs("hdl_cholesterol", hdl, 40.0, 100.0, "mg/dL"),
+        _obs("ldl_cholesterol", ldl, 0.0, 100.0, "mg/dL"),
+    ])
+    await profile_db.commit()
+    module, _ = _module()
+
+    result = await module.interpret_panel("lipid", COLLECTED, PROFILE_ID, profile_db, master)
+    assert result.success, result.error_message
+    insights = {i["relationship"]: i for i in json.loads(result.interpretation.relationship_insights_json or "[]")}
+    total_ratio = insights["total_cholesterol_hdl_cholesterol_ratio"]
+    ldl_ratio = insights["ldl_cholesterol_hdl_cholesterol_ratio"]
+    assert (total_ratio["value"], total_ratio["status"]) == (r_total, s_total)
+    assert (ldl_ratio["value"], ldl_ratio["status"]) == (r_ldl, s_ldl)
+
+    # Where the seed's own bands put these values (the evidence the owner compares against).
+    bands = {
+        (d["primary_analyte"], d["related_analyte"]): json.loads(d["ratio_target_range_json"])
+        for d in skb.RELATIONSHIP_DATA if d["relationship_type"] == "ratio"
+    }
+    t_band = bands[("total_cholesterol", "hdl_cholesterol")]
+    l_band = bands[("ldl_cholesterol", "hdl_cholesterol")]
+    if s_total == "high":
+        assert t_band["normal"][0] <= r_total <= t_band["normal"][1], "precondition: inside the seed's normal band"
+        assert l_band["normal"][0] <= r_ldl <= l_band["normal"][1], "precondition: inside the seed's normal band"
 
 
 @pytest.mark.asyncio
@@ -645,6 +724,35 @@ def test_hc_kcn_005_seed_after_the_migration_adds_nothing_and_raises_nothing(dat
     after = _dump()
     assert _counts(after) == _counts(before)
     assert all(max(c.values()) == 1 for c in _keys(after).values())
+
+
+def test_hc_kcn_005_old_name_and_old_text_install_gets_revised_after_the_migration(data_root):
+    """_TEXT_REVISIONS keys follow the rename: an install holding the old name AND the oldest text
+    is migrated, then seeded, and its text is revised to the current seed text. A key left on the
+    old name matches no row after the migration and the old text would stay."""
+    oldest = {k: v for k, v in _oldest_texts().items() if k[0] in RENAMES.values()}
+    assert {a for a, _ in oldest} == {"glucose", "white_blood_cells"}, "precondition: revisions to follow"
+    _upgrade("002_backup_schedules")
+    _install_old_names(old_text=True)
+
+    def texts() -> dict[tuple[str, str], str]:
+        rows = {r["analyte_canonical"]: r for r in _dump()["biomarker_knowledge"]}
+        return {(a, f): rows[a][f] for a, f in oldest}
+
+    _upgrade("head")
+    assert texts() == oldest, "precondition: the migration moved the name, not the text"
+    before = _dump()
+
+    assert _run_seed() == (0, 0, 0)
+
+    seeded = {d["analyte_canonical"]: d for d in map(_as_new, skb.BIOMARKER_DATA)}
+    revised = texts()
+    assert revised == {(a, f): seeded[a][f] for a, f in oldest}
+    assert all(revised[k] != oldest[k] for k in oldest), "every old text was replaced"
+    after = _dump()
+    assert _counts(after) == _counts(before)
+    # the revised rows kept their ids, so stored [KB:id] citations still resolve
+    assert [r["id"] for r in after["biomarker_knowledge"]] == [r["id"] for r in before["biomarker_knowledge"]]
 
 
 def test_hc_kcn_005_seed_after_a_collision_adds_nothing_and_raises_nothing(data_root):
@@ -915,12 +1023,17 @@ def _reachable_fields() -> dict[tuple[str, str], str]:
             fields[(subject, f)] = d[f]
         for f in BIOMARKER_LIST_FIELDS:
             fields[(subject, f)] = "; ".join(json.loads(d[f]))
+        # rag.py:559-560 puts this dict into the reference text as `Reference range: {dict}`
+        fields[(subject, "ref_range_adult_json")] = f"Reference range: {json.loads(d['ref_range_adult_json'])}"
+        # interpret.py:723 copies the sources into the card's citations
+        fields[(subject, "sources_json")] = "; ".join(_strings(json.loads(d["sources_json"])))
     for d in map(_as_new, skb.INTERVENTION_DATA):
         if d["analyte_canonical"] != "hba1c":
             continue
         subject = f"intervention:{d['analyte_canonical']}:{d['intervention_title']}"
-        for f in ("intervention_title", "intervention_text", "rationale"):
+        for f in ("intervention_title", "intervention_text", "rationale", "category", "strength_of_evidence"):
             fields[(subject, f)] = d[f]
+        fields[(subject, "sources_json")] = "; ".join(_strings(json.loads(d["sources_json"])))
         if d["contraindications_json"]:
             fields[(subject, "contraindications_json")] = "; ".join(json.loads(d["contraindications_json"]))
         if d["details_json"]:
@@ -932,6 +1045,11 @@ def _reachable_fields() -> dict[tuple[str, str], str]:
         for f in ("description", "clinical_significance", "abnormal_interpretation"):
             if d[f]:
                 fields[(subject, f)] = d[f]
+        if d["ratio_target_range_json"]:
+            bands = json.loads(d["ratio_target_range_json"])
+            fields[(subject, "ratio_target_range_json")] = "; ".join(f"{k}: {v}" for k, v in bands.items())
+        if d.get("sources_json"):
+            fields[(subject, "sources_json")] = "; ".join(_strings(json.loads(d["sources_json"])))
     return fields
 
 
@@ -954,23 +1072,56 @@ def test_hc_kcn_007_reachable_text_hits_exactly_the_named_set():
     assert all(KNOWN_HIT_REASONS.values())
 
 
+# The only files allowed to mention common_causes in the backend: the loader copies the column into
+# BiomarkerInfo, and GET /interpretations/knowledge/biomarker/{analyte} returns it.
+COMMON_CAUSES_BACKEND_ALLOWED = {"modules/knowledge_loader.py", "api/interpretations.py"}
+
+
 def test_hc_kcn_007_the_named_hits_are_not_rendered_anywhere():
-    """The reason the five hits are tolerated, as a check: a new reader fails this test."""
+    """The reason the five hits are tolerated, as a check: a new reader of either field fails this.
+
+    common_causes: any backend file under api/, modules/ or core/ other than the two allowed above,
+    or any frontend file other than the type in services/types.ts. abnormal_interpretation: any
+    `.abnormal_interpretation` read in api/, modules/ or core/ outside knowledge_loader.py.
+
+    GAP: this runs in the backend job. change_scope.py gives backend=false for a PR that touches
+    only src/frontend (measured on ExplainAssistant.tsx), so a frontend-only PR that starts
+    rendering common_causes does not run this test, and neither does HC-KCN-008. Closing it takes a
+    BACKEND_RES line in scripts/change_scope.py, which this row does not edit; L0 decides.
+
+    Would not notice: a reader that builds the name dynamically (getattr(info, 'common_' + ...)).
+    """
     src = Path(__file__).resolve().parents[2]  # .../src
+
     frontend = [
         p for p in (src / "frontend" / "src").rglob("*")
         if p.suffix in (".ts", ".tsx") and "common_causes" in p.read_text(encoding="utf-8", errors="ignore")
     ]
     assert [p.name for p in frontend] == ["types.ts"], frontend
 
-    readers = []
+    causes, abnormal = [], []
     for folder in ("api", "modules", "core"):
         for p in (src / "backend" / folder).rglob("*.py"):
-            if p.name == "knowledge_loader.py":
-                continue
-            if re.search(r"\.abnormal_interpretation\b", p.read_text(encoding="utf-8", errors="ignore")):
-                readers.append(str(p.relative_to(src)))
-    assert readers == [], f"abnormal_interpretation now has a reader: {readers}"
+            rel = str(p.relative_to(src / "backend")).replace("\\", "/")
+            body = p.read_text(encoding="utf-8", errors="ignore")
+            if "common_causes" in body and rel not in COMMON_CAUSES_BACKEND_ALLOWED:
+                causes.append(rel)
+            if rel != "modules/knowledge_loader.py" and re.search(r"\.abnormal_interpretation\b", body):
+                abnormal.append(rel)
+    assert causes == [], f"common_causes now has a backend reader: {causes}"
+    assert abnormal == [], f"abnormal_interpretation now has a reader: {abnormal}"
+
+
+def test_hc_kcn_007_the_reader_scan_can_fail():
+    """Control: the scan above finds the two allowed files, so an empty result is not a missed folder."""
+    src = Path(__file__).resolve().parents[2] / "backend"
+    found = {
+        str(p.relative_to(src)).replace("\\", "/")
+        for folder in ("api", "modules", "core")
+        for p in (src / folder).rglob("*.py")
+        if "common_causes" in p.read_text(encoding="utf-8", errors="ignore")
+    }
+    assert found == COMMON_CAUSES_BACKEND_ALLOWED
 
 
 @pytest.mark.asyncio
