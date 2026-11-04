@@ -192,6 +192,13 @@ describe('HC-UISET-001: /settings lands on Profile & security; each ?section= re
     expect(tabs.map((t) => t.textContent)).toEqual(['Profile & security', 'Preferences', 'Assistant & privacy', 'Advanced']);
   });
 
+  // ui-shell "focus is not obscured": a Tab stop on a panel taller than the screen puts its focus ring under the Safety Rail.
+  it('the tab panel holds focusable controls and is not itself a Tab stop', async () => {
+    renderSettings();
+    await screen.findByTestId('recovery-card');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('tabindex', '-1');
+  });
+
   it('keeps the h1 and the subtitle', async () => {
     renderSettings();
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();

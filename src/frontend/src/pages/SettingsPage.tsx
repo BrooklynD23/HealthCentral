@@ -136,7 +136,9 @@ export function SettingsPage() {
             ))}
           </TabsList>
           {SECTIONS.map((candidate) => (
-            <TabsContent key={candidate.id} value={candidate.id}>
+            // Radix makes a tabpanel a Tab stop. These panels hold focusable controls and are taller than the screen, so the
+            // panel's own focus ring would sit under the Safety Rail (WCAG 2.4.11, ui-shell "focus is not obscured").
+            <TabsContent key={candidate.id} value={candidate.id} tabIndex={-1}>
               {bodies[candidate.id]}
             </TabsContent>
           ))}
