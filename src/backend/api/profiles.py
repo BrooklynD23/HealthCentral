@@ -14,7 +14,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.export import purge_profile_exports
@@ -54,7 +54,12 @@ from models import (
     AdherencePattern,
     AuditLog,
     BackupSchedule,
+    CarePlanTask,
+    ChatSession,
+    ChatTurn,
     Chunk,
+    DonatedRecord,
+    DonationConsent,
     Document,
     DocumentCategory,
     DocumentEntity,
@@ -67,10 +72,13 @@ from models import (
     MemoryItem,
     Observation,
     PanelInterpretation,
+    Pinboard,
+    PinboardItem,
     Profile,
     ReminderLog,
     UserModelSettings,
 )
+from models.response_feedback import ResponseFeedback
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +121,42 @@ async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection
 
 
 _SYNTHETIC_E2E_PROFILE_PREFIX = "Playwright E2E"
+
+# Profile tables wiped by POST /profiles/test/reset. The vault runs with
+# PRAGMA foreign_keys=ON, so the order is children before parents.
+# Deliberately absent: badge_definition, which is migration-seeded reference
+# data that nothing re-seeds. HC-RESET-010 fails if a profile table is added
+# without updating this tuple.
+_SYNTHETIC_RESET_MODELS = (
+    ResponseFeedback,  # logical turn_id only, no db FK
+    PinboardItem,  # FK -> pinboard
+    Pinboard,
+    ChatTurn,  # FK -> chat_sessions
+    ChatSession,
+    CarePlanTask,  # FK -> documents, document_entity
+    Embedding,  # FK -> chunks
+    Chunk,  # FK -> documents
+    DocumentEntity,  # FK -> documents
+    DocumentCategory,  # FK -> documents
+    LabInterpretation,  # FK -> observations
+    PanelInterpretation,
+    Observation,  # FK -> documents
+    Document,
+    DoseTaken,  # FK -> medications, medication_schedules
+    ReminderLog,  # FK -> medications, medication_schedules
+    AdherencePattern,  # FK -> medications, medication_schedules
+    MedicationSchedule,  # FK -> medications
+    Medication,
+    MemoryItem,
+    UserModelSettings,
+    EarnedBadge,  # FK -> badge_definition (the parent is kept)
+    DonatedRecord,
+    DonationConsent,
+)
+
+# Runtime tables from modules/search.py. They are not ORM models and exist only
+# after a first search, so the reset clears them only when they are present.
+_SEARCH_INDEX_TABLES = ("search_records", "search_records_fts")
 
 
 class ProfileCreate(BaseModel):
@@ -532,25 +576,18 @@ async def reset_synthetic_test_profile(
         )
 
     try:
-        for model in (
-            Embedding,
-            Chunk,
-            DocumentEntity,
-            DocumentCategory,
-            LabInterpretation,
-            PanelInterpretation,
-            Observation,
-            Document,
-            DoseTaken,
-            ReminderLog,
-            AdherencePattern,
-            MedicationSchedule,
-            Medication,
-            MemoryItem,
-            UserModelSettings,
-            EarnedBadge,
-        ):
+        for model in _SYNTHETIC_RESET_MODELS:
             await profile_db.execute(delete(model))
+
+        # N-02: the derived search index holds record titles and content.
+        present = (
+            await profile_db.execute(
+                text("SELECT name FROM sqlite_master WHERE name IN ('search_records', 'search_records_fts')")
+            )
+        ).scalars().all()
+        for table in _SEARCH_INDEX_TABLES:
+            if table in present:
+                await profile_db.execute(text(f"DELETE FROM {table}"))
 
         docs_path = Path(settings.app_data_path) / "vaults" / session.profile_id / "docs"
         if docs_path.exists():
