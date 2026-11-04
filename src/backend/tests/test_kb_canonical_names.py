@@ -689,6 +689,35 @@ def test_hc_kcn_005_old_and_new_row_both_present_ends_with_one(data_root, table)
     assert old_renamed and kept.isdisjoint(old_renamed), "the old row of each collision is deleted"
 
 
+def test_hc_kcn_005_same_title_under_another_condition_type_is_not_a_collision(data_root):
+    """The intervention key is (analyte, condition_type, title): a row under the new name with the
+    same title but another condition_type is a different row, so the old one is renamed, not deleted."""
+    _upgrade("002_backup_schedules")
+    old_ids = _install_old_names()
+    old_rows = _seed_rows("intervention_mappings", _as_old)
+    old_row = next(r for r in old_rows if r["analyte_canonical"] in RENAMES)
+    other_type = next(
+        t for t in ("high", "low", "borderline_high", "borderline_low") if t != old_row["condition_type"]
+    )
+    twin = {**_as_new(old_row), "condition_type": other_type}
+    assert (twin["analyte_canonical"], twin["condition_type"], twin["intervention_title"]) not in _seed_keys(
+        _as_new
+    )["intervention_mappings"], "precondition: the twin is not a seeded row"
+    twin_id = _insert(ITV, [twin])[0]
+    before = _dump()
+    assert _counts(before)["intervention_mappings"] == len(old_ids["intervention_mappings"]) + 1
+
+    _upgrade("head")
+    after = _dump()
+
+    assert _counts(after)["intervention_mappings"] == len(old_ids["intervention_mappings"]) + 1
+    keys = _keys(after)["intervention_mappings"]
+    new_name = RENAMES[old_row["analyte_canonical"]]
+    assert keys[(new_name, old_row["condition_type"], old_row["intervention_title"])] == 1
+    assert keys[(new_name, other_type, old_row["intervention_title"])] == 1
+    assert twin_id in {r["id"] for r in after["intervention_mappings"]}
+
+
 @pytest.mark.parametrize("has_new", [False, True], ids=["no-new-row", "new-row-exists"])
 @pytest.mark.parametrize(
     "primary,related",
@@ -1082,7 +1111,8 @@ def test_hc_kcn_007_the_named_hits_are_not_rendered_anywhere():
 
     common_causes: any backend file under api/, modules/ or core/ other than the two allowed above,
     or any frontend file other than the type in services/types.ts. abnormal_interpretation: any
-    `.abnormal_interpretation` read in api/, modules/ or core/ outside knowledge_loader.py.
+    mention of the word in api/, modules/ or core/ outside knowledge_loader.py (attribute, subscript
+    or .get reader alike).
 
     GAP: this runs in the backend job. change_scope.py gives backend=false for a PR that touches
     only src/frontend (measured on ExplainAssistant.tsx), so a frontend-only PR that starts
@@ -1106,7 +1136,7 @@ def test_hc_kcn_007_the_named_hits_are_not_rendered_anywhere():
             body = p.read_text(encoding="utf-8", errors="ignore")
             if "common_causes" in body and rel not in COMMON_CAUSES_BACKEND_ALLOWED:
                 causes.append(rel)
-            if rel != "modules/knowledge_loader.py" and re.search(r"\.abnormal_interpretation\b", body):
+            if rel != "modules/knowledge_loader.py" and "abnormal_interpretation" in body:
                 abnormal.append(rel)
     assert causes == [], f"common_causes now has a backend reader: {causes}"
     assert abnormal == [], f"abnormal_interpretation now has a reader: {abnormal}"
