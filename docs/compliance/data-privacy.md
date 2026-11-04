@@ -134,6 +134,9 @@ copy of the vault file.
   vault on or after day 30, once 017 has completed on that vault. Deleting a
   document does not touch the snapshot or the aside. See the known gap under
   [Document Deletion](#document-deletion).
+  A replacement snapshot taken after a failed attempt is only as complete as
+  the live vault it was copied from. A copy already 30 days old is removed on
+  the first open after 017 completes, so in that case no recovery window remains.
 - **Purged by age.** On the first open of the vault 30 days or more after the
   snapshot was made, and only once the vault is confirmed at revision 017 or
   later. The open that completes 017 does not purge, because that same open has
