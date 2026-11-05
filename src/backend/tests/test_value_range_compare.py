@@ -38,6 +38,7 @@ HC-VRC-028  grounded and batch reach the rebuild; GET keeps its ownership check
 HC-VRC-029  the A2 pair on every rebuilding route: fail closed, order, no rows on agreement
 HC-VRC-030  a withheld member of a stale panel fails the read closed; the saved panel stays
 HC-VRC-031  a withheld member with a saved card fails closed whatever the saved panel is
+HC-VRC-032  a withheld batch card writes the interpretation.withheld row
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -2789,3 +2790,97 @@ async def test_hc_vrc_031_a_withheld_member_with_a_saved_card_fails_the_panel_re
     assert _det(started)["observation_ids"] == [glucose_id]
     assert _det(completed)["observation_ids"] == [] and _det(completed)["skipped_count"] == 1
     _no_phi(await _audit_blob(master_db))
+
+
+# ── HC-VRC-032: a withheld batch card writes the interpretation.withheld row ──
+# L0 ruling 6656962109 item 4. The single card writes one; the batch wrote none, on main
+# (forced) and now on a stale rebuild too. The row is written after the loop, outside the
+# per-item try, so a failed audit write raises instead of becoming an "Internal error".
+
+BATCH_EVENT = "interpretation.batch_generate"
+
+
+def _assert_batch_withheld(resp, obs_id: str, times: int = 1) -> None:
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["successful"] == []
+    assert resp.json()["failed"] == [{"observation_id": obs_id, "error": ESCALATE_TEMPLATE}] * times
+    assert WITHIN not in resp.text and "normal reference range" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_032_a_withheld_stale_batch_rebuild_writes_the_withheld_row(rdbs):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    with _force_withhold():
+        resp = _fire("batch", profile_db, master_db, obs.id)
+    _assert_batch_withheld(resp, obs.id)
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_pairs(master_db) == [
+        (BATCH_EVENT, "started"), ("interpretation.withheld", None), (BATCH_EVENT, "completed")]
+    (row,) = await _rows_of(master_db, "interpretation.withheld")
+    assert (row.entity_type, row.entity_id) == ("observation", obs.id)
+    assert _det(row)["reason"] == "safety_check_failed" and _det(row)["decision"] == "escalate"
+    started, completed = await _rows_of(master_db, BATCH_EVENT)
+    assert _det(started)["observation_ids"] == [obs.id]
+    assert _det(completed)["observation_ids"] == [] and _det(completed)["skipped_count"] == 1
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_032_a_withheld_forced_batch_rebuild_writes_the_withheld_row(rdbs):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), None, None)
+    before = await _snapshot(profile_db, obs.id)
+    with _force_withhold():
+        resp = _fire("batch", profile_db, master_db, obs.id, force=True)
+    _assert_batch_withheld(resp, obs.id)
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_pairs(master_db) == [
+        (BATCH_EVENT, "started"), ("interpretation.withheld", None), (BATCH_EVENT, "completed")]
+    (row,) = await _rows_of(master_db, "interpretation.withheld")
+    assert row.entity_id == obs.id
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_032_a_withheld_first_generation_batch_card_writes_the_withheld_row(rdbs):
+    profile_db, master_db = rdbs
+    obs_id = await _seed(profile_db, value=300.0, is_abnormal=False)
+    with _force_withhold():
+        resp = _fire("batch", profile_db, master_db, obs_id)
+    _assert_batch_withheld(resp, obs_id)
+    assert await _cards_of(profile_db, obs_id) == []
+    # nothing was at risk, so no started row; the plain rows are the withheld row and the batch row
+    assert await _audit_pairs(master_db) == [("interpretation.withheld", None), (BATCH_EVENT, None)]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_032_a_repeated_withheld_id_writes_one_row(rdbs):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    with _force_withhold():
+        resp = await _batch(profile_db, master_db, [obs.id, obs.id])
+    _assert_batch_withheld(resp, obs.id, times=2)  # failed still lists every request entry
+    rows = await _rows_of(master_db, "interpretation.withheld")
+    assert [r.entity_id for r in rows] == [obs.id]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_032_a_failed_withheld_audit_write_raises_instead_of_an_internal_error_entry(rdbs):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    real = interp_api.audit_and_commit
+
+    async def _wrapped(db, log_fn, **kw):
+        if kw.get("event_type") == "interpretation.withheld":
+            raise RuntimeError("audit down")
+        return await real(db, log_fn, **kw)
+
+    with _force_withhold(), patch.object(interp_api, "audit_and_commit", _wrapped):
+        resp = _fire("batch", profile_db, master_db, obs.id, soft=True)
+    assert resp.status_code == 500, resp.text
+    assert "Internal error" not in resp.text
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_pairs(master_db) == [(BATCH_EVENT, "started")]  # the pair stays open
