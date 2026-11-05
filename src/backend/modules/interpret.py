@@ -104,6 +104,9 @@ class PanelInterpretationResult:
     success: bool
     interpretation: Optional[PanelInterpretation] = None
     error_message: Optional[str] = None
+    # VALUE-RANGE-COMPARE: members of a stale saved panel whose rebuild the safety check
+    # withheld, as (observation_id, result). Set only on the fail-closed return.
+    withheld_members: list[tuple[str, InterpretationResult]] = field(default_factory=list)
 
 
 class InterpretModule:
@@ -399,6 +402,7 @@ class InterpretModule:
         observation_summaries = []
         abnormal_count = 0
         observation_ids = []
+        withheld_members: list[tuple[str, InterpretationResult]] = []
 
         from api.observations import (  # lazy: api imports modules
             observation_range_status,
@@ -412,6 +416,12 @@ class InterpretModule:
                 profile_db=profile_db,
                 master_db=master_db,
             )
+            if stale_panel is not None and interp_result.withheld is True:
+                # The saved panel is replaced only if every member is rebuilt: a withheld
+                # member keeps it (and the member's old card) as it is. Keep going so
+                # every other stale member is still rebuilt and every withheld one is named.
+                withheld_members.append((obs.id, interp_result))
+                continue
             if interp_result.interpretation:
                 # VALUE-RANGE-COMPARE: the same status the sentence uses; "disagrees" and
                 # "keep" fall back to the stored is_abnormal.
@@ -432,6 +442,17 @@ class InterpretModule:
                 observation_summaries.append(summary)
                 if is_abnormal:
                     abnormal_count += 1
+
+        if withheld_members:
+            logger.warning(
+                "Panel %s: %d member(s) withheld on a rebuild; the saved panel is kept",
+                panel_name, len(withheld_members),
+            )
+            return PanelInterpretationResult(
+                success=False,
+                error_message=ESCALATE_TEMPLATE,
+                withheld_members=withheld_members,
+            )
 
         # Generate panel summary
         summary_text = self._generate_panel_summary(

@@ -903,6 +903,12 @@ async def generate_panel_interpretation(
         force_regenerate=force_regenerate,
     )
 
+    # VALUE-RANGE-COMPARE: a stale saved panel is kept when a member's rebuild is withheld.
+    # One withheld row per member (ids and check names only), then the 500 below answers
+    # with the escalation message. No panel_generate row: nothing was generated.
+    for member_id, member_result in result.withheld_members:
+        await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND if "No observations found" in (result.error_message or "") else status.HTTP_500_INTERNAL_SERVER_ERROR,
