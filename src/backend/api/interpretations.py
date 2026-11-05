@@ -29,8 +29,8 @@ from models import (
     PanelInterpretation,
 )
 from modules import get_interpret_module
-from modules.knowledge_loader import kb_lookup_name
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from modules.knowledge_loader import kb_lookup_name
 from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
