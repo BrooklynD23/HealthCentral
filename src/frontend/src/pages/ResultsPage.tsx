@@ -486,7 +486,7 @@ export function ResultsPage() {
                 </p>
                 {latestInsideRange && <Badge variant="verified">Normal Range</Badge>}
                 {latestPlace === 'outside' && <Badge variant="attention">Outside Range</Badge>}
-                {latestPlace !== 'outside' && latestValue?.is_abnormal && <Badge variant="attention">Flagged on the report</Badge>}
+                {latestPlace !== 'outside' && latestValue?.is_abnormal && latestValue.flag && <Badge variant="attention">Flagged on the report</Badge>}
               </div>
               {trendData.summary && (
                 <p data-t0 className="mt-1 text-sm text-ink-secondary">
