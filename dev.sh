@@ -184,10 +184,17 @@ if [ "$SQLCIPHER_AVAILABLE" = "0" ] && grep -Eiq 'DATABASE_ENCRYPTION_REQUIRED[[
   warn "Set DATABASE_ENCRYPTION_REQUIRED=false (SQLCipher not installed)"
 fi
 if [ "${HC_SKIP_OCR_SETUP:-}" != "1" ]; then
-  if [ "$TESSERACT_OK" = "1" ]; then
+  # RapidOCR ships in the backend venv and is read first; Tesseract is the fallback.
+  RAPIDOCR_OK=0
+  if (cd "$BACKEND_DIR" && "$VENV_PY" -c "from modules.extract import rapidocr_ready; raise SystemExit(0 if rapidocr_ready() else 1)") >/dev/null 2>&1; then RAPIDOCR_OK=1; fi
+  if [ "$RAPIDOCR_OK" = "1" ] && [ "$TESSERACT_OK" = "1" ]; then
+    set_env_key "$ENV_FILE" OCR_ENABLED true; ok "Synced .env: OCR_ENABLED=true (RapidOCR and Tesseract found)"
+  elif [ "$RAPIDOCR_OK" = "1" ]; then
+    set_env_key "$ENV_FILE" OCR_ENABLED true; ok "Synced .env: OCR_ENABLED=true (RapidOCR found)"
+  elif [ "$TESSERACT_OK" = "1" ]; then
     set_env_key "$ENV_FILE" OCR_ENABLED true; ok "Synced .env: OCR_ENABLED=true (Tesseract on PATH)"
   else
-    set_env_key "$ENV_FILE" OCR_ENABLED false; warn "Synced .env: OCR_ENABLED=false (Tesseract not detected - install and re-run dev.sh)"
+    set_env_key "$ENV_FILE" OCR_ENABLED false; warn "Synced .env: OCR_ENABLED=false (neither RapidOCR nor Tesseract found - re-run dev.sh after installing dependencies)"
   fi
 fi
 ok ".env is ready"
