@@ -17,7 +17,8 @@
  * 026 the range badge: Normal Range needs a range and a value inside it, Outside Range stands alone for a value outside it,
  * flagged or not, and the printed Latest value is the cleaned number; 027 Interpret <panel> sends the panel's own date;
  * 028 the exported SVG carries no aria-label or aria-valuetext (ruling 6615916306);
- * 029 the per-row ! badge ("Flagged on the report") needs a flag the report printed, not only is_abnormal (L0 ruling 6651066532).
+ * 029 the per-row ! badge ("Flagged on the report") needs a flag the report printed, not only is_abnormal (L0 ruling 6651066532);
+ * 030 the Explain click does not pay for the page's first date format (it is warmed while idle, and the card prints its date at once; PR #476 CDP trace).
  *
  * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, ...). The panel fixtures list
  * the analytes a panel should hold for those names (the backend's PANEL_DEFINITIONS must agree, see the PR).
@@ -646,6 +647,41 @@ describe('HC-UIRES-012 / 013 Explain this result', () => {
     await pageLoaded();
     fireEvent.click(screen.getByRole('button', { name: 'Open Explain' }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/explain$/));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-030: the Explain click does not pay for the first date format of the page (PR #476, CDP trace)
+//
+// The card's footer prints new Date(created_at).toLocaleDateString(). The first such call in a page loads the browser's
+// ICU date data: 9-15 ms inside the one task that commits the card (a CDP Performance trace on the production build, 16
+// attempts). That is the largest single piece of the 42-60 ms sampling gap G10 sees at the click. The footer date is read
+// text, so it must not move behind a frame (HC-UIRES-030, second test); the cost is paid while the page is idle instead.
+// jsdom cannot time it, so the first test pins where the call happens and the second pins what the first commit holds.
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-030 the first date format is paid before the Explain click', () => {
+  it('HC-UIRES-030: the date formatter is warmed while the page is idle, with Explain still closed', async () => {
+    const formatDate = vi.spyOn(Date.prototype, 'toLocaleDateString');
+    await renderPage();
+    await pageLoaded();
+    await waitFor(() => expect(formatDate).toHaveBeenCalled(), { timeout: 3000 });
+    expect(screen.getByRole('button', { name: /explain this result/i })).toBeInTheDocument();
+    expect(screen.queryByText('Stored card text.')).toBeNull();
+  });
+
+  it("HC-UIRES-030: the card's first commit holds its text, disclaimer and footer date, none of it behind a frame", async () => {
+    setupApi({ interpretation: 'stored' });
+    const { client } = await renderPage();
+    await pageLoaded();
+    // The answer is in the cache before the click, so the click's own commit shows the card: nothing below awaits, and
+    // a timer or a frame between the click and the footer date would leave the date out of what this reads.
+    client.setQueryData(['interpretations', 'o-hgb'], STORED_CARD);
+    fireEvent.click(screen.getByRole('button', { name: /explain this result/i }));
+    const text = screen.getByText('Stored card text.');
+    expect(text.closest('[data-t0]')).not.toBeNull();
+    expect(screen.getAllByRole('note').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(new Date(STORED_CARD.created_at).toLocaleDateString())).toBeInTheDocument();
   });
 });
 
