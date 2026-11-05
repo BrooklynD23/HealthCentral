@@ -753,8 +753,10 @@ async def get_interpretation(
     """
     Get existing interpretation for an observation.
 
-    Returns the stored interpretation if one exists.
-    Does not generate a new interpretation.
+    Returns the stored interpretation if one exists. Never creates a first one
+    (404 when there is none). VALUE-RANGE-COMPARE: a saved template-written card
+    whose sentence the range check contradicts is rebuilt before it is returned,
+    by the same path a forced regenerate takes; the model is never called here.
     """
     validate_uuid(observation_id, "observation_id")
 
@@ -793,6 +795,23 @@ async def get_interpretation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No interpretation found for this observation"
         )
+
+    # VALUE-RANGE-COMPARE: no force flag. The module returns a card in agreement, a model
+    # card or a card it cannot judge as it is (no write), and rebuilds only a stale
+    # template card. A withheld rebuild keeps the old row and never serves its text.
+    interp_result = await get_interpret_module().interpret_observation(
+        observation_id=observation_id,
+        profile_db=profile_db,
+        master_db=master_db,
+    )
+    if getattr(interp_result, "withheld", False) is True:
+        await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, False)
+    if not interp_result.success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=interp_result.error_message or "Failed to read interpretation",
+        )
+    interpretation = interp_result.interpretation
 
     # Mark as viewed
     if not interpretation.viewed_at:
