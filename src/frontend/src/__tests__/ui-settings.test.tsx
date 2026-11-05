@@ -27,6 +27,7 @@
  *   HC-UISET-020  the tiers request starts with the settings one; the panels wait for both, so nothing shifts and "Run hardware detection first" is not shown while they load
  *   HC-UISET-021  those two reads start when the section mounts: a press after they settle renders no skeleton, a press before them does, and a failed read is asked again on the press
  *   HC-UISET-022  Current Status shows the break-glass warning by the External API row (D12), on the same conditions as Assistant & privacy
+ *   HC-UISET-023  the press renders the button at once and the panels after it, one card per commit, top to bottom in each column
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -191,8 +192,8 @@ function renderSettings(url = '/settings', gcTime?: number, retry: number | fals
 const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
   await screen.findByTestId('tier-row-low');
-  // The tier card mounts first and the other cards a frame or two after it (so that opening Advanced is a smaller burst of tasks):
-  // Export training data is in the last of them.
+  // The tier card mounts first and the other cards one per frame after it (so that opening Advanced is a run of small tasks,
+  // HC-UISET-023): Export training data is in the last of them.
   await screen.findByRole('button', { name: 'Export training data' });
 };
 
@@ -1407,6 +1408,91 @@ describe('HC-UISET-022: Current Status shows the break-glass warning by the Exte
     expect(screen.queryByText(anyWarningText)).not.toBeInTheDocument();
     await openAdvanced(user);
     expect((await findWarning('alert')).textContent).toBe(WARNING_ACTIVE);
+  });
+});
+
+// G10 on "Show advanced settings": the panels used to render inside the click, and two cards' worth of layout after it, so the
+// sampler waited behind one long stretch of main-thread work. The press now commits the button alone; the panels follow in a
+// transition (rendered in slices) and one card per commit, each a frame after the last.
+describe('HC-UISET-023: the press renders the button at once, and the panels after it, one card per commit', () => {
+  const SHOW = 'Show advanced settings';
+  const CARDS = ['Model Tier', 'Hardware Detection', 'Document import (OCR)', 'Current Status', 'Environment & tools', 'Training Data'];
+
+  async function settled(client: QueryClient) {
+    await waitFor(() => {
+      for (const queryKey of [['model-settings'], ['model-settings', 'tiers']]) {
+        expect(client.getQueryState(queryKey)?.status, queryKey.join('/')).toBe('success');
+      }
+    });
+  }
+
+  // Outside act: act would run the transition before the click returned and hide the difference. The label proves the click's
+  // own render has run when the panels are read.
+  it('after the click\'s own render the button says Hide and no card is on the page yet', async () => {
+    const { client } = renderSettings('/settings?section=advanced');
+    const button = await screen.findByRole('button', { name: SHOW });
+    await settled(client);
+    const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const actEnv = env.IS_REACT_ACT_ENVIRONMENT;
+    env.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      button.click();
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      expect(button).toHaveTextContent('Hide advanced settings');
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.queryByText('Model Tier')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('advanced-loading')).not.toBeInTheDocument();
+      await screen.findByTestId('tier-row-low');
+      await screen.findByRole('button', { name: 'Export training data' });
+    } finally {
+      env.IS_REACT_ACT_ENVIRONMENT = actEnv;
+    }
+  });
+
+  /** Each MutationObserver callback is one commit or less: the card titles added in it, in the order the nodes were added. */
+  function watchCards() {
+    const commits: string[][] = [];
+    const read = (records: MutationRecord[]) => {
+      const added: string[] = [];
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          // No title is a part of another card's text, so a node holds a card when its text holds the title.
+          for (const title of CARDS) if (node.textContent?.includes(title) && !added.includes(title)) added.push(title);
+        }
+      }
+      if (added.length > 0) commits.push(added);
+    };
+    const observer = new MutationObserver(read);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      read(observer.takeRecords());
+      observer.disconnect();
+      return commits;
+    };
+  }
+
+  it('the six cards arrive one per commit, the tier card first and each column top to bottom', async () => {
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settled(client);
+    const commits = watchCards();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await screen.findByRole('button', { name: 'Export training data' });
+    await waitFor(() => expect(screen.getByText('Current Status')).toBeInTheDocument());
+    expect(commits()).toEqual(CARDS.map((title) => [title]));
+  });
+
+  it('a second press after Hide stages the cards the same way, and Hide removes them at once', async () => {
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settled(client);
+    await openAdvanced(user);
+    await user.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    for (const title of CARDS) expect(screen.queryByText(title)).not.toBeInTheDocument();
+    const commits = watchCards();
+    await openAdvanced(user);
+    expect(commits()).toEqual(CARDS.map((title) => [title]));
   });
 });
 

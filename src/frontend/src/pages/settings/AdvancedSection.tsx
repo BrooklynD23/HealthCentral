@@ -10,7 +10,7 @@
  * never wait on model settings.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { createContext, startTransition, useContext, useDeferredValue, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -52,7 +52,7 @@ import {
 } from '@/services';
 import { useFeedbackStats, useExportDataset } from '@/services/feedback';
 import type { DownloadProgress, TierStatus } from '@/services/modelSettings';
-import { SwitchRow, AfterPaint } from './PreferencesSection';
+import { SwitchRow } from './PreferencesSection';
 
 const OCR_BLOCKER_LABELS: Record<string, string> = {
   disabled_by_admin: 'OCR is disabled in server configuration (OCR_ENABLED). Restart the backend after changing .env.',
@@ -107,6 +107,10 @@ interface AdvancedSectionProps {
 
 export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectionProps) {
   const [shown, setShown] = useState(false);
+  // The press commits the button alone. The panels follow in a transition, which React renders in slices that let the browser
+  // run timers in between: rendered inside the click they were one long task, and G10's 20 ms sampler waited behind it
+  // (HC-UISET-023). Hide is not deferred: `shown` alone takes them away.
+  const revealed = useDeferredValue(shown);
   const panelId = useId();
 
   return (
@@ -122,7 +126,7 @@ export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectio
         {shown ? 'Hide advanced settings' : 'Show advanced settings'}
       </Button>
       <AdvancedReads />
-      {shown && (
+      {shown && revealed && (
         <div id={panelId}>
           <AdvancedPanels exportResult={exportResult} onExportResult={onExportResult} />
         </div>
@@ -142,6 +146,29 @@ function AdvancedReads() {
   useModelSettings();
   useTiers();
   return null;
+}
+
+/**
+ * Mounts the cards one per commit, each a frame after the last, in a transition: one commit of all of them was one layout of
+ * them all, and two cards' worth of style and layout in one frame kept G10's sampler from running for 20 ms and more
+ * (HC-UISET-023). A card waits in its <Stage> for its number. Only the Stages read the count, so a new stage renders the card
+ * it lets in and no other: the children of the provider are the same elements on every stage.
+ */
+const StageContext = createContext(Number.POSITIVE_INFINITY);
+
+function StagedCards({ count, children }: { count: number; children: ReactNode }) {
+  const [stage, setStage] = useState(1);
+  useEffect(() => {
+    if (stage >= count) return;
+    // The frame lays out the card committed last; the next one renders after it.
+    const raf = requestAnimationFrame(() => startTransition(() => setStage(stage + 1)));
+    return () => cancelAnimationFrame(raf);
+  }, [stage, count]);
+  return <StageContext.Provider value={stage}>{children}</StageContext.Provider>;
+}
+
+function Stage({ n, children }: { n: number; children: ReactNode }) {
+  return useContext(StageContext) >= n ? <>{children}</> : null;
 }
 
 function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) {
@@ -195,26 +222,25 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
           sits in the last column. Expanded, the page is 1764 px by default and 1843 px with a download running (the progress
           bar adds the difference), against the 1800 px bound of HC-UISET-005: the second figure is over the bound and is
           not ruled yet. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
-        <div className="space-y-6">
-          <TierCard />
-        </div>
+      {/* Each column fills top to bottom, so a card that arrives never moves one that is there. */}
+      <StagedCards count={6}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
+          <div className="space-y-6">
+            <TierCard />
+          </div>
 
-        <div className="space-y-6">
-          <AfterPaint frames={1}>
-            <HardwareCard />
-            <OcrCard />
-            <StatusCard />
-          </AfterPaint>
-        </div>
+          <div className="space-y-6">
+            <Stage n={2}><HardwareCard /></Stage>
+            <Stage n={3}><OcrCard /></Stage>
+            <Stage n={4}><StatusCard /></Stage>
+          </div>
 
-        <div className="space-y-6 lg:col-span-2 xl:col-span-1">
-          <AfterPaint frames={2}>
-            <EnvironmentCard />
-            <TrainingCard exportResult={exportResult} onExportResult={onExportResult} />
-          </AfterPaint>
+          <div className="space-y-6 lg:col-span-2 xl:col-span-1">
+            <Stage n={5}><EnvironmentCard /></Stage>
+            <Stage n={6}><TrainingCard exportResult={exportResult} onExportResult={onExportResult} /></Stage>
+          </div>
         </div>
-      </div>
+      </StagedCards>
     </>
   );
 }
