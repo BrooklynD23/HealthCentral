@@ -19,6 +19,7 @@ HC-LAG-004  the audit row names the reason and carries no question text
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -45,14 +46,17 @@ FACTUAL_ANSWER = "FACTUAL-ANSWER-4c1e"
 class _RecordingMasterDb:
     """Master-DB double: records added rows and commit calls."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, fail_commit: bool = False) -> None:
         self.added: list = []
         self.commits = 0
+        self.fail_commit = fail_commit
 
     def add(self, obj) -> None:
         self.added.append(obj)
 
     async def commit(self) -> None:
+        if self.fail_commit:
+            raise RuntimeError("audit store down")
         self.commits += 1
 
     async def rollback(self) -> None:
@@ -97,8 +101,17 @@ class _Spies:
         self.serve_via_agent = AsyncMock(side_effect=RuntimeError("agent down"))
 
 
-async def _post_chat(question: str, *, agent_enabled: bool):
-    master = _RecordingMasterDb()
+async def _post_chat(
+    question: str,
+    *,
+    agent_enabled: bool,
+    master=None,
+    raise_server_exceptions: bool = True,
+    first_question: str | None = None,
+):
+    """POST the chat question. With `first_question`, that question is posted first
+    and `question` resumes its session, so the gate runs with history present."""
+    master = master if master is not None else _RecordingMasterDb()
     spies = _Spies()
     profile_db, engine = await _profile_db()
     try:
@@ -111,14 +124,23 @@ async def _post_chat(question: str, *, agent_enabled: bool):
                  AsyncMock(return_value=spies.runner),
              ):
             with route_client(
-                assistant_router, "/assistant", profile_id="profile-a", master_db=master
+                assistant_router,
+                "/assistant",
+                profile_id="profile-a",
+                master_db=master,
+                raise_server_exceptions=raise_server_exceptions,
             ) as client:
 
                 async def _override_profile_db():
                     return profile_db
 
                 client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
-                resp = client.post("/assistant/chat", json={"question": question})
+                payload = {"question": question}
+                if first_question is not None:
+                    first = client.post("/assistant/chat", json={"question": first_question})
+                    assert first.status_code == 200, first.text
+                    payload["session_id"] = first.json()["session_id"]
+                resp = client.post("/assistant/chat", json=payload)
         profile_db.expire_all()
         turns = list((await profile_db.execute(select(ChatTurn))).scalars().all())
         return resp, turns, master, spies
@@ -135,6 +157,8 @@ def _assert_escalated_without_model(resp, turns, spies) -> None:
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["full_response"] == ESCALATE_TEMPLATE
+    assert body["is_valid"] is False
+    assert body["validation_errors"] == ["pre_model_advice"]
     assert body["segments"] == [
         {"segment_type": "uncertainty", "content": ESCALATE_TEMPLATE, "citations": []}
     ]
@@ -155,10 +179,18 @@ async def test_hc_lag_001_agent_off_advice_question_escalates_without_model_call
 
 @pytest.mark.asyncio
 async def test_hc_lag_002_agent_failed_advice_question_escalates_without_model_call():
-    resp, turns, _master, spies = await _post_chat(ADVICE_QUESTION, agent_enabled=True)
+    resp, turns, master, spies = await _post_chat(ADVICE_QUESTION, agent_enabled=True)
     # The agent was tried and raised, so this is the fallback path, not the flag-off path.
     spies.serve_via_agent.assert_awaited_once()
     _assert_escalated_without_model(resp, turns, spies)
+    # The audit row is written on the agent-failed path too, through the real
+    # create_audit_log / audit_and_commit.
+    assert [(r.event_type, json.loads(r.details_json)) for r in _audit_rows(master)] == [
+        (
+            "assistant.prohibited_blocked",
+            {"reason": "pre_model_advice", "decision": "escalate"},
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -176,7 +208,8 @@ async def test_hc_lag_003_agent_off_factual_question_still_reaches_the_model():
 
 
 @pytest.mark.asyncio
-async def test_hc_lag_004_pre_model_audit_row_names_reason_and_holds_no_question_text():
+async def test_hc_lag_004_pre_model_audit_row_names_reason_and_holds_no_question_text(caplog):
+    caplog.set_level(logging.DEBUG)
     resp, _turns, master, spies = await _post_chat(ADVICE_QUESTION, agent_enabled=False)
     assert resp.status_code == 200, resp.text
     spies.query.assert_not_awaited()
@@ -185,8 +218,44 @@ async def test_hc_lag_004_pre_model_audit_row_names_reason_and_holds_no_question
     row = rows[0]
     assert row.event_type == "assistant.prohibited_blocked"
     assert row.profile_id == "profile-a"
+    assert row.entity_id == resp.json()["session_id"]
     assert json.loads(row.details_json) == {"reason": "pre_model_advice", "decision": "escalate"}
     blob = " ".join(str(getattr(row, c.name)) for c in row.__table__.columns).lower()
     assert ADVICE_QUESTION.lower() not in blob
     assert "metformin" not in blob
     assert master.commits >= 1
+    # The question is absent from app logs. SQL bound-parameter debug lines from
+    # the DB drivers are excluded: any insert logs them.
+    app_logs = " ".join(
+        r.getMessage().lower()
+        for r in caplog.records
+        if not r.name.startswith(("aiosqlite", "sqlalchemy"))
+    )
+    assert "metformin" not in app_logs
+    assert ADVICE_QUESTION.lower() not in app_logs
+
+    # A later turn in a session is audited too (history is present on the second turn).
+    resp2, _t, master2, spies2 = await _post_chat(
+        ADVICE_QUESTION, agent_enabled=False, first_question=ADVICE_QUESTION
+    )
+    assert resp2.status_code == 200, resp2.text
+    spies2.query.assert_not_awaited()
+    rows2 = _audit_rows(master2)
+    assert [r.event_type for r in rows2] == ["assistant.prohibited_blocked"] * 2
+    assert [r.entity_id for r in rows2] == [resp2.json()["session_id"]] * 2
+
+
+    # Fail-closed: if the audit commit fails, the request fails. No turn is stored,
+    # nothing is served, and the model is not reached, with the agent off and failed.
+    for agent_enabled in (False, True):
+        resp3, turns3, _m, spies3 = await _post_chat(
+            ADVICE_QUESTION,
+            agent_enabled=agent_enabled,
+            master=_RecordingMasterDb(fail_commit=True),
+            raise_server_exceptions=False,
+        )
+        assert resp3.status_code == 500, (agent_enabled, resp3.text)
+        assert turns3 == [], f"a turn was stored although the audit failed (agent={agent_enabled})"
+        assert "metformin" not in resp3.text.lower()
+        assert ESCALATE_TEMPLATE not in resp3.text
+        spies3.query.assert_not_called()
