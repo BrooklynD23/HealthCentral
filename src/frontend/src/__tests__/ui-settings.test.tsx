@@ -26,6 +26,7 @@
  *   HC-UISET-019  the server's answer for a download that died (failed) leaves Download enabled and shows no bar
  *   HC-UISET-020  the tiers request starts with the settings one; the panels wait for both, so nothing shifts and "Run hardware detection first" is not shown while they load
  *   HC-UISET-021  those two reads start when the section mounts: a press after they settle renders no skeleton, a press before them does, and a failed read is asked again on the press
+ *   HC-UISET-022  Current Status shows the break-glass warning by the External API row (D12), on the same conditions as Assistant & privacy
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -1328,6 +1329,84 @@ describe('HC-UISET-013: Current Status does not call an unread External API sett
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
     await waitFor(() => expect(within(screen.getByText('External API').closest('div')!).getByText('Off')).toBeInTheDocument());
+  });
+});
+
+describe('HC-UISET-022: Current Status shows the break-glass warning by the External API row (D12)', () => {
+  const externalRow = () => screen.getByText('External API').closest('div')!;
+  const anyWarningText = /Privacy protection override is on|Could not confirm this installation/;
+
+  it('override on, external API on: role=alert with today\'s text, under the row, with no animated ancestor', async () => {
+    externalApi = { ...externalApi, use_external_api: true, redaction_break_glass: true };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    const warning = await findWarning('alert');
+    expect(warning.textContent).toBe(WARNING_ACTIVE);
+    expect(within(externalRow()).getByText('Enabled')).toBeInTheDocument();
+    expect(externalRow().nextElementSibling).toBe(warning);
+    expect(warning).toHaveAttribute('data-t0');
+    for (let node: HTMLElement | null = warning; node; node = node.parentElement) {
+      expect(node.getAttribute('style') ?? '', `${node.tagName}.${node.className}`).not.toMatch(/opacity|transform/);
+    }
+  });
+
+  // active follows the flag alone, as in Assistant & privacy: the installation's override is on whether or not this profile sends anything.
+  it('override on, external API off: the same alert', async () => {
+    externalApi = { ...externalApi, use_external_api: false, redaction_break_glass: true };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    expect((await findWarning('alert')).textContent).toBe(WARNING_ACTIVE);
+    expect(within(externalRow()).getByText('Off')).toBeInTheDocument();
+  });
+
+  // Enabled comes from the same reply as the flag, so the read has landed when the absence is read: not a waitFor that passes on the first tick.
+  it('override off: no warning of either kind', async () => {
+    externalApi = { ...externalApi, use_external_api: true, redaction_break_glass: false };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await waitFor(() => expect(within(externalRow()).getByText('Enabled')).toBeInTheDocument());
+    expect(screen.queryByText(anyWarningText)).not.toBeInTheDocument();
+  });
+
+  it('the read failed: role=status with the unknown text, under the row, and the row says Unknown', async () => {
+    externalApiFails = true;
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    const warning = await findWarning('status');
+    expect(warning.textContent).toBe(WARNING_UNKNOWN);
+    expect(externalRow().nextElementSibling).toBe(warning);
+    expect(within(externalRow()).getByText('Unknown')).toBeInTheDocument();
+    expect(screen.queryByText(/Privacy protection override is on/)).not.toBeInTheDocument();
+  });
+
+  it('external API on and no flag in the reply: the unknown text', async () => {
+    externalApi = { ...externalApi, use_external_api: true, redaction_break_glass: undefined };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    expect((await findWarning('status')).textContent).toBe(WARNING_UNKNOWN);
+  });
+
+  it('external API off and no flag in the reply: no warning', async () => {
+    externalApi = { ...externalApi, use_external_api: false, redaction_break_glass: undefined };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    // The row reads Off before the reply as well, so the wait is on the request and then past its reply.
+    await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/external-api'));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(within(externalRow()).getByText('Off')).toBeInTheDocument();
+    expect(screen.queryByText(anyWarningText)).not.toBeInTheDocument();
+  });
+
+  // Hide unmounts the card. The warning is on the second press too, from the cached reply, not only on the first read.
+  it('Hide, then a second press: the alert is there again', async () => {
+    externalApi = { ...externalApi, use_external_api: true, redaction_break_glass: true };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await findWarning('alert');
+    await user.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    expect(screen.queryByText(anyWarningText)).not.toBeInTheDocument();
+    await openAdvanced(user);
+    expect((await findWarning('alert')).textContent).toBe(WARNING_ACTIVE);
   });
 });
 

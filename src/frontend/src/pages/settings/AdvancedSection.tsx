@@ -35,6 +35,7 @@ import { m, AnimatePresence } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, modalVariants, backdropVariants } from '@/components/ui';
 import { AlertDialog } from '@/components/ui/AlertDialog';
 import { TierCapabilities } from '@/components/settings/TierCapabilities';
+import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
@@ -562,6 +563,15 @@ function StatusCard() {
             {externalApiError ? 'Unknown' : externalEnabled ? 'Enabled' : 'Off'}
           </Badge>
         </div>
+        {/* D12: this row can read Enabled, so the warning is here as well as in Assistant & privacy, on the same conditions. */}
+        <ExternalApiBreakGlassWarning
+          active={externalApiData?.redaction_break_glass}
+          unknown={
+            externalApiError ||
+            (externalApiData?.use_external_api === true &&
+              externalApiData.redaction_break_glass === undefined)
+          }
+        />
         <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
           <span className="text-sm text-ink-secondary">OCR (profile)</span>
           <Badge variant={settings?.ocr_effective ? 'verified' : 'attention'} className="font-bold">
