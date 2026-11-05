@@ -30,7 +30,7 @@ from models import (
 )
 from modules import get_interpret_module
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
-from modules.interpret import saved_card_needs_rebuild
+from modules.interpret import panel_rebuild_at_risk, saved_card_needs_rebuild
 from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -893,6 +893,24 @@ async def generate_panel_interpretation(
                 observation_ids=unverified_ids,
             )
 
+    # VALUE-RANGE-COMPARE (AUDIT-ORDER D, A2): a read that would delete a stale saved panel
+    # or replace a stale member card is bracketed. The check is read-only and follows
+    # interpret_panel's branches; the started row is committed before the first delete and a
+    # failed audit write stops the read with nothing changed. A read that deletes nothing
+    # keeps the single plain row below. The panel name is clinical content: ids and counts only.
+    stale_panel_id, at_risk = await panel_rebuild_at_risk(
+        panel_name_lower, collected_at, session.profile_id, profile_db, master_db,
+        force_regenerate,
+    )
+    started = stale_panel_id is not None or bool(at_risk)
+    if started:
+        await _audit_interpretation(
+            master_db, "panel_generate", session.profile_id,
+            entity_type="panel_interpretation", entity_id=stale_panel_id,
+            details={"observation_ids": at_risk, "count": len(at_risk)},
+            intent="started",
+        )
+
     interpret_module = get_interpret_module()
     result = await interpret_module.interpret_panel(
         panel_name=panel_name_lower,
@@ -903,13 +921,25 @@ async def generate_panel_interpretation(
         force_regenerate=force_regenerate,
     )
 
-    # VALUE-RANGE-COMPARE: a stale saved panel is kept when a member's rebuild is withheld.
-    # One withheld row per member (ids and check names only), then the 500 below answers
-    # with the escalation message. No panel_generate row: the saved panel row is unchanged.
-    # A sibling member rebuilt before the withheld one keeps its rebuilt card, and no row
-    # names it (the panel route has no started row; open for L0, see the PR body).
+    # A member whose rebuild the safety check withheld keeps its old card and, when it
+    # fails the read closed, the saved panel row too. One withheld row per member (ids and
+    # check names only); the 500 below answers with the escalation message. A sibling
+    # rebuilt before the withheld one stays rebuilt: its id is in the completed row.
     for member_id, member_result in result.withheld_members:
         await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
+
+    if started:
+        await _audit_interpretation(
+            master_db, "panel_generate", session.profile_id,
+            entity_type="panel_interpretation",
+            entity_id=result.interpretation.id if result.success else stale_panel_id,
+            details={
+                "observation_ids": result.replaced_member_ids,
+                "count": len(result.replaced_member_ids),
+                "skipped_count": len(result.withheld_members),
+            },
+            intent="completed",
+        )
 
     if not result.success:
         raise HTTPException(
@@ -918,11 +948,12 @@ async def generate_panel_interpretation(
         )
 
     logger.info(f"Generated panel interpretation for {panel_name}")
-    # The panel name is clinical content: record the interpretation id only.
-    await _audit_interpretation(
-        master_db, "panel_generate", session.profile_id,
-        entity_type="panel_interpretation", entity_id=result.interpretation.id,
-    )
+    if not started:
+        # The panel name is clinical content: record the interpretation id only.
+        await _audit_interpretation(
+            master_db, "panel_generate", session.profile_id,
+            entity_type="panel_interpretation", entity_id=result.interpretation.id,
+        )
     return PanelInterpretationResponse.from_model(result.interpretation)
 
 

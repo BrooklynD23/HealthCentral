@@ -96,6 +96,8 @@ class InterpretationResult:
     safety_validation: Optional[SafetyValidationResult] = None
     # INTERP-WITHHOLD-MSG: True only when the safety check withheld the card.
     withheld: bool = False
+    # VALUE-RANGE-COMPARE: True only when a saved card was deleted and replaced by this call.
+    replaced: bool = False
 
 
 @dataclass
@@ -104,9 +106,13 @@ class PanelInterpretationResult:
     success: bool
     interpretation: Optional[PanelInterpretation] = None
     error_message: Optional[str] = None
-    # VALUE-RANGE-COMPARE: members of a stale saved panel whose rebuild the safety check
-    # withheld, as (observation_id, result). Set only on the fail-closed return.
+    # VALUE-RANGE-COMPARE: members whose rebuild the safety check withheld, as
+    # (observation_id, result). Set only on the fail-closed return, which happens when the
+    # read replaces a saved panel or the withheld member has a saved card.
     withheld_members: list[tuple[str, InterpretationResult]] = field(default_factory=list)
+    # VALUE-RANGE-COMPARE: ids of the member cards this read deleted and rebuilt, set on the
+    # success and the fail-closed return (a sibling rebuilt before a withheld member stays).
+    replaced_member_ids: list[str] = field(default_factory=list)
 
 
 class InterpretModule:
@@ -303,12 +309,14 @@ class InterpretModule:
             regeneration_count=0,
         )
 
+        replaced = False
         if force_regenerate and existing_interp:
             interpretation.regeneration_count = existing_interp.regeneration_count + 1
             interpretation.previous_interpretation_id = existing_interp.id
             # Delete old interpretation
             await profile_db.delete(existing_interp)
             await profile_db.flush()
+            replaced = True
 
         profile_db.add(interpretation)
         await profile_db.commit()
@@ -322,6 +330,7 @@ class InterpretModule:
             success=True,
             interpretation=interpretation,
             safety_validation=safety_result,
+            replaced=replaced,
         )
 
     async def interpret_panel(
@@ -357,18 +366,7 @@ class InterpretModule:
             )
 
         # Find observations for this panel
-        start_date = collected_at.replace(hour=0, minute=0, second=0)
-        end_date = collected_at.replace(hour=23, minute=59, second=59)
-
-        result = await profile_db.execute(
-            select(Observation).where(
-                Observation.profile_id == profile_id,
-                Observation.analyte_canonical.in_(panel_def["analytes"]),
-                Observation.collected_at >= start_date,
-                Observation.collected_at <= end_date,
-            )
-        )
-        observations = result.scalars().all()
+        observations = await _panel_members(profile_db, panel_def, profile_id, collected_at)
 
         if not observations:
             return PanelInterpretationResult(
@@ -379,14 +377,7 @@ class InterpretModule:
         # Check for existing interpretation
         stale_panel: Optional[PanelInterpretation] = None
         if not force_regenerate:
-            existing = await profile_db.execute(
-                select(PanelInterpretation).where(
-                    PanelInterpretation.panel_name == panel_name.lower(),
-                    PanelInterpretation.collected_at >= start_date,
-                    PanelInterpretation.collected_at <= end_date,
-                )
-            )
-            existing_interp = existing.scalar_one_or_none()
+            existing_interp = await _saved_panel(profile_db, panel_name, collected_at)
             if existing_interp:
                 # VALUE-RANGE-COMPARE: a saved template panel the range check disagrees
                 # with is rebuilt below. The old row is held and deleted just before the add.
@@ -403,6 +394,13 @@ class InterpretModule:
         abnormal_count = 0
         observation_ids = []
         withheld_members: list[tuple[str, InterpretationResult]] = []
+        replaced_member_ids: list[str] = []
+        # VALUE-RANGE-COMPARE: members that have a saved card before this read starts.
+        saved_card_ids = set((await profile_db.execute(
+            select(LabInterpretation.observation_id).where(
+                LabInterpretation.observation_id.in_([o.id for o in observations])
+            )
+        )).scalars().all())
 
         from api.observations import (  # lazy: api imports modules
             observation_range_status,
@@ -416,10 +414,16 @@ class InterpretModule:
                 profile_db=profile_db,
                 master_db=master_db,
             )
-            if stale_panel is not None and interp_result.withheld is True:
-                # The saved panel is replaced only if every member is rebuilt: a withheld
-                # member keeps it (and the member's old card) as it is. Keep going so
-                # every other stale member is still rebuilt and every withheld one is named.
+            if interp_result.replaced is True:
+                replaced_member_ids.append(obs.id)
+            if interp_result.withheld is True and (
+                stale_panel is not None or obs.id in saved_card_ids
+            ):
+                # A read that replaces a saved panel, or a member that already had a card,
+                # never drops a withheld member: the saved panel (and the member's old card)
+                # stay as they are. Keep going so every other stale member is still rebuilt
+                # and every withheld one is named. A first-generation member with no saved
+                # card is still dropped (report only, HC-VRC-027).
                 withheld_members.append((obs.id, interp_result))
                 continue
             if interp_result.interpretation:
@@ -452,6 +456,7 @@ class InterpretModule:
                 success=False,
                 error_message=ESCALATE_TEMPLATE,
                 withheld_members=withheld_members,
+                replaced_member_ids=replaced_member_ids,
             )
 
         # Generate panel summary
@@ -531,6 +536,7 @@ class InterpretModule:
         return PanelInterpretationResult(
             success=True,
             interpretation=panel_interpretation,
+            replaced_member_ids=replaced_member_ids,
         )
 
     async def _saved_card_is_stale(
@@ -1475,3 +1481,84 @@ async def saved_card_needs_rebuild(
     if saved is None:
         return False
     return await get_interpret_module()._saved_card_is_stale(saved, observation, master_db)
+
+
+async def _panel_members(
+    profile_db: AsyncSession,
+    panel_def: dict,
+    profile_id: str,
+    collected_at: datetime,
+) -> list[Observation]:
+    """The observations a panel read covers: this profile's panel analytes on the whole day.
+
+    One select for `interpret_panel` and for `panel_rebuild_at_risk`, so the route's check
+    cannot drift from the read it guards.
+    """
+    start_date = collected_at.replace(hour=0, minute=0, second=0)
+    end_date = collected_at.replace(hour=23, minute=59, second=59)
+    result = await profile_db.execute(
+        select(Observation).where(
+            Observation.profile_id == profile_id,
+            Observation.analyte_canonical.in_(panel_def["analytes"]),
+            Observation.collected_at >= start_date,
+            Observation.collected_at <= end_date,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def _saved_panel(
+    profile_db: AsyncSession,
+    panel_name: str,
+    collected_at: datetime,
+) -> Optional[PanelInterpretation]:
+    """The saved panel row of that day, or None (shared by the read and its check)."""
+    start_date = collected_at.replace(hour=0, minute=0, second=0)
+    end_date = collected_at.replace(hour=23, minute=59, second=59)
+    existing = await profile_db.execute(
+        select(PanelInterpretation).where(
+            PanelInterpretation.panel_name == panel_name.lower(),
+            PanelInterpretation.collected_at >= start_date,
+            PanelInterpretation.collected_at <= end_date,
+        )
+    )
+    return existing.scalar_one_or_none()
+
+
+async def panel_rebuild_at_risk(
+    panel_name: str,
+    collected_at: datetime,
+    profile_id: str,
+    profile_db: AsyncSession,
+    master_db: AsyncSession,
+    force_regenerate: bool,
+) -> tuple[Optional[str], list[str]]:
+    """VALUE-RANGE-COMPARE: what would a panel read delete? (stale panel id or None, stale member ids)
+
+    A route asks before the read so it can write the started audit row first. It follows
+    `interpret_panel`'s branches: no members is nothing at risk; an unforced read with a saved
+    panel in agreement answers from it and touches no member; an unforced read otherwise
+    names the stale saved panel (if any) and every member whose saved card is stale; a forced
+    read skips the saved panel lookup (it deletes no panel row) and names stale members only.
+    Reads only: no write, no model.
+    """
+    from api.observations import PANEL_DEFINITIONS  # lazy: api imports modules
+
+    panel_def = PANEL_DEFINITIONS.get(panel_name.lower())
+    if not panel_def:
+        return None, []
+    observations = await _panel_members(profile_db, panel_def, profile_id, collected_at)
+    if not observations:
+        return None, []
+    stale_panel_id: Optional[str] = None
+    if not force_regenerate:
+        saved = await _saved_panel(profile_db, panel_name, collected_at)
+        if saved is not None:
+            if not await get_interpret_module()._saved_panel_is_stale(saved, observations, profile_db):
+                return None, []
+            stale_panel_id = saved.id
+    stale_members = [
+        obs.id for obs in observations
+        if await saved_card_needs_rebuild(obs, profile_db, master_db)
+    ]
+    return stale_panel_id, stale_members
