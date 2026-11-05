@@ -69,7 +69,8 @@ const NAV_LABEL: Record<string, string> = {
   '/verify': 'Review values',
   '/trends': 'Results',
   '/timeline': 'Timeline',
-  '/interpret': 'Interpret',
+  // UI-PG-RESULTS: Interpret was folded into Results; the nav link for /interpret is the Results link.
+  '/interpret': 'Results',
   '/medications': 'Medications',
   '/notifications': 'Reminders',
   '/care-tasks': 'Follow-ups',
@@ -78,6 +79,9 @@ const NAV_LABEL: Record<string, string> = {
   '/export': 'Doctor summary',
 };
 
+/** UI-PG-RESULTS: /trends and /interpret redirect, so their nav link (Results) lands on a /results route container. */
+const LANDS_ON: Record<string, string> = { '/trends': '/results', '/interpret': '/results' };
+
 /** Every destination the More sheet must reach (plan §3.1: the four groups). */
 const ALL_DESTINATIONS = [
   'Documents',
@@ -85,7 +89,6 @@ const ALL_DESTINATIONS = [
   'Timeline',
   'Pinboards',
   'Results',
-  'Interpret',
   'Ask',
   'Medications',
   'Reminders',
@@ -300,7 +303,7 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator('[data-route-container]')).toBeVisible({ timeout: 15_000 });
       const samples = await sampleRouteContainer(page, route);
-      expect(routeFadeFailures(samples, route, false)).toEqual([]);
+      expect(routeFadeFailures(samples, LANDS_ON[route] ?? route, false)).toEqual([]);
     });
 
     test(`HC-UISH-003: no fade under reduced motion on ${route}`, async ({ page }) => {
@@ -308,7 +311,7 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator('[data-route-container]')).toBeVisible({ timeout: 15_000 });
       const samples = await sampleRouteContainer(page, route);
-      expect(routeFadeFailures(samples, route, true)).toEqual([]);
+      expect(routeFadeFailures(samples, LANDS_ON[route] ?? route, true)).toEqual([]);
     });
   }
 
