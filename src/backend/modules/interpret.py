@@ -45,6 +45,13 @@ from .recommend import (
 
 logger = logging.getLogger(__name__)
 
+# VALUE-RANGE-COMPARE: the status sentences a card says when there is no knowledge-base
+# entry. The status block writes them and the saved-card check reads them back.
+SENTENCE_ABOVE = "This value is above the reference range."
+SENTENCE_BELOW = "This value is below the reference range."
+SENTENCE_WITHIN = "This value is within the normal reference range."
+SENTENCE_OUTSIDE = "This value is outside the normal reference range."
+
 # Citation-enforcing prompt template for LLM interpretation
 LLM_INTERPRETATION_PROMPT = """You are a medical results assistant explaining lab values to patients.
 
@@ -179,10 +186,15 @@ class InterpretModule:
             )
             existing_interp = existing.scalar_one_or_none()
             if existing_interp:
-                return InterpretationResult(
-                    success=True,
-                    interpretation=existing_interp,
-                )
+                # VALUE-RANGE-COMPARE: a saved template card the range check disagrees
+                # with is rebuilt by the force path below (one copy of the card logic).
+                if await self._saved_card_is_stale(existing_interp, observation, master_db):
+                    force_regenerate = True
+                else:
+                    return InterpretationResult(
+                        success=True,
+                        interpretation=existing_interp,
+                    )
 
         # Assemble context
         context = await self._assemble_context(
@@ -362,6 +374,7 @@ class InterpretModule:
             )
 
         # Check for existing interpretation
+        stale_panel: Optional[PanelInterpretation] = None
         if not force_regenerate:
             existing = await profile_db.execute(
                 select(PanelInterpretation).where(
@@ -372,10 +385,15 @@ class InterpretModule:
             )
             existing_interp = existing.scalar_one_or_none()
             if existing_interp:
-                return PanelInterpretationResult(
-                    success=True,
-                    interpretation=existing_interp,
-                )
+                # VALUE-RANGE-COMPARE: a saved template panel the range check disagrees
+                # with is rebuilt below. The old row is held and deleted just before the add.
+                if await self._saved_panel_is_stale(existing_interp, observations, profile_db):
+                    stale_panel = existing_interp
+                else:
+                    return PanelInterpretationResult(
+                        success=True,
+                        interpretation=existing_interp,
+                    )
 
         # Get individual interpretations for each observation
         observation_summaries = []
@@ -475,6 +493,12 @@ class InterpretModule:
             requires_physician_review=overall_status == "concerning",
         )
 
+        if stale_panel is not None:
+            # panel_interpretations has no unique constraint, so a rebuild must remove the
+            # old row or the next cached lookup finds two (MultipleResultsFound).
+            await profile_db.delete(stale_panel)
+            await profile_db.flush()
+
         profile_db.add(panel_interpretation)
         await profile_db.commit()
 
@@ -487,6 +511,124 @@ class InterpretModule:
             success=True,
             interpretation=panel_interpretation,
         )
+
+    async def _saved_card_is_stale(
+        self,
+        card: LabInterpretation,
+        observation: Observation,
+        master_db: AsyncSession,
+    ) -> bool:
+        """VALUE-RANGE-COMPARE: does a saved template card say the opposite of the range check?
+
+        A card stores no status, so the saved sentence is read. Only a card this module's
+        template wrote is judged (model-written cards are left alone). Only the helper's
+        "above", "below" and "within" can make a card stale; "disagrees", "keep" and
+        "normal_uncompared" never do, and neither does "outside" on an out-of-range value
+        (it is not false) or a card with no readable claim. Reads only: no write, no model.
+        """
+        if card.model_tier != self.MODEL_TIER_TEMPLATE or card.model_id != self.MODEL_ID_TEMPLATE:
+            return False
+        from api.observations import observation_range_status  # lazy: api imports modules
+
+        status = observation_range_status(
+            observation.flag, observation.value, observation.ref_low, observation.ref_high,
+            bool((observation.ref_range_text or "").strip()),
+        )
+        if status not in ("above", "below", "within"):
+            return False
+
+        text = card.interpretation_text or ""
+        # Every sentence a card of each kind can hold: the literals, and, only when the card
+        # carries a [KB:] marker, the knowledge-base entry's own texts.
+        sentences: dict[str, list[str]] = {
+            "above": [SENTENCE_ABOVE],
+            "below": [SENTENCE_BELOW],
+            "within": [SENTENCE_WITHIN],
+            "outside": [SENTENCE_OUTSIDE],
+        }
+        if "[KB:" in text:
+            kb = await self._knowledge_loader.get_biomarker_knowledge(
+                analyte_canonical=observation.analyte_canonical,
+                db=master_db,
+            )
+            if kb is not None:
+                for place, kb_text in (
+                    ("above", kb.high_interpretation),
+                    ("below", kb.low_interpretation),
+                    ("within", kb.normal_interpretation),
+                ):
+                    if (kb_text or "").strip():  # an empty text would match every KB card
+                        sentences[place].append(f"{kb_text} [KB:{kb.id}]")
+
+        def says(place: str) -> bool:
+            return any(sentence in text for sentence in sentences[place])
+
+        # The correct claim is checked first, so another sentence inside a knowledge-base
+        # text can never make a card that already says the right thing rewrite on every read.
+        if says(status):
+            return False
+        # "outside" is false only for a value inside the range, never for above or below.
+        wrong = {
+            "above": ("within", "below"),
+            "below": ("within", "above"),
+            "within": ("outside", "above", "below"),
+        }[status]
+        return any(says(place) for place in wrong)
+
+    async def _saved_panel_is_stale(
+        self,
+        panel: PanelInterpretation,
+        observations: list[Observation],
+        profile_db: AsyncSession,
+    ) -> bool:
+        """VALUE-RANGE-COMPARE: does a saved template panel list the wrong values as abnormal?
+
+        For each member that has a saved card (a withheld member has none and is skipped),
+        with helper status above, below or within, compare status_is_abnormal against
+        whether the saved summary has an attention line `- ANALYTE: value `. Any mismatch is
+        stale. "disagrees", "keep" and "normal_uncompared" do not count. Model_id other than
+        the template's is left alone.
+        """
+        if panel.model_id != self.MODEL_ID_TEMPLATE:
+            return False
+        try:
+            saved_ids = json.loads(panel.observation_ids_json or "[]")
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(saved_ids, list):
+            return False
+        members = [o for o in observations if o.id in set(saved_ids)]
+        if not members:
+            return False
+        from api.observations import (  # lazy: api imports modules
+            observation_range_status,
+            status_is_abnormal,
+        )
+
+        have_card = set((await profile_db.execute(
+            select(LabInterpretation.observation_id).where(
+                LabInterpretation.observation_id.in_([o.id for o in members])
+            )
+        )).scalars().all())
+        lines = (panel.summary_text or "").splitlines()
+        wanted: dict[str, set[bool]] = {}
+        for obs in members:
+            if obs.id not in have_card:
+                continue
+            status = observation_range_status(
+                obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                bool((obs.ref_range_text or "").strip()),
+            )
+            if status not in ("above", "below", "within"):
+                continue
+            prefix = f"- {obs.analyte_canonical.upper()}: {obs.value} "
+            wanted.setdefault(prefix, set()).add(status_is_abnormal(status, obs.is_abnormal))
+        for prefix, wants in wanted.items():
+            # two members with one prefix and different answers cannot be told apart by the
+            # saved text; leave them, so such a panel is never rewritten on every read
+            if len(wants) == 1 and (next(iter(wants)) != any(line.startswith(prefix) for line in lines)):
+                return True
+        return False
 
     async def _assemble_context(
         self,
@@ -649,14 +791,14 @@ class InterpretModule:
                 if kb:
                     parts.append(kb.high_interpretation + f" [KB:{kb.id}]")
                 else:
-                    parts.append("This value is above the reference range.")
+                    parts.append(SENTENCE_ABOVE)
             elif flag in ["L", "LL", "LOW"]:
                 if kb:
                     parts.append(kb.low_interpretation + f" [KB:{kb.id}]")
                 else:
-                    parts.append("This value is below the reference range.")
+                    parts.append(SENTENCE_BELOW)
             else:
-                parts.append("This value is outside the normal reference range.")
+                parts.append(SENTENCE_OUTSIDE)
         else:
             if (
                 obs.ref_low is None
@@ -670,7 +812,7 @@ class InterpretModule:
             elif kb:
                 parts.append(kb.normal_interpretation + f" [KB:{kb.id}]")
             else:
-                parts.append("This value is within the normal reference range.")
+                parts.append(SENTENCE_WITHIN)
 
         # Trend information
         if context.historical_values and context.comparison_current_value is not None:

@@ -1519,9 +1519,10 @@ async def _panels(profile_db) -> list[PanelInterpretation]:
 
 
 async def _old_panel(profile_db, rows: list[dict], shown_abnormal: list[bool], *,
-                     model_id="template-v1", card_sentences=None):
+                     model_id="template-v1", old_card: tuple[str, str] | None = None):
     """Observations, their saved cards, and a saved cmp panel whose summary was written from
-    `shown_abnormal` (what main stored: is_abnormal as import saved it)."""
+    `shown_abnormal` (what main stored: is_abnormal as import saved it). With `old_card` =
+    (old, new), the first member's card says `old` where today's text says `new`."""
     obs_list, summaries = [], []
     for kw in rows:
         obs = _obs(user_verified=True, collected_at=DAY, **kw)
@@ -1529,6 +1530,9 @@ async def _old_panel(profile_db, rows: list[dict], shown_abnormal: list[bool], *
         obs_list.append(obs)
     await profile_db.commit()
     texts = [await _text(o) for o in obs_list]
+    if old_card is not None:
+        assert old_card[1] in texts[0], texts[0]
+        texts[0] = texts[0].replace(old_card[1], old_card[0])
     obs_list = [SimpleNamespace(id=o.id, analyte_canonical=o.analyte_canonical, value=o.value, unit=o.unit)
                 for o in obs_list]
     for obs, shown, text in zip(obs_list, shown_abnormal, texts):
@@ -1556,7 +1560,8 @@ SODIUM_ROW = dict(analyte_canonical="sodium", analyte_raw="Sodium", value=140.0,
 async def test_hc_vrc_021_panel_with_an_old_normal_line_is_rebuilt_once(rdbs):
     profile_db, master_db = rdbs
     obs_list, old_id, old_summary = await _old_panel(
-        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False])
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
+        old_card=(WITHIN, ABOVE))
     assert "2 of 2 values are within normal range." in old_summary
     assert "Items requiring attention" not in old_summary
 
@@ -1580,6 +1585,18 @@ async def test_hc_vrc_021_panel_with_an_old_normal_line_is_rebuilt_once(rdbs):
     assert spy.writes == (0, 0), "a second panel read wrote"
     spy.close()
     assert len(await _panels(profile_db)) == 1
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_021_second_read_after_a_panel_rebuild_is_not_a_500(rdbs):
+    # panel_interpretations has no unique constraint: a rebuild that leaves the old row makes
+    # the next cached lookup raise MultipleResultsFound (measured at Task 0, 2026-11-04).
+    profile_db, master_db = rdbs
+    await _old_panel(profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
+                     old_card=(WITHIN, ABOVE))
+    for _ in range(2):
+        resp = _read_panel(profile_db, master_db)
+        assert resp.status_code == 201, resp.text
 
 
 @pytest.mark.asyncio
@@ -1617,7 +1634,7 @@ async def test_hc_vrc_022_panel_with_another_model_id_is_unchanged(rdbs):
     profile_db, master_db = rdbs
     _, old_id, old_summary = await _old_panel(
         profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
-        model_id="biomistral-7b-q4")
+        model_id="biomistral-7b-q4", old_card=(WITHIN, ABOVE))
     spy = _WriteSpy(profile_db)
     resp = _read_panel(profile_db, master_db)
     assert resp.status_code == 201, resp.text
@@ -1795,7 +1812,8 @@ async def test_hc_vrc_026_a_rebuilding_read_keeps_its_audit_row_and_writes_no_st
 @pytest.mark.asyncio
 async def test_hc_vrc_026_a_rebuilding_panel_read_keeps_its_audit_row(rdbs):
     profile_db, master_db = rdbs
-    await _old_panel(profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False])
+    await _old_panel(profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
+                     old_card=(WITHIN, ABOVE))
     resp = _read_panel(profile_db, master_db)
     assert resp.status_code == 201, resp.text
     assert "GLUCOSE: 300.0" in resp.json()["summary_text"]
