@@ -558,7 +558,9 @@ class InterpretModule:
                     ("within", kb.normal_interpretation),
                 ):
                     if (kb_text or "").strip():  # an empty text would match every KB card
-                        sentences[place].append(f"{kb_text} [KB:{kb.id}]")
+                        # the words and the marker, not the id: each install seeds its own KB
+                        # row ids, so a restored vault holds cards naming another row's id
+                        sentences[place].append(f"{kb_text} [KB:")
 
         def says(place: str) -> bool:
             return any(sentence in text for sentence in sentences[place])
