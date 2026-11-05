@@ -93,6 +93,21 @@ function useIsDesktop(): boolean {
   return isDesktop;
 }
 
+/**
+ * The first toLocaleDateString of a page loads the browser's ICU date data: 9-15 ms on the main thread (CDP trace of the
+ * Explain click, PR #476). The Explain card prints a date in its footer, so that cost landed inside the one task that
+ * commits the card. This pays it while the page is idle instead; the card still prints its date in its first commit.
+ */
+function warmDateFormat(): () => void {
+  const warm = () => void new Date(0).toLocaleDateString();
+  if (typeof window.requestIdleCallback === 'function') {
+    const handle = window.requestIdleCallback(warm, { timeout: 2000 });
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(warm, 300);
+  return () => window.clearTimeout(handle);
+}
+
 function downloadFile(href: string, filename: string) {
   const link = document.createElement('a');
   link.download = filename;
@@ -233,6 +248,7 @@ export function ResultsPage() {
   );
   const generateInterpretation = useGenerateGroundedInterpretation();
   const generatePanelInterp = useGeneratePanelInterpretation();
+  useEffect(warmDateFormat, []);
 
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
   // The trend route sends is_abnormal false for a point that has no range, so "Normal Range" is claimed only when the
