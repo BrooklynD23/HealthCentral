@@ -271,6 +271,10 @@ describe('UI-ABOUT: copy that states the limit with the claim (brand section 4)'
     expect(statement).toMatch(/Your records stay on this device/);
     expect(statement).toMatch(/optional external AI setting/);
     expect(statement).toMatch(/off unless you turn it on/);
+    // It says what the setting does, and the storage claim matches the layout (a vault per profile).
+    expect(statement).toMatch(/while it is on, its requests leave this device/);
+    expect(statement).toMatch(/encrypted in a separate vault for each profile/);
+    expect(statement).not.toMatch(/encrypted file/);
   });
 });
 

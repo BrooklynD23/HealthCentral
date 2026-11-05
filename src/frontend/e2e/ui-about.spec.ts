@@ -3,7 +3,8 @@
  *
  * Two describes, kept apart on purpose:
  *  - "HC-UIABT e2e" is functional and has no timing in it: HC-UIABT-001 (no redirect, no API request, signed out and
- *    signed in), HC-UIABT-003 (the example label), HC-UIABT-004 / G7, G1 (axe, light and dark), G6 (390 and 320), G9.
+ *    signed in), HC-UIABT-003 (the example label), HC-UIABT-004 / G7, G1 (axe, light and dark), G6 (390 and 320), G9,
+ *    the profile-menu and "Open Asclexis" link tests, and the space between the two S1 sections.
  *    Run it under normal load:
  *      PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-about.spec.ts --project=chromium --grep-invert QUIET-BOX
  *  - "QUIET-BOX" is G2, G3, G5 and G10 (HC-UIABT-002), which are timing measurements. Run them on a quiet box only
@@ -15,8 +16,9 @@
  * The test asserts that the rail is absent and that the page's own safety statement ([data-about-safety]) is in the
  * first viewport at full opacity instead.
  *
- * Nothing here answers an API call: the page must make none. The one exception is HC-UIABT-002, whose start page
- * (/setup) fetches its profile list, so that test installs the shared mock.
+ * Nothing here answers an API call: the page must make none. The exceptions install the shared mock because they
+ * start or end on a page that does call the API: the two link tests (the shell behind the profile menu, and /setup
+ * behind "Open Asclexis") and HC-UIABT-002 (its start page, /setup, fetches its profile list).
  */
 
 import { expect, test, type Page } from '@playwright/test';
@@ -200,6 +202,23 @@ test.describe('HC-UIABT e2e', () => {
     expect(labelBox && ribbonBox && labelBox.y + labelBox.height <= ribbonBox.y + 0.5, 'label sits above the ribbon').toBe(true);
   });
 
+  test('the two S1 sections have space between them at 1440, 390 and 320', async ({ page }) => {
+    // ShowcaseReveal wraps each child in its own div, so the page's space-y-10 does not reach between them.
+    for (const viewport of [DESKTOP, PHONE, SMALL_PHONE]) {
+      await openAbout(page, { viewport });
+      const gap = await page.evaluate(() => {
+        const how = document.querySelector('[data-about-group="how-it-works"]');
+        const capstone = document.querySelector('[data-about-group="capstone"]');
+        if (!how || !capstone) return null;
+        // The heading's top edge, not the section's padding box: the space a reader sees.
+        const heading = capstone.querySelector('h2');
+        return (heading ?? capstone).getBoundingClientRect().top - how.getBoundingClientRect().bottom;
+      });
+      expect(gap, `${viewport.width}px: sections exist`).not.toBeNull();
+      expect(gap!, `${viewport.width}px: gap between How it works and Capstone project`).toBeGreaterThanOrEqual(32);
+    }
+  });
+
   test('the four T0 statements are in the first viewport at 1440 and 390, visible with no hover', async ({ page }) => {
     for (const viewport of [DESKTOP, PHONE]) {
       await openAbout(page, { viewport });
@@ -294,8 +313,9 @@ test.describe('QUIET-BOX UI-ABOUT timing gates', () => {
       await expect(H1(page)).toBeVisible();
       await settle(page);
 
-      // A first visit under reduced motion: S1 shows its opacity-only set, the ribbon its final frame, the beam a
-      // frame, and a press on the ribbon moves its cursor with no transform left behind.
+      // A first visit under reduced motion. The snapshot runs after the entrance has ended, so G5 sees a transform
+      // left behind on S1, the ribbon or the beam; it does not see the entrance itself. That the S1 entrance is
+      // opacity-only under reduced motion is HC-UISK-005's job. A press on the ribbon moves its cursor.
       const offenders = await reducedMotionSnapshot(page, async () => {
         // S1 and the ribbon reveal play only on the first visit per session. Without this the reload takes the skip
         // path and the snapshot would not see S1 at all.

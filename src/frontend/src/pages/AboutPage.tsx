@@ -72,8 +72,9 @@ export function AboutPage() {
             ask your healthcare provider what it means for you.
           </p>
           <p data-t0 data-about-local-first>
-            Your records stay on this device, in an encrypted file for each profile. There is no cloud copy to restore
-            from. The one exception is an optional external AI setting, which is off unless you turn it on.
+            Your records stay on this device, encrypted in a separate vault for each profile. There is no cloud copy to
+            restore from. An optional external AI setting is the one exception: it is off unless you turn it on, and
+            while it is on, its requests leave this device.
           </p>
         </section>
 
@@ -104,7 +105,9 @@ export function AboutPage() {
             </ol>
           </section>
 
-          <section data-about-group="capstone" aria-labelledby="about-capstone-heading" className="space-y-3">
+          {/* pt-10 stands in for main's space-y-10: ShowcaseReveal wraps each section in its own div, so the sibling
+              margin never reaches between the two sections. */}
+          <section data-about-group="capstone" aria-labelledby="about-capstone-heading" className="space-y-3 pt-10">
             <h2 id="about-capstone-heading" className="font-display text-2xl font-semibold tracking-tight">
               Capstone project
             </h2>
