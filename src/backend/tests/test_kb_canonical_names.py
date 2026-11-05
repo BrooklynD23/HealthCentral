@@ -1204,7 +1204,7 @@ def test_hc_kcn_008_chip_display_key_is_the_stored_name():
     assert block, "DISPLAY map not found"
     entries = dict(re.findall(r"^\s*(\w+):\s*'([^']*)'", block.group(1), re.M))
     assert entries.get("hba1c") == "A1C", entries
-    assert "hemoglobin_a1c" not in entries, "the old key matches no stored name"
+    assert "hemoglobin_a1c" not in entries, "the chip map is keyed by the stored `hba1c`, not the old name"
     assert entries.get("glucose") == "Glucose"
     assert "DISPLAY[a] ??" in source and "How's my ${name}?" in source
 
@@ -1220,7 +1220,7 @@ def test_hc_kcn_008_chip_display_key_is_the_stored_name():
 # `info.analyte_canonical == stored`, and an aliased lookup returns the renamed row.
 # ---------------------------------------------------------------------------
 
-# (label, stored name the normalizer gives it, value, ref_low, ref_high, flag, severity)
+# (value, flag, severity) for a `Glucose Fasting` result stored as `glucose_fasting`
 OLD_NAME_GLUCOSE = [
     pytest.param(450.0, "H", "critical_high", id="450-high"),
     pytest.param(40.0, "L", "critical_low", id="40-low"),
@@ -1353,7 +1353,8 @@ async def test_hc_kcn_009_one_loader_asked_for_both_names_gives_one_answer(maste
 @pytest.mark.parametrize("name", ["glucose_fasting", "hemoglobin_a1c", "wbc"])
 def test_hc_kcn_009_biomarker_route_reads_old_and_new_names_the_same(data_root, name):
     """Through HTTP (route_client), real master session. The session is created here, in a sync
-    test, and first connects inside the TestClient's loop (NullPool: no connection outlives a call).
+    test, and first connects inside the TestClient's loop. It is closed on that loop and the engine
+    disposed before the test ends, so no connection worker thread is left running (measured).
     Would not notice: the response_model hiding a field; both bodies come from the same model."""
     from sqlalchemy.pool import NullPool
 
@@ -1370,6 +1371,8 @@ def test_hc_kcn_009_biomarker_route_reads_old_and_new_names_the_same(data_root, 
         new_resp = client.get(f"/interpretations/knowledge/biomarker/{new}")
         shout = client.get(f"/interpretations/knowledge/biomarker/{name.upper()}")
         missing = client.get("/interpretations/knowledge/biomarker/not_a_biomarker")
+        client.portal.call(session.close)
+        client.portal.call(engine.dispose)
     assert new_resp.status_code == 200, new_resp.text
     assert old_resp.status_code == 200, old_resp.text
     assert old_resp.json() == new_resp.json()
