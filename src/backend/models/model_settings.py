@@ -111,10 +111,10 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
-    # OCR for scanned PDFs / lab images (Phase 1+); default on for new profiles
+    # OCR for scanned PDFs / lab images (Phase 1+); off until the patient opts in
     ocr_preference_enabled: Mapped[bool] = mapped_column(
         Boolean,
-        default=True,
+        default=False,
         nullable=False,
     )
 
