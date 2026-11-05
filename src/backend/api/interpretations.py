@@ -1115,6 +1115,7 @@ async def batch_generate_interpretations(
                     intent="started",
                 )
 
+    withheld_results: dict[str, object] = {}
     for obs_id in request.observation_ids:
         try:
             validate_uuid(obs_id, "observation_id")
@@ -1152,6 +1153,10 @@ async def batch_generate_interpretations(
                 force_regenerate=force,
             )
 
+            # `is True`: a result object without the flag (test doubles) is not withheld.
+            if getattr(result, "withheld", False) is True:
+                withheld_results.setdefault(obs_id, result)  # a repeated id gets one row
+
             if result.success:
                 successful.append(obs_id)
             else:
@@ -1169,6 +1174,12 @@ async def batch_generate_interpretations(
     logger.info(
         f"Batch interpretation: {len(successful)} successful, {len(failed)} failed"
     )
+
+    # INTERP-WITHHOLD-MSG, as the single card does: one row per withheld card. Written after
+    # the loop and outside its try, so a failed audit write raises (fail closed) instead of
+    # becoming a "failed" entry that reads "Internal error"; before the closing row.
+    for obs_id, res in withheld_results.items():
+        await _audit_withheld(master_db, session.profile_id, obs_id, res, False)
 
     await _audit_interpretation(
         master_db, "batch_generate", session.profile_id,
