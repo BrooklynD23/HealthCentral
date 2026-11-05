@@ -34,6 +34,7 @@ HC-VRC-024  a withheld rebuild keeps the old row and serves none of its text
 HC-VRC-025  strict safety mode refuses first
 HC-VRC-026  audit rows of a rebuilding read
 HC-VRC-027  no rewrite loop: a fresh card is never stale
+HC-VRC-028  grounded and batch reach the rebuild; GET keeps its ownership check
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -58,6 +59,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 import api.export as export_api
+import api.interpretations as interp_api
 import api.observations as obs_api
 import models  # noqa: F401  (registers tables on Base.metadata)
 from api import documents as documents_api
@@ -1427,6 +1429,37 @@ async def test_hc_vrc_018_knowledge_base_form_is_rebuilt(rdbs, method, place, ol
     assert resp.json()["id"] != old_id
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("place,old_place", [("above", "within"), ("below", "within"),
+                                              ("within", "above"), ("within", "below")])
+async def test_hc_vrc_018_knowledge_base_form_is_rebuilt_when_the_kb_row_has_another_id(
+    rdbs, method, place, old_place
+):
+    # Every install seeds its own KB row ids (seed_knowledge_base.py uses generate_uuid), so a
+    # vault restored onto a re-seeded master DB holds cards whose [KB:<id>] marker names a row
+    # that no longer exists. The words are the same; only the id differs.
+    profile_db, master_db = rdbs
+    data = next(d for d in BIOMARKER_DATA if d["analyte_canonical"] == "ldl_cholesterol")
+    master_db.add(BiomarkerKnowledge(id="kb-from-another-seed", **data))
+    await master_db.commit()
+    kb = _kb_from(data)  # the id the card was written with: kb-ldl_cholesterol
+    value = {**PLACE_VALUE, "within": 85.0}[place]
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(value=value, analyte_canonical="ldl_cholesterol", is_abnormal=place != "within"),
+        _kb_text(kb, old_place), _kb_text(kb, place), kb=kb)
+    assert "[KB:kb-ldl_cholesterol]" in old_text and "kb-from-another-seed" not in old_text
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    text = resp.json()["interpretation_text"]
+    field = {"above": "high", "below": "low", "within": "normal"}
+    assert data[f"{field[place]}_interpretation"] in text, text
+    assert data[f"{field[old_place]}_interpretation"] not in text, text
+    assert "[KB:kb-from-another-seed]" in text
+    assert resp.json()["id"] != old_id
+    assert len(await _cards_of(profile_db, obs.id)) == 1
+
+
 # ── HC-VRC-019: a card in agreement is returned untouched ────────────────────
 
 AGREE_CASES = [
@@ -1521,8 +1554,9 @@ async def _panels(profile_db) -> list[PanelInterpretation]:
 async def _old_panel(profile_db, rows: list[dict], shown_abnormal: list[bool], *,
                      model_id="template-v1", old_card: tuple[str, str] | None = None):
     """Observations, their saved cards, and a saved cmp panel whose summary was written from
-    `shown_abnormal` (what main stored: is_abnormal as import saved it). With `old_card` =
-    (old, new), the first member's card says `old` where today's text says `new`."""
+    `shown_abnormal` (what main stored: is_abnormal as import saved it) and each member's own
+    severity from the real classifier, as main's panel writer read it from the saved card. With
+    `old_card` = (old, new), the first member's card says `old` where today's text says `new`."""
     obs_list, summaries = [], []
     for kw in rows:
         obs = _obs(user_verified=True, collected_at=DAY, **kw)
@@ -1533,12 +1567,13 @@ async def _old_panel(profile_db, rows: list[dict], shown_abnormal: list[bool], *
     if old_card is not None:
         assert old_card[1] in texts[0], texts[0]
         texts[0] = texts[0].replace(old_card[1], old_card[0])
+    severities = [_module()._classify_severity(o.value, o.ref_low, o.ref_high, None) for o in obs_list]
     obs_list = [SimpleNamespace(id=o.id, analyte_canonical=o.analyte_canonical, value=o.value, unit=o.unit)
                 for o in obs_list]
-    for obs, shown, text in zip(obs_list, shown_abnormal, texts):
+    for obs, shown, text, severity in zip(obs_list, shown_abnormal, texts, severities):
         await _add_card(profile_db, obs.id, text)
         summaries.append({"analyte": obs.analyte_canonical, "value": obs.value, "unit": obs.unit,
-                          "severity": "abnormal_high" if shown else "normal", "is_abnormal": shown})
+                          "severity": severity, "is_abnormal": shown})
     summary_text = _module()._generate_panel_summary("cmp", "Comprehensive Metabolic Panel", summaries)
     panel = PanelInterpretation(
         id=str(uuid.uuid4()), profile_id=PROFILE_ID, panel_name="cmp", collected_at=DAY,
@@ -1934,3 +1969,83 @@ async def test_hc_vrc_027_a_panel_with_a_withheld_member_is_never_stale(rdbs):
         assert spy.writes == (0, 0)
         spy.close()
     assert len(await _panels(profile_db)) == 1
+
+
+# ── HC-VRC-028: the other POST routes reach the rebuild; GET keeps its ownership check ──
+
+
+def _stub_rag():
+    """A RAG module that answers without a model (the grounded route calls it after the card)."""
+    verification = SimpleNamespace(
+        verification_enabled=False, total_claims=0, verified_claims=0, failed_claims=0,
+        faithfulness_score=0.0, authority_score=0.0, verification_summary="",
+        claims_with_issues=[],
+    )
+    answer = SimpleNamespace(
+        segments=[], verification=verification, prohibited_advice=False, is_valid=True,
+        insufficient_context=False, insufficient_reasons=[], validation_errors=[],
+    )
+    return SimpleNamespace(query=AsyncMock(return_value=answer))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_028_interpret_grounded_rebuilds_a_stale_card_once(rdbs):
+    # the route LabInterpreter's Generate button calls
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    url = f"/interpretations/observations/{obs.id}/interpret-grounded"
+    with patch.object(interp_api, "get_rag_module", return_value=_stub_rag()):
+        first = _call(profile_db, master_db, interpretations_router, "/interpretations", "POST", url)
+        assert first.status_code == 201, first.text
+        card = first.json()["interpretation"]
+        assert ABOVE in card["interpretation_text"] and WITHIN not in card["interpretation_text"]
+        assert card["id"] != old_id
+        (row,) = await _cards_of(profile_db, obs.id)
+        assert row.id == card["id"] and row.regeneration_count == 1
+        spy = _WriteSpy(profile_db)
+        again = _call(profile_db, master_db, interpretations_router, "/interpretations", "POST", url)
+        assert again.status_code == 201, again.text
+        assert again.json()["interpretation"]["id"] == card["id"]
+        assert spy.writes == (0, 0), "a second grounded read wrote"
+        spy.close()
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_028_batch_rebuilds_a_stale_card_once(rdbs):
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    body = {"observation_ids": [obs.id]}
+    first = _call(profile_db, master_db, interpretations_router, "/interpretations", "POST",
+                  "/interpretations/batch", json=body)
+    assert first.status_code == 200, first.text
+    assert first.json()["successful"] == [obs.id] and first.json()["failed"] == []
+    (row,) = await _cards_of(profile_db, obs.id)
+    assert row.id != old_id
+    assert ABOVE in row.interpretation_text and WITHIN not in row.interpretation_text
+    assert row.regeneration_count == 1
+    spy = _WriteSpy(profile_db)
+    again = _call(profile_db, master_db, interpretations_router, "/interpretations", "POST",
+                  "/interpretations/batch", json=body)
+    assert again.status_code == 200, again.text
+    assert again.json()["successful"] == [obs.id]
+    assert spy.writes == (0, 0), "a second batch read wrote"
+    spy.close()
+    assert (await _cards_of(profile_db, obs.id))[0].id == row.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+async def test_hc_vrc_028_a_stale_card_on_another_profiles_row_is_403_and_untouched(rdbs, method):
+    # The ownership check now guards a write: it must run before any rebuild.
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False, profile_id="another-profile"), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == "Access denied to this observation"
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_events(master_db) == []
