@@ -1,4 +1,4 @@
-"""HC-OCR-001..017 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
+"""HC-OCR-001..021 -- RAPIDOCR-BUNDLE: scanned pages are read locally by RapidOCR.
 
 Medical data path. Every fixture here is synthetic (PIL ImageFont.load_default,
 no real patient data) and drawn on the column and ruled-grid layouts of the
@@ -38,10 +38,12 @@ import sys
 import time
 import uuid
 import zlib
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from fastapi import APIRouter
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -51,10 +53,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import modules  # noqa: E402
 from api import documents as documents_api  # noqa: E402
 from api.documents import router as documents_router  # noqa: E402
+from api.model_settings import router as model_settings_router  # noqa: E402
 from core import config as cfg  # noqa: E402
 from core.auth import get_profile_db_session  # noqa: E402
 from core.profile_database import ProfileDatabaseBase  # noqa: E402
-from models import Observation  # noqa: E402
+from models import Observation, UserModelSettings  # noqa: E402
 from modules import extract  # noqa: E402
 from modules.extract import ExtractModule  # noqa: E402
 from modules.ingest import ImportResult  # noqa: E402
@@ -232,6 +235,12 @@ def _ocr_on(monkeypatch) -> None:
     monkeypatch.setattr(cfg.settings, "ocr_enabled", True)
 
 
+async def _patient_opted_in(profile_db) -> None:
+    """The patient has switched OCR on (OCR-DEFAULT-ON: a profile now starts with it off)."""
+    profile_db.add(UserModelSettings(profile_id="profile-a", ocr_preference_enabled=True))
+    await profile_db.commit()
+
+
 # ---------------------------------------------------------------------------
 # Native socket check (the Python guard cannot see libcurl inside a wheel)
 # ---------------------------------------------------------------------------
@@ -401,8 +410,8 @@ async def profile_db():
         await engine.dispose()
 
 
-def _import_over_http(profile_db, monkeypatch, tmp_path, filename: str, data: bytes):
-    """POST ``data`` to /documents/import with the real extractor and real doc-type detection."""
+def _stub_vault(monkeypatch, tmp_path) -> None:
+    """Replace the encrypted vault with an in-memory one; extraction and doc-type detection stay real."""
     from modules.ingest import IngestModule as RealIngest
 
     stored: dict[str, bytes] = {}
@@ -440,6 +449,11 @@ def _import_over_http(profile_db, monkeypatch, tmp_path, filename: str, data: by
     )
     monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
 
+
+def _import_over_http(profile_db, monkeypatch, tmp_path, filename: str, data: bytes):
+    """POST ``data`` to /documents/import with the real extractor and real doc-type detection."""
+    _stub_vault(monkeypatch, tmp_path)
+
     master = _CommitTrackingMasterDb()
     with route_client(
         documents_router, "/documents", profile_id="profile-a", master_db=master
@@ -453,6 +467,25 @@ def _import_over_http(profile_db, monkeypatch, tmp_path, filename: str, data: by
             "/documents/import", files={"file": (filename, data, "application/pdf")}
         )
     return response, master
+
+
+@contextmanager
+def _patient_client(profile_db, monkeypatch, tmp_path):
+    """One HTTP client for the documents and settings routes of ONE profile, sharing one vault DB."""
+    _stub_vault(monkeypatch, tmp_path)
+    router = APIRouter()
+    router.include_router(documents_router, prefix="/documents")
+    router.include_router(model_settings_router, prefix="/settings/model")
+
+    with route_client(
+        router, "", profile_id="profile-a", master_db=_CommitTrackingMasterDb()
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        yield client
 
 
 # ---------------------------------------------------------------------------
@@ -635,6 +668,7 @@ async def test_hc_ocr_006_scanned_pdf_import_is_parsed_not_pending(profile_db, m
     pytest.importorskip("rapidocr")
     import json as _json
 
+    await _patient_opted_in(profile_db)
     _ocr_on(monkeypatch)
     _no_tesseract(monkeypatch)
 
@@ -762,6 +796,8 @@ async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
     from unittest.mock import patch
 
     assert cfg.Settings.model_fields["ocr_enabled"].default is False
+    # The patient has opted in, so only the admin switch can hold the import at pending_ocr.
+    await _patient_opted_in(profile_db)
     monkeypatch.setattr(cfg.settings, "ocr_enabled", False)  # the code default
     _no_tesseract(monkeypatch)
 
@@ -800,6 +836,207 @@ async def test_hc_ocr_009_default_off_pin(profile_db, monkeypatch, tmp_path):
     assert [o for o in mixed_rows if o.source_page == 2] == []
     assert len([o for o in mixed_rows if o.source_page == 1]) == 3
     assert ocr_calls == [], "OCR is off: no page may be sent to the OCR engine"
+
+
+# ---------------------------------------------------------------------------
+# HC-OCR-018 .. 021: OCR is the patient's choice (OCR-DEFAULT-ON)
+# ---------------------------------------------------------------------------
+
+_SCAN_TEXT = "Glucose 95 mg/dL 70-100\nCreatinine 1.1 mg/dL 0.6-1.3"
+
+
+def _engine_present(monkeypatch) -> list:
+    """Admin OCR on and an engine 'installed', without needing one. Returns the OCR-reader spy log."""
+    _ocr_on(monkeypatch)
+    monkeypatch.setattr(cfg, "_ocr_engine_available", lambda: True)
+    monkeypatch.setattr(extract, "rapidocr_ready", lambda: True)
+    reads: list = []
+
+    def reader(image):
+        reads.append(image.size)
+        return _SCAN_TEXT
+
+    monkeypatch.setattr(extract, "_ocr_image_text", reader)
+    return reads
+
+
+async def _settings_rows(profile_db) -> list:
+    return list((await profile_db.execute(select(UserModelSettings))).scalars().all())
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_018_a_settings_row_made_by_another_write_does_not_turn_ocr_on(
+    profile_db, monkeypatch, tmp_path
+):
+    """A tier save, a voice toggle or hardware detection creates the row; none of them is an OCR choice."""
+    _engine_present(monkeypatch)
+
+    with _patient_client(profile_db, monkeypatch, tmp_path) as client:
+        voice = client.patch("/settings/model/voice", json={"voice_modal_seen": True})
+        assert voice.status_code == 200, voice.text
+        response = client.get("/settings/model")
+
+    assert len(await _settings_rows(profile_db)) == 1
+    assert response.status_code == 200, response.text
+    assert response.json()["ocr_preference_enabled"] is False, response.json()
+    assert response.json()["ocr_effective"] is False
+    assert "user_disabled" in response.json()["ocr_blockers"]
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_019_no_settings_row_means_ocr_off_and_the_scan_waits(
+    profile_db, monkeypatch, tmp_path
+):
+    reads = _engine_present(monkeypatch)
+
+    with _patient_client(profile_db, monkeypatch, tmp_path) as client:
+        response = client.get("/settings/model")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["ocr_preference_enabled"] is False, body
+        assert body["ocr_effective"] is False, body
+        assert "user_disabled" in body["ocr_blockers"], body
+        assert await _settings_rows(profile_db) == [], "reading the setting must not create a row"
+
+        imported = client.post(
+            "/documents/import",
+            files={"file": ("scan.pdf", _image_only_pdf(_column_page()), "application/pdf")},
+        )
+
+    assert imported.status_code == 201, imported.text
+    assert imported.json()["document"]["status"] == "pending_ocr", imported.json()["document"]
+    assert imported.json()["observations_extracted"] == 0
+    assert reads == [], "OCR was never switched on: no page may reach the OCR reader"
+    assert (await profile_db.execute(select(Observation))).scalars().all() == []
+    assert await _settings_rows(profile_db) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_ocr_020_the_patient_opts_in_and_the_waiting_scan_is_read(
+    profile_db, monkeypatch, tmp_path
+):
+    reads = _engine_present(monkeypatch)
+
+    with _patient_client(profile_db, monkeypatch, tmp_path) as client:
+        imported = client.post(
+            "/documents/import",
+            files={"file": ("scan.pdf", _image_only_pdf(_column_page()), "application/pdf")},
+        )
+        assert imported.status_code == 201, imported.text
+        assert imported.json()["document"]["status"] == "pending_ocr", imported.json()["document"]
+        doc_id = imported.json()["document"]["id"]
+        assert reads == []
+
+        opted = client.patch("/settings/model/ocr", json={"ocr_preference_enabled": True})
+        assert opted.status_code == 200, opted.text
+        assert opted.json()["ocr_preference_enabled"] is True, opted.json()
+        assert opted.json()["ocr_effective"] is True, opted.json()
+        assert opted.json()["ocr_blockers"] == [], opted.json()
+
+        current = client.get("/settings/model").json()
+        assert current["ocr_effective"] is True and current["ocr_blockers"] == [], current
+
+        reprocessed = client.post(f"/documents/{doc_id}/reprocess")
+
+    assert reprocessed.status_code == 200, reprocessed.text
+    assert reprocessed.json()["document"]["status"] == "parsed", reprocessed.json()["document"]
+    assert reprocessed.json()["observations_extracted"] == 2, reprocessed.json()
+    assert reads, "the opted-in patient's scan must reach the OCR reader"
+
+    rows = (await profile_db.execute(select(Observation))).scalars().all()
+    assert len(rows) == 2
+    assert all(r.user_verified is False for r in rows), [r.user_verified for r in rows]
+
+
+_DEV_SH = REPO_ROOT / "dev.sh"
+_DEV_PS1 = REPO_ROOT / "dev.ps1"
+
+
+def _block(path: Path, opener: str, closer: str) -> str:
+    """The text from the first line starting with ``opener`` to the first line that is exactly ``closer``."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith(opener))
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == closer)
+    return "\n".join(lines[start : end + 1])
+
+
+def _run_dev_sh_ocr_sync(tmp_path, *, tesseract: bool, probe_exit: int, skip: bool = False) -> dict:
+    """Run dev.sh's real OCR sync block under bash with stubbed helpers and a stub venv python."""
+    block = _block(_DEV_SH, 'if [ "${HC_SKIP_OCR_SETUP:-}" != "1" ]; then', "fi")
+    backend = tmp_path / "backend"
+    backend.mkdir(exist_ok=True)
+    probe_log = tmp_path / "probe.log"
+    calls = tmp_path / "calls.log"
+    for log in (probe_log, calls):
+        log.unlink(missing_ok=True)
+    venv_py = tmp_path / "venv_python"
+    venv_py.write_text('#!/bin/bash\npwd -P > "$PROBE_LOG"\nprintf "%s\\n" "$@" >> "$PROBE_LOG"\nexit "$PROBE_EXIT"\n')
+    venv_py.chmod(0o755)
+    script = (
+        "set -euo pipefail\n"
+        'ok() { echo "ok:$*" >> "$CALLS"; }\n'
+        'warn() { echo "warn:$*" >> "$CALLS"; }\n'
+        'set_env_key() { echo "set:$2=$3" >> "$CALLS"; }\n'
+        + block
+        + '\necho DONE >> "$CALLS"\n'
+    )
+    env = {
+        k: v for k, v in os.environ.items() if k != "HC_SKIP_OCR_SETUP"
+    } | {
+        "BACKEND_DIR": str(backend),
+        "ENV_FILE": str(tmp_path / ".env"),
+        "VENV_PY": str(venv_py),
+        "TESSERACT_OK": "1" if tesseract else "0",
+        "PROBE_EXIT": str(probe_exit),
+        "PROBE_LOG": str(probe_log),
+        "CALLS": str(calls),
+    }
+    if skip:
+        env["HC_SKIP_OCR_SETUP"] = "1"
+    done = subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    lines = calls.read_text().splitlines()
+    assert lines and lines[-1] == "DONE", lines
+    probe = probe_log.read_text().splitlines() if probe_log.exists() else None
+    return {"calls": lines[:-1], "probe": probe, "backend": str(backend.resolve())}
+
+
+@pytest.mark.skipif(sys.platform == "win32" or shutil.which("bash") is None, reason="needs bash")
+def test_hc_ocr_021_launchers_enable_ocr_when_the_bundled_engine_is_found(tmp_path):
+    """dev.sh runs for real; dev.ps1 cannot run here, so only its text is checked."""
+    # RapidOCR found, no Tesseract (the case the old launcher got wrong)
+    got = _run_dev_sh_ocr_sync(tmp_path, tesseract=False, probe_exit=0)
+    assert [c for c in got["calls"] if c.startswith("set:")] == ["set:OCR_ENABLED=true"], got
+    assert any(c.startswith("ok:") and "RapidOCR" in c and "Tesseract" not in c for c in got["calls"]), got
+    assert got["probe"][0] == got["backend"], "the probe must run from the backend directory"
+    assert "rapidocr_ready" in "\n".join(got["probe"][1:]), got["probe"]
+
+    # neither engine
+    got = _run_dev_sh_ocr_sync(tmp_path, tesseract=False, probe_exit=1)
+    assert [c for c in got["calls"] if c.startswith("set:")] == ["set:OCR_ENABLED=false"], got
+    assert any(c.startswith("warn:") for c in got["calls"]), got
+    assert got["probe"] is not None, "RapidOCR is checked first, so the probe always runs"
+
+    # Tesseract only (a failing probe must give false, never a crash: bash -e is on)
+    got = _run_dev_sh_ocr_sync(tmp_path, tesseract=True, probe_exit=1)
+    assert [c for c in got["calls"] if c.startswith("set:")] == ["set:OCR_ENABLED=true"], got
+    assert any(c.startswith("ok:") and "Tesseract" in c and "RapidOCR" not in c for c in got["calls"]), got
+
+    # both
+    got = _run_dev_sh_ocr_sync(tmp_path, tesseract=True, probe_exit=0)
+    assert [c for c in got["calls"] if c.startswith("set:")] == ["set:OCR_ENABLED=true"], got
+    assert any(c.startswith("ok:") and "RapidOCR" in c and "Tesseract" in c for c in got["calls"]), got
+
+    # HC_SKIP_OCR_SETUP=1 leaves the .env alone and never runs the probe
+    got = _run_dev_sh_ocr_sync(tmp_path, tesseract=True, probe_exit=0, skip=True)
+    assert got["calls"] == [], got
+    assert got["probe"] is None, got
+
+    # dev.ps1: text only
+    ps1 = _block(_DEV_PS1, 'if ($env:HC_SKIP_OCR_SETUP -ne "1") {', "}")
+    assert "rapidocr_ready" in ps1, ps1
+    assert "Set-DotEnvKey" in ps1, ps1
+    assert "$LASTEXITCODE" in ps1 and "Pop-Location" in ps1, ps1
 
 
 def test_hc_ocr_014_disabled_ocr_loads_no_engine(tmp_path):

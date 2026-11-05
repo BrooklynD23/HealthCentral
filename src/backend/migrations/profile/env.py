@@ -158,6 +158,9 @@ def run_migrations_online() -> None:
     else:
         engine = create_engine(url, poolclass=pool.NullPool)
 
+    # PRAGMA foreign_keys stays OFF here on purpose: batch table rebuilds require
+    # it off, and migration 017 cleans orphans before the runtime engines turn it
+    # on (SQL-FK-001).
     # Register event to set PRAGMA key on every connection
     @event.listens_for(engine, "connect")
     def set_cipher_key(dbapi_connection, connection_record):

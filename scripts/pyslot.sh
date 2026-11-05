@@ -6,7 +6,7 @@ n="${PYSLOTS:-3}"
 mkdir -p /tmp/claude-1000
 while :; do
   for i in $(seq 1 "$n"); do
-    flock -n -E 75 "/tmp/claude-1000/hc-pytest.$i.lock" "$@"
+    flock -o -n -E 75 "/tmp/claude-1000/hc-pytest.$i.lock" "$@"
     rc=$?
     [ "$rc" -ne 75 ] && exit "$rc"
   done

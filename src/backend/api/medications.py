@@ -994,6 +994,7 @@ async def log_dose(
 
     # Calculate variance if schedule provided
     variance_minutes = None
+    schedule = None
     if schedule_id:
         schedule = await _schedule_for_medication(profile_db, schedule_id, medication_id)
         if schedule:
@@ -1015,7 +1016,7 @@ async def log_dose(
     dose_record = DoseTaken(
         id=str(uuid.uuid4()),
         medication_id=medication_id,
-        schedule_id=schedule_id,
+        schedule_id=schedule.id if schedule else None,
         taken_at=dose.taken_at,
         log_method=dose.log_method,
         dosage_amount=dose.dosage_amount or medication.dosage_amount,
@@ -1382,7 +1383,12 @@ async def learn_patterns(
 
     verify_medication_access(medication, session)
     if schedule_id:
-        await _schedule_for_medication(profile_db, schedule_id, medication_id)
+        schedule = await _schedule_for_medication(profile_db, schedule_id, medication_id)
+        if schedule is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Schedule not found",
+            )
 
     # taken_at is naive UTC; bucket by the profile's wall clock (ADHERE-TZ).
     settings_result = await profile_db.execute(

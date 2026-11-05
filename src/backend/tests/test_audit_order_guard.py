@@ -61,8 +61,8 @@ CLASSIFICATION: dict[str, str] = {
     "api/gamification.py::get_streaks": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::generate_interpretation": "A2",
     "api/interpretations.py::generate_grounded_interpretation": "A2",
-    "api/interpretations.py::get_interpretation": "C",  # row 21: GET sets viewed_at in the vault
-    "api/interpretations.py::generate_panel_interpretation": "C",
+    "api/interpretations.py::get_interpretation": "A2",  # a stale template card is rebuilt (deleted) on read
+    "api/interpretations.py::generate_panel_interpretation": "A2",  # a stale saved panel or member card is rebuilt (deleted) on read
     "api/interpretations.py::get_recent_interpretations": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::batch_generate_interpretations": "A2",
     "api/med_reconcile.py::get_med_reconciliation": "excluded: read route, audit_and_commit only",
@@ -193,7 +193,7 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
-        "alembic runner in a thread; own connection, schema only",
+        "alembic runner in a thread; schema, 017 orphan cleanup, the pre-017 snapshot copy and the unversioned-vault schema match; own connections, no audit session",
     "modules/extract.py::ExtractModule.extract_from_image::asyncio.to_thread(_ocr_image_text)":
         "RapidOCR in a thread over image bytes only, no DB session. _ocr_image_text reaches 10 defs "
         "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "

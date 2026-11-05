@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.observations import observation_range_status, status_is_abnormal
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import ProfileDbSession, RequireAuth, Session
 from core.config import compute_ocr_effective, settings, user_ocr_preference_enabled
@@ -657,7 +658,14 @@ async def _run_extraction_pipeline(
                 ref_high=extracted_obs.ref_high,
                 ref_range_text=extracted_obs.ref_range_text,
                 flag=extracted_obs.flag,
-                is_abnormal=extracted_obs.flag is not None,
+                is_abnormal=status_is_abnormal(
+                    observation_range_status(
+                        extracted_obs.flag, extracted_obs.value,
+                        extracted_obs.ref_low, extracted_obs.ref_high,
+                        bool((extracted_obs.ref_range_text or "").strip()),
+                    ),
+                    extracted_obs.flag is not None,
+                ),
                 extraction_confidence=extracted_obs.confidence,
                 source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
                 source_bbox_json=json.dumps(list(extracted_obs.provenance.bbox))
@@ -764,7 +772,14 @@ async def _run_structured_import_pipeline(
             ref_high=obs_data.get("ref_high"),
             ref_range_text=obs_data.get("ref_range_text"),
             flag=obs_data.get("flag"),
-            is_abnormal=obs_data.get("flag") is not None,
+            is_abnormal=status_is_abnormal(
+                observation_range_status(
+                    obs_data.get("flag"), obs_data.get("value"),
+                    obs_data.get("ref_low"), obs_data.get("ref_high"),
+                    bool((obs_data.get("ref_range_text") or "").strip()),
+                ),
+                obs_data.get("flag") is not None,
+            ),
             extraction_confidence=obs_data.get("confidence"),
             collected_at=_parse_date_string(obs_data.get("collected_at")),
             user_verified=False,
@@ -1874,9 +1889,11 @@ async def delete_document(
         profile_db, document_id, include_document=True
     )
 
-    # Entities/categories have no ORM cascade from Document (and SQLite FK
-    # enforcement is off); delete them explicitly so entity quotes — verbatim
-    # document text — cannot outlive the document into exports or pins.
+    # Entities/categories have no ORM cascade from Document. Their FK is
+    # ON DELETE CASCADE and the pragma is now ON, but delete them explicitly
+    # anyway (the privacy guarantee must not depend on connection setup) so
+    # entity quotes, verbatim document text, cannot outlive the document into
+    # exports or pins.
     await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
     await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 
