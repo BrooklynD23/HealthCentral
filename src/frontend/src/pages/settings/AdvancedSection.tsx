@@ -128,7 +128,25 @@ export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectio
   );
 }
 
-function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) {
+/**
+ * Starts the tiers request together with the model settings one. The tier card mounts only after the settings reply, so
+ * asking for the tiers there made them a second round trip (HC-UISET-020). This renders nothing and re-renders only itself.
+ */
+function StartTiersRequest() {
+  useTiers();
+  return null;
+}
+
+function AdvancedPanels(props: AdvancedSectionProps) {
+  return (
+    <>
+      <StartTiersRequest />
+      <AdvancedGate {...props} />
+    </>
+  );
+}
+
+function AdvancedGate({ exportResult, onExportResult }: AdvancedSectionProps) {
   // The panels wait on the model settings, and say so when they cannot load. Each card below asks for the rest itself, so a
   // reply re-renders its own card and not the whole panel: opening Advanced is a burst of replies, and one render of the
   // whole panel per reply was the long task in that burst (G10, stillness).
@@ -190,7 +208,7 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
 
 function TierCard() {
   const { data: settings } = useModelSettings();
-  const { data: tiersData } = useTiers();
+  const { data: tiersData, isLoading: tiersLoading } = useTiers();
   const setTier = useSetTier();
   const startDownload = useStartDownload();
   const queryClient = useQueryClient();
@@ -238,7 +256,13 @@ function TierCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6 space-y-3">
-        {tiersData?.tiers.map((tier) => {
+        {tiersLoading ? (
+          <div data-testid="tiers-loading" className="space-y-3">
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-24 rounded-xl" />
+          </div>
+        ) : tiersData?.tiers.map((tier) => {
           const desc = tierDescriptions[tier.tier];
           const isSelected = settings?.preferred_tier === tier.tier;
           const isRecommended = tiersData.recommended_tier === tier.tier;
