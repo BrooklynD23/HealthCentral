@@ -592,7 +592,8 @@ if (-not $sqlcipherAvailable) {
     }
 }
 
-# Match backend gate: OCR_ENABLED is meaningful only when Tesseract is on PATH.
+# Match backend gate: OCR_ENABLED is meaningful only when an OCR engine exists:
+# bundled RapidOCR (checked first, in the backend venv) or Tesseract on PATH.
 if ($env:HC_SKIP_OCR_SETUP -ne "1") {
     Refresh-EnvPathFromRegistry
     if ($env:OS -eq "Windows_NT") {
@@ -603,11 +604,27 @@ if ($env:HC_SKIP_OCR_SETUP -ne "1") {
         [void](Add-TesseractToPathIfPresent)
         $tesseractResolved = Test-TesseractOnPath
     }
-    Set-DotEnvKey -FilePath $ENV_FILE -Key "OCR_ENABLED" -Value $(if ($tesseractResolved) { "true" } else { "false" })
-    if ($tesseractResolved) {
+    # The probe loads the OCR engine; it takes several seconds on a first run.
+    Write-Status "Checking for the bundled RapidOCR engine ..."
+    $rapidocrResolved = $false
+    Push-Location $BACKEND_DIR
+    try {
+        & $venvPython -c "from modules.extract import rapidocr_ready; raise SystemExit(0 if rapidocr_ready() else 1)" 2>&1 | Out-Null
+        $rapidocrResolved = ($LASTEXITCODE -eq 0)
+    } catch {
+        $rapidocrResolved = $false
+    } finally {
+        Pop-Location
+    }
+    Set-DotEnvKey -FilePath $ENV_FILE -Key "OCR_ENABLED" -Value $(if ($rapidocrResolved -or $tesseractResolved) { "true" } else { "false" })
+    if ($rapidocrResolved -and $tesseractResolved) {
+        Write-Ok "Synced .env: OCR_ENABLED=true (RapidOCR and Tesseract found)"
+    } elseif ($rapidocrResolved) {
+        Write-Ok "Synced .env: OCR_ENABLED=true (RapidOCR found)"
+    } elseif ($tesseractResolved) {
         Write-Ok "Synced .env: OCR_ENABLED=true (Tesseract on PATH)"
     } else {
-        Write-Warn "Synced .env: OCR_ENABLED=false (Tesseract not detected - install and re-run dev.ps1)"
+        Write-Warn "Synced .env: OCR_ENABLED=false (neither RapidOCR nor Tesseract found - re-run dev.ps1 after installing dependencies)"
     }
 }
 

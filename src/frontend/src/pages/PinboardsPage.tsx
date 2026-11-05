@@ -1,6 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Input } from '@/components/ui';
+import { AlertDialog } from '@/components/ui/AlertDialog';
+import { Dialog } from '@/components/ui/Dialog';
 import {
   downloadVisitPrep,
   useCreatePinboard,
@@ -10,6 +12,8 @@ import {
   usePinboards,
   useRemovePinboardItem,
   useRenamePinboard,
+  type Pinboard,
+  type PinboardItem,
 } from '@/services';
 
 const ITEM_LABELS = {
@@ -26,12 +30,36 @@ export function PinboardsPage() {
   const [reason, setReason] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [lastExportBoardId, setLastExportBoardId] = useState<string | null>(null);
+  // Rename and Delete ask through dialogs. The target is the board that was selected when the dialog opened.
+  const [renameTarget, setRenameTarget] = useState<Pinboard | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [renameFailed, setRenameFailed] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Pinboard | null>(null);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const [deletedId, setDeletedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const renameButton = useRef<HTMLButtonElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const saveButton = useRef<HTMLButtonElement>(null);
+  const confirmDeleteButton = useRef<HTMLButtonElement>(null);
   const createBoard = useCreatePinboard();
   const renameBoard = useRenamePinboard();
   const deleteBoard = useDeletePinboard();
   const removeItem = useRemovePinboardItem();
   const exportBoard = useExportPinboard();
-  const { data: items = [] } = usePinboardItems(selectedId || undefined);
+  const newNameInput = useRef<HTMLInputElement>(null);
+
+  const selected = pinboards.find((board) => board.id === selectedId);
+  // The delete invalidates every pinboard query by prefix, which would ask for the deleted board's items once more while
+  // it is still selected, and the route answers 404. So a board's items are not observed once the list no longer has it,
+  // nor while its own delete is in flight; the panel keeps the items it showed.
+  // `deletingId` is set in the click handler, before the request: the mutation's own pending state reaches this
+  // component a render later, and a quick answer would invalidate before the observer had stopped.
+  const observedId = selected && selected.id !== deletingId ? selected.id : undefined;
+  const itemsQuery = usePinboardItems(observedId);
+  const shownItems = useRef<PinboardItem[]>([]);
+  if (observedId) shownItems.current = itemsQuery.data ?? [];
+  const items = observedId ? (itemsQuery.data ?? []) : shownItems.current;
 
   const selectBoard = (boardId: string) => {
     setSelectedId(boardId);
@@ -50,8 +78,6 @@ export function PinboardsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinboards, selectedId]);
 
-  const selected = pinboards.find((board) => board.id === selectedId);
-
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (!newName.trim()) return;
@@ -60,17 +86,101 @@ export function PinboardsPage() {
     selectBoard(board.id);
   };
 
+  // The dialogs open from buttons, not from Radix triggers, so Radix has no element to give focus back to and focus
+  // would fall to <body>. It goes back to the button that opened the dialog. After the render: while the dialog is
+  // still open its focus trap would pull the focus straight back.
+  const focusLater = (target: () => HTMLElement | null | undefined) =>
+    requestAnimationFrame(() => target()?.focus());
+
   const handleRename = () => {
     if (!selected) return;
-    const name = window.prompt('Pinboard name', selected.name)?.trim();
-    if (name) renameBoard.mutate({ pinboardId: selected.id, name });
+    setRenameTarget(selected);
+    setRenameValue(selected.name);
+    setRenameFailed(false);
+  };
+
+  const closeRename = () => {
+    setRenameTarget(null);
+    setRenameFailed(false);
+    focusLater(() => renameButton.current);
+  };
+
+  // Escape, the overlay and Cancel do nothing while the request runs: the rename would still go through with no dialog
+  // left to show a failure in.
+  const dismissRename = () => {
+    if (!renameBoard.isPending) closeRename();
+  };
+
+  const submitRename = async (event: FormEvent) => {
+    event.preventDefault();
+    const name = renameValue.trim();
+    if (!renameTarget || !name || renameBoard.isPending) return;
+    try {
+      await renameBoard.mutateAsync({ pinboardId: renameTarget.id, name });
+      closeRename();
+    } catch {
+      // The dialog stays open with the name the patient typed, and says so.
+      setRenameFailed(true);
+    }
   };
 
   const handleDelete = () => {
-    if (selected && window.confirm(`Delete "${selected.name}"?`)) {
-      deleteBoard.mutate(selected.id);
-    }
+    if (!selected) return;
+    setDeleteTarget(selected);
+    setDeleteFailed(false);
   };
+
+  const closeDelete = () => {
+    setDeleteTarget(null);
+    setDeleteFailed(false);
+    focusLater(() => deleteButton.current);
+  };
+
+  // Same for Delete: a delete cannot be undone, so a closed dialog must not hide one that is still on its way.
+  const dismissDelete = () => {
+    if (!deleteBoard.isPending) closeDelete();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleteBoard.isPending) return;
+    const { id } = deleteTarget;
+    setDeletingId(id);
+    try {
+      await deleteBoard.mutateAsync(id);
+    } catch {
+      setDeleteFailed(true);
+      return;
+    } finally {
+      setDeletingId(null);
+    }
+    setDeleteTarget(null);
+    setDeleteFailed(false);
+    setDeletedId(id);
+  };
+
+  // After a delete, focus goes to the Delete button of the board that takes its place, or to the new-pinboard box when
+  // none is left, so a keyboard user is never dropped on <body>. It waits for the list to drop the board and for the
+  // next one to be selected: until then the panel (and its buttons) is replaced, and a focus() would hit a dead node.
+  useEffect(() => {
+    if (!deletedId || deleteTarget) return;
+    if (pinboards.some((board) => board.id === deletedId)) return;
+    if (pinboards.length === 0) newNameInput.current?.focus();
+    else if (selected && selected.id !== deletedId) deleteButton.current?.focus();
+    else return;
+    setDeletedId(null);
+  }, [deletedId, deleteTarget, pinboards, selected]);
+
+  // A refused Save or Delete re-enables the button the patient clicked, but the browser had already moved focus off it
+  // when it was disabled for the request, so focus sits on <body>. It goes back to that button, only when it fell to
+  // <body> (an Enter in the name box keeps focus where it is).
+  useEffect(() => {
+    if (renameFailed && !renameBoard.isPending && document.activeElement === document.body) saveButton.current?.focus();
+  }, [renameFailed, renameBoard.isPending]);
+  useEffect(() => {
+    if (deleteFailed && !deleteBoard.isPending && document.activeElement === document.body) {
+      confirmDeleteButton.current?.focus();
+    }
+  }, [deleteFailed, deleteBoard.isPending]);
 
   const handleDownload = async () => {
     if (!exportBoard.data) return;
@@ -84,7 +194,12 @@ export function PinboardsPage() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+    return (
+      <div className="flex justify-center py-16" role="status" aria-live="polite">
+        <Loader2 className="h-6 w-6 motion-safe:animate-spin" />
+        <span className="sr-only">Loading pinboards...</span>
+      </div>
+    );
   }
 
   return (
@@ -97,7 +212,7 @@ export function PinboardsPage() {
       </div>
 
       <form onSubmit={handleCreate} className="flex max-w-xl gap-2">
-        <Input value={newName} onChange={(event) => setNewName(event.target.value)}
+        <Input ref={newNameInput} value={newName} onChange={(event) => setNewName(event.target.value)}
           placeholder="New pinboard name" aria-label="New pinboard name" />
         <Button type="submit" className="gap-1.5" disabled={!newName.trim() || createBoard.isPending}>
           <Plus className="h-4 w-4" /> Create
@@ -106,13 +221,14 @@ export function PinboardsPage() {
 
       {pinboards.length === 0 ? (
         <EmptyState icon={FolderOpen} title="No pinboards yet"
-          description="Create one, then pin records from the inbox or timeline." />
+          description="Create one, then pin records from the inbox or timeline."
+          action={<Button variant="secondary" onClick={() => newNameInput.current?.focus()}>Name a pinboard</Button>} />
       ) : (
         <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
           <Card><CardContent className="p-2">
             {pinboards.map((board) => (
               <button key={board.id} type="button" onClick={() => selectBoard(board.id)}
-                className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
+                className={`w-full rounded-xl px-3 py-2 text-left text-sm [overflow-wrap:anywhere] ${
                   board.id === selectedId ? 'bg-accent-subtle text-accent' : 'text-ink-secondary hover:bg-surface-muted'
                 }`}>
                 {board.name}
@@ -122,22 +238,23 @@ export function PinboardsPage() {
 
           {selected && <div className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>{selected.name}</CardTitle>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={handleRename}>Rename</Button>
-                  <Button variant="ghost" size="icon" aria-label="Delete pinboard" onClick={handleDelete}>
+              <CardHeader className="flex flex-row items-center justify-between gap-3">
+                <CardTitle className="min-w-0 [overflow-wrap:anywhere]">{selected.name}</CardTitle>
+                <div className="flex shrink-0 gap-2">
+                  <Button ref={renameButton} variant="secondary" size="sm" onClick={handleRename}>Rename</Button>
+                  <Button ref={deleteButton} variant="ghost" size="icon" aria-label="Delete pinboard" onClick={handleDelete}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
                 {items.length === 0 ? <p className="text-sm text-ink-secondary">No pinned items yet.</p> : (
-                  <ul className="divide-y divide-black/5">
-                    {items.map((item) => <li key={item.id} className="flex items-center justify-between py-3">
-                      <div><p className="text-sm font-medium text-ink">{ITEM_LABELS[item.item_type]}</p>
-                        <p className="font-mono text-xs text-ink-tertiary">{item.item_id}</p></div>
-                      <Button variant="ghost" size="icon" aria-label="Remove pinned item"
+                  <ul className="divide-y divide-border">
+                    {items.map((item) => <li key={item.id} className="flex items-center justify-between gap-3 py-3">
+                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                        <p data-t0 data-pinboard-item-label className="text-sm font-medium text-ink">{ITEM_LABELS[item.item_type]}</p>
+                        <p data-t0 data-pinboard-item-id className="font-mono text-xs text-ink-tertiary">{item.item_id}</p></div>
+                      <Button variant="ghost" size="icon" className="shrink-0" aria-label="Remove pinned item"
                         onClick={() => removeItem.mutate({ pinboardId: selected.id, itemId: item.id })}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -174,6 +291,63 @@ export function PinboardsPage() {
           </div>}
         </div>
       )}
+
+      <Dialog
+        open={renameTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) dismissRename();
+        }}
+        title="Rename pinboard"
+      >
+        <form onSubmit={(event) => void submitRename(event)} className="space-y-4">
+          <Input
+            label="Pinboard name"
+            value={renameValue}
+            onChange={(event) => {
+              setRenameValue(event.target.value);
+              setRenameFailed(false);
+            }}
+            onFocus={(event) => event.currentTarget.select()}
+          />
+          {renameFailed && (
+            <p role="alert" className="text-sm text-status-critical">
+              Could not rename the pinboard. Try again.
+            </p>
+          )}
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="secondary" disabled={renameBoard.isPending} onClick={dismissRename}>
+              Cancel
+            </Button>
+            <Button ref={saveButton} type="submit" disabled={!renameValue.trim() || renameBoard.isPending}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) dismissDelete();
+        }}
+        title="Delete this pinboard?"
+        className="[overflow-wrap:anywhere]"
+        description={`Delete "${deleteTarget?.name ?? 'this pinboard'}"? This cannot be undone.`}
+      >
+        {deleteFailed && (
+          <p role="alert" className="mb-3 text-sm text-status-critical">
+            Could not delete the pinboard. Try again.
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="secondary" data-alert-cancel disabled={deleteBoard.isPending} onClick={dismissDelete}>
+            Cancel
+          </Button>
+          <Button ref={confirmDeleteButton} type="button" variant="danger" disabled={deleteBoard.isPending} onClick={() => void confirmDelete()}>
+            Delete
+          </Button>
+        </div>
+      </AlertDialog>
     </div>
   );
 }

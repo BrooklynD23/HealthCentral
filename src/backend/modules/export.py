@@ -124,7 +124,7 @@ class ExportModule:
                 else:
                     key_findings.append(
                         f"{obs['analyte_canonical']}: {obs['value']} {obs.get('unit', '')} "
-                        f"({obs.get('flag', 'abnormal')})"
+                        f"({obs.get('flag') or 'abnormal'})"
                     )
 
         # Build sections
@@ -204,7 +204,7 @@ class ExportModule:
             lines.append(
                 f"• {obs['analyte_canonical']}: {obs['value']} {obs.get('unit', '')} "
                 f"(ref: {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "
-                f"[{obs.get('flag', 'abnormal')}] - {date_str}"
+                f"[{obs.get('flag') or 'abnormal'}] - {date_str}"
             )
         return "\n".join(lines)
 
@@ -465,7 +465,7 @@ class ExportModule:
             questions.append(QuestionPrompt(
                 category="abnormal",
                 question=f"I noticed my {obs['analyte_canonical']} was outside the reference range. What might that indicate?",
-                context=f"Value: {obs['value']} {obs.get('unit', '')}, flagged as {obs.get('flag', 'abnormal')}",
+                context=f"Value: {obs['value']} {obs.get('unit', '')}, flagged as {obs.get('flag') or 'abnormal'}",
                 related_analytes=[obs["analyte_canonical"]],
                 source_kind="observation",
                 source_id=str(obs.get("id")) if obs.get("id") else None,

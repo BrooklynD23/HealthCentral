@@ -172,6 +172,16 @@ measured it on the default `/verify`, where it failed. Recheck: when a page
 adds behaviour to one way of doing an action, list every other component that
 performs the same action and run each.
 
+A 2026-11-04 instance in KB-CANONICAL-NAMES (#486): renaming the seeded
+`glucose_fasting` entry to `glucose` fixed the mismatch for "Glucose" and
+"Fasting Glucose", but `normalize.py:153` maps "fasting glucose" and not
+"glucose fasting", so a "Glucose Fasting" row is still stored as
+`glucose_fasting`, which no seeded entry matched any more. The unrenamed seed
+had matched it, so the rename lost that row's critical flag. A reviewer caught
+it as the round 1 BLOCKER; the tests had not covered that label. Recheck: when a
+rename moves the key a lookup uses, run every spelling the normalizer can
+produce for the old key, not only the new one.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
@@ -341,6 +351,11 @@ stored as printed, free text of up to 2000 characters from import. The comment
 read as authority and the line went out unredacted; it was exposed only once
 Verify stopped erasing free-text flags. Recheck: when a comment states the
 shape of a field, find where the field is written before relying on it.
+
+A 2026-11-05 instance in KB-CANONICAL-NAMES (#486): the row's "`:392` is dead"
+and "never loaded" were false for `glucose_fasting`, and hid the `Glucose
+Fasting` regression that ruling 6651067212 fixed. Recheck: run the old key
+through the lookup before calling a line dead or a row never loaded.
 
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a

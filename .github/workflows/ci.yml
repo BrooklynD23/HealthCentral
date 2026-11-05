@@ -360,6 +360,77 @@ jobs:
           path: src/frontend/test-results/tw4-shots/**
           if-no-files-found: warn
 
+  g3-preview:
+    name: G3 on Production Build
+    runs-on: ubuntu-24.04  # Playwright has no chromium build for ubuntu26.04 (ubuntu-latest from 2026-10-23)
+    needs: changes
+    if: ${{ !cancelled() && !(needs.changes.result == 'success' && needs.changes.outputs.docs_only == 'true') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          echo "version=$(node -p "require('./src/frontend/package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Playwright browsers
+        working-directory: src/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build
+        working-directory: src/frontend
+        run: npm run build
+
+      # The G3 set, picked by title (--grep '\bG3\b'), so a new mocked G3 spec joins with no change here:
+      #   ui-documents:1024  /inbox
+      #   ui-care:306        /care-tasks
+      #   ui-provenance:885  3 routes (/interpret, /inbox, /verify)
+      #   ui-shell:1149      shell
+      #   ui-palette:659     palette
+      #   ui-export:395      2 themes
+      #   ui-ask:1096        /explain
+      #   ui-records:1147    2 themes, /timeline, /search, /pinboards
+      # (A mocked spec titled "UI-PG-REVIEW Gate G3 ...", such as the /verify one from #452, joins the same way.)
+      # Excluded: the six ui-auth G3 titles (describe "UI-PG-AUTH gate G on /setup and /recover"). They need the
+      # real backend and a preview on port 3000 (ui-auth.spec.ts:14-17), and this job runs no backend.
+      # The 200 ms bound lives in the specs, not here. Every spec is mocked, so no Python and no backend.
+      # --reporter=list: the config's html reporter prints no test names or stdout.
+      # --retries=0: the config retries 2 under CI, and a retried miss exits 0.
+      - name: Run the G3 tests on vite preview
+        working-directory: src/frontend
+        env:
+          CI: true
+          HC_E2E_BASE_URL: http://127.0.0.1:4173
+          PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF: '1'
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -fsS -o /dev/null http://127.0.0.1:4173/ && break
+            sleep 1
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:4173/ || { echo "vite preview never answered on 4173"; exit 1; }
+          npx playwright test --project chromium --list --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on'
+          npx playwright test --project chromium --reporter=list --retries=0 --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on'
+
   rsi-replay:
     name: RSI Replay
     runs-on: ubuntu-latest
