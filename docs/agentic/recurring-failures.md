@@ -352,6 +352,11 @@ read as authority and the line went out unredacted; it was exposed only once
 Verify stopped erasing free-text flags. Recheck: when a comment states the
 shape of a field, find where the field is written before relying on it.
 
+A 2026-11-05 instance in KB-CANONICAL-NAMES (#486): the row's "`:392` is dead"
+and "never loaded" were false for `glucose_fasting`, and hid the `Glucose
+Fasting` regression that ruling 6651067212 fixed. Recheck: run the old key
+through the lookup before calling a line dead or a row never loaded.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
