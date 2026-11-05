@@ -149,7 +149,7 @@ function AdvancedReads() {
 }
 
 /**
- * Mounts the cards one per commit, each a frame after the last, in a transition: one commit of all of them was one layout of
+ * Mounts the cards one per commit, each after the frame that laid out the last, in a transition: one commit of all of them was one layout of
  * them all, and two cards' worth of style and layout in one frame kept G10's sampler from running for 20 ms and more
  * (HC-UISET-023). A card waits in its <Stage> for its number. Only the Stages read the count, so a new stage renders the card
  * it lets in and no other: the children of the provider are the same elements on every stage.
@@ -160,9 +160,21 @@ function StagedCards({ count, children }: { count: number; children: ReactNode }
   const [stage, setStage] = useState(1);
   useEffect(() => {
     if (stage >= count) return;
-    // The frame lays out the card committed last; the next one renders after it.
-    const raf = requestAnimationFrame(() => startTransition(() => setStage(stage + 1)));
-    return () => cancelAnimationFrame(raf);
+    const next = () => startTransition(() => setStage(stage + 1));
+    // The frame lays out the card committed last; the next one renders once that frame is done and the browser is idle, so a
+    // timer that is due runs first. Rendered straight from the frame, the next card's render and layout followed it with no
+    // gap, and the sampler waited behind all three (37-51 ms on a production build). Without requestIdleCallback, a timer.
+    let idle = 0;
+    let timer = 0;
+    const raf = requestAnimationFrame(() => {
+      if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(next, { timeout: 200 });
+      else timer = window.setTimeout(next, 0);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      if (idle) cancelIdleCallback(idle);
+      window.clearTimeout(timer);
+    };
   }, [stage, count]);
   return <StageContext.Provider value={stage}>{children}</StageContext.Provider>;
 }

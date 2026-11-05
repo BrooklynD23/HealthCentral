@@ -1483,6 +1483,32 @@ describe('HC-UISET-023: the press renders the button at once, and the panels aft
     expect(commits()).toEqual(CARDS.map((title) => [title]));
   });
 
+  // Rendered straight from the frame, a card's render and layout followed the last card's layout with no gap for a timer. jsdom
+  // has no requestIdleCallback, so the test brings one and runs it by hand.
+  it('where the browser has requestIdleCallback, each card after the tier card waits for an idle callback', async () => {
+    const pending: IdleRequestCallback[] = [];
+    vi.stubGlobal('requestIdleCallback', (callback: IdleRequestCallback) => pending.push(callback));
+    vi.stubGlobal('cancelIdleCallback', () => {});
+    try {
+      const { user, client } = renderSettings('/settings?section=advanced');
+      await screen.findByRole('button', { name: SHOW });
+      await settled(client);
+      await user.click(screen.getByRole('button', { name: SHOW }));
+      await screen.findByTestId('tier-row-low');
+      for (const title of CARDS.slice(1)) {
+        await waitFor(() => expect(pending).toHaveLength(1));
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+        expect(screen.queryByText(title)).not.toBeInTheDocument();
+        await act(async () => { pending.shift()!({ didTimeout: false, timeRemaining: () => 10 }); });
+        expect(await screen.findByText(title)).toBeInTheDocument();
+      }
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+      expect(pending).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('a second press after Hide stages the cards the same way, and Hide removes them at once', async () => {
     const { user, client } = renderSettings('/settings?section=advanced');
     await screen.findByRole('button', { name: SHOW });
