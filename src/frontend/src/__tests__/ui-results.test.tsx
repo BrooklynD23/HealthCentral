@@ -686,6 +686,7 @@ describe('HC-UIRES-030 the first date format is paid before the Explain click', 
       Object.defineProperty(window, 'cancelIdleCallback', { value: cancelIdle, configurable: true, writable: true });
     });
     afterEach(() => {
+      cleanup(); // unmount while cancelIdleCallback still exists: the page's effect cleanup calls it
       Reflect.deleteProperty(window, 'requestIdleCallback');
       Reflect.deleteProperty(window, 'cancelIdleCallback');
     });
@@ -694,6 +695,41 @@ describe('HC-UIRES-030 the first date format is paid before the Explain click', 
     function warmCalls(spy: { mock: { contexts: unknown[] } }): number {
       return spy.mock.contexts.filter((date) => date instanceof Date && date.getTime() === 0).length;
     }
+
+    // The Explain card's own mount asks for JetBrains Mono (SourceTrace.tsx), so on the first click the face is fetched and
+    // the card relaid out inside the click's task (RemoteFontLoaded, then a relayout; CDP trace, PR #476 review round 1).
+    // The same idle warm-up asks for it first, so the click finds it already requested.
+    describe('the monospace face', () => {
+      const fontLoad = vi.fn<(font: string) => Promise<unknown[]>>();
+      beforeEach(() => {
+        fontLoad.mockReset();
+        fontLoad.mockResolvedValue([]);
+        Object.defineProperty(document, 'fonts', { value: { load: fontLoad }, configurable: true });
+      });
+      afterEach(() => Reflect.deleteProperty(document, 'fonts'));
+
+      it('HC-UIRES-031: JetBrains Mono is requested by the idle warm-up, with Explain still closed, and not at mount', async () => {
+        await renderPage();
+        await pageLoaded();
+        expect(screen.queryByText('Stored card text.')).toBeNull();
+        expect(fontLoad).not.toHaveBeenCalled();
+        act(() => idleCallback?.());
+        expect(fontLoad).toHaveBeenCalledTimes(1);
+        expect(fontLoad.mock.calls[0][0]).toContain('JetBrains Mono');
+      });
+
+      it('HC-UIRES-031: a font that fails to load does not break the page or the warm-up', async () => {
+        fontLoad.mockRejectedValue(new Error('font blocked'));
+        await renderPage();
+        await pageLoaded();
+        act(() => idleCallback?.());
+        await waitFor(() => expect(fontLoad).toHaveBeenCalled());
+        await act(async () => {
+          await Promise.resolve();
+        });
+        expect(screen.getByRole('button', { name: /explain this result/i })).toBeInTheDocument();
+      });
+    });
 
     it('HC-UIRES-030: nothing is formatted at mount, one format runs when the browser goes idle, and leaving the page cancels a warm-up that has not run', async () => {
       const formatDate = vi.spyOn(Date.prototype, 'toLocaleDateString');
