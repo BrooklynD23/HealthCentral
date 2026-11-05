@@ -258,6 +258,36 @@ describe('HC-SMT-002c a PATCH that settles after the cache was cleared writes no
     expect(api.apiPatch).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(KEY)).toBeUndefined();
   });
+
+  it('a read-back that lands after queryClient.clear() leaves the cache empty', async () => {
+    const user = userEvent.setup();
+    const server = fakeServer(false);
+    const queryClient = renderToggle();
+    const toggle = await knownSwitch();
+
+    // Unlike the case above, the cache is cleared after the PATCH has failed, with the read-back already out.
+    const readBack = deferred<unknown>();
+    vi.mocked(api.apiGet).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(api.apiGet).mockImplementationOnce(() => readBack.promise);
+    server.patchGate = deferred<void>();
+    await user.click(toggle);
+    await waitFor(() => expect(api.apiPatch).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      server.patchGate!.reject(new Error('503'));
+    });
+    expect(await screen.findByText(CHANGE_TOAST)).toBeInTheDocument();
+    await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      queryClient.clear();
+    });
+    await act(async () => {
+      readBack.resolve({ strict_safety_mode: true });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    // The old profile's value must not be handed to the next one.
+    expect(queryClient.getQueryData(KEY)).toBeUndefined();
+  });
 });
 
 describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
@@ -397,6 +427,30 @@ describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
     });
     await waitFor(() => expect(server.value).toBe(true));
     expect(toggle).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('a read-back with no boolean changes nothing on the switch and still drops the explanations', async () => {
+    const user = userEvent.setup();
+    fakeServer(false);
+    const queryClient = renderToggle();
+    queryClient.setQueryData(['interpretations', 'obs-1'], { seeded: true });
+
+    const toggle = await knownSwitch();
+    vi.mocked(api.apiPatch).mockRejectedValue(new Error('503'));
+    vi.mocked(api.apiGet).mockImplementation(async () => ({}));
+    await user.click(toggle);
+
+    expect(await screen.findByText(CHANGE_TOAST)).toBeInTheDocument();
+    await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    // The value cannot be told, so what was written under the old mode goes.
+    expect(queryClient.getQueryData(['interpretations', 'obs-1'])).toBeUndefined();
+    // The switch keeps its rollback value and stays usable: {} never became the cached value.
+    expect(queryClient.getQueryData(KEY)).toEqual({ strict_safety_mode: false });
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
 
   it.each([false, true])(
