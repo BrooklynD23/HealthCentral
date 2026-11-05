@@ -80,11 +80,14 @@ test.describe('UI routes verification', () => {
 
   // (was E2E-UI-FULL-004)
   test('E2E-UI-ROUTES-003: Settings hardware detection completes', async ({ page, request }) => {
-    await openAuthenticatedPage(page, request, '/settings');
+    // UI-PG-SETTINGS: the hardware card is in the Advanced section, collapsed until this button is pressed.
+    await openAuthenticatedPage(page, request, '/settings?section=advanced');
 
     await expect(
       page.getByText(/Configure AI models, document import/i)
     ).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole('button', { name: 'Show advanced settings' }).click();
 
     const detectButton = page.getByRole('button', { name: /^(Detect Hardware|Re-detect)$/ });
     await detectButton.click();

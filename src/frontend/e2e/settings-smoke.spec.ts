@@ -8,10 +8,19 @@
  * - Tier selection cards
  * - External API toggle and consent dialog
  * - Every tier reporting exactly one availability state
+ *
+ * UI-PG-SETTINGS: /settings is four sections. The hardware and tier checks open
+ * /settings?section=advanced and press "Show advanced settings" first; the external
+ * API check opens /settings?section=assistant-privacy.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { openAuthenticatedPage } from './support/auth';
+
+/** Advanced is collapsed by default (HC-UISET-002): hardware and tier controls exist only after this. */
+async function openAdvanced(page: Page) {
+  await page.getByRole('button', { name: 'Show advanced settings' }).click();
+}
 
 test.describe('Settings Page Smoke Tests', () => {
   test.beforeEach(async ({ page }) => {
@@ -23,7 +32,8 @@ test.describe('Settings Page Smoke Tests', () => {
     page,
     request,
   }) => {
-    await openAuthenticatedPage(page, request, '/settings');
+    await openAuthenticatedPage(page, request, '/settings?section=advanced');
+    await openAdvanced(page);
 
     // Hardware detection button should be visible
     await expect(
@@ -32,7 +42,8 @@ test.describe('Settings Page Smoke Tests', () => {
   });
 
   test('E2E-SET-002: Verify tier selection cards render', async ({ page, request }) => {
-    await openAuthenticatedPage(page, request, '/settings');
+    await openAuthenticatedPage(page, request, '/settings?section=advanced');
+    await openAdvanced(page);
 
     // Wait for page to load
     await page.waitForTimeout(2000);
@@ -49,28 +60,34 @@ test.describe('Settings Page Smoke Tests', () => {
   });
 
   test('E2E-SET-003: Verify external API toggle and consent dialog', async ({ page, request }) => {
-    await openAuthenticatedPage(page, request, '/settings');
+    await openAuthenticatedPage(page, request, '/settings?section=assistant-privacy');
 
-    // Find external API toggle
-    const apiToggle = page.getByRole('switch', { name: /external api|cloud api/i }).or(
-      page.getByText(/external api|use cloud/i)
-    );
-    await expect(apiToggle.first()).toBeVisible({ timeout: 10000 });
+    // Find external API toggle (by role: a text match could click the description and open nothing)
+    const apiToggle = page.getByRole('switch', { name: /external api|cloud api/i });
+    await expect(apiToggle).toBeVisible({ timeout: 10000 });
 
     // Click the toggle to enable
-    await apiToggle.first().click();
+    await apiToggle.click();
 
-    // Should show consent dialog or warning
-    await expect(
-      page.getByRole('main').getByText(/consent|acknowledge|data will be sent|privacy|understand/i)
-    ).toBeVisible({ timeout: 5000 });
+    // E2E-SET-003-WEAK: the consent dialog itself, not text somewhere on the page, and its D12 copy.
+    const dialog = page.getByRole('alertdialog', { name: 'Privacy Notice' });
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await expect(dialog.getByText('External API Processing')).toBeVisible();
+    await expect(dialog.getByText(/your health data will be sent to a third-party server for processing/)).toBeVisible();
+    await expect(dialog.getByText('Lab results and observations referenced in your questions')).toBeVisible();
+    await expect(dialog.getByText('Your conversation messages and context')).toBeVisible();
+    await expect(dialog.getByText('Analyte names and values for interpretation')).toBeVisible();
+    await expect(dialog.getByText(/You can disable this at any time to return to local-only processing/)).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'I Understand, Enable' })).toBeVisible();
   });
 
   test('E2E-SET-004: every model tier reports exactly one availability state', async ({
     page,
     request,
   }) => {
-    await openAuthenticatedPage(page, request, '/settings');
+    await openAuthenticatedPage(page, request, '/settings?section=advanced');
+    await openAdvanced(page);
 
     // This used to assert that *some* Download button existed. That is a
     // property of the machine running the test, not of the app: the button

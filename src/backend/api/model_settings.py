@@ -59,6 +59,14 @@ _live_progress_lock = threading.Lock()
 
 _PROGRESS_THROTTLE_SECS = 1.0  # min seconds between in-memory updates
 
+# Keys ("{profile_id}:{tier}") of downloads that have a task running in this process.
+# The stored row alone cannot say: a killed process, or a logout before the final write,
+# leaves it pending/downloading for good. Added by POST /download before it commits the
+# pending row, removed by _download_model_task on every exit. Guarded by _live_progress_lock.
+_active_downloads: set[str] = set()
+
+_DEAD_DOWNLOAD_ERROR = "The download stopped before it finished. Try again."
+
 
 def _make_progress_key(profile_id: str, tier: str) -> str:
     return f"{profile_id}:{tier}"
@@ -645,6 +653,12 @@ async def get_download_progress(
     """Get download progress for all tiers from database, merged with live in-memory data."""
     selector = get_model_selector()
 
+    # Copied before the row is read. A task that finishes between the read and the key check below
+    # has already dropped its key, and the row held here is the one from before its terminal write:
+    # a key that was set when the read began still counts as running (the next poll reads the new row).
+    with _live_progress_lock:
+        active_before_read = frozenset(_active_downloads)
+
     progress = await selector.get_download_progress(
         profile_id=session.profile_id,
         db=profile_db,
@@ -658,7 +672,23 @@ async def get_download_progress(
         pct = prog.progress
 
         if prog.status in ("pending", "downloading"):
-            live = _get_live_progress(_make_progress_key(session.profile_id, tier))
+            progress_key = _make_progress_key(session.profile_id, tier)
+            with _live_progress_lock:
+                # Also the set as it is now: a POST can add its key and commit the pending row after the copy.
+                running = progress_key in active_before_read or progress_key in _active_downloads
+            if not running:
+                # Reported, not written: no task holds this row, so nothing will move it on.
+                response[tier] = DownloadProgressResponse(
+                    tier=prog.tier,
+                    status="failed",
+                    progress=0.0,
+                    downloaded_bytes=0,
+                    total_bytes=0,
+                    path=None,
+                    error=_DEAD_DOWNLOAD_ERROR,
+                )
+                continue
+            live = _get_live_progress(progress_key)
             if live:
                 downloaded_bytes = live["downloaded_bytes"]
                 total_bytes = live["total_bytes"]
@@ -710,23 +740,38 @@ async def start_model_download(
             "status": "completed",
         }
 
-    # Initialize progress
-    progress = DownloadProgress(
-        tier=tier,
-        status="pending",
-        progress=0.0,
-        started_at=utcnow(),
-    )
-    await selector.update_download_progress(
-        profile_id=session.profile_id,
-        tier=tier,
-        progress=progress,
-        db=profile_db,
-    )
-    await profile_db.commit()
-    await _audit_settings_change(
-        master_db, session.profile_id, "settings.model_download.start", "model_download", None,
-    )
+    # The key goes in before the pending row is committed, so a GET that sees the row
+    # never finds a task-less key-less row for a download that is about to start.
+    progress_key = _make_progress_key(session.profile_id, tier)
+    with _live_progress_lock:
+        added_key = progress_key not in _active_downloads
+        _active_downloads.add(progress_key)
+
+    try:
+        # Initialize progress
+        progress = DownloadProgress(
+            tier=tier,
+            status="pending",
+            progress=0.0,
+            started_at=utcnow(),
+        )
+        await selector.update_download_progress(
+            profile_id=session.profile_id,
+            tier=tier,
+            progress=progress,
+            db=profile_db,
+        )
+        await profile_db.commit()
+        await _audit_settings_change(
+            master_db, session.profile_id, "settings.model_download.start", "model_download", None,
+        )
+    except BaseException:
+        # No task will be added, so nothing would ever clear this key. Only undo a key this
+        # request added: a download already running under the same key keeps its own.
+        if added_key:
+            with _live_progress_lock:
+                _active_downloads.discard(progress_key)
+        raise
 
     # Start background download
     # Note: Background tasks in FastAPI run after the response is sent
@@ -1029,6 +1074,13 @@ async def _download_model_task(
         logger.error(f"Download failed for tier '{tier}': {e}")
         _clear_live_progress(progress_key)
         await _write_download_status(profile_id, tier, selector, "failed", 0.0, str(e))
+    finally:
+        # After the terminal write. A GET that starts once the key is gone reads the terminal row. A GET that
+        # started earlier copied the key before it read the row, so it reports the row it read (the one from
+        # before this write) as running, for one poll, and the next poll reads the terminal row.
+        # discard: tests call this task directly with no key set. Runs on cancellation too.
+        with _live_progress_lock:
+            _active_downloads.discard(progress_key)
 
 
 @router.get("/timezone", response_model=TimezoneResponse)

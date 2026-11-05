@@ -20,6 +20,7 @@ export function ExternalApiBreakGlassWarning({ active, unknown }: ExternalApiBre
     return (
       <div
         role="status"
+        data-t0=""
         className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-status-caution-subtle border border-status-caution/20"
       >
         <AlertCircle className="w-4 h-4 text-ink-secondary shrink-0 mt-0.5" aria-hidden />
@@ -34,6 +35,7 @@ export function ExternalApiBreakGlassWarning({ active, unknown }: ExternalApiBre
   return (
     <div
       role="alert"
+      data-t0=""
       className="flex items-start gap-2 px-3 py-2.5 rounded-xl bg-status-critical-subtle border border-status-critical/20"
     >
       <AlertCircle className="w-4 h-4 text-status-critical shrink-0 mt-0.5" aria-hidden />

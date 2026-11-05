@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ExplainAssistant } from '@/pages/ExplainAssistant';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -103,12 +103,13 @@ function renderExplain() {
   );
 }
 
-function renderSettings() {
+/** /settings opens on one section at a time: the time zone is in `preferences`, the provider in `assistant-privacy`. */
+function renderSettings(section: 'preferences' | 'assistant-privacy') {
   return render(
     <QueryClientProvider client={new QueryClient()}>
-      <BrowserRouter>
+      <MemoryRouter initialEntries={[`/settings?section=${section}`]}>
         <SettingsPage />
-      </BrowserRouter>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -143,7 +144,7 @@ describe('A11Y-CRIT-LABELS accessible names', () => {
   });
 
   it('HC-A11YCL-002: settings time-zone control is named Time zone and is a SELECT', () => {
-    renderSettings();
+    renderSettings('preferences');
 
     const timezone = screen.getByLabelText('Time zone');
 
@@ -152,7 +153,7 @@ describe('A11Y-CRIT-LABELS accessible names', () => {
 
   it('HC-A11YCL-003: settings external provider control is named by its Provider label and is a SELECT', () => {
     mockExternalApiData = { use_external_api: true };
-    renderSettings();
+    renderSettings('assistant-privacy');
 
     const provider = screen.getByLabelText(/provider/i);
 
