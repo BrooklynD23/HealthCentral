@@ -8,10 +8,10 @@ import { useLockProfile } from '@/services/profiles';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
- * The profile trigger (plan §3.2, §3.4). It holds Settings, then "Lock now"
- * (SESSION-REENTRY Task 3, plan §8.2): Lock now locks the profile, clears the
- * session the way logout does, and lands on the unlock card at /setup. About
- * waits for UI-ABOUT.
+ * The profile trigger (plan §3.2, §3.4). It holds Settings, About (UI-ABOUT),
+ * then "Lock now" (SESSION-REENTRY Task 3, plan §8.2): Lock now locks the
+ * profile, clears the session the way logout does, and lands on the unlock
+ * card at /setup.
  */
 export function ProfileMenu() {
   const [open, setOpen] = useState(false);
@@ -64,6 +64,13 @@ export function ProfileMenu() {
           className="flex min-h-target items-center rounded-lg px-3 text-sm font-medium text-ink hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden"
         >
           Settings
+        </Link>
+        <Link
+          to="/about"
+          onClick={() => setOpen(false)}
+          className="flex min-h-target items-center rounded-lg px-3 text-sm font-medium text-ink hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden"
+        >
+          About
         </Link>
         <button
           type="button"
