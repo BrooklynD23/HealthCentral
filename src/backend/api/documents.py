@@ -1874,9 +1874,11 @@ async def delete_document(
         profile_db, document_id, include_document=True
     )
 
-    # Entities/categories have no ORM cascade from Document (and SQLite FK
-    # enforcement is off); delete them explicitly so entity quotes — verbatim
-    # document text — cannot outlive the document into exports or pins.
+    # Entities/categories have no ORM cascade from Document. Their FK is
+    # ON DELETE CASCADE and the pragma is now ON, but delete them explicitly
+    # anyway (the privacy guarantee must not depend on connection setup) so
+    # entity quotes, verbatim document text, cannot outlive the document into
+    # exports or pins.
     await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
     await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 

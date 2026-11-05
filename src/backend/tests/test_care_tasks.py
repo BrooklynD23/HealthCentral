@@ -25,6 +25,7 @@ from core.time import utcnow
 from models.care_plan_task import CarePlanTask
 from models.document_category import DocumentEntity
 from modules.care_tasks import derive_task_candidates
+from tests.support.migrations import PROFILE_HEAD
 
 # ---------------------------------------------------------------------------
 # Shared helpers (mock-session style matches tests/test_source_spans.py)
@@ -684,9 +685,10 @@ async def real_profile_db():
 
 
 class TestReprocessDuplicateGuards:
-    """Reprocess deletes and recreates DocumentEntity rows with fresh UUIDs
-    while SQLite FK enforcement is off, so task.source_entity_id dangles
-    silently. Duplicate detection must therefore also key on content
+    """Reprocess deletes and recreates DocumentEntity rows with fresh UUIDs.
+    These tests run on a bare engine with FK enforcement off (production now
+    enforces it and nulls task.source_entity_id via SET NULL), so here the id
+    dangles silently. Duplicate detection must therefore also key on content
     (source_document_id + source_quote), and nothing may crash on a
     dangling entity id."""
 
@@ -743,7 +745,8 @@ class TestReprocessDuplicateGuards:
         assert task.source_entity_id == original.id
 
         # Simulate reprocess: delete + recreate the entity with a fresh UUID
-        # and identical text (FK enforcement is off, the link dangles).
+        # and identical text (this bare engine has FK enforcement off, so the
+        # link dangles; production nulls it via SET NULL).
         await db.delete(original)
         recreated = self._entity(doc_id)
         db.add(recreated)
@@ -805,7 +808,7 @@ def test_hc_task_025_migration_011_upgrade_downgrade_upgrade(tmp_path, monkeypat
     migrations.run_profile_migration(vault_path, encryption_key)
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "016_strict_safety_mode"
+        == PROFILE_HEAD
     )
 
     config = migrations._get_alembic_config("profile")
@@ -821,5 +824,5 @@ def test_hc_task_025_migration_011_upgrade_downgrade_upgrade(tmp_path, monkeypat
     command.upgrade(config, "head")
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
-        == "016_strict_safety_mode"
+        == PROFILE_HEAD
     )

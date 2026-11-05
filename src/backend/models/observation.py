@@ -108,9 +108,10 @@ class Observation(ProfileDatabaseBase):
         "LabInterpretation",
         back_populates="observation",
         uselist=False,
-        # DOC-DELETE-INTERP: lab_interpretations.observation_id is NOT NULL and
-        # SQLite FK enforcement is off, so the DB-level ondelete is inert. Without
-        # this the ORM nulls the FK on observation delete -> IntegrityError.
+        # DOC-DELETE-INTERP: lab_interpretations.observation_id is NOT NULL. The DB
+        # ondelete="CASCADE" is now enforced too (PRAGMA foreign_keys=ON, SQL-FK-001),
+        # but core delete(Observation) statements bypass this ORM cascade, and an
+        # ORM delete without it nulls the FK -> IntegrityError. Keep both.
         # Not delete-orphan: modules/interpret.py creates rows by FK alone.
         cascade="all, delete",
     )

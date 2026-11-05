@@ -17,6 +17,7 @@ import logging
 from pathlib import Path
 from typing import AsyncGenerator
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -40,6 +41,22 @@ class Base(DeclarativeBase):
     pass
 
 
+def install_sqlite_foreign_keys(sync_engine) -> None:
+    """Enforce declared FK actions on every new SQLite connection (SQL-FK-001).
+
+    SQLite defaults ``foreign_keys`` to OFF per connection, so without this every
+    ``ondelete=`` on the models is inert. The pragma is runtime, not DDL: no
+    migration is needed. A ``connect`` listener fires once per new physical
+    DBAPI connection, which is where the pragma has to be set.
+    """
+
+    @event.listens_for(sync_engine, "connect")
+    def _foreign_keys_on(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 # Create async engine based on configuration (master database)
 engine = create_async_engine(
     settings.database_url,
@@ -47,6 +64,9 @@ engine = create_async_engine(
     hide_parameters=True,  # never log bound values, even with SQL_ECHO=true (S-1)
     future=True,
 )
+# The master URL may be PostgreSQL in server mode, where the pragma does not exist.
+if engine.sync_engine.url.get_backend_name() == "sqlite":
+    install_sqlite_foreign_keys(engine.sync_engine)
 
 # Session factory for master database
 async_session_maker = async_sessionmaker(

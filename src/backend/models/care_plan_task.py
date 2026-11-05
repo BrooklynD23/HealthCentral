@@ -36,10 +36,10 @@ class CarePlanTask(ProfileDatabaseBase):
     # open | done | ignored | needs_review
     status: Mapped[str] = mapped_column(Text, nullable=False, default="open", index=True)
     source_document_id: Mapped[Optional[str]] = mapped_column(
-        Text, ForeignKey("documents.id"), nullable=True, index=True
+        Text, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True
     )
     source_entity_id: Mapped[Optional[str]] = mapped_column(
-        Text, ForeignKey("document_entity.id"), nullable=True, index=True
+        Text, ForeignKey("document_entity.id", ondelete="SET NULL"), nullable=True, index=True
     )
     # Verbatim clinician wording the task was derived from.
     source_quote: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

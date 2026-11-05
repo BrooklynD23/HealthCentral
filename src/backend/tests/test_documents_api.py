@@ -1388,3 +1388,65 @@ async def test_hc_isp_002_import_response_names_the_page_without_text(
     assert body["document"]["status"] == "parsed", body["document"]
     assert body["observations_extracted"] == 3, body
     assert body["pages_without_text"] == [2], body
+
+
+@pytest.mark.asyncio
+async def test_HC_FK_020_reprocess_leaves_no_orphan_interpretation_over_http(monkeypatch):
+    """REPROCESS-INTERP-ORPHAN (P6-Q5 a). Reprocess core-deletes the document's
+    observations (``delete(Observation)`` in the extraction refresh). A
+    ``LabInterpretation`` hangs off each observation by FK only, so on an engine
+    that enforces ``ondelete="CASCADE"`` it must go with it: 0 orphan rows after.
+    Pragma-ON engine; with the pragma off the interpretation would dangle.
+
+    Extraction itself is faked (no PDF); the refresh delete under test is real.
+    """
+    from core.fk_audit import PROFILE_CHECKS, find_orphans
+    from modules.extract import ExtractionResult
+    from tests.support.db import fk_profile_engine
+
+    class _EmptyExtract:
+        async def extract_from_pdf(self, _source, document_id, ocr_pages=True):
+            return ExtractionResult(document_id=document_id, extracted_text="")
+
+    monkeypatch.setattr(documents_api, "ExtractModule", _EmptyExtract)
+    monkeypatch.setattr(documents_api, "get_decrypted_document", lambda *_a: io.BytesIO(b"%PDF"))
+    monkeypatch.setattr(documents_api, "_create_chunks_and_embeddings", AsyncMock(return_value=0))
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", AsyncMock())
+
+    from models import Pinboard, PinboardItem  # noqa: F401 -- register tables
+
+    engine = fk_profile_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        profile_id = "profile-a"
+        document = _pin_cleanup_document(profile_id, doc_type="lab_pdf")
+        session.add(document)
+        await session.commit()
+        obs = _ddi_observation(profile_id, document.id)
+        session.add(obs)
+        await session.commit()
+        session.add(_ddi_interpretation(profile_id, obs.id))
+        await session.commit()
+        doc_id = document.id
+
+        with route_client(
+            documents_router, "/documents", profile_id=profile_id,
+            master_db=_CommitTrackingMasterDb(),
+        ) as client:
+
+            async def _override_profile_db():
+                return session
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            resp = client.post(f"/documents/{doc_id}/reprocess")
+
+        assert resp.status_code == 200, resp.text
+        session.expire_all()
+        assert await _ddi_count(session, Observation, Observation.doc_id == doc_id) == 0
+        assert await _ddi_count(session, LabInterpretation) == 0, "interpretation outlived its observation"
+        assert await find_orphans(session, PROFILE_CHECKS) == []
+    finally:
+        await session.close()
+        await engine.dispose()

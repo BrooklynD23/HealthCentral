@@ -19,6 +19,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Input,
 } from '@/components/ui';
 import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
 import { useProfiles, useRecoverProfile } from '@/services';
@@ -61,8 +62,8 @@ export function RecoverProfile() {
 
   if (rotatedCode) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-        <div className="w-full max-w-md space-y-4">
+      <div className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16">
+        <div className="mx-auto w-full max-w-md space-y-4">
           <p className="text-sm text-ink-secondary text-center">
             Your password has been reset and your records are unlocked.
           </p>
@@ -78,8 +79,8 @@ export function RecoverProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-surface flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-surface px-4 py-10 sm:px-6 sm:py-16">
+      <div className="mx-auto w-full max-w-md">
         <Card>
           <CardHeader>
             <CardTitle>Recover your profile</CardTitle>
@@ -98,16 +99,19 @@ export function RecoverProfile() {
                   If you can still sign in to a profile, create one now under
                   Settings → Recovery code, before you need it.
                 </p>
-                <Link to="/setup" className="text-sm underline">
+                <Link to="/setup" className="text-sm text-ink underline underline-offset-4">
                   Back
                 </Link>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <p className="text-sm text-ink-secondary">
+                  Use your saved recovery code to choose a new password.
+                </p>
                 <div>
                   <label
                     htmlFor="recover-profile"
-                    className="text-sm font-medium block mb-1"
+                    className="block text-sm font-medium text-ink mb-1.5"
                   >
                     Profile
                   </label>
@@ -115,7 +119,7 @@ export function RecoverProfile() {
                     id="recover-profile"
                     value={profileId}
                     onChange={(e) => setProfileId(e.target.value)}
-                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    className="h-11 w-full rounded-xl border border-[var(--line-strong)] bg-surface-elevated px-4 py-2 text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:border-accent"
                   >
                     <option value="">Select a profile…</option>
                     {recoverable.map((p) => (
@@ -126,50 +130,34 @@ export function RecoverProfile() {
                   </select>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="recover-code"
-                    className="text-sm font-medium block mb-1"
-                  >
-                    Recovery code
-                  </label>
-                  <input
-                    id="recover-code"
-                    type="text"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
-                    autoComplete="off"
-                    className="w-full rounded-md border px-3 py-2 text-sm font-mono"
-                  />
-                  <p className="text-xs text-ink-secondary mt-1">
-                    Spacing and capitalisation don&apos;t matter.
-                  </p>
-                </div>
+                <Input
+                  id="recover-code"
+                  type="text"
+                  label="Recovery code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+                  autoComplete="off"
+                  hint="Spacing and capitalisation don't matter."
+                  className="font-mono"
+                />
 
-                <div>
-                  <label
-                    htmlFor="recover-password"
-                    className="text-sm font-medium block mb-1"
-                  >
-                    New password
-                  </label>
-                  <input
-                    id="recover-password"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    autoComplete="new-password"
-                    className="w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                  <p className="text-xs text-ink-secondary mt-1">
-                    At least 8 characters, with an uppercase letter, a lowercase
-                    letter and a digit.
-                  </p>
-                </div>
+                <Input
+                  id="recover-password"
+                  type="password"
+                  label="New password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  hint="At least 8 characters, with an uppercase letter, a lowercase letter and a digit."
+                />
 
                 {error && (
-                  <p role="alert" className="text-sm text-status-attention">
+                  <p
+                    role="alert"
+                    data-t0=""
+                    className="text-sm text-status-critical"
+                  >
                     {error}
                   </p>
                 )}
@@ -182,7 +170,7 @@ export function RecoverProfile() {
                   {recover.isPending ? 'Unlocking…' : 'Unlock my records'}
                 </Button>
 
-                <Link to="/setup" className="text-sm underline block text-center">
+                <Link to="/setup" className="text-sm text-ink underline underline-offset-4 block text-center">
                   Back
                 </Link>
               </form>

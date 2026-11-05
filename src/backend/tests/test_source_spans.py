@@ -24,6 +24,7 @@ from modules.extract_imaging import extract_imaging_entities
 from modules.extract_pathology import extract_pathology_entities
 from modules.extract_spans import EXTRACTION_VERSION, with_span
 from modules.extract_visit_notes import extract_visit_note_entities
+from tests.support.migrations import PROFILE_HEAD
 
 IMAGING_TEXT = (
     "RADIOLOGY REPORT\n"
@@ -309,7 +310,7 @@ def test_hc_span_009_migration_010_upgrade_and_downgrade_run_clean(tmp_path, mon
 
     migrations.run_profile_migration(vault_path, encryption_key)
     # Chain head moved to 012 (HC-M20); migration 010 must still walk cleanly.
-    head_revision = "016_strict_safety_mode"
+    head_revision = PROFILE_HEAD
     assert (
         migrations.get_profile_current_revision(vault_path, encryption_key)
         == head_revision
