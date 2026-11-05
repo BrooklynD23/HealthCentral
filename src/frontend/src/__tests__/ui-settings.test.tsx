@@ -891,10 +891,11 @@ describe('HC-UISET-019: a download the server reports as failed (it died, or the
     await waitFor(() => expect(api.apiPost).toHaveBeenCalledWith('/settings/model/download', { tier: 'mid' }));
   });
 
-  // A second POST for a tier whose first task is still running adds a second task under the same key. When the first task
-  // ends it drops the key, and the server reports the second task's `downloading` row as `failed` until that task finishes
-  // (api/model_settings.py). The poll after it says `completed`: the tiers must still be
-  // refreshed, or the finished tier keeps showing Download until the page is reloaded.
+  // A second task can share the key of a first one (a second window's POST). The server reports the tier as `failed` by two
+  // real routes: the first task really fails while the second runs (its real error, then completed), or the second task's
+  // first write lands after the first dropped the key (the fixed failed answer, then completed). The common order is
+  // downloading, downloading, completed. The tiers must still be refreshed after a failed poll, or the finished tier
+  // keeps showing Download until the page is reloaded.
   it('downloading, a failed poll, then completed: the tiers are fetched again', async () => {
     const answer = (status: string, progress: number) => ({
       mid: { tier: 'mid', status, progress, downloaded_bytes: progress * GB, total_bytes: GB, path: null, error: null },

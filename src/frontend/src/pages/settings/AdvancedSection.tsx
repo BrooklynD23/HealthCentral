@@ -224,10 +224,11 @@ function TierCard() {
     prevProgressRef.current = downloadProgress;
     if (!prev || !downloadProgress) return;
     // A tier that is completed now and was not on the previous poll. Not "the previous poll was pending or downloading":
-    // a second POST for a tier whose first task is still running adds a second task under the same key. When the first
-    // task ends it drops the key, and the server reports the second task's downloading row as `failed` until that task
-    // finishes (api/model_settings.py). The sequence is then downloading, failed, completed, and a rule that needs the
-    // previous poll to be active would never refresh the tiers.
+    // a second task can share the key of a first one (a second window's POST). The server reports the tier as `failed`
+    // (api/model_settings.py) by two real routes: the first task really fails while the second runs (its real error, then
+    // completed), or the second task's first write lands after the first dropped the key (the fixed failed answer, then
+    // completed). The common order is downloading, downloading, completed. A rule that needs the previous poll to be active
+    // would miss the refresh after downloading, failed, completed.
     const justCompleted = Object.entries(downloadProgress).some(
       ([tier, p]) => p.status === 'completed' && prev[tier]?.status !== 'completed'
     );
