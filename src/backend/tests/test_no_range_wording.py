@@ -161,6 +161,7 @@ async def test_hc_nrw_003_is_abnormal_none_takes_the_same_branch(kb):
 async def test_hc_nrw_004_blank_range_text_is_no_range(range_text, kb):
     text = await _text(_obs(ref_range_text=range_text), kb)
     assert NO_RANGE in text, text
+    assert "Reference range:" not in text, text
     assert OLD_NO_KB not in text, text
     if kb is not None:
         assert kb.normal_interpretation not in text, text
@@ -185,7 +186,7 @@ RANGE_CASES = [
     pytest.param(dict(ref_low=10.0), id="ref-low-only"),
     pytest.param(dict(ref_high=200.0), id="ref-high-only"),
     pytest.param(dict(ref_low=0.0), id="ref-low-zero-only"),  # 0.0 is a real bound
-    pytest.param(dict(ref_high=0.0), id="ref-high-zero-only"),
+    pytest.param(dict(ref_high=0.0, value=0.0), id="ref-high-zero-only"),
     pytest.param(dict(ref_range_text="70-100"), id="range-text-only"),
 ]
 

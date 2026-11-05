@@ -347,12 +347,13 @@ async def test_hc_fk_012_profile_delete_still_erases_with_master_pragma_on(tmp_p
 
 @pytest.mark.asyncio
 async def test_hc_fk_013_test_reset_does_not_500_and_records_what_it_leaves(tmp_path, monkeypatch):
-    """The reset tuple has no CarePlanTask. Before 017 the document delete hit
-    ``care_plan_task`` with NO ACTION and raised under the pragma; now it SET NULLs.
+    """The reset clears every profile table, children before parents, with the
+    FK pragma ON: it returns 204 (not 500) and every seeded table goes to 0.
 
-    The survivors are recorded, not "fixed": the tuple is deliberately NOT
-    expanded here (audit P2 / plan 07). When it is, the survivor dict below
-    must go to all zeros.
+    Before 017 the document delete hit ``care_plan_task`` with NO ACTION and
+    raised under the pragma. C-P7 put CarePlanTask and the other tables the
+    audit flagged into the reset tuple, so nothing survives and no link is left
+    to null. ``PRAGMA foreign_key_check`` stays empty.
     """
     from datetime import datetime, timedelta, timezone
 
@@ -407,9 +408,7 @@ async def test_hc_fk_013_test_reset_does_not_500_and_records_what_it_leaves(tmp_
                      "observations", "lab_interpretations", "medications", "medication_schedules", "doses_taken"]
             assert {t: await _count(conn, t) for t in wiped} == {t: 0 for t in wiped}
             left = ["care_plan_task", "chat_sessions", "chat_turns", "response_feedback", "pinboard", "pinboard_item"]
-            assert {t: await _count(conn, t) for t in left} == {t: 1 for t in left}
-            # the care task kept its row; its links were nulled by SET NULL
-            assert await _count(conn, "care_plan_task", "source_document_id IS NULL AND source_entity_id IS NULL") == 1
+            assert {t: await _count(conn, t) for t in left} == {t: 0 for t in left}
             assert (await conn.execute(text("PRAGMA foreign_key_check"))).fetchall() == []
     finally:
         await engine.dispose()
