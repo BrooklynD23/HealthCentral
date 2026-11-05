@@ -61,7 +61,7 @@ CLASSIFICATION: dict[str, str] = {
     "api/gamification.py::get_streaks": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::generate_interpretation": "A2",
     "api/interpretations.py::generate_grounded_interpretation": "A2",
-    "api/interpretations.py::get_interpretation": "C",  # row 21: GET sets viewed_at in the vault
+    "api/interpretations.py::get_interpretation": "A2",  # a stale template card is rebuilt (deleted) on read
     "api/interpretations.py::generate_panel_interpretation": "C",
     "api/interpretations.py::get_recent_interpretations": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::batch_generate_interpretations": "A2",

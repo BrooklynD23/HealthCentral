@@ -30,6 +30,7 @@ from models import (
 )
 from modules import get_interpret_module
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from modules.interpret import saved_card_needs_rebuild
 from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -463,7 +464,8 @@ async def generate_interpretation(
 
     Generates an AI-powered interpretation of a lab result using the
     knowledge base and safety guardrails. If an interpretation already
-    exists, returns it unless force_regenerate is True.
+    exists, returns it unless force_regenerate is True. A saved template card
+    whose wording the range check contradicts is rebuilt, like a forced regenerate.
 
     Requires authentication and access to the observation's profile.
     """
@@ -491,8 +493,10 @@ async def generate_interpretation(
     if not observation.user_verified and await is_strict_safety_mode(profile_db):
         await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
 
-    # AUDIT-ORDER D: regenerate over an existing interpretation is irreversible.
-    started = force_regenerate and await _has_interpretation(profile_db, observation_id)
+    # AUDIT-ORDER D: regenerate over an existing interpretation is irreversible, and so is
+    # the rebuild of a stale template card (VALUE-RANGE-COMPARE): both open with `started`.
+    stale = not force_regenerate and await saved_card_needs_rebuild(observation, profile_db, master_db)
+    started = (force_regenerate and await _has_interpretation(profile_db, observation_id)) or stale
     if started:
         await _audit_interpretation(
             master_db, "generate", session.profile_id,
@@ -505,7 +509,7 @@ async def generate_interpretation(
         observation_id=observation_id,
         profile_db=profile_db,
         master_db=master_db,
-        force_regenerate=force_regenerate,
+        force_regenerate=force_regenerate or stale,
     )
 
     # `is True`: a result object without the flag (test doubles) is not withheld.
@@ -562,7 +566,8 @@ async def generate_grounded_interpretation(
     if strict and not observation.user_verified:
         await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
 
-    started = force_regenerate and await _has_interpretation(profile_db, observation_id)
+    stale = not force_regenerate and await saved_card_needs_rebuild(observation, profile_db, master_db)
+    started = (force_regenerate and await _has_interpretation(profile_db, observation_id)) or stale
     if started:
         await _audit_interpretation(
             master_db, "grounded", session.profile_id,
@@ -574,7 +579,7 @@ async def generate_grounded_interpretation(
         observation_id=observation_id,
         profile_db=profile_db,
         master_db=master_db,
-        force_regenerate=force_regenerate,
+        force_regenerate=force_regenerate or stale,
     )
     if getattr(interp_result, "withheld", False) is True:
         # INTERP-WITHHOLD-MSG: answer with the escalation message, no card and no
@@ -796,22 +801,34 @@ async def get_interpretation(
             detail="No interpretation found for this observation"
         )
 
-    # VALUE-RANGE-COMPARE: no force flag. The module returns a card in agreement, a model
-    # card or a card it cannot judge as it is (no write), and rebuilds only a stale
-    # template card. A withheld rebuild keeps the old row and never serves its text.
-    interp_result = await get_interpret_module().interpret_observation(
-        observation_id=observation_id,
-        profile_db=profile_db,
-        master_db=master_db,
-    )
-    if getattr(interp_result, "withheld", False) is True:
-        await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, False)
-    if not interp_result.success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=interp_result.error_message or "Failed to read interpretation",
+    # VALUE-RANGE-COMPARE: a stale template card is rebuilt here, and the rebuild deletes
+    # the saved card, so it is bracketed like a forced regenerate (AUDIT-ORDER D, A2): the
+    # started row is committed first and a failed audit write stops it. A card in agreement,
+    # a model card or one the check cannot judge is served as stored: no module call, no
+    # write. A withheld rebuild keeps the old row and never serves its text.
+    if await saved_card_needs_rebuild(observation, profile_db, master_db):
+        await _audit_interpretation(
+            master_db, "generate", session.profile_id,
+            entity_type="observation", entity_id=observation_id, intent="started",
         )
-    interpretation = interp_result.interpretation
+        interp_result = await get_interpret_module().interpret_observation(
+            observation_id=observation_id,
+            profile_db=profile_db,
+            master_db=master_db,
+            force_regenerate=True,
+        )
+        if getattr(interp_result, "withheld", False) is True:
+            await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, True)
+        if not interp_result.success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=interp_result.error_message or "Failed to read interpretation",
+            )
+        interpretation = interp_result.interpretation
+        await _audit_interpretation(
+            master_db, "generate", session.profile_id,
+            entity_type="observation", entity_id=observation_id, intent="completed",
+        )
 
     # Mark as viewed
     if not interpretation.viewed_at:
@@ -1008,9 +1025,36 @@ async def batch_generate_interpretations(
             )
             unverified = set(res.scalars().all())
 
+    # VALUE-RANGE-COMPARE: without force, a stale template card of this profile's own
+    # observation is rebuilt as a forced regenerate would be, so it is audited as one.
+    stale_ids: set[str] = set()
+    if not request.force_regenerate:
+        stale_candidates = [
+            i for i in request.observation_ids
+            if UUID_PATTERN.match(i) and i not in unverified
+        ]
+        if stale_candidates:
+            res = await profile_db.execute(
+                select(Observation).where(
+                    Observation.id.in_(stale_candidates),
+                    Observation.profile_id == session.profile_id,
+                )
+            )
+            for owned in res.scalars().all():
+                if await saved_card_needs_rebuild(owned, profile_db, master_db):
+                    stale_ids.add(owned.id)
+
     # AUDIT-ORDER D: only UUID-shaped ids that already have an interpretation
     # (regenerate deletes it) reach the audit row.
     started = False
+    if stale_ids:
+        started = True
+        at_risk = [i for i in dict.fromkeys(request.observation_ids) if i in stale_ids]
+        await _audit_interpretation(
+            master_db, "batch_generate", session.profile_id,
+            details={"observation_ids": at_risk, "count": len(at_risk)},
+            intent="started",
+        )
     if request.force_regenerate:
         candidates = [
             i for i in request.observation_ids
@@ -1058,12 +1102,15 @@ async def batch_generate_interpretations(
                 failed.append({"observation_id": obs_id, "error": UNVERIFIED_BATCH_ERROR})
                 continue
 
-            # Generate interpretation
+            # Generate interpretation. A repeated id is rebuilt once: the second one
+            # reads the fresh card.
+            force = request.force_regenerate or obs_id in stale_ids
+            stale_ids.discard(obs_id)
             result = await interpret_module.interpret_observation(
                 observation_id=obs_id,
                 profile_db=profile_db,
                 master_db=master_db,
-                force_regenerate=request.force_regenerate,
+                force_regenerate=force,
             )
 
             if result.success:

@@ -1435,3 +1435,22 @@ def get_interpret_module() -> InterpretModule:
     if _interpret_module is None:
         _interpret_module = InterpretModule()
     return _interpret_module
+
+
+async def saved_card_needs_rebuild(
+    observation: Observation,
+    profile_db: AsyncSession,
+    master_db: AsyncSession,
+) -> bool:
+    """VALUE-RANGE-COMPARE: would a read of this observation's saved card rebuild it?
+
+    A route asks before the read so it can write the started audit row first (the rebuild
+    deletes the saved card). Same check the module makes at its cached return. Reads only:
+    no write, no model. False when there is no saved card.
+    """
+    saved = (await profile_db.execute(
+        select(LabInterpretation).where(LabInterpretation.observation_id == observation.id)
+    )).scalar_one_or_none()
+    if saved is None:
+        return False
+    return await get_interpret_module()._saved_card_is_stale(saved, observation, master_db)
