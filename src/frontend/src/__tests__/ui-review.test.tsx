@@ -8,7 +8,7 @@
  * those checks rely on.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -2020,5 +2020,122 @@ describe('HC-UIREV-007: a Verify in flight does not re-render rows it did not ch
     for (const id of ['obs-2', 'obs-3', 'obs-4']) {
       expect(verifyButtonOf(id)).toBeEnabled();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIREV-007, review round 1 (PR #452). The rows are memoised and handed stable callbacks that read the latest
+// handlers through a ref, so these three things have to keep working after the change: a Verify reads where the row sits
+// now (not where it sat on the first render), a Verify from the sheet is held under the list it was clicked on, and a
+// refetch that changes only a shown value repaints the row.
+// ---------------------------------------------------------------------------
+describe('HC-UIREV-007: the memoised rows still read the latest page state', () => {
+  const verifyButtonOf = (id: string) => within(rowOf(id)).getByRole('button', { name: 'Verify observation' });
+  const inkOf = (id: string) => rowOf(id)?.querySelector('[data-ink-marker]')?.getAttribute('data-state');
+  const rowIds = () =>
+    Array.from(document.querySelectorAll('tr[id^="observation-row-"]')).map((tr) => tr.id.replace('observation-row-', ''));
+  const pause = (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms));
+  async function settled(queryClient: { isFetching: () => number }) {
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    await pause();
+  }
+
+  // RED when the ref that holds the latest handlers stops updating (mutant: delete the assignment in the layout effect):
+  // the Verify then runs the handler of the first render, where the list was still loading, so the row is held at the top.
+  // Blind spots: the mock server answers at once, so this is the order of the held rows, not a browser's network order;
+  // the order test on the first row (ui-review.spec.ts) cannot see it, because the first row is at index 0 either way.
+  it('Verify the third row, let the refetch settle, Verify the second: each row stays where it was', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    const order = ['obs-1', 'obs-2', 'obs-3', 'obs-4'];
+    expect(rowIds()).toEqual(order);
+
+    await user.click(verifyButtonOf('obs-3'));
+    await waitFor(() => expect(inkOf('obs-3')).toBe('ink'));
+    await settled(queryClient);
+    expect(rowIds(), 'after the third row').toEqual(order);
+
+    await waitFor(() => expect(verifyButtonOf('obs-2')).toBeEnabled());
+    await user.click(verifyButtonOf('obs-2'));
+    await waitFor(() => expect(inkOf('obs-2')).toBe('ink'));
+    await settled(queryClient);
+    expect(rowIds(), 'after the second row').toEqual(order);
+    expect(inkOf('obs-3')).toBe('ink');
+  });
+
+  // The row compares its own fields, so a refetch that changes only what the row shows must still repaint it.
+  // RED on a comparator that skips value, value_text or unit. Green at head. Blind spot: the fields it names; a field
+  // the row starts to show later needs its own case.
+  it.each([
+    { field: 'value', before: {}, after: { value: 99 }, shown: '99' },
+    { field: 'value_text', before: { value: null, value_text: 'Trace' }, after: { value_text: 'Positive' }, shown: 'Positive' },
+    { field: 'unit', before: {}, after: { unit: 'mmol/L' }, shown: 'mmol/L' },
+  ])('a refetch that changes only $field (user_verified unchanged) repaints the row', async ({ before, after, shown }) => {
+    state.observations = [{ ...glucose, ...before }, hba1c, ferritin, ldlUnflagged];
+    const { queryClient } = renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(rowOf('obs-1')).not.toHaveTextContent(shown);
+
+    state.observations = [{ ...glucose, ...before, ...after }, hba1c, ferritin, ldlUnflagged];
+    await queryClient.invalidateQueries({ queryKey: ['observations'] });
+    await waitFor(() => expect(rowOf('obs-1')).toHaveTextContent(shown));
+    expect(inkOf('obs-1')).toBe('pencil');
+  });
+
+  describe('a Verify from the Source Trace sheet is held under the list it was clicked on', () => {
+    const sheetGlucose = { ...glucose, source_page: 1 };
+    const REVIEW_ALL = '/verify?doc=doc-1&mode=all';
+
+    // RED on f178f5c1: the stable callback read the filter when the answer came, so a user who went back to /verify with
+    // the POST out saw the row held on the wrong list. Blind spots: the mock server is the one that ignores doc_id, so the
+    // review list shows every row; the hold is what the test sees, not the toast (the sheet toasts for itself).
+    it('Back to /verify before the answer: the default list does not get the row from the document review', async () => {
+      window.history.pushState({}, '', REVIEW_ALL);
+      state.documents = [reportDoc];
+      state.observations = [sheetGlucose, hba1c, ferritin, ldlUnflagged];
+      state.pages = [{ page_number: 1, text: 'Glucose 95 mg/dL 70-100', has_tables: false }];
+      let answer: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      vi.mocked(api.apiPost).mockImplementation(async (url: string) => {
+        const id = /\/observations\/([^/]+)\/verify$/.exec(url)?.[1];
+        const rows = state.observations as Row[];
+        const current = rows.find((row) => row.id === id);
+        if (!current) throw new Error(`not stubbed: ${url}`);
+        const saved = verifyLikeApi(current);
+        state.observations = rows.map((row) => (row.id === id ? saved : row));
+        await gate;
+        return saved;
+      });
+      const user = userEvent.setup();
+      const { queryClient } = renderWorkbench();
+      await screen.findByText('Glucose');
+
+      await user.click(within(rowOf('obs-1')).getByRole('button', { name: 'Show source' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Source for Glucose' });
+      await within(dialog).findByText('This is what your report states.');
+      const mark = within(dialog).getByRole('button', { name: 'It matches, mark as checked' });
+      await waitFor(() => expect(mark).toBeEnabled());
+      await user.click(mark);
+      await waitFor(() =>
+        expect(vi.mocked(api.apiPost).mock.calls.filter(([url]) => /\/verify$/.test(String(url)))).toHaveLength(1)
+      );
+
+      // Back to the default list while the POST is out.
+      act(() => {
+        window.history.pushState({}, '', '/verify');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      });
+      await settled(queryClient);
+      expect(rowIds(), 'default list while the POST is out').toEqual(['obs-2', 'obs-3', 'obs-4']);
+
+      await act(async () => {
+        answer();
+      });
+      await settled(queryClient);
+      expect(rowIds(), 'default list after the answer').toEqual(['obs-2', 'obs-3', 'obs-4']);
+    });
   });
 });
