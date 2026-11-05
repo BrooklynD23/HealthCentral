@@ -372,11 +372,78 @@ async def test_hc_uiset_018_one_profiles_live_key_does_not_keep_anothers_row_act
     with _http(vault_b, "profile-b") as client_b:
         assert _get(client_b)["mid"]["status"] == "failed"
 
-    # And the other way round: b's live key does not revive a stale a-row.
+    # And the other way round: a's task ends without a terminal write (a's row stays pending,
+    # its key is gone), b starts a download and holds a live key. b's key must not revive a's row.
+    model_settings_api._active_downloads.discard(_make_progress_key("profile-a", "mid"))
     with _http(vault_b, "profile-b") as client_b:
         assert _post(client_b).status_code == 200
         assert _get(client_b)["mid"]["status"] == "pending"
-    assert _make_progress_key("profile-a", "mid") != _make_progress_key("profile-b", "mid")
+    assert _make_progress_key("profile-b", "mid") in model_settings_api._active_downloads
+    stored_a = (await selector.get_download_progress("profile-a", vault_a))["mid"]
+    assert stored_a.status == "pending"  # the row really is still active in a's vault
+    with _http(vault_a, "profile-a") as client_a:
+        assert _get(client_a)["mid"]["status"] == "failed"
+
+
+# --- the GET reads the row and then asks about the key: a task that ends between the two ---
+
+
+@pytest.mark.asyncio
+async def test_hc_uiset_018_task_ending_between_the_row_read_and_the_key_check_is_not_failed(
+    make_vault, selector, started_tasks, audit_log, monkeypatch
+):
+    """Forced interleave. The GET reads the row while the task is running; the task then
+    writes its terminal row and drops its key; the GET then asks about the key. The row the
+    GET holds is the pre-terminal one, so the answer must be the running one, not `failed`.
+    (The next poll reads the terminal row.) The key was in the set when the GET began."""
+    vault = await make_vault()
+    key = _make_progress_key("profile-a", "mid")
+    await _store(
+        selector, vault, "profile-a", "mid", "downloading",
+        progress=0.4, downloaded_bytes=400, total_bytes=1000,
+    )
+    model_settings_api._active_downloads.add(key)
+    real_read = selector.get_download_progress
+
+    async def read_then_task_ends(*args, **kwargs):
+        rows = await real_read(*args, **kwargs)
+        with model_settings_api._live_progress_lock:
+            model_settings_api._active_downloads.discard(key)
+        return rows
+
+    monkeypatch.setattr(selector, "get_download_progress", read_then_task_ends)
+
+    with _http(vault) as client:
+        row = _get(client)["mid"]
+
+    assert row["status"] == "downloading"
+    assert row["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_hc_uiset_018_post_landing_between_the_start_of_a_get_and_its_row_read_is_not_failed(
+    make_vault, selector, started_tasks, audit_log, monkeypatch
+):
+    """The other half of the interleave. No key when the GET began; a POST adds its key and
+    commits the pending row; the GET then reads that row. Looking at the keys only as they
+    were when the GET began would call this brand-new download failed."""
+    vault = await make_vault()
+    key = _make_progress_key("profile-a", "mid")
+    real_read = selector.get_download_progress
+
+    async def post_lands_then_read(*args, **kwargs):
+        with model_settings_api._live_progress_lock:
+            model_settings_api._active_downloads.add(key)
+        await _store(selector, vault, "profile-a", "mid", "pending")
+        return await real_read(*args, **kwargs)
+
+    monkeypatch.setattr(selector, "get_download_progress", post_lands_then_read)
+
+    with _http(vault) as client:
+        row = _get(client)["mid"]
+
+    assert row["status"] == "pending"
+    assert row["error"] is None
 
 
 # --- the real task clears the key on every exit ------------------------------
