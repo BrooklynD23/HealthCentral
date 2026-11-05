@@ -588,7 +588,7 @@ export function ResultsPage() {
                                 )}
                               </span>
                             </span>
-                            {obs.is_abnormal && (
+                            {obs.is_abnormal && obs.flag && (
                               <Badge variant="attention" className="px-1.5 py-0.5" aria-label="Flagged on the report">
                                 !
                               </Badge>
