@@ -8,7 +8,7 @@
  */
 
 import { Suspense, lazy, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useResolvedPath } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useResolvedPath } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Skeleton } from './components/ui';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -34,13 +34,9 @@ const SettingsPage = lazy(async () => {
   const module = await import('./pages/SettingsPage');
   return { default: module.SettingsPage };
 });
-const TrendsDashboard = lazy(async () => {
-  const module = await import('./pages/TrendsDashboard');
-  return { default: module.TrendsDashboard };
-});
-const LabInterpreter = lazy(async () => {
-  const module = await import('./pages/LabInterpreter');
-  return { default: module.LabInterpreter };
+const ResultsPage = lazy(async () => {
+  const module = await import('./pages/ResultsPage');
+  return { default: module.ResultsPage };
 });
 const MedicationCoach = lazy(async () => {
   const module = await import('./pages/MedicationCoach');
@@ -189,6 +185,16 @@ function RouteBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>;
 }
 
+/**
+ * /trends and /interpret were folded into /results (UI-PG-RESULTS). The query string (?analyte=) is kept and the
+ * entry is replaced, so Back does not return to the redirect. /interpret opens Explain, by router state, so its
+ * URL is exactly /results.
+ */
+function RedirectToResults({ explain = false }: { explain?: boolean }) {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: '/results', search }} replace state={explain ? { explain: true } : undefined} />;
+}
+
 function lazyRoute(element: ReactNode, fallback: ReactNode = <RouteFallback />) {
   return (
     <RouteBoundary>
@@ -217,10 +223,11 @@ function App() {
               <Route index element={<Navigate to="/inbox" replace />} />
               <Route path="inbox" element={lazyRoute(<DocumentInbox />, <InboxFallback />)} />
               <Route path="verify" element={lazyRoute(<VerificationWorkbench />, <VerifyFallback />)} />
-              <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
+              <Route path="results" element={lazyRoute(<ResultsPage />)} />
+              <Route path="trends" element={<RedirectToResults />} />
               <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
               <Route path="search" element={lazyRoute(<SearchPage />)} />
-              <Route path="interpret" element={lazyRoute(<LabInterpreter />)} />
+              <Route path="interpret" element={<RedirectToResults explain />} />
               <Route path="medications" element={lazyRoute(<MedicationCoach />)} />
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />
               <Route path="notifications" element={lazyRoute(<NotificationSettings />)} />

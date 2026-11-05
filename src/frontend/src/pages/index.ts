@@ -1,8 +1,7 @@
 export { ProfileSetup } from './ProfileSetup';
 export { DocumentInbox } from './DocumentInbox';
 export { VerificationWorkbench } from './VerificationWorkbench';
-export { TrendsDashboard } from './TrendsDashboard';
-export { LabInterpreter } from './LabInterpreter';
+export { ResultsPage } from './ResultsPage';
 export { MedicationCoach } from './MedicationCoach';
 export { MedicationDetail } from './MedicationDetail';
 export { NotificationSettings } from './NotificationSettings';

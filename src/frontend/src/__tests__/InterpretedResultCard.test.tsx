@@ -111,7 +111,7 @@ describe('InterpretedResultCard', () => {
         })}
       />
     );
-    const heading = screen.getByText('Recommendations');
+    const heading = screen.getByText('Questions you could ask your clinician');
     const section = heading.closest('div')!.parentElement!;
     const text = section.textContent ?? '';
     expect(text).not.toContain('[KB:');
@@ -119,8 +119,17 @@ describe('InterpretedResultCard', () => {
     expect(screen.getByText('Walk daily.')).toBeInTheDocument();
   });
 
-  it('HC-IRC-004: gauge min label clamps at 0 for a non-negative range', () => {
-    render(
+  // The gauge became a RangeTick (UI-PG-RESULTS, L0 ruling 6600985053 Q3). The tick is a 64 px svg with its own scale
+  // (x = 4 + (v - min) / (max - min) * 56, min and max over the range and the value) and no axis labels, so the axis
+  // numbers HC-IRC-004/005/007/008 pinned are gone and their expected values are the tick's x positions.
+  const tickX = (container: HTMLElement) => ({
+    low: Number(container.querySelector('[data-band-edge="low"]')?.getAttribute('x1')),
+    high: Number(container.querySelector('[data-band-edge="high"]')?.getAttribute('x1')),
+    marker: Number(container.querySelector('[data-marker]')?.getAttribute('cx')),
+  });
+
+  it('HC-IRC-004: the tick for a non-negative range starts at the range low (no padded negative axis)', () => {
+    const { container } = render(
       <InterpretedResultCard
         interpretation={makeInterpretation()}
         value={120}
@@ -129,12 +138,16 @@ describe('InterpretedResultCard', () => {
         unit="mg/dL"
       />
     );
-    expect(screen.getByText('0.0')).toBeInTheDocument();
+    expect(screen.queryByText('0.0')).not.toBeInTheDocument();
     expect(screen.queryByText('-29.7')).not.toBeInTheDocument();
+    const x = tickX(container);
+    expect(x.low).toBeCloseTo(4, 1);
+    expect(x.high).toBeCloseTo(4 + (99 / 120) * 56, 1);
+    expect(x.marker).toBeCloseTo(60, 1);
   });
 
-  it('HC-IRC-005: gauge keeps the padded formula when the range is negative (pins current behaviour)', () => {
-    render(
+  it('HC-IRC-005: the tick for a negative range spans it (low edge at the left, high edge at the right, value in between)', () => {
+    const { container } = render(
       <InterpretedResultCard
         interpretation={makeInterpretation()}
         value={0}
@@ -143,7 +156,12 @@ describe('InterpretedResultCard', () => {
         unit="mmol/L"
       />
     );
-    expect(screen.getByText('-8.0')).toBeInTheDocument();
+    expect(screen.queryByText('-8.0')).not.toBeInTheDocument();
+    expect(screen.getByText(/-5 - 5 mmol\/L/)).toBeInTheDocument();
+    const x = tickX(container);
+    expect(x.low).toBeCloseTo(4, 1);
+    expect(x.high).toBeCloseTo(60, 1);
+    expect(x.marker).toBeCloseTo(32, 1);
   });
 
   it('HC-IRC-006: footer shows a plain source label, not "Model:"', () => {
@@ -160,7 +178,7 @@ describe('InterpretedResultCard', () => {
     expect(container.textContent ?? '').not.toContain('Model:');
   });
 
-  it('HC-IRC-007: gauge axis includes an out-of-range value above the range, marker stays inside the track', () => {
+  it('HC-IRC-007: the tick scale includes an out-of-range value above the range, marker stays inside the glyph', () => {
     const { container } = render(
       <InterpretedResultCard
         interpretation={makeInterpretation()}
@@ -170,18 +188,17 @@ describe('InterpretedResultCard', () => {
         unit="mg/dL"
       />
     );
-    expect(screen.getByText('126.7')).toBeInTheDocument();
+    expect(screen.queryByText('126.7')).not.toBeInTheDocument();
     expect(screen.queryByText('107.7')).not.toBeInTheDocument();
-
-    const lefts = Array.from(container.querySelectorAll<HTMLElement>('[style*="left"]'));
-    const marker = lefts[lefts.length - 1];
-    const leftPct = parseFloat(marker.style.left);
-    expect(leftPct).toBeLessThan(100);
-    expect(leftPct).toBeCloseTo(86.7, 0);
+    const x = tickX(container);
+    expect(x.low).toBeCloseTo(4, 1);
+    expect(x.high).toBeCloseTo(4 + (29 / 48) * 56, 1);
+    expect(x.marker).toBeCloseTo(60, 1);
+    expect(x.marker).toBeLessThan(64);
   });
 
-  it('HC-IRC-008: gauge axis max follows a high value, min keeps the non-negative floor', () => {
-    render(
+  it('HC-IRC-008: the tick scale follows a high value, and the low edge keeps the left end', () => {
+    const { container } = render(
       <InterpretedResultCard
         interpretation={makeInterpretation()}
         value={162}
@@ -190,9 +207,11 @@ describe('InterpretedResultCard', () => {
         unit="mg/dL"
       />
     );
-    expect(screen.getByText('192.0')).toBeInTheDocument();
-    expect(screen.getByText('0.0')).toBeInTheDocument();
-    expect(screen.queryByText('-30.0')).not.toBeInTheDocument();
+    for (const gone of ['192.0', '0.0', '-30.0']) expect(screen.queryByText(gone)).not.toBeInTheDocument();
+    const x = tickX(container);
+    expect(x.low).toBeCloseTo(4, 1);
+    expect(x.high).toBeCloseTo(4 + (100 / 162) * 56, 1);
+    expect(x.marker).toBeCloseTo(60, 1);
   });
 });
 

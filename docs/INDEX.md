@@ -930,7 +930,7 @@ Premium tier with specialized medical knowledge. Requires significant resources.
 
 The repo already has most primitives, but they are disconnected:
 
-Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/backend/api/export.py`, `src/backend/api/observations.py`, `src/backend/modules/export.py`, `src/backend/modules/interpret.py`, `src/backend/modules/rag.py`, `src/frontend/e2e/ui-full-verification.spec.ts`, `src/frontend/src/__tests__/VerificationWorkbench.test.tsx`, `src/frontend/src/pages/DocumentInbox.tsx`, `src/frontend/src/pages/ExplainAssistant.tsx`, `src/frontend/src/pages/ExportPage.tsx`, `src/frontend/src/pages/LabInterpreter.tsx`, `src/frontend/src/pages/TrendsDashboard.tsx`, `src/frontend/src/pages/VerificationWorkbench.tsx`, `src/frontend/src/services/documents.ts`, `src/frontend/src/services/observations.ts`, `src/frontend/src/services/types.ts`
+Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/backend/api/export.py`, `src/backend/api/observations.py`, `src/backend/modules/export.py`, `src/backend/modules/interpret.py`, `src/backend/modules/rag.py`, `src/frontend/e2e/ui-full-verification.spec.ts`, `src/frontend/src/__tests__/VerificationWorkbench.test.tsx`, `src/frontend/src/pages/DocumentInbox.tsx`, `src/frontend/src/pages/ExplainAssistant.tsx`, `src/frontend/src/pages/ExportPage.tsx`, `src/frontend/src/pages/ResultsPage.tsx`, `src/frontend/src/pages/VerificationWorkbench.tsx`, `src/frontend/src/services/documents.ts`, `src/frontend/src/services/observations.ts`, `src/frontend/src/services/types.ts`
 
 ## `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`
 

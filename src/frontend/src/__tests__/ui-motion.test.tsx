@@ -167,7 +167,7 @@ describe('UI-MOTION every route under LazyMotion strict', () => {
   // The 20 s wait below measures rendering, not module load: under a full run's
   // load the /trends page import alone has taken 35 s (HC-UIMO-003-TIMEOUT).
   beforeAll(async () => {
-    await import('@/pages/TrendsDashboard');
+    await import('@/pages/ResultsPage');
   }, 120000);
 
   beforeEach(() => {
