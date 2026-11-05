@@ -40,8 +40,11 @@ vi.mock('framer-motion', () => {
 
 // Mock auth store
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: vi.fn((selector?: (s: typeof mockAuthState) => unknown) =>
-    selector ? selector(mockAuthState) : mockAuthState
+  useAuthStore: Object.assign(
+    vi.fn((selector?: (s: typeof mockAuthState) => unknown) =>
+      selector ? selector(mockAuthState) : mockAuthState
+    ),
+    { subscribe: vi.fn(() => () => undefined) }
   ),
 }));
 
@@ -132,13 +135,24 @@ vi.mock('@/utils/correlation', () => ({
   findActiveMedications: () => [],
 }));
 
+// The hooks the Results page adds to what Trends used (UI-PG-RESULTS, L0 ruling 6600985053 Q5).
+vi.mock('@/services/interpretations', () => ({
+  useInterpretation: () => ({ data: undefined, isLoading: false }),
+  useGenerateGroundedInterpretation: () => ({ mutate: vi.fn(), isPending: false }),
+  useGeneratePanelInterpretation: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
+
+vi.mock('@/services/modelSettings', () => ({
+  useExternalApiSettings: () => ({ data: undefined, isError: false }),
+}));
+
 vi.mock('@/components/MedicationOverlay', () => ({
   MedicationOverlay: () => <div data-testid="medication-overlay" />,
 }));
 
-import { TrendsDashboard } from '../pages/TrendsDashboard';
+import { ResultsPage } from '../pages/ResultsPage';
 
-const createObjectURLMock = vi.fn(() => 'blob:mock');
+const createObjectURLMock = vi.fn((_blob: Blob) => 'blob:mock');
 const revokeObjectURLMock = vi.fn();
 const canvasToDataUrlMock = vi.fn(() => 'data:image/png;base64,mock');
 const anchorClickMock = vi.fn();
@@ -150,7 +164,7 @@ function renderWithProviders() {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <TrendsDashboard />
+        <ResultsPage />
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -205,7 +219,8 @@ describe('ChartExport (EXPORT-CHART-001)', () => {
   it('renders PNG export button', () => {
     renderWithProviders();
     expect(screen.getByLabelText('Download chart as PNG')).toBeDefined();
-    expect(screen.getByTestId('responsive-container')).toBeDefined();
+    // The chart is the Range Ribbon now, not the Recharts container (L0 ruling 6600985053 Q5).
+    expect(screen.getByRole('slider', { name: /results over time/i })).toBeDefined();
   });
 
   it('renders SVG export button', () => {
@@ -225,6 +240,19 @@ describe('ChartExport (EXPORT-CHART-001)', () => {
       expect(canvasToDataUrlMock).toHaveBeenCalled();
       expect(anchorClickMock).toHaveBeenCalled();
     });
+
+    // The file came from the ribbon: the anchor is named for the analyte, and the markup drawn into the canvas holds
+    // the ribbon's slider, with its colour tokens resolved.
+    const anchor = anchorClickMock.mock.contexts[0] as HTMLAnchorElement;
+    expect(anchor.download).toBe('glucose-trend.png');
+    const markup = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(createObjectURLMock.mock.calls[0][0]);
+    });
+    expect(markup).toContain('role="slider"');
+    expect(markup).not.toMatch(/var\(--/);
   });
 
   it('SVG button click does not throw', async () => {

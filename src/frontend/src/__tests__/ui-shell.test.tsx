@@ -35,10 +35,9 @@ describe('UI-SHELL navConfig (HC-UISH-001)', () => {
       },
       {
         label: 'Understand',
-        // Transition (plan §3.1): Results points at /trends until UI-PG-RESULTS, and Interpret stays listed.
+        // UI-PG-RESULTS: Results is /results, and the Interpret entry is gone (it was folded into Results).
         items: [
-          ['Results', '/trends'],
-          ['Interpret', '/interpret'],
+          ['Results', '/results'],
           ['Ask', '/explain'],
         ],
       },

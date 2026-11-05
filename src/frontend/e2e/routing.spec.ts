@@ -44,8 +44,8 @@ test.describe('Routing', () => {
 
     // Each route has its own lazyRoute Suspense; RouteFallback (sr-only 'Loading page...') is expected on both legs.
     await nav.getByRole('link', { name: 'Results' }).click();
-    await expect(page).toHaveURL(/\/trends$/);
-    await expect(main.getByRole('heading', { level: 1, name: 'Trends Dashboard' })).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/\/results$/);
+    await expect(main.getByRole('heading', { level: 1, name: 'Results' })).toBeVisible({ timeout: 15_000 });
 
     await nav.getByRole('link', { name: 'Timeline' }).click();
     await expect(page).toHaveURL(/\/timeline$/);
