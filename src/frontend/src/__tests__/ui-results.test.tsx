@@ -2064,3 +2064,49 @@ describe('HC-UIRES-024 the ribbon puts no analyte name in sessionStorage or loca
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-032: the ribbon's revealed analytes end with the session (L0 ruling 6654608408)
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-032 the ribbon forgets which analytes it revealed when the session ends', () => {
+  it('HC-UIRES-032: an analyte revealed before clearAuth() is revealed again for the next profile; without a session end it is not', async () => {
+    const animateCalls: Element[] = [];
+    Object.defineProperty(Element.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value(this: Element) {
+        animateCalls.push(this);
+        return { cancel: () => undefined, finish: () => undefined, finished: Promise.resolve() };
+      },
+    });
+    try {
+      const { RangeRibbon } = await loadRibbon();
+      // A unique analyte, so no earlier test in this file has already used up its reveal.
+      const ferritin = ribbonTrend(
+        [trendPoint('2026-01-10T00:00:00', 40, { unit: 'ng/mL' }), trendPoint('2026-04-10T00:00:00', 55, { unit: 'ng/mL' })],
+        { analyte_canonical: 'ferritin_session_end', analyte_display_name: 'Ferritin', unit: 'ng/mL', ref_low: 20, ref_high: 200 }
+      );
+      expect(window.matchMedia('(prefers-reduced-motion: reduce)').matches).toBe(false);
+
+      const first = render(<RangeRibbon trend={ferritin} />);
+      expect(animateCalls.length).toBeGreaterThan(0);
+      first.unmount();
+
+      // Same session: the analyte was revealed, so it does not reveal again.
+      animateCalls.length = 0;
+      const same = render(<RangeRibbon trend={ferritin} />);
+      expect(animateCalls).toEqual([]);
+      same.unmount();
+
+      // The session ends through the auth store (what Lock now does); profile B opens the same analyte.
+      act(() => useAuthStore.getState().clearAuth());
+      useAuthStore.getState().setAuth({ token: 'b-token', profileId: 'profile-b', profileName: 'Profile B' });
+      animateCalls.length = 0;
+      render(<RangeRibbon trend={ferritin} />);
+      expect(animateCalls.length).toBeGreaterThan(0);
+    } finally {
+      delete (Element.prototype as unknown as { animate?: unknown }).animate;
+    }
+  });
+});
