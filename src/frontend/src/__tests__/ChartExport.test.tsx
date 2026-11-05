@@ -40,8 +40,11 @@ vi.mock('framer-motion', () => {
 
 // Mock auth store
 vi.mock('@/stores/authStore', () => ({
-  useAuthStore: vi.fn((selector?: (s: typeof mockAuthState) => unknown) =>
-    selector ? selector(mockAuthState) : mockAuthState
+  useAuthStore: Object.assign(
+    vi.fn((selector?: (s: typeof mockAuthState) => unknown) =>
+      selector ? selector(mockAuthState) : mockAuthState
+    ),
+    { subscribe: vi.fn(() => () => undefined) }
   ),
 }));
 
