@@ -315,10 +315,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
     });
   }
 
-  // /settings is left out of HC-UISH-009 until UI-PG-SETTINGS lands (L0 ruling 2026-10-26T07:12:53Z): a bare 20 ms
-  // timer on /inbox -> /settings reads a max gap of 58-72 ms on this branch (median 60, 5 runs) and 48-55 ms on
-  // origin/main (median 49, 5 runs), interleaved on preview, and this case fails 3 of 3 on preview with 60-64 ms gaps.
-  for (const route of AUTH_ROUTES.filter((candidate) => candidate !== '/settings')) {
+  // `/settings` is included, under the 70 ms page-change bound (`kind: 'navigation'`, owner STILLNESS-NAV-70; L0 ruling 6627952531).
+  for (const route of AUTH_ROUTES) {
     test(`HC-UISH-009: the Safety Rail stays still through the navigation to ${route}`, async ({ page }) => {
       await openRoute(page, startPageFor(route));
       await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
