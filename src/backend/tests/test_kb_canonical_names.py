@@ -3,9 +3,11 @@
 `NormalizeModule.normalize_analyte` stores a white cell count as `white_blood_cells`,
 HbA1c / A1C as `hba1c`, Glucose as `glucose`. The seed used `wbc`, `hemoglobin_a1c` and
 `glucose_fasting`, and the lipid relationship rows were seeded under panel `lipid_panel`
-while the panel key is `lipid`. Every read is an exact match on the stored name, so those
-rows never loaded: no knowledge-base text, no knowledge-base critical limits, no
-interventions, no Total/HDL or LDL/HDL insight.
+while the panel key is `lipid`. Every read is an exact match on the stored name, so the names
+the normalizer stores for those labels found no row: no knowledge-base text, no knowledge-base
+critical limits, no interventions, no Total/HDL or LDL/HDL insight. A result stored under an old
+name (for example label `Glucose Fasting`, stored as `glucose_fasting`) did find its row, and
+HC-KCN-009 keeps that so after the rename.
 
 The fix renames the seed (names only, never a word of seeded text) and adds master-chain
 migration 003 to rename rows already installed.
@@ -23,6 +25,8 @@ HC-KCN-005  migration 003: rename, no-op rerun, collisions, seed afterwards, dow
 HC-KCN-006  no word of seeded text changed (sha256 pins taken on origin/main d1f05349).
 HC-KCN-007  prohibited-pattern guard over every newly reachable text field.
 HC-KCN-008  the Explain chip key for a stored `hba1c` name.
+HC-KCN-009  a result stored under an old name keeps its KB row and critical limits (loader and
+            biomarker route read the old names through one alias map).
 
 Known gap (HC-KCN-007 reader scan, HC-KCN-008): scripts/change_scope.py gives backend=false for a
 PR that touches only src/frontend, so a frontend-only PR does not run this file. See HC-KCN-007.
@@ -424,7 +428,9 @@ def _seeded_analyte_names() -> dict[str, set[str]]:
 
 
 def test_hc_kcn_002_every_seeded_name_is_a_synonym_key_or_a_named_exception():
-    """Would not notice: a name that is a synonym key but spelled for another analyte."""
+    """Would not notice: a name that is a synonym key but spelled for another analyte, or a label
+    that is not a synonym and reaches the snake_case fallback (HC-KCN-009 and the unmatched-label
+    list in the PR body cover those; a synonym key says nothing about them)."""
     keys = set(NormalizeModule.ANALYTE_SYNONYMS)
     for table, names in _seeded_analyte_names().items():
         unexplained = sorted(names - keys - set(NOT_SYNONYM_KEYS))
@@ -439,7 +445,9 @@ def test_hc_kcn_002_exceptions_are_still_seeded_and_not_synonym_keys():
 
 
 def test_hc_kcn_002_the_old_names_are_not_synonym_keys():
-    """Control: the membership check does fail for the names this row removes."""
+    """Control: the membership check does fail for the names this row removes. That is a statement
+    about synonym KEYS only: a label with no synonym falls through to the snake_case fallback and
+    is stored under that name (`Glucose Fasting` -> `glucose_fasting`), whatever the keys say."""
     assert set(RENAMES).isdisjoint(NormalizeModule.ANALYTE_SYNONYMS)
     assert set(RENAMES.values()) <= set(NormalizeModule.ANALYTE_SYNONYMS)
 

@@ -6,7 +6,10 @@ Create Date: 2026-11-04
 
 `NormalizeModule.normalize_analyte` stores `white_blood_cells`, `hba1c` and `glucose`.
 The knowledge base was seeded as `wbc`, `hemoglobin_a1c` and `glucose_fasting`, and
-read by exact match, so those rows never loaded. The lipid relationship rows were
+read by exact match. So the names the normalizer stores for those labels found no row.
+A result stored under an old name did find one (for example the label `Glucose Fasting`
+is stored as `glucose_fasting`), and `modules/knowledge_loader.py` keeps reading old
+stored names through one alias map after this rename. The lipid relationship rows were
 seeded under panel `lipid_panel`, but the panel key is `lipid`.
 
 Data only, in the MASTER chain (the knowledge tables are in the master database).
