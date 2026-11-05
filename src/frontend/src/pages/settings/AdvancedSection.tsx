@@ -149,8 +149,9 @@ function AdvancedReads() {
 }
 
 /**
- * Mounts the cards a few per commit, each commit after the frame that laid out the last, in a transition: three cards' style
- * and layout in one frame kept G10's sampler from running for 20 ms and more (HC-UISET-023). A card waits in its <Stage> for
+ * Mounts the cards a few per commit, each commit after the frame that laid out the last, in a transition. The staging before
+ * this rendered three cards in one unbroken 19 ms task and laid them out in another 20 ms one, straight after the frame, and
+ * G10's sampler waited behind both (HC-UISET-023). A card waits in its <Stage> for
  * its number. Only the Stages read the count, so a new stage renders the cards it lets in and no other: the children of the
  * provider are the same elements on every stage.
  */
@@ -233,9 +234,9 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
           bar adds the difference), against the 1800 px bound of HC-UISET-005: the second figure is over the bound and is
           not ruled yet. */}
       {/* The cards arrive in document order, so one that arrives never moves one that is there (each column fills top to
-          bottom, and below xl the last column sits under the other two). Hardware and OCR, then the other three: one card's
-          style and layout measured 3-7 ms on a production build, so each group costs about what the tier card alone does. One
-          card per commit was six commits, and each commit is a wait for the tests in jsdom (HC-UISET-002 timed out). */}
+          bottom, and below xl the last column sits under the other two). Hardware and OCR, then the other three: each group's
+          style and layout measured 8-12 ms on a production build, about what the tier card alone costs. One card per commit
+          was six commits, and each commit is a wait for the tests in jsdom (HC-UISET-002 timed out). */}
       <StagedCards count={3}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
           <div className="space-y-6">
