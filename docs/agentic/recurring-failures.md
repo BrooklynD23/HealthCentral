@@ -573,6 +573,6 @@ Round 3 (same PR, 2026-11-03) found the class again, with two events that overla
 
 ## 18. A batch that reports done while most of its lines never ran
 
-L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 18 lines run. A `run()` helper assigned the global `L` that the script also used as the log directory, so every later redirect failed before its command started. Those 13 failed to start and left no log, so nothing in the output said they had not run: the exit status and the final line both read as success. The same class of script bug had already cost an earlier batch at `97fb4c46` (#452), which ran only G2 because the script overwrote its log directory after the first line (recorded in the UI-PG-REVIEW row).
+L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 18 lines run. A `run()` helper assigned the global `L` that the script also used as the log directory, so every later redirect failed before its command started. Those 13 failed to start and left no log, so nothing in the output said they had not run: the exit status and the final line both read as success.
 
 **Recheck:** before reading results, count the logs against the lines the batch was meant to run (`ls <logdir> | wc -l` against the number of lines), and read each log's own exit line. Make a batch exit non-zero when a line could not start (`set -u`, no helper that reuses a global the script also uses, and a check that every line left a log). A batch that prints "done" is evidence about the script, not about the lines.
