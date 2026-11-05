@@ -16,7 +16,8 @@
  * 023 the card's toggle name; 024 no analyte name reaches browser storage, before or after a lock; 025 the tabs are the Tabs primitive;
  * 026 the range badge: Normal Range needs a range and a value inside it, Outside Range stands alone for a value outside it,
  * flagged or not, and the printed Latest value is the cleaned number; 027 Interpret <panel> sends the panel's own date;
- * 028 the exported SVG carries no aria-label or aria-valuetext (ruling 6615916306).
+ * 028 the exported SVG carries no aria-label or aria-valuetext (ruling 6615916306);
+ * 029 the per-row ! badge ("Flagged on the report") needs a flag the report printed, not only is_abnormal (L0 ruling 6651066532).
  *
  * Canonical names in the fixtures are the ones NormalizeModule stores (white_blood_cells, ...). The panel fixtures list
  * the analytes a panel should hold for those names (the backend's PANEL_DEFINITIONS must agree, see the PR).
@@ -1356,7 +1357,7 @@ describe('HC-UIRES-015 nothing either old page showed has gone', () => {
   it('HC-UIRES-015: the unverified and low-confidence counts, Normal/Outside badge, and the undated mark', async () => {
     setupApi({
       observations: [
-        observation('a', 'hemoglobin', 'Hemoglobin', 19.4, 'g/dL', { user_verified: false, extraction_confidence: 0.5, collected_at: null, is_abnormal: true }),
+        observation('a', 'hemoglobin', 'Hemoglobin', 19.4, 'g/dL', { user_verified: false, extraction_confidence: 0.5, collected_at: null, is_abnormal: true, flag: 'H' }),
         observation('b', 'glucose', 'Glucose', 95, 'mg/dL', { user_verified: true, extraction_confidence: 0.95 }),
       ],
       trend: (c) => ({ ...trendFor(c, c.toUpperCase()), data_points: [trendPoint('2026-04-10T00:00:00', 19.4, { is_abnormal: true, user_verified: false })] }),
@@ -1391,6 +1392,36 @@ describe('HC-UIRES-015 nothing either old page showed has gone', () => {
     expect(await screen.findByText('Grounded explanation')).toBeInTheDocument();
     expect(screen.getByText(/Grounded faithfulness: 100%/)).toBeInTheDocument();
     expect(screen.getByTestId('withheld-live-region')).toHaveAttribute('aria-live', 'polite');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIRES-029: the per-row "!" says "Flagged on the report", so it needs a flag the report printed
+// ---------------------------------------------------------------------------
+
+describe('HC-UIRES-029 the per-row ! badge needs a printed flag', () => {
+  const rowBadge = () => within(screen.getByRole('region', { name: /lab results/i })).queryByText('!');
+
+  async function openWith(extra: Record<string, unknown>) {
+    setupApi({ observations: [observation('a', 'hemoglobin', 'Hemoglobin', 19.4, 'g/dL', extra)] });
+    await renderPage();
+    await pageLoaded();
+  }
+
+  it('HC-UIRES-029: abnormal with no printed flag shows no !', async () => {
+    await openWith({ is_abnormal: true, flag: null });
+    expect(rowBadge()).toBeNull();
+  });
+
+  it('HC-UIRES-029: abnormal with a printed H shows ! labelled "Flagged on the report"', async () => {
+    await openWith({ is_abnormal: true, flag: 'H' });
+    expect(rowBadge()).toBeInTheDocument();
+    expect(rowBadge()).toHaveAttribute('aria-label', 'Flagged on the report');
+  });
+
+  it('HC-UIRES-029: a printed normal word on a row that is not abnormal shows no !', async () => {
+    await openWith({ is_abnormal: false, flag: 'N' });
+    expect(rowBadge()).toBeNull();
   });
 });
 
