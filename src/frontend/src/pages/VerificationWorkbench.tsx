@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { createContext, memo, useState, useEffect, useLayoutEffect, useCallback, useContext, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   CheckCircle,
@@ -153,6 +153,215 @@ function documentAttentionHint(doc: Document): string {
   }
 }
 
+/**
+ * One shared flag, not a prop: a Verify in flight must disable and spin every Verify button, but it must not
+ * re-render the rows (their Source Trace, chips and cells have not changed).
+ */
+const VerifyPendingContext = createContext(false);
+
+function VerifyButton({ observation, onVerify }: { observation: Observation; onVerify: (observation: Observation) => void }) {
+  const pending = useContext(VerifyPendingContext);
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="w-18 shrink-0"
+      aria-label="Verify observation"
+      onClick={(e) => {
+        e.stopPropagation();
+        onVerify(observation);
+      }}
+      disabled={pending}
+    >
+      {pending ? (
+        <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" />
+      ) : (
+        'Verify'
+      )}
+    </Button>
+  );
+}
+
+function formatRefRange(observation: Observation): string {
+  if (observation.ref_range_text) return observation.ref_range_text;
+  if (observation.ref_low !== null && observation.ref_high !== null) {
+    return `${observation.ref_low}-${observation.ref_high}`;
+  }
+  // One limit only: say which side, so "Above the report's range" never sits beside "- mg/dL".
+  if (observation.ref_high !== null) return `≤ ${observation.ref_high}`;
+  if (observation.ref_low !== null) return `≥ ${observation.ref_low}`;
+  return '-';
+}
+
+interface ObservationRowProps {
+  observation: Observation;
+  /** Where the row sits in the list now. A Source Trace verify holds the row at the place it had when the sheet was used. */
+  index: number;
+  selected: boolean;
+  expanded: boolean;
+  onSelect: (observation: Observation) => void;
+  onEdit: (observation: Observation, opener: HTMLElement) => void;
+  onVerify: (observation: Observation) => void;
+  onVerified: (observation: Observation, saved: Observation, index: number) => void;
+  onToggleExpand: (id: string) => void;
+}
+
+/**
+ * An observation is flat, so equal fields mean an equal row. react-query keeps the old object only when the whole
+ * list is equal by position; once a row leaves the list, every row below it arrives as a new object with the same fields.
+ */
+function sameObservation(a: Observation, b: Observation): boolean {
+  if (a === b) return true;
+  const keys = Object.keys(a) as (keyof Observation)[];
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+function sameRow(prev: ObservationRowProps, next: ObservationRowProps): boolean {
+  return (Object.keys(next) as (keyof ObservationRowProps)[]).every((key) =>
+    key === 'observation' ? sameObservation(prev.observation, next.observation) : prev[key] === next[key]
+  );
+}
+
+/** memo: a render of the page that did not change this row (a Verify in flight, a refetch of the others) skips it. */
+const ObservationRow = memo(function ObservationRow({
+  observation,
+  index,
+  selected,
+  expanded,
+  onSelect,
+  onEdit,
+  onVerify,
+  onVerified,
+  onToggleExpand,
+}: ObservationRowProps) {
+  const rangeState = rangeStateOf(observation);
+  return (
+    <tr
+      id={`observation-row-${observation.id}`}
+      role="row"
+      className={cn(
+        'block border-b border-black/4 py-2 transition-colors cursor-pointer sm:table-row sm:py-0',
+        selected
+          ? 'bg-accent-subtle'
+          : 'hover:bg-surface-muted/50'
+      )}
+      onClick={() => onSelect(observation)}
+    >
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <InkMarker verified={observation.user_verified} />
+          <span className="font-medium text-ink">
+            {observation.analyte_raw}
+          </span>
+        </div>
+        {/* HC-UIREV-006. The sheet is a portal, but React events bubble through the tree: without this
+            wrapper a click on the button, or anywhere inside the sheet, would reach the row's onClick
+            and select it (and load its page image). It sits under the name, not in the Actions
+            cell, so the table gains no width. */}
+        {observation.doc_id ? (
+          <span role="presentation" className="inline-flex" onClick={(e) => e.stopPropagation()}>
+            <ObservationSourceTrace
+              observation={observation}
+              // The sheet toasts for itself and keeps focus, so this holds the row and nothing else.
+              onVerified={(saved) => onVerified(observation, saved, index)}
+              trigger={
+                <button
+                  type="button"
+                  className={cn(
+                    'inline-flex h-11 items-center rounded-sm px-1 text-sm font-medium text-accent',
+                    'underline underline-offset-4 hover:text-accent-hover transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                  )}
+                >
+                  Show source
+                </button>
+              }
+            />
+          </span>
+        ) : null}
+      </td>
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+        {/* The header row is hidden below sm, so the cell names itself there. */}
+        <span className="mr-1.5 font-sans text-xs text-ink-secondary sm:hidden">Value</span>
+        {/* The tint is a hint, from the same state as the chip below, which carries the meaning in words (HC-UIREV-001). */}
+        <span
+          data-t0=""
+          className={cn(
+            'font-mono font-semibold',
+            valueTintOf(observation)
+          )}
+        >
+          {observation.value ?? observation.value_text ?? '-'}
+        </span>
+        {observation.unit ? (
+          <span data-t0="" className="text-ink-secondary ml-1 text-sm">
+            {observation.unit}
+          </span>
+        ) : null}
+        {rangeState ? (
+          <div className="mt-1">
+            <StatusChip state={rangeState} />
+          </div>
+        ) : null}
+      </td>
+      <td role="cell" className="block px-4 py-1.5 text-sm text-ink-secondary font-mono sm:table-cell sm:py-4">
+        <span className="font-sans text-xs sm:hidden">Range </span>
+        <span data-t0="">
+          {formatRefRange(observation)} {observation.unit}
+        </span>
+      </td>
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+        {/* sm:min-w-[7.5rem]: "Checked by you" is 0.7 px wider than "Not yet checked". Without a floor above both, the column grows on Verify and the auto layout shifts every other column by a fraction of a pixel. */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:min-w-[7.5rem] sm:flex-col sm:items-start">
+          {/* Keyed by state: the old chip leaves and a new one arrives, so no T0 node changes its own text. */}
+          <StatusChip
+            key={observation.user_verified ? 'checked-by-you' : 'not-checked'}
+            state={observation.user_verified ? 'checked-by-you' : 'not-checked'}
+          />
+          <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
+        </div>
+      </td>
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
+        <div className="flex items-center gap-1 sm:justify-end">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Edit value"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(observation, e.currentTarget);
+            }}
+          >
+            <Edit3 className="w-4 h-4" />
+          </Button>
+          {/* Verify keeps its width (and leaves an equal gap once checked), so the columns never reflow under a value. */}
+          {observation.user_verified ? (
+            <span aria-hidden="true" className="inline-block w-18 shrink-0" />
+          ) : (
+            <VerifyButton observation={observation} onVerify={onVerify} />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand(observation.id);
+            }}
+            aria-label="Expand details"
+          >
+            <ChevronDown
+              className={cn(
+                'w-4 h-4 transition-transform',
+                expanded && 'rotate-180'
+              )}
+            />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}, sameRow);
+
 export function VerificationWorkbench() {
   const { profileId } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -271,9 +480,9 @@ export function VerificationWorkbench() {
   };
 
   /** Keep the row on screen as checked, ahead of (and surviving) the refetch that drops it from the needs_verification list. */
-  const holdChecked = (observation: Observation, saved: Observation | undefined): Observation => {
+  const holdChecked = (observation: Observation, saved: Observation | undefined, at?: number): Observation => {
     const checked: Observation = { ...observation, ...saved, user_verified: true };
-    const index = Math.max(0, observations?.findIndex((row) => row.id === observation.id) ?? 0);
+    const index = at ?? Math.max(0, observations?.findIndex((row) => row.id === observation.id) ?? 0);
     setHeld((prev) => ({
       key: filterKey,
       rows: [
@@ -321,12 +530,24 @@ export function VerificationWorkbench() {
     }
   };
 
-  const handleEdit = (observation: Observation, opener: HTMLElement) => {
+  const handleEdit = useCallback((observation: Observation, opener: HTMLElement) => {
     editOpenerRef.current = opener;
     setEditingObservation(observation);
     setEditValue(observation.value?.toString() || observation.value_text || '');
     setSaveError(null);
-  };
+  }, []);
+
+  // The rows are memoised, so what they are handed must not change on every render. These read the latest handlers.
+  const latestRef = useRef({ handleVerify, holdChecked });
+  useLayoutEffect(() => {
+    latestRef.current = { handleVerify, holdChecked };
+  });
+  const verifyRow = useCallback((observation: Observation) => latestRef.current.handleVerify(observation), []);
+  const holdFromSheet = useCallback((observation: Observation, saved: Observation, index: number) => {
+    focusShowSourceAfterVerifyRef.current = observation.id;
+    latestRef.current.holdChecked(observation, saved, index);
+  }, []);
+  const toggleExpand = useCallback((id: string) => setExpandedRow((current) => (current === id ? null : id)), []);
 
   const closeEdit = () => {
     setEditingObservation(null);
@@ -473,17 +694,6 @@ export function VerificationWorkbench() {
     if (observations && observations.length > 0) {
       void handleRowSelect(observations[0]);
     }
-  };
-
-  const formatRefRange = (observation: Observation) => {
-    if (observation.ref_range_text) return observation.ref_range_text;
-    if (observation.ref_low !== null && observation.ref_high !== null) {
-      return `${observation.ref_low}-${observation.ref_high}`;
-    }
-    // One limit only: say which side, so "Above the report's range" never sits beside "- mg/dL".
-    if (observation.ref_high !== null) return `≤ ${observation.ref_high}`;
-    if (observation.ref_low !== null) return `≥ ${observation.ref_low}`;
-    return '-';
   };
 
   // Parse bbox JSON for selected observation
@@ -819,156 +1029,22 @@ export function VerificationWorkbench() {
                     </tr>
                   </thead>
                   <tbody role="rowgroup" className="block sm:table-row-group">
-                    {observations.map((observation) => {
-                      const rangeState = rangeStateOf(observation);
-                      return (
-                      <tr
-                        key={observation.id}
-                        id={`observation-row-${observation.id}`}
-                        role="row"
-                        className={cn(
-                          'block border-b border-black/4 py-2 transition-colors cursor-pointer sm:table-row sm:py-0',
-                          selectedRow === observation.id
-                            ? 'bg-accent-subtle'
-                            : 'hover:bg-surface-muted/50'
-                        )}
-                        onClick={() => handleRowSelect(observation)}
-                      >
-                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <InkMarker verified={observation.user_verified} />
-                            <span className="font-medium text-ink">
-                              {observation.analyte_raw}
-                            </span>
-                          </div>
-                          {/* HC-UIREV-006. The sheet is a portal, but React events bubble through the tree: without this
-                              wrapper a click on the button, or anywhere inside the sheet, would reach the row's onClick
-                              and select it (and load its page image). It sits under the name, not in the Actions
-                              cell, so the table gains no width. */}
-                          {observation.doc_id ? (
-                            <span role="presentation" className="inline-flex" onClick={(e) => e.stopPropagation()}>
-                              <ObservationSourceTrace
-                                observation={observation}
-                                // The sheet toasts for itself and keeps focus, so this holds the row and nothing else.
-                                onVerified={(saved) => {
-                                  focusShowSourceAfterVerifyRef.current = observation.id;
-                                  holdChecked(observation, saved);
-                                }}
-                                trigger={
-                                  <button
-                                    type="button"
-                                    className={cn(
-                                      'inline-flex h-11 items-center rounded-sm px-1 text-sm font-medium text-accent',
-                                      'underline underline-offset-4 hover:text-accent-hover transition-colors',
-                                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
-                                    )}
-                                  >
-                                    Show source
-                                  </button>
-                                }
-                              />
-                            </span>
-                          ) : null}
-                        </td>
-                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
-                          {/* The header row is hidden below sm, so the cell names itself there. */}
-                          <span className="mr-1.5 font-sans text-xs text-ink-secondary sm:hidden">Value</span>
-                          {/* The tint is a hint, from the same state as the chip below, which carries the meaning in words (HC-UIREV-001). */}
-                          <span
-                            data-t0=""
-                            className={cn(
-                              'font-mono font-semibold',
-                              valueTintOf(observation)
-                            )}
-                          >
-                            {observation.value ?? observation.value_text ?? '-'}
-                          </span>
-                          {observation.unit ? (
-                            <span data-t0="" className="text-ink-secondary ml-1 text-sm">
-                              {observation.unit}
-                            </span>
-                          ) : null}
-                          {rangeState ? (
-                            <div className="mt-1">
-                              <StatusChip state={rangeState} />
-                            </div>
-                          ) : null}
-                        </td>
-                        <td role="cell" className="block px-4 py-1.5 text-sm text-ink-secondary font-mono sm:table-cell sm:py-4">
-                          <span className="font-sans text-xs sm:hidden">Range </span>
-                          <span data-t0="">
-                            {formatRefRange(observation)} {observation.unit}
-                          </span>
-                        </td>
-                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
-                          {/* sm:min-w-[7.5rem]: "Checked by you" is 0.7 px wider than "Not yet checked". Without a floor above both, the column grows on Verify and the auto layout shifts every other column by a fraction of a pixel. */}
-                          <div className="flex flex-wrap items-center gap-1.5 sm:min-w-[7.5rem] sm:flex-col sm:items-start">
-                            {/* Keyed by state: the old chip leaves and a new one arrives, so no T0 node changes its own text. */}
-                            <StatusChip
-                              key={observation.user_verified ? 'checked-by-you' : 'not-checked'}
-                              state={observation.user_verified ? 'checked-by-you' : 'not-checked'}
-                            />
-                            <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
-                          </div>
-                        </td>
-                        <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
-                          <div className="flex items-center gap-1 sm:justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Edit value"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(observation, e.currentTarget);
-                              }}
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </Button>
-                            {/* Verify keeps its width (and leaves an equal gap once checked), so the columns never reflow under a value. */}
-                            {observation.user_verified ? (
-                              <span aria-hidden="true" className="inline-block w-18 shrink-0" />
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-18 shrink-0"
-                                aria-label="Verify observation"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleVerify(observation);
-                                }}
-                                disabled={verifyMutation.isPending}
-                              >
-                                {verifyMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" />
-                                ) : (
-                                  'Verify'
-                                )}
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedRow(
-                                  expandedRow === observation.id ? null : observation.id
-                                );
-                              }}
-                              aria-label="Expand details"
-                            >
-                              <ChevronDown
-                                className={cn(
-                                  'w-4 h-4 transition-transform',
-                                  expandedRow === observation.id && 'rotate-180'
-                                )}
-                              />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                      );
-                    })}
+                    <VerifyPendingContext.Provider value={verifyMutation.isPending}>
+                      {observations.map((observation, index) => (
+                        <ObservationRow
+                          key={observation.id}
+                          observation={observation}
+                          index={index}
+                          selected={selectedRow === observation.id}
+                          expanded={expandedRow === observation.id}
+                          onSelect={handleRowSelect}
+                          onEdit={handleEdit}
+                          onVerify={verifyRow}
+                          onVerified={holdFromSheet}
+                          onToggleExpand={toggleExpand}
+                        />
+                      ))}
+                    </VerifyPendingContext.Provider>
                   </tbody>
                 </table>
               </div>
