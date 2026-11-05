@@ -703,6 +703,40 @@ test('HC-UIREV-002: the value text passes stillnessProbe through the Ink animati
   await expect.poll(() => inkClip(row(page, GLUCOSE_ID))).toMatch(INK_OPEN);
 });
 
+// HC-UIREV-007 (PR #452). The 40 ms sampling gap on the Verify click is the click task plus the render that follows
+// it (CDP trace, production build), and that render ran every row again. Each row's Source Trace formats a date when
+// it renders, so a count of toLocaleDateString calls is a count of row renders. No clock: it runs on any box.
+// Blind spot: it counts date formats, not milliseconds; the probe above is the timing check.
+test('HC-UIREV-007: a Verify in flight on the default /verify does not re-render the rows', async ({ page }) => {
+  await page.addInitScript(() => {
+    const counter = window as unknown as { __dateFormats: number };
+    counter.__dateFormats = 0;
+    const original = Date.prototype.toLocaleDateString;
+    Date.prototype.toLocaleDateString = function (this: Date, ...args: Parameters<typeof original>) {
+      counter.__dateFormats += 1;
+      return original.apply(this, args);
+    };
+  });
+  const mock = await prepare(page);
+  await openReview(page, '/verify');
+  const formats = () => page.evaluate(() => (window as unknown as { __dateFormats: number }).__dateFormats);
+  expect(await formats(), 'control: the first render formatted a date for its rows').toBeGreaterThanOrEqual(4);
+
+  mock.review.holdVerify();
+  const before = await formats();
+  await row(page, GLUCOSE_ID).getByRole('button', { name: 'Verify observation' }).click();
+  for (const id of [GLUCOSE_ID, A1C_ID, FERRITIN_ID]) {
+    await expect(row(page, id).getByRole('button', { name: 'Verify observation' })).toBeDisabled();
+  }
+  // Two frames, so a render queued behind the click has run.
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await formats(), 'date formats while the POST is out').toBe(before);
+
+  mock.review.releaseVerify();
+  await expect(row(page, GLUCOSE_ID).locator('[data-ink-marker]')).toHaveAttribute('data-state', 'ink');
+  await expect(row(page, GLUCOSE_ID).locator('[data-state="checked-by-you"]')).toHaveText('Checked by you');
+});
+
 // ---------------------------------------------------------------------------
 // HC-UIREV-003: the Edit dialog.
 // ---------------------------------------------------------------------------

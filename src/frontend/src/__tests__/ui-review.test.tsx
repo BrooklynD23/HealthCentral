@@ -1939,3 +1939,86 @@ describe('UI-PG-REVIEW finding 8: Verify keeps the selected row and its Source P
     expect(isSelected('obs-new-2')).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// HC-UIREV-007 (PR #452, the 40 ms sampling gap on the Verify click). A CDP trace of the click on a production build
+// (stillnessProbe, 40 ms bound) showed the gap is the Verify click task plus the render that follows it: the page's
+// useMutation re-renders VerificationWorkbench when the POST goes out, and that render ran every row again, each
+// row's Source Trace included. Every Source Trace render formats a date (SourceTrace.formatCollected calls
+// toLocaleDateString), so the spy below counts row renders without touching the component.
+// ---------------------------------------------------------------------------
+describe('HC-UIREV-007: a Verify in flight does not re-render rows it did not change', () => {
+  let dateFormats: { mock: { calls: unknown[][] }; mockRestore: () => void };
+  beforeEach(() => {
+    dateFormats = vi.spyOn(Date.prototype, 'toLocaleDateString');
+  });
+  afterEach(() => {
+    dateFormats.mockRestore();
+  });
+
+  const verifyButtonOf = (id: string) => within(rowOf(id)).getByRole('button', { name: 'Verify observation' });
+  const ALL_ROWS = ['obs-1', 'obs-2', 'obs-3', 'obs-4'];
+
+  // Blind spot: it counts date formats, so a row component that stopped formatting a date would pass it vacuously.
+  // This control is what stops that: it fails if the spy no longer sees a Source Trace render. jsdom also has no
+  // ICU cost, so the milliseconds are the e2e probe's job.
+  it('control: the first render formats one date per row', async () => {
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    expect(dateFormats.mock.calls.length).toBeGreaterThanOrEqual(ALL_ROWS.length);
+  });
+
+  // Blind spot: the POST is held by the mock, so this is the render when the POST goes out and nothing after it.
+  // RED on the old code: the pending render ran the four rows again (4 date formats).
+  it('the render when the POST goes out leaves the rows alone, and every Verify button still shows it is busy', async () => {
+    let finish: (saved: unknown) => void = () => undefined;
+    vi.mocked(api.apiPost).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const before = dateFormats.mock.calls.length;
+
+    await user.click(verifyButtonOf('obs-1'));
+    for (const id of ALL_ROWS) {
+      await waitFor(() => expect(verifyButtonOf(id)).toBeDisabled());
+      expect(verifyButtonOf(id).querySelector('[class*="animate-spin"]'), `${id} shows the spinner`).not.toBeNull();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(dateFormats.mock.calls.length - before, 'date formats while the POST is out').toBe(0);
+
+    finish({ ...glucose, user_verified: true });
+    await waitFor(() => expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+  });
+
+  // Blind spot: it bounds the work after the answer (the verified row's own Source Trace, plus the date in the toast
+  // text) and does not pin a number of renders. RED on the old code: every commit after the answer ran every row.
+  it('the answer re-renders the verified row, not the other rows, and the value text and chip are the same', async () => {
+    let finish: (saved: unknown) => void = () => undefined;
+    vi.mocked(api.apiPost).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const user = userEvent.setup();
+    renderWorkbench();
+    await screen.findByText('Glucose');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await user.click(verifyButtonOf('obs-1'));
+    await waitFor(() => expect(verifyButtonOf('obs-2')).toBeDisabled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const before = dateFormats.mock.calls.length;
+
+    state.observations = [{ ...glucose, user_verified: true }, hba1c, ferritin, ldlUnflagged];
+    finish({ ...glucose, user_verified: true });
+    await waitFor(() => expect(rowOf('obs-1').querySelector('[data-ink-marker]')).toHaveAttribute('data-state', 'ink'));
+    await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(dateFormats.mock.calls.length - before, 'date formats after the answer').toBeLessThanOrEqual(2);
+    expect(rowOf('obs-1').querySelector('[data-state="checked-by-you"]')).toHaveTextContent('Checked by you');
+    const values = Array.from(rowOf('obs-1').querySelectorAll('[data-t0]'))
+      .filter((node) => !node.hasAttribute('data-state'))
+      .map((node) => node.textContent);
+    expect(values).toEqual(expect.arrayContaining(['95', 'mg/dL']));
+    for (const id of ['obs-2', 'obs-3', 'obs-4']) {
+      expect(verifyButtonOf(id)).toBeEnabled();
+    }
+  });
+});
