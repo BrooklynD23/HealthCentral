@@ -26,7 +26,7 @@ import type { TrendData } from '@/services/types';
 
 /**
  * Made-up numbers for an invented test. It is not a real analyte, so the page states no clinical reference value, and
- * it names no person. Three points are checked and the last is not, so the ribbon shows both marks.
+ * it names no person. No point is marked as checked: a visitor has checked nothing here.
  */
 const EXAMPLE_TREND: TrendData = {
   analyte_canonical: 'example-analyte',
@@ -36,9 +36,9 @@ const EXAMPLE_TREND: TrendData = {
   ref_high: 60,
   summary: '',
   data_points: [
-    { date: '2026-01-12', value: 46, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
-    { date: '2026-03-02', value: 53, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
-    { date: '2026-05-18', value: 62, unit: 'units', is_abnormal: true, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
+    { date: '2026-01-12', value: 46, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: false },
+    { date: '2026-03-02', value: 53, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: false },
+    { date: '2026-05-18', value: 62, unit: 'units', is_abnormal: true, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: false },
     { date: '2026-08-03', value: 56, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: false },
   ],
 };

@@ -46,7 +46,7 @@ const EXAMPLE_LABEL = 'Example data, not yours';
 const T0_SELECTORS = ['[data-about-safety]', '[data-about-not-advice]', '[data-about-local-first]', '[data-about-example-label]'];
 const H1 = (page: Page) => page.getByRole('heading', { level: 1 });
 
-/** Records every request the page makes, with its resource type. */
+/** Records every request the page makes. */
 function recordRequests(page: Page): string[] {
   const urls: string[] = [];
   page.on('request', (request) => urls.push(request.url()));

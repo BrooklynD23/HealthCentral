@@ -205,6 +205,16 @@ describe('HC-UIABT-003: the example chart is labelled as example data, in text',
   });
 });
 
+describe('HC-UIABT-005: the example data does not say the visitor checked it', () => {
+  it('HC-UIABT-005: every example point reads "Not yet checked", and "Checked by you" appears nowhere on the page', async () => {
+    await renderAbout();
+    const cells = Array.from(document.querySelectorAll('td')).filter((td) => /checked/i.test(td.textContent ?? ''));
+    expect(cells).toHaveLength(4);
+    for (const cell of cells) expect(cell.textContent).toBe('Not yet checked');
+    expect(document.body.textContent ?? '').not.toContain('Checked by you');
+  });
+});
+
 describe('HC-UIABT-004: content, copy and the showcase pieces (G7 itself is e2e)', () => {
   it('HC-UIABT-004: says what it is and is not, local-first, and how it works', async () => {
     await renderAbout();
