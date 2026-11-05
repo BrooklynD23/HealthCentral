@@ -5,8 +5,9 @@
  * The model tiers come first and the diagnostics list last (G10, stillness): the Ready, Download and Incompatible text is
  * T0, and the diagnostics list changes height when its data arrives, so it must not sit above that text.
  *
- * The panels (and so their requests) mount only after the button is pressed. Their loading and error states
- * are this section's: the other sections never wait on model settings.
+ * The panels mount only after the button is pressed, and so do their requests, except the settings and the tiers: those
+ * start when the section mounts (AdvancedReads). Their loading and error states are this section's: the other sections
+ * never wait on model settings.
  */
 
 import { useEffect, useId, useRef, useState } from 'react';
@@ -119,6 +120,7 @@ export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectio
         {shown ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
         {shown ? 'Hide advanced settings' : 'Show advanced settings'}
       </Button>
+      <AdvancedReads />
       {shown && (
         <div id={panelId}>
           <AdvancedPanels exportResult={exportResult} onExportResult={onExportResult} />
@@ -128,13 +130,28 @@ export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectio
   );
 }
 
+/**
+ * Starts the two reads the panels wait on when the section mounts, so that a press after they settle renders the panels
+ * once, with no skeleton before them: a skeleton and then the panels is two layouts straight after the press, and the
+ * tasks between them were what G10's sampler waited behind (HC-UISET-021). Download progress and the cards' own reads
+ * stay in the panels. A component of its own, rendering nothing: a hook whose result is not read re-renders its component
+ * on every change to the query, which here is this and not the open panels.
+ */
+function AdvancedReads() {
+  useModelSettings();
+  useTiers();
+  return null;
+}
+
 function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) {
   // The panels wait on the model settings and on the tiers, and say so when the settings cannot load. Both requests start
-  // here, together (HC-UISET-020): the tier card used to ask for the tiers after the settings reply, a second round trip,
-  // and a card of skeleton blocks that becomes seven rows moves everything under it. One skeleton, then all of it. A tiers
-  // request that fails is waited on with its retry (the app's query client retries once, about a second later), and then
-  // the tier card says there are no tiers to show. Each card below asks for the rest
-  // itself, so a reply re-renders its own card and not the whole panel: opening Advanced is a burst of replies, and one
+  // together (HC-UISET-020), at the section's mount: the tier card used to ask for the tiers after the settings reply, a second
+  // round trip, and a card of skeleton blocks that becomes seven rows moves everything under it. One skeleton, then all of it.
+  // A press after a read that failed asks again (react-query retries an errored query when an observer mounts) and shows the
+  // skeleton while it does, as a press did when it made the first request (HC-UISET-021). A tiers request that fails is waited
+  // on with its retry (the app's query client retries once, about a second later), and then the tier card says there are no
+  // tiers to show. Each card below asks for the rest itself, so a reply re-renders its own card and not the whole panel:
+  // opening Advanced is a burst of replies, and one
   // render of the whole panel per reply would add a task to that burst for each of them (G10, stillness; the readings
   // found a burst of tasks under 50 ms at dev x1, not one long task).
   const { isLoading: settingsLoading, isError } = useModelSettings();

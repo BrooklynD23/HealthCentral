@@ -25,6 +25,7 @@
  *   HC-UISET-017  the export result is still there after a section change or Hide
  *   HC-UISET-019  the server's answer for a download that died (failed) leaves Download enabled and shows no bar
  *   HC-UISET-020  the tiers request starts with the settings one; the panels wait for both, so nothing shifts and "Run hardware detection first" is not shown while they load
+ *   HC-UISET-021  those two reads start when the section mounts: a press after they settle renders no skeleton, a press before them does, and a failed read is asked again on the press
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -166,9 +167,12 @@ function LocationProbe() {
   return <output data-testid="location">{location.search}</output>;
 }
 
-/** `gcTime` shortens how long the query cache keeps a query nobody observes (the app's default is 5 minutes). */
-function renderSettings(url = '/settings', gcTime?: number) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, ...(gcTime === undefined ? {} : { gcTime }) }, mutations: { retry: false } } });
+/**
+ * `gcTime` shortens how long the query cache keeps a query nobody observes (the app's default is 5 minutes).
+ * `retry` is off here so that a failure lands at once; 1 is what the app's query client does.
+ */
+function renderSettings(url = '/settings', gcTime?: number, retry: number | false = false) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry, ...(gcTime === undefined ? {} : { gcTime }) }, mutations: { retry: false } } });
   const user = userEvent.setup();
   const view = render(
     <QueryClientProvider client={client}>
@@ -180,7 +184,7 @@ function renderSettings(url = '/settings', gcTime?: number) {
       </MemoryRouter>
     </QueryClientProvider>
   );
-  return { user, ...view };
+  return { user, client, ...view };
 }
 
 const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -1023,6 +1027,239 @@ describe('HC-UISET-020: the tiers request starts with the settings one, and the 
     expect(tierFetches()).toBe(settled);
     expect(screen.getByText(FALSE_LINE)).toBeInTheDocument();
   });
+});
+
+describe('HC-UISET-021: the settings and tiers reads start when the section mounts', () => {
+  const FALSE_LINE = 'Run hardware detection first to see available tiers.';
+  const FAILED_LINE = 'Failed to load settings. Please try again.';
+  const SHOW = 'Show advanced settings';
+  const fetches = (path: string) => vi.mocked(api.apiGet).mock.calls.filter(([called]) => called === path).length;
+  const sleep = (ms: number) => act(async () => { await new Promise((resolve) => setTimeout(resolve, ms)); });
+
+  /**
+   * Counts every time the skeleton enters the DOM from now on. A read of the DOM after the press cannot do this: the skeleton
+   * is on the page for one commit when the replies are quick, and a query for it afterwards finds nothing either way.
+   */
+  function watchSkeleton() {
+    let count = 0;
+    const read = (records: MutationRecord[]) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (node.matches('[data-testid="advanced-loading"]') || node.querySelector('[data-testid="advanced-loading"]')) count += 1;
+        }
+      }
+    };
+    const observer = new MutationObserver(read);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      read(observer.takeRecords());
+      return count;
+    };
+  }
+
+  /** Waits for both reads to land, and does not throw if they never start: the press that follows is what the test judges. */
+  async function settleReads(client: QueryClient) {
+    const settled = () => [['model-settings'], ['model-settings', 'tiers']].every((queryKey) => {
+      const state = client.getQueryState(queryKey);
+      return state !== undefined && state.status !== 'pending' && state.fetchStatus === 'idle';
+    });
+    for (let tries = 0; tries < 50 && !settled(); tries += 1) await sleep(10);
+  }
+
+  /** A press after the reads have landed, with the skeleton watched. The panels are read last: their first card is what ends the press. */
+  async function pressAfterSettling(user: ReturnType<typeof userEvent.setup>, client: QueryClient) {
+    await settleReads(client);
+    const skeletons = watchSkeleton();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await screen.findByTestId('tier-row-low');
+    return skeletons;
+  }
+
+  /** Holds every reply to the two reads until released. A mock that answers at once could not tell a press before them from a press after. */
+  function holdReads() {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const base = vi.mocked(api.apiGet).getMockImplementation()!;
+    vi.mocked(api.apiGet).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === '/settings/model' || path === '/settings/model/tiers') await gate;
+      return (base as (path: string, ...rest: unknown[]) => unknown)(path, ...rest);
+    }) as never);
+    return () => release();
+  }
+
+  /** Answers a read with a failure for as long as the returned object says so. */
+  function failRead(failing: string) {
+    const control = { fails: true };
+    const base = vi.mocked(api.apiGet).getMockImplementation()!;
+    vi.mocked(api.apiGet).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === failing && control.fails) throw new Error(`${failing} down`);
+      return (base as (path: string, ...rest: unknown[]) => unknown)(path, ...rest);
+    }) as never);
+    return control;
+  }
+
+  // The list is exact, so moving any other card's read up to the section fails here, download-progress first of all: it polls every 2 s.
+  it('before any press the section asks for the settings and the tiers and nothing else; the rest wait for the press', async () => {
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settleReads(client);
+    await sleep(100);
+    const asked = vi.mocked(api.apiGet).mock.calls.map(([path]) => path);
+    expect([...asked].sort()).toEqual(['/settings/model', '/settings/model/tiers']);
+
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await screen.findByRole('button', { name: 'Export training data' });
+    await waitFor(() => expect(fetches('/settings/model/download-progress')).toBeGreaterThanOrEqual(1));
+    for (const path of ['/settings/model/external-api', '/settings/model/diagnostics', '/feedback/stats']) {
+      expect(fetches(path), path).toBeGreaterThanOrEqual(1);
+    }
+    // The press shares what the section read: no second request for either.
+    expect(fetches('/settings/model')).toBe(1);
+    expect(fetches('/settings/model/tiers')).toBe(1);
+  });
+
+  it('a press after both have settled renders the panels with no skeleton before them', async () => {
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    const skeletons = await pressAfterSettling(user, client);
+    expect(skeletons()).toBe(0);
+    await screen.findByRole('button', { name: 'Export training data' });
+    expect(skeletons()).toBe(0);
+  });
+
+  // The second press and the return to the section are their own events (recurring failure mode 17). The cache time is shorter
+  // than the wait, so a read nothing holds has gone by the second press.
+  it('Hide and a second press after longer than the cache keeps a read, then away and back: no skeleton on any press', async () => {
+    const { user, client } = renderSettings('/settings?section=advanced', 20);
+    await screen.findByRole('button', { name: SHOW });
+    const skeletons = await pressAfterSettling(user, client);
+
+    await user.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    await sleep(200);
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await screen.findByTestId('tier-row-low');
+
+    await user.click(screen.getByRole('tab', { name: 'Preferences' }));
+    await screen.findByLabelText('Time zone');
+    await sleep(200);
+    await user.click(screen.getByRole('tab', { name: 'Advanced' }));
+    await screen.findByRole('button', { name: SHOW });
+    await pressAfterSettling(user, client);
+    expect(skeletons()).toBe(0);
+  });
+
+  // The reads are held for the whole press, so this is a press before them whatever the box's speed. It is also the control for
+  // the watcher: the zero above means nothing unless the same watcher counts a skeleton here.
+  it('a press before the replies shows one skeleton and no cards, asks no second time, and all of it comes when they land', async () => {
+    const release = holdReads();
+    const { user } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    const skeletons = watchSkeleton();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await sleep(100);
+    expect(screen.getByTestId('advanced-loading')).toBeInTheDocument();
+    expect(skeletons()).toBe(1);
+    expect(screen.queryByText('Model Tier')).not.toBeInTheDocument();
+    expect(screen.queryByText(FALSE_LINE)).not.toBeInTheDocument();
+
+    release();
+    await screen.findByTestId('tier-row-low');
+    expect(screen.queryByTestId('advanced-loading')).not.toBeInTheDocument();
+    expect(skeletons()).toBe(1);
+    expect(fetches('/settings/model')).toBe(1);
+    expect(fetches('/settings/model/tiers')).toBe(1);
+  });
+
+  it('a settings read that failed before the press is asked again: a skeleton, then the failure line, and the same on a second press', async () => {
+    failRead('/settings/model');
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settleReads(client);
+    const before = fetches('/settings/model');
+    const skeletons = watchSkeleton();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    expect(await screen.findByText(FAILED_LINE)).toBeInTheDocument();
+    expect(skeletons()).toBe(1);
+    expect(fetches('/settings/model')).toBe(before + 1);
+
+    await user.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    expect(await screen.findByText(FAILED_LINE)).toBeInTheDocument();
+    expect(skeletons()).toBe(2);
+    expect(fetches('/settings/model')).toBe(before + 2);
+  });
+
+  it('a settings read that failed before the press and then recovers: a skeleton, then the panels', async () => {
+    const down = failRead('/settings/model');
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settleReads(client);
+    down.fails = false;
+    const skeletons = watchSkeleton();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await screen.findByTestId('tier-row-low');
+    expect(skeletons()).toBe(1);
+    expect(screen.queryByText(FAILED_LINE)).not.toBeInTheDocument();
+  });
+
+  // tiersSettled: the card asks again when it mounts, and that request reads as loading. If the panels waited on it the card
+  // would unmount, mount and ask again for as long as the tiers fail: the skeleton count would climb. With the section holding
+  // its own observer, the panels' own wait is still once per mount.
+  it('a tiers read that failed before the press: one skeleton per press, then the line, and no loop', async () => {
+    failRead('/settings/model/tiers');
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settleReads(client);
+    const skeletons = watchSkeleton();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    expect(await screen.findByText(FALSE_LINE)).toBeInTheDocument();
+    await sleep(300);
+    const settled = fetches('/settings/model/tiers');
+    await sleep(300);
+    expect(fetches('/settings/model/tiers')).toBe(settled);
+    expect(skeletons()).toBe(1);
+    expect(screen.getByText(FALSE_LINE)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Hide advanced settings' }));
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    expect(await screen.findByText(FALSE_LINE)).toBeInTheDocument();
+    await sleep(300);
+    expect(skeletons()).toBe(2);
+  });
+
+  it('a tiers read that failed before the press and then recovers: the rows, not the line', async () => {
+    const down = failRead('/settings/model/tiers');
+    const { user, client } = renderSettings('/settings?section=advanced');
+    await screen.findByRole('button', { name: SHOW });
+    await settleReads(client);
+    down.fails = false;
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await screen.findByTestId('tier-row-low');
+    expect(screen.queryByText(FALSE_LINE)).not.toBeInTheDocument();
+  });
+
+  // The app's client retries once, about a second later. A press inside that second joins the request in flight and waits with
+  // it, as a press on the old path waited for its own retry. Retries are real here, so this takes a few seconds.
+  it('with the app\'s retry, a press while the tiers wait to retry keeps the skeleton through the retry, and then gives the line once', async () => {
+    failRead('/settings/model/tiers');
+    const { user } = renderSettings('/settings?section=advanced', undefined, 1);
+    await screen.findByRole('button', { name: SHOW });
+    await waitFor(() => expect(fetches('/settings/model/tiers')).toBe(1));
+    const skeletons = watchSkeleton();
+    await user.click(screen.getByRole('button', { name: SHOW }));
+    await sleep(200);
+    expect(screen.getByTestId('advanced-loading')).toBeInTheDocument();
+
+    expect(await screen.findByText(FALSE_LINE, undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(skeletons()).toBe(1);
+    // Four in all: the section's request and its retry, which the press joined and did not repeat, then the card's and its retry.
+    await waitFor(() => expect(fetches('/settings/model/tiers')).toBe(4), { timeout: 5000 });
+    await sleep(200);
+    expect(fetches('/settings/model/tiers')).toBe(4);
+    expect(skeletons()).toBe(1);
+    expect(screen.getByText(FALSE_LINE)).toBeInTheDocument();
+  }, 15000);
 });
 
 describe('HC-UISET-012: Stop and delete', () => {
