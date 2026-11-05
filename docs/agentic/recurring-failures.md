@@ -172,6 +172,16 @@ measured it on the default `/verify`, where it failed. Recheck: when a page
 adds behaviour to one way of doing an action, list every other component that
 performs the same action and run each.
 
+A 2026-11-04 instance in KB-CANONICAL-NAMES (#486): renaming the seeded
+`glucose_fasting` entry to `glucose` fixed the mismatch for "Glucose" and
+"Fasting Glucose", but `normalize.py:153` maps "fasting glucose" and not
+"glucose fasting", so a "Glucose Fasting" row is still stored as
+`glucose_fasting`, which no seeded entry matched any more. The unrenamed seed
+had matched it, so the rename lost that row's critical flag. A reviewer caught
+it as the round 1 BLOCKER; the tests had not covered that label. Recheck: when a
+rename moves the key a lookup uses, run every spelling the normalizer can
+produce for the old key, not only the new one.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
