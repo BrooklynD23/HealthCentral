@@ -38,7 +38,7 @@ const EXAMPLE_TREND: TrendData = {
   data_points: [
     { date: '2026-01-12', value: 46, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
     { date: '2026-03-02', value: 53, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
-    { date: '2026-05-18', value: 62, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
+    { date: '2026-05-18', value: 62, unit: 'units', is_abnormal: true, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: true },
     { date: '2026-08-03', value: 56, unit: 'units', is_abnormal: false, flag: null, doc_id: 'example', extraction_confidence: null, user_verified: false },
   ],
 };
@@ -46,7 +46,7 @@ const EXAMPLE_TREND: TrendData = {
 const STEPS: Array<{ name: string; text: string }> = [
   { name: 'Import', text: 'Add a lab report from a file on this device. Its text is read here.' },
   { name: 'Review values', text: 'Check each value against the page it was read from, and correct anything that was misread.' },
-  { name: 'Results', text: 'See each value over time, next to the range printed on your report.' },
+  { name: 'Results', text: 'See each value over time, next to the reference range used for that chart.' },
   { name: 'Ask', text: 'Ask a question about your results. Answers point to the sources they come from.' },
 ];
 
@@ -58,7 +58,7 @@ export function AboutPage() {
           <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">About Asclexis</h1>
           <p className="text-lg text-ink-secondary">
             A local-first companion that explains your own medical results, with sources. It helps you ask better
-            questions. It does not answer them for you.
+            questions. Your healthcare provider can tell you what your results mean for you.
           </p>
         </header>
 
@@ -73,7 +73,7 @@ export function AboutPage() {
           </p>
           <p data-t0 data-about-local-first>
             Your records stay on this device, in an encrypted file for each profile. There is no cloud copy to restore
-            from.
+            from. The one exception is an optional external AI setting, which is off unless you turn it on.
           </p>
         </section>
 
