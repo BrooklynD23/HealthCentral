@@ -186,7 +186,7 @@ function renderSettings(url = '/settings', gcTime?: number) {
 const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
   await screen.findByTestId('tier-row-low');
-  // The tier card mounts first and the other cards a frame or two after it (so that opening Advanced is not one long task):
+  // The tier card mounts first and the other cards a frame or two after it (so that opening Advanced is a smaller burst of tasks):
   // Export training data is in the last of them.
   await screen.findByRole('button', { name: 'Export training data' });
 };

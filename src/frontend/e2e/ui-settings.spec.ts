@@ -586,7 +586,7 @@ test.describe('UI-PG-SETTINGS GATE G10 (quiet box only)', () => {
     await expect(page.getByRole('alertdialog', { name: 'Confirm stop and delete' })).toBeVisible();
   });
 
-  // Every Download button is disabled while a download runs; they turn grey and must not fade.
+  // Every Download button is disabled while a download runs; they keep their colour and opacity (the spinner is what changes), and the word must not move or fade.
   test('UI-PG-SETTINGS GATE G10 on pressing Download', async ({ page }) => {
     await openSettings(page, 'advanced');
     let started = false;

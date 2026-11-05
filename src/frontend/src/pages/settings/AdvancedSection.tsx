@@ -149,7 +149,8 @@ function AdvancedPanels(props: AdvancedSectionProps) {
 function AdvancedGate({ exportResult, onExportResult }: AdvancedSectionProps) {
   // The panels wait on the model settings, and say so when they cannot load. Each card below asks for the rest itself, so a
   // reply re-renders its own card and not the whole panel: opening Advanced is a burst of replies, and one render of the
-  // whole panel per reply was the long task in that burst (G10, stillness).
+  // whole panel per reply would add a task to that burst for each of them (G10, stillness; the readings found a burst of
+  // tasks under 50 ms at dev x1, not one long task).
   const { isLoading, isError } = useModelSettings();
 
   if (isLoading) {
@@ -181,7 +182,9 @@ function AdvancedGate({ exportResult, onExportResult }: AdvancedSectionProps) {
     <>
       {/* Three columns from xl (1280 px), two from lg, one below. The tiers sit alone in the first column and nothing
           above or beside them changes height when data arrives (G10); the diagnostics list, whose height does change,
-          sits in the last column. Expanded, no column is taller than the page may be (HC-UISET-005). */}
+          sits in the last column. Expanded, the page is 1764 px by default and 1843 px with a download running (the progress
+          bar adds the difference), against the 1800 px bound of HC-UISET-005: the second figure is over the bound and is
+          not ruled yet. */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
         <div className="space-y-6">
           <TierCard />

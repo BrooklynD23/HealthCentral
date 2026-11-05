@@ -40,8 +40,11 @@ interface SwitchRowProps {
 
 /**
  * Mounts its children `frames` paints after it mounts. Opening a section is a burst of work (the cards mount, then their
- * replies arrive), and a burst that is one long task starves the page's timers (G10, stillness): the parts that are not T0
- * and not above T0 are mounted a frame or two later, so that the first paint is small. Used for what the patient reads second.
+ * replies arrive), and a burst of back-to-back tasks delays the page's timers (G10, stillness; the readings found tasks under
+ * 50 ms at dev x1, not one long task): the parts that are not above T0 are mounted a frame or two later, so that the first
+ * paint is small. Used for what the patient reads second. That includes T0 copy (DataDonationCard's consent copy in Assistant
+ * & privacy): G10 takes a node's baseline from the first sample in which it exists, so a node that mounts late is held still
+ * from its mount, not counted as having moved.
  */
 export function AfterPaint({ frames, children }: { frames: number; children: ReactNode }) {
   const [ready, setReady] = useState(false);
