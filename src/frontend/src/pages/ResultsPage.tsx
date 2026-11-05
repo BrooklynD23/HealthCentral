@@ -94,12 +94,17 @@ function useIsDesktop(): boolean {
 }
 
 /**
- * The first toLocaleDateString of a page loads the browser's ICU date data: 9-15 ms on the main thread (CDP trace of the
- * Explain click, PR #476). The Explain card prints a date in its footer, so that cost landed inside the one task that
- * commits the card. This pays it while the page is idle instead; the card still prints its date in its first commit.
+ * Two things the Explain click would otherwise pay for inside the one task that commits the card (CDP trace, PR #476):
+ * the first toLocaleDateString of a page loads the browser's ICU date data (9-15 ms), and the card's own mount asks for
+ * JetBrains Mono (SourceTrace.tsx), whose arrival relays the card out (about 3.6 ms). This pays both while the page is
+ * idle instead; the card still prints its date and its text in its first commit.
  */
-function warmDateFormat(): () => void {
-  const warm = () => void new Date(0).toLocaleDateString();
+function warmExplainClick(): () => void {
+  const warm = () => {
+    void new Date(0).toLocaleDateString();
+    // The face SourceTrace.tsx asks for (its MONO_FONT, which that file does not export). A failed load only leaves the fallback face.
+    window.document.fonts?.load('400 12px "JetBrains Mono"')?.catch(() => undefined);
+  };
   if (typeof window.requestIdleCallback === 'function') {
     const handle = window.requestIdleCallback(warm, { timeout: 2000 });
     return () => window.cancelIdleCallback(handle);
@@ -248,7 +253,7 @@ export function ResultsPage() {
   );
   const generateInterpretation = useGenerateGroundedInterpretation();
   const generatePanelInterp = useGeneratePanelInterpretation();
-  useEffect(warmDateFormat, []);
+  useEffect(warmExplainClick, []);
 
   const latestValue = trendData?.data_points?.[trendData.data_points.length - 1];
   // The trend route sends is_abnormal false for a point that has no range, so "Normal Range" is claimed only when the
