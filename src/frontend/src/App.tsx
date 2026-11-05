@@ -83,6 +83,11 @@ const RecoverProfile = lazy(async () => {
   return { default: module.RecoverProfile };
 });
 
+const AboutPage = lazy(async () => {
+  const module = await import('./pages/AboutPage');
+  return { default: module.AboutPage };
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -202,6 +207,9 @@ function App() {
 
           {/* Forgot password -> recovery code (SEC-RECOV-001) */}
           <Route path="/recover" element={lazyRoute(<RecoverProfile />)} />
+
+          {/* Public About page for the demo: no data, no auth, no shell (UI-ABOUT) */}
+          <Route path="/about" element={lazyRoute(<AboutPage />)} />
 
           {/* Protected routes - require authentication */}
           <Route element={<ProtectedRoute />}>
