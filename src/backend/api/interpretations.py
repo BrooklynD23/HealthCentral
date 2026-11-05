@@ -905,7 +905,9 @@ async def generate_panel_interpretation(
 
     # VALUE-RANGE-COMPARE: a stale saved panel is kept when a member's rebuild is withheld.
     # One withheld row per member (ids and check names only), then the 500 below answers
-    # with the escalation message. No panel_generate row: nothing was generated.
+    # with the escalation message. No panel_generate row: the saved panel row is unchanged.
+    # A sibling member rebuilt before the withheld one keeps its rebuilt card, and no row
+    # names it (the panel route has no started row; open for L0, see the PR body).
     for member_id, member_result in result.withheld_members:
         await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
 

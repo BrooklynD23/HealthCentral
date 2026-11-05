@@ -606,7 +606,7 @@ class InterpretModule:
     ) -> bool:
         """VALUE-RANGE-COMPARE: does a saved template panel list the wrong values as abnormal?
 
-        For each member that has a saved card (a withheld member has none and is skipped),
+        For each member that has a saved card (a member with no saved card is skipped),
         with helper status above, below or within, compare status_is_abnormal against
         whether the saved summary has an attention line `- ANALYTE: value `. Any mismatch is
         stale. "disagrees", "keep" and "normal_uncompared" do not count. Model_id other than

@@ -2263,8 +2263,11 @@ async def test_hc_vrc_029_the_second_read_after_a_rebuild_writes_no_started_row(
 # L0 ruling 6654607932 item 2. A stale saved panel is replaced only when every member's
 # rebuild succeeded: a member the safety check withholds leaves the saved panel (and the
 # old text of its summary) in place, answers 500 with the escalation message, and writes
-# one `interpretation.withheld` row per withheld member. First-generation and forced panels
-# stay report-only (HC-VRC-027). The panel route writes no started row: it stays "C".
+# one `interpretation.withheld` row per withheld member. Only a saved stale panel fails
+# closed. A first-generation panel whose member has no saved card is report-only on main
+# (HC-VRC-027). A member WITH a saved card whose rebuild is withheld is also dropped when
+# there is no saved panel or the read is forced: measured in review, open for L0, not
+# covered here. The panel route writes no started row: it stays "C" (open for L0).
 
 SODIUM_HIGH = {**SODIUM_ROW, "value": 160.0}
 
@@ -2387,3 +2390,149 @@ async def test_hc_vrc_030_a_rebuilt_member_stays_rebuilt_when_the_other_is_withh
     assert await _snapshot(profile_db, glucose_id) == glucose_after
     assert await _snapshot(profile_db, sodium_id) == sodium_before
 
+
+
+# ── Review round 1: grounded and batch guards, withheld on grounded and batch ─
+# Each case below kills a line that no earlier test could see (a break on a /dev/shm copy
+# stayed green): the batch owner filter, the strict `not in unverified` filter, the
+# repeated-id discard, and the grounded ownership check in front of a rebuild.
+
+
+async def _batch(profile_db, master_db, ids: list[str]):
+    return _call(profile_db, master_db, interpretations_router, "/interpretations", "POST",
+                 "/interpretations/batch", json={"observation_ids": ids})
+
+
+async def _started_ids(master_db) -> list[list[str]]:
+    master_db.expire_all()
+    rows = (await master_db.execute(select(AuditLog).order_by(AuditLog.timestamp, AuditLog.id))).scalars().all()
+    return [json.loads(r.details_json)["observation_ids"] for r in rows
+            if r.details_json and json.loads(r.details_json).get("status") == "started"]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_028_grounded_on_another_profiles_row_is_403_and_untouched(rdbs):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False, profile_id="another-profile"), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _fire("grounded", profile_db, master_db, obs.id)
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == "Access denied to this observation"
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_events(master_db) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_batch_started_row_names_only_this_profiles_stale_rows(rdbs):
+    profile_db, master_db = rdbs
+    mine, mine_old, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    theirs, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False, profile_id="another-profile"), WITHIN, ABOVE)
+    theirs_before = await _snapshot(profile_db, theirs.id)
+    resp = await _batch(profile_db, master_db, [mine.id, theirs.id])
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["successful"] == [mine.id]
+    assert resp.json()["failed"] == [{"observation_id": theirs.id, "error": "Access denied"}]
+    assert await _started_ids(master_db) == [[mine.id]]
+    assert await _snapshot(profile_db, theirs.id) == theirs_before
+    assert (await _cards_of(profile_db, mine.id))[0].id != mine_old
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_batch_alone_on_another_profiles_row_writes_no_started_row(rdbs):
+    profile_db, master_db = rdbs
+    theirs, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False, profile_id="another-profile"), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, theirs.id)
+    spy = _WriteSpy(profile_db)
+    resp = await _batch(profile_db, master_db, [theirs.id])
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["failed"] == [{"observation_id": theirs.id, "error": "Access denied"}]
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, theirs.id) == before
+    assert await _started_ids(master_db) == []
+    assert "started" not in [s for _, s in await _audit_pairs(master_db)]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_batch_under_strict_mode_keeps_a_refused_row_out_of_the_started_row(rdbs):
+    profile_db, master_db = rdbs
+    profile_db.add(UserModelSettings(id=str(uuid.uuid4()), profile_id=PROFILE_ID, strict_safety_mode=True))
+    await profile_db.commit()
+    verified, verified_old, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    refused, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE, verified=False)
+    refused_before = await _snapshot(profile_db, refused.id)
+    resp = await _batch(profile_db, master_db, [verified.id, refused.id])
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["successful"] == [verified.id]
+    (failure,) = resp.json()["failed"]
+    assert failure["observation_id"] == refused.id and failure["error"] == interp_api.UNVERIFIED_BATCH_ERROR
+    assert await _started_ids(master_db) == [[verified.id]]
+    assert await _snapshot(profile_db, refused.id) == refused_before
+    assert (await _cards_of(profile_db, verified.id))[0].id != verified_old
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_batch_alone_on_a_strict_refused_row_writes_no_started_row(rdbs):
+    profile_db, master_db = rdbs
+    profile_db.add(UserModelSettings(id=str(uuid.uuid4()), profile_id=PROFILE_ID, strict_safety_mode=True))
+    await profile_db.commit()
+    refused, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE, verified=False)
+    before = await _snapshot(profile_db, refused.id)
+    spy = _WriteSpy(profile_db)
+    resp = await _batch(profile_db, master_db, [refused.id])
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["failed"][0]["error"] == interp_api.UNVERIFIED_BATCH_ERROR
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, refused.id) == before
+    assert "started" not in [s for _, s in await _audit_pairs(master_db)]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_batch_rebuilds_a_repeated_id_once(rdbs):
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    resp = await _batch(profile_db, master_db, [obs.id, obs.id])
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["successful"] == [obs.id, obs.id]
+    (row,) = await _cards_of(profile_db, obs.id)
+    assert row.id != old_id and row.regeneration_count == 1
+    assert await _started_ids(master_db) == [[obs.id]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ["grounded", "batch"])
+async def test_hc_vrc_024_withheld_stale_rebuild_on_grounded_and_batch_serves_no_old_text(rdbs, route):
+    profile_db, master_db = rdbs
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    with _force_withhold():
+        resp = _fire(route, profile_db, master_db, obs.id)
+    assert resp.status_code == ROUTE_OK[route], resp.text
+    if route == "grounded":
+        assert resp.json()["withheld"] is True
+        assert resp.json()["interpretation"] is None
+    else:
+        assert resp.json()["successful"] == []
+        assert resp.json()["failed"] == [{"observation_id": obs.id, "error": ESCALATE_TEMPLATE}]
+    assert WITHIN not in resp.text and old_text not in resp.text
+    assert "normal reference range" not in resp.text
+    assert await _snapshot(profile_db, obs.id) == before
+    pairs = await _audit_pairs(master_db)
+    assert [s for _, s in pairs if s in ("started", "completed")] == ["started", "completed"], pairs
+    if route == "grounded":
+        # the withheld row closes the pair, as it does on GET and POST
+        assert pairs == [("interpretation.grounded", "started"),
+                         ("interpretation.withheld", "completed")], pairs
+    _no_phi(await _audit_blob(master_db))
