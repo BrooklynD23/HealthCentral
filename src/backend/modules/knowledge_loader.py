@@ -19,6 +19,24 @@ from models import BiomarkerKnowledge, BiomarkerRelationship, InterventionMappin
 
 logger = logging.getLogger(__name__)
 
+# Names the knowledge base was seeded under before KB-CANONICAL-NAMES -> the names it holds now.
+# Observation rows stored before and after the rename still carry the old names (for example the
+# label `Glucose Fasting` is stored as `glucose_fasting`), and for these names the KB row can be
+# the ONLY critical limit (the default table has no `glucose_fasting` or `hemoglobin_a1c` key).
+# Without this map a result stored under an old name loses its KB text and its critical flag.
+# Must equal ANALYTE_RENAMES in migrations/master/versions/003_kb_canonical_names.py.
+KB_ANALYTE_ALIASES = {
+    "glucose_fasting": "glucose",
+    "hemoglobin_a1c": "hba1c",
+    "wbc": "white_blood_cells",
+}
+
+
+def kb_lookup_name(analyte: str) -> str:
+    """The name a knowledge-base row is looked up under: lower-cased, old names mapped to new."""
+    key = analyte.lower()
+    return KB_ANALYTE_ALIASES.get(key, key)
+
 
 @dataclass
 class BiomarkerInfo:
@@ -107,7 +125,7 @@ class KnowledgeLoader:
             BiomarkerInfo if found, None otherwise
         """
         # Check cache first
-        cache_key = analyte_canonical.lower()
+        cache_key = kb_lookup_name(analyte_canonical)
         if cache_key in self._biomarker_cache:
             return self._biomarker_cache[cache_key]
 
@@ -208,13 +226,14 @@ class KnowledgeLoader:
         Returns:
             List of applicable interventions, sorted by priority
         """
-        cache_key = f"{analyte_canonical.lower()}:{condition_type}"
+        lookup_name = kb_lookup_name(analyte_canonical)
+        cache_key = f"{lookup_name}:{condition_type}"
         if cache_key in self._intervention_cache:
             return self._intervention_cache[cache_key]
 
         result = await db.execute(
             select(InterventionMapping).where(
-                InterventionMapping.analyte_canonical == analyte_canonical.lower(),
+                InterventionMapping.analyte_canonical == lookup_name,
                 InterventionMapping.condition_type == condition_type,
                 InterventionMapping.is_active == True,
             ).order_by(InterventionMapping.priority)
@@ -277,7 +296,7 @@ class KnowledgeLoader:
         Returns:
             List of relationships where this analyte is primary or related
         """
-        cache_key = analyte_canonical.lower()
+        cache_key = kb_lookup_name(analyte_canonical)
         if cache_key in self._relationship_cache:
             return self._relationship_cache[cache_key]
 
