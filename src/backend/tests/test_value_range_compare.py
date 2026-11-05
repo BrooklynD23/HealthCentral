@@ -36,6 +36,7 @@ HC-VRC-026  audit rows of a rebuilding read (the started/completed pair)
 HC-VRC-027  no rewrite loop: a fresh card is never stale
 HC-VRC-028  grounded and batch reach the rebuild; GET keeps its ownership check
 HC-VRC-029  the A2 pair on every rebuilding route: fail closed, order, no rows on agreement
+HC-VRC-030  a withheld member of a stale panel fails the read closed; the saved panel stays
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -2256,4 +2257,133 @@ async def test_hc_vrc_029_the_second_read_after_a_rebuild_writes_no_started_row(
     assert [s for _, s in pairs].count("completed") == 1, pairs
     assert (await _cards_of(profile_db, obs.id))[0].id == new_card.id
     assert len(pairs) > rows_after_first  # the reads still write their own plain audit rows
+
+
+# ── HC-VRC-030: a withheld member of a stale panel fails the read closed ─────
+# L0 ruling 6654607932 item 2. A stale saved panel is replaced only when every member's
+# rebuild succeeded: a member the safety check withholds leaves the saved panel (and the
+# old text of its summary) in place, answers 500 with the escalation message, and writes
+# one `interpretation.withheld` row per withheld member. First-generation and forced panels
+# stay report-only (HC-VRC-027). The panel route writes no started row: it stays "C".
+
+SODIUM_HIGH = {**SODIUM_ROW, "value": 160.0}
+
+
+def _withhold_for(*analytes: str):
+    """Withhold the card the template writes for these analytes (the rest are written as usual)."""
+    real = InterpretModule._generate_interpretation
+
+    async def _gen(self, context, master_db):
+        if context.observation.analyte_canonical in analytes:
+            return FALSE_DOSING, None
+        return await real(self, context, master_db)
+
+    return patch.object(InterpretModule, "_generate_interpretation", _gen)
+
+
+async def _say(profile_db, obs_id: str, old: str, new: str) -> None:
+    """Make a saved card say `old` where the template writes `new` (an older wording)."""
+    (card,) = await _cards_of(profile_db, obs_id)
+    assert new in card.interpretation_text
+    card.interpretation_text = card.interpretation_text.replace(new, old)
+    await profile_db.commit()
+
+
+async def _withheld_rows(master_db) -> list[AuditLog]:
+    master_db.expire_all()
+    return list((await master_db.execute(
+        select(AuditLog).order_by(AuditLog.timestamp, AuditLog.id))).scalars().all())
+
+
+def _assert_closed(resp, old_summary: str) -> None:
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+    assert old_summary not in resp.text
+    assert "within normal range" not in resp.text and "2 of 2" not in resp.text
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_030_a_withheld_stale_member_fails_the_panel_read_closed(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, panel_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
+        old_card=(WITHIN, ABOVE))
+    assert "2 of 2 values are within normal range." in old_summary
+    glucose_before = await _snapshot(profile_db, obs_list[0].id)
+    sodium_before = await _snapshot(profile_db, obs_list[1].id)
+    with _withhold_for("glucose"):
+        resp = _read_panel(profile_db, master_db)
+    _assert_closed(resp, old_summary)
+    (panel,) = await _panels(profile_db)  # the saved panel is neither deleted nor replaced
+    assert (panel.id, panel.summary_text) == (panel_id, old_summary)
+    assert await _snapshot(profile_db, obs_list[0].id) == glucose_before
+    assert await _snapshot(profile_db, obs_list[1].id) == sodium_before
+    # one withheld row for the one withheld member, no panel_generate; ids only
+    rows = await _withheld_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    assert (rows[0].entity_type, rows[0].entity_id) == ("observation", obs_list[0].id)
+    _no_phi(await _audit_blob(master_db))
+
+    spy = _WriteSpy(profile_db)  # a second and a third read answer the same and write nothing
+    with _withhold_for("glucose"):
+        for _ in range(2):
+            _assert_closed(_read_panel(profile_db, master_db), old_summary)
+    assert spy.writes == (0, 0), "a failed-closed panel read wrote to the profile"
+    spy.close()
+    assert [p.id for p in await _panels(profile_db)] == [panel_id]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_030_two_withheld_members_write_two_withheld_rows(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, panel_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_HIGH], [False, False],
+        old_card=(WITHIN, ABOVE))
+    await _say(profile_db, obs_list[1].id, WITHIN, ABOVE)
+    before = [await _snapshot(profile_db, o.id) for o in obs_list]
+    with _withhold_for("glucose", "sodium"):
+        resp = _read_panel(profile_db, master_db)
+    _assert_closed(resp, old_summary)
+    (panel,) = await _panels(profile_db)
+    assert (panel.id, panel.summary_text) == (panel_id, old_summary)
+    assert [await _snapshot(profile_db, o.id) for o in obs_list] == before
+    rows = await _withheld_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"] * 2
+    assert {r.entity_id for r in rows} == {o.id for o in obs_list}
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_030_a_rebuilt_member_stays_rebuilt_when_the_other_is_withheld(rdbs):
+    # L1 reading 3: the first member's rebuild is correct and kept; the panel row is not
+    # touched; the second read writes nothing (the rebuilt card is no longer stale).
+    profile_db, master_db = rdbs
+    obs_list, panel_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_HIGH], [False, False],
+        old_card=(WITHIN, ABOVE))
+    await _say(profile_db, obs_list[1].id, WITHIN, ABOVE)
+    glucose_id, sodium_id = obs_list[0].id, obs_list[1].id
+    (old_glucose,) = await _cards_of(profile_db, glucose_id)
+    old_glucose_id = old_glucose.id
+    sodium_before = await _snapshot(profile_db, sodium_id)
+    with _withhold_for("sodium"):
+        resp = _read_panel(profile_db, master_db)
+    _assert_closed(resp, old_summary)
+    (glucose,) = await _cards_of(profile_db, glucose_id)
+    assert glucose.id != old_glucose_id and glucose.previous_interpretation_id == old_glucose_id
+    assert ABOVE in glucose.interpretation_text and WITHIN not in glucose.interpretation_text
+    assert await _snapshot(profile_db, sodium_id) == sodium_before
+    (panel,) = await _panels(profile_db)
+    assert (panel.id, panel.summary_text) == (panel_id, old_summary)
+    rows = await _withheld_rows(master_db)
+    assert [(r.event_type, r.entity_id) for r in rows] == [("interpretation.withheld", sodium_id)]
+
+    spy = _WriteSpy(profile_db)
+    glucose_after = await _snapshot(profile_db, glucose_id)
+    with _withhold_for("sodium"):
+        _assert_closed(_read_panel(profile_db, master_db), old_summary)
+    assert spy.writes == (0, 0), "the second read wrote"
+    spy.close()
+    assert await _snapshot(profile_db, glucose_id) == glucose_after
+    assert await _snapshot(profile_db, sodium_id) == sodium_before
 
