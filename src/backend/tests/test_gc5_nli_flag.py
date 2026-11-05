@@ -693,9 +693,32 @@ def test_hc_gc5_011_legacy_gate_passes_with_flag_on_under_measured_nli_outputs(m
     monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
     report = harness.score_cases(harness.load_cases())
     assert encoder.unknown == []
-    # The flag really reached the RAG module: exactly #249's 7 NLI calls (flag off makes 0).
-    assert len(encoder.calls) == 7
-    assert set(encoder.calls) == set(_REPLAY)
+    # The flag really reached the RAG module: 6 NLI calls (flag off makes 0). #249 measured 7;
+    # LEGACY-ADVICE-GATE escalates "What should I do about my glucose?" before the model, so
+    # escalate-prohibited-advice no longer reaches the NLI. Its claim "Your glucose was 95 mg/dL
+    # [cite:1]." was also made by an answer case, so the set is unchanged and that claim's call
+    # count drops from 2 to 1: each of the 6 measured claims is now called exactly once.
+    assert len(encoder.calls) == 6
+    assert sorted(encoder.calls) == sorted(_REPLAY)
     assert report.passed, report.render()
     assert report.answer_rate == 1.0
     assert report.served_invalid == report.uncited_served == report.leaked == 0
+
+    # The escalated question gets ESCALATE_TEMPLATE with no runner call and no NLI call.
+    from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+
+    runner_calls: list[str] = []
+    original_generate = harness.FakeRunner.generate_async
+
+    async def _counting_generate(self, prompt, config):
+        runner_calls.append(prompt)
+        return await original_generate(self, prompt, config)
+
+    monkeypatch.setattr(harness.FakeRunner, "generate_async", _counting_generate)
+    nli_calls_before = len(encoder.calls)
+    with harness.legacy_chat_client(harness.build_chunks("glucose"), "unused") as (client, _append_turns):
+        resp = client.post(harness.CHAT_PATH, json={"question": "What should I do about my glucose?"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["full_response"] == ESCALATE_TEMPLATE
+    assert runner_calls == []
+    assert len(encoder.calls) == nli_calls_before
