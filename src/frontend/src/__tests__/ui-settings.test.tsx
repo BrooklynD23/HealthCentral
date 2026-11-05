@@ -23,6 +23,7 @@
  *   HC-UISET-015  the External API payloads carry what was typed
  *   HC-UISET-016  the diagnostics link back to /settings stays in Advanced
  *   HC-UISET-017  the export result is still there after a section change or Hide
+ *   HC-UISET-019  the server's answer for a download that died (failed) leaves Download enabled and shows no bar
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -859,6 +860,34 @@ describe('HC-UISET-011: a download that is running is followed after the user le
       expect(button.className, row).toContain('active:scale-100');
       expect(button.querySelector('[data-t0]'), row).toHaveTextContent('Download');
     }
+  });
+});
+
+describe('HC-UISET-019: a download the server reports as failed (it died, or the profile logged out) can be started again', () => {
+  // The backend reports a stored pending or downloading row with no running task as failed (api/model_settings.py,
+  // test_model_download_liveness.py HC-UISET-018), so this is the answer the page gets for a dead row after a reload.
+  // The fixture is that answer, not a stored row: the HC-UISET-011 fixtures stand for a task that is running.
+  const diedAnswer = {
+    mid: {
+      tier: 'mid', status: 'failed', progress: 0, downloaded_bytes: 0, total_bytes: 0, path: null,
+      error: 'The download stopped before it finished. Try again.',
+    },
+  };
+
+  it('a fresh load gives Download enabled, no bar, and a press reaches the POST', async () => {
+    downloadProgress = diedAnswer;
+    vi.mocked(api.apiPost).mockResolvedValue({} as never);
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+
+    const mid = within(screen.getByTestId('tier-row-mid'));
+    expect(mid.getByRole('button', { name: 'Download' })).toBeEnabled();
+    expect(within(screen.getByTestId('tier-row-gemma4-e2b')).getByRole('button', { name: 'Download' })).toBeEnabled();
+    expect(screen.queryByText('Preparing…')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Downloading /)).not.toBeInTheDocument();
+
+    await user.click(mid.getByRole('button', { name: 'Download' }));
+    await waitFor(() => expect(api.apiPost).toHaveBeenCalledWith('/settings/model/download', { tier: 'mid' }));
   });
 });
 
