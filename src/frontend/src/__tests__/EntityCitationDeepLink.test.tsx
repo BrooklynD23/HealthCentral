@@ -211,8 +211,8 @@ describe('FE-CITE-002: entity citation deep links', () => {
     const obsBRow = document.getElementById('observation-row-obs-b') as HTMLElement;
     await user.click(within(obsBRow).getByLabelText('Verify observation'));
 
-    // Wait for the refetch to land (the Verified badge appears on obs-b).
-    await waitFor(() => expect(screen.getByText('Verified')).toBeInTheDocument());
+    // Wait for the verify to land: obs-b's chip reads "Checked by you" (the row can flip before the refetch).
+    await waitFor(() => expect(screen.getByText('Checked by you')).toBeInTheDocument());
 
     // The selection must still be where the user put it.
     expect(rowIsSelected('obs-b')).toBe(true);

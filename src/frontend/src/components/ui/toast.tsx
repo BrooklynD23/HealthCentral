@@ -23,6 +23,12 @@ export interface NotifyOptions {
 // with !important utilities, so a second toast cannot fade its value out.
 const STILL_CONTENT = 'opacity-100! transition-none!';
 
+// Sonner's base rule starts every toast at opacity 0 and transform: var(--y) (translateY(100%)) until data-mounted turns
+// true, so a toast "enters with no motion" only if that start state is cancelled. This does it for a still toast while it
+// is not mounted. --y is left alone: stacking reads it once the toast is mounted. Sonner's CSS is unlayered, so the
+// utilities need the ! form.
+const STILL_TOAST = 'data-[mounted=false]:opacity-100! data-[mounted=false]:transform-none!';
+
 /** Shows a toast. The text sits in an element with role="status". */
 export function notify({ message, action, still = false }: NotifyOptions) {
   return toast(
@@ -32,7 +38,7 @@ export function notify({ message, action, still = false }: NotifyOptions) {
     {
       action,
       style: still ? { transition: 'none' } : undefined,
-      classNames: still ? { content: STILL_CONTENT } : undefined,
+      classNames: still ? { toast: STILL_TOAST, content: STILL_CONTENT } : undefined,
     }
   );
 }
