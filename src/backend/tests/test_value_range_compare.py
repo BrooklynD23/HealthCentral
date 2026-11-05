@@ -37,6 +37,7 @@ HC-VRC-027  no rewrite loop: a fresh card is never stale
 HC-VRC-028  grounded and batch reach the rebuild; GET keeps its ownership check
 HC-VRC-029  the A2 pair on every rebuilding route: fail closed, order, no rows on agreement
 HC-VRC-030  a withheld member of a stale panel fails the read closed; the saved panel stays
+HC-VRC-031  a withheld member with a saved card fails closed whatever the saved panel is
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -1543,9 +1544,12 @@ def _panel_url() -> str:
     return "/interpretations/panels/cmp/interpret"
 
 
-def _read_panel(profile_db, master_db):
+def _read_panel(profile_db, master_db, *, force: bool = False):
+    params = {"collected_at": DAY.isoformat()}
+    if force:
+        params["force_regenerate"] = "true"
     return _call(profile_db, master_db, interpretations_router, "/interpretations", "POST",
-                 _panel_url(), params={"collected_at": DAY.isoformat()})
+                 _panel_url(), params=params)
 
 
 async def _panels(profile_db) -> list[PanelInterpretation]:
@@ -1867,15 +1871,41 @@ async def test_hc_vrc_026_a_rebuilding_read_writes_the_started_and_completed_pai
     _no_phi(await _audit_blob(master_db))
 
 
+PANEL_EVENT = "interpretation.panel_generate"
+
+
+def _det(row: AuditLog) -> dict:
+    return json.loads(row.details_json) if row.details_json else {}
+
+
+async def _rows_of(master_db, event_type: str) -> list[AuditLog]:
+    """The audit rows of one event type, in the order they were written."""
+    master_db.expire_all()
+    return list((await master_db.execute(
+        select(AuditLog).where(AuditLog.event_type == event_type)
+        .order_by(AuditLog.timestamp, AuditLog.id))).scalars().all())
+
+
 @pytest.mark.asyncio
-async def test_hc_vrc_026_a_rebuilding_panel_read_keeps_its_audit_row(rdbs):
+async def test_hc_vrc_026_a_rebuilding_panel_read_writes_the_started_and_completed_pair(rdbs):
+    # L0 ruling 6656962109 items 1 and 2: a panel read that replaces a saved row or a member
+    # card is bracketed (A2), and every replaced card's id is in both rows. Ids only.
     profile_db, master_db = rdbs
-    await _old_panel(profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
-                     old_card=(WITHIN, ABOVE))
+    obs_list, old_id, _ = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
+        old_card=(WITHIN, ABOVE))
+    glucose_id = obs_list[0].id
     resp = _read_panel(profile_db, master_db)
     assert resp.status_code == 201, resp.text
     assert "GLUCOSE: 300.0" in resp.json()["summary_text"]
-    assert await _audit_events(master_db) == ["interpretation.panel_generate"]
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, "started"), (PANEL_EVENT, "completed")]
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    assert (started.entity_type, started.entity_id) == ("panel_interpretation", old_id)
+    assert (completed.entity_type, completed.entity_id) == ("panel_interpretation", resp.json()["id"])
+    for row in (started, completed):  # read from details_json: core.audit drops unknown keys
+        assert _det(row)["observation_ids"] == [glucose_id], _det(row)
+        assert _det(row)["count"] == 1
+    assert _det(completed)["skipped_count"] == 0
     _no_phi(await _audit_blob(master_db))
 
 
@@ -2087,15 +2117,22 @@ ROUTE_EVENT = {"GET": "interpretation.generate", "POST": "interpretation.generat
 ROUTE_OK = {"GET": 200, "POST": 201, "grounded": 201, "batch": 200}
 
 
-def _fire(route: str, profile_db, master_db, obs_id: str, *, soft: bool = False):
+def _fire(route: str, profile_db, master_db, obs_id: str, *, soft: bool = False,
+          force: bool = False):
     """One read through `route`. soft=True answers an unhandled server error as a 500
-    response instead of raising it into the test (route_client's raise_server_exceptions)."""
+    response instead of raising it into the test (route_client's raise_server_exceptions).
+    The "panel" route reads the cmp panel of DAY and ignores obs_id. force=True is
+    force_regenerate on the panel and batch routes."""
     base = f"/interpretations/observations/{obs_id}"
     method, url, kwargs = {
         "GET": ("GET", f"{base}/interpretation", {}),
         "POST": ("POST", f"{base}/interpret", {}),
         "grounded": ("POST", f"{base}/interpret-grounded", {}),
-        "batch": ("POST", "/interpretations/batch", {"json": {"observation_ids": [obs_id]}}),
+        "batch": ("POST", "/interpretations/batch",
+                  {"json": {"observation_ids": [obs_id], "force_regenerate": force}}),
+        "panel": ("POST", _panel_url(),
+                  {"params": {"collected_at": DAY.isoformat(),
+                              **({"force_regenerate": "true"} if force else {})}}),
     }[route]
     with patch.object(interp_api, "get_rag_module", return_value=_stub_rag()), route_client(
         interpretations_router, "/interpretations", profile_id=PROFILE_ID, master_db=master_db,
@@ -2259,15 +2296,170 @@ async def test_hc_vrc_029_the_second_read_after_a_rebuild_writes_no_started_row(
     assert len(pairs) > rows_after_first  # the reads still write their own plain audit rows
 
 
+# ── HC-VRC-029 (panel): the A2 pair on the panel route ───────────────────────
+# L0 ruling 6656962109 item 1. A panel read that would replace the saved panel or a member
+# card writes `panel_generate` started first (it names the stale panel row and every stale
+# member card), then completed. Reads that rebuild nothing keep the single plain row.
+
+PANEL_ROWS = [dict(value=300.0, is_abnormal=False), SODIUM_ROW]
+
+
+async def _panel_case(profile_db, kind: str):
+    """(observations, saved panel id, saved summary) for one panel starting state."""
+    shown, old_card = {
+        "stale_panel_stale_card": ([False, False], (WITHIN, ABOVE)),
+        "stale_panel_only": ([False, False], None),
+        "fresh_panel_stale_card": ([True, False], (WITHIN, ABOVE)),
+        "no_panel_stale_card": ([False, False], (WITHIN, ABOVE)),
+        "fresh_panel": ([True, False], None),
+    }[kind]
+    obs_list, panel_id, summary = await _old_panel(profile_db, PANEL_ROWS, shown, old_card=old_card)
+    if kind == "no_panel_stale_card":
+        for panel in await _panels(profile_db):
+            await profile_db.delete(panel)
+        await profile_db.commit()
+    return obs_list, panel_id, summary
+
+
+async def _state(profile_db, obs_list) -> tuple:
+    """Every saved card and every saved panel, as a read would find them."""
+    return ([await _snapshot(profile_db, o.id) for o in obs_list],
+            [(p.id, p.summary_text) for p in await _panels(profile_db)])
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_a_failed_started_row_stops_the_rebuild(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, panel_id, old_summary = await _panel_case(profile_db, "stale_panel_stale_card")
+    before = await _state(profile_db, obs_list)
+    with _audit_fails_on("started"):
+        resp = _fire("panel", profile_db, master_db, "", soft=True)
+    assert resp.status_code == 500, resp.text
+    assert old_summary not in resp.text
+    assert await _state(profile_db, obs_list) == before  # panel and every card are unchanged
+    assert await _audit_pairs(master_db) == []
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_started_is_committed_before_any_row_is_deleted(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, panel_id, _ = await _panel_case(profile_db, "stale_panel_stale_card")
+    with _ordered(profile_db) as log:
+        resp = _fire("panel", profile_db, master_db, "")
+    assert resp.status_code == 201, resp.text
+    assert log[0] == "started" and log[-1] == "completed", log
+    assert log[1:-1] and set(log[1:-1]) == {"delete"}, log  # the card, then the panel row
+    assert [p.id for p in await _panels(profile_db)] == [resp.json()["id"]]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_a_failed_completed_row_leaves_the_started_row_on_record(rdbs):
+    profile_db, master_db = rdbs
+    await _panel_case(profile_db, "stale_panel_stale_card")
+    with _audit_fails_on("completed"):
+        resp = _fire("panel", profile_db, master_db, "", soft=True)
+    assert resp.status_code == 500, resp.text
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, "started")]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_fresh_saved_panel_beside_a_stale_member_card_writes_nothing(rdbs):
+    # The cached return answers and touches no member card, so no started row is written.
+    profile_db, master_db = rdbs
+    obs_list, panel_id, _ = await _panel_case(profile_db, "fresh_panel_stale_card")
+    before = await _state(profile_db, obs_list)
+    spy = _WriteSpy(profile_db)
+    resp = _fire("panel", profile_db, master_db, "")
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == panel_id
+    assert spy.writes == (0, 0), "a cached panel read wrote to the profile"
+    spy.close()
+    assert await _state(profile_db, obs_list) == before
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, None)]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_first_generation_with_no_card_writes_no_started_row(rdbs):
+    profile_db, master_db = rdbs
+    for kw in PANEL_ROWS:
+        profile_db.add(_obs(user_verified=True, collected_at=DAY, **kw))
+    await profile_db.commit()
+    resp = _fire("panel", profile_db, master_db, "")
+    assert resp.status_code == 201, resp.text
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, None)]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_forced_read_with_no_stale_member_writes_no_started_row(rdbs):
+    # A forced read skips the saved-panel lookup and deletes nothing (PANEL-FORCE-DUPLICATE),
+    # so a stale saved panel is not at risk and no card is stale.
+    profile_db, master_db = rdbs
+    obs_list, _, _ = await _panel_case(profile_db, "stale_panel_only")
+    cards_before = (await _state(profile_db, obs_list))[0]
+    resp = _fire("panel", profile_db, master_db, "", force=True)
+    assert resp.status_code == 201, resp.text
+    assert (await _state(profile_db, obs_list))[0] == cards_before
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, None)]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_second_read_after_a_rebuild_writes_no_started_row(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, _, _ = await _panel_case(profile_db, "stale_panel_stale_card")
+    first = _fire("panel", profile_db, master_db, "")
+    assert first.status_code == 201, first.text
+    spy = _WriteSpy(profile_db)
+    for _ in range(2):
+        again = _fire("panel", profile_db, master_db, "")
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] == first.json()["id"]
+    assert spy.writes == (0, 0), "a second panel read wrote"
+    spy.close()
+    statuses = [s for _, s in await _audit_pairs(master_db)]
+    assert statuses.count("started") == 1 and statuses.count("completed") == 1, statuses
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_no_saved_panel_and_a_stale_member_card_writes_the_pair(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, _, _ = await _panel_case(profile_db, "no_panel_stale_card")
+    assert await _panels(profile_db) == []
+    resp = _fire("panel", profile_db, master_db, "")
+    assert resp.status_code == 201, resp.text
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, "started"), (PANEL_EVENT, "completed")]
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    assert started.entity_id is None  # there is no saved panel row to name
+    assert completed.entity_id == resp.json()["id"]
+    for row in (started, completed):
+        assert _det(row)["observation_ids"] == [obs_list[0].id], _det(row)
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_029_panel_saved_stale_panel_with_no_stale_card_writes_the_pair_with_no_ids(rdbs):
+    # The saved panel row itself is deleted, so it is the thing at risk; no card is replaced.
+    profile_db, master_db = rdbs
+    obs_list, panel_id, _ = await _panel_case(profile_db, "stale_panel_only")
+    resp = _fire("panel", profile_db, master_db, "")
+    assert resp.status_code == 201, resp.text
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, "started"), (PANEL_EVENT, "completed")]
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    assert started.entity_id == panel_id and completed.entity_id == resp.json()["id"]
+    for row in (started, completed):
+        assert _det(row)["observation_ids"] == [] and _det(row)["count"] == 0, _det(row)
+    _no_phi(await _audit_blob(master_db))
+
+
 # ── HC-VRC-030: a withheld member of a stale panel fails the read closed ─────
-# L0 ruling 6654607932 item 2. A stale saved panel is replaced only when every member's
-# rebuild succeeded: a member the safety check withholds leaves the saved panel (and the
-# old text of its summary) in place, answers 500 with the escalation message, and writes
-# one `interpretation.withheld` row per withheld member. Only a saved stale panel fails
-# closed. A first-generation panel whose member has no saved card is report-only on main
-# (HC-VRC-027). A member WITH a saved card whose rebuild is withheld is also dropped when
-# there is no saved panel or the read is forced: measured in review, open for L0, not
-# covered here. The panel route writes no started row: it stays "C" (open for L0).
+# L0 ruling 6654607932 item 2, widened by 6656962109 items 1-3. A stale saved panel is
+# replaced only when every member's rebuild succeeded: a member the safety check withholds
+# leaves the saved panel (and the old text of its summary) in place, answers 500 with the
+# escalation message, and writes one `interpretation.withheld` row per withheld member. The
+# read is bracketed by `panel_generate` started and completed (the route is A2); a sibling
+# rebuilt before the withheld member stays rebuilt and its id is in both rows. A withheld
+# member WITH a saved card fails closed whatever the saved panel is (HC-VRC-031). Report
+# only, as on main (HC-VRC-027): a first-generation member with NO saved card, withheld, is
+# dropped and the panel is created.
 
 SODIUM_HIGH = {**SODIUM_ROW, "value": 160.0}
 
@@ -2290,12 +2482,6 @@ async def _say(profile_db, obs_id: str, old: str, new: str) -> None:
     assert new in card.interpretation_text
     card.interpretation_text = card.interpretation_text.replace(new, old)
     await profile_db.commit()
-
-
-async def _withheld_rows(master_db) -> list[AuditLog]:
-    master_db.expire_all()
-    return list((await master_db.execute(
-        select(AuditLog).order_by(AuditLog.timestamp, AuditLog.id))).scalars().all())
 
 
 def _assert_closed(resp, old_summary: str) -> None:
@@ -2321,10 +2507,16 @@ async def test_hc_vrc_030_a_withheld_stale_member_fails_the_panel_read_closed(rd
     assert (panel.id, panel.summary_text) == (panel_id, old_summary)
     assert await _snapshot(profile_db, obs_list[0].id) == glucose_before
     assert await _snapshot(profile_db, obs_list[1].id) == sodium_before
-    # one withheld row for the one withheld member, no panel_generate; ids only
-    rows = await _withheld_rows(master_db)
-    assert [r.event_type for r in rows] == ["interpretation.withheld"]
-    assert (rows[0].entity_type, rows[0].entity_id) == ("observation", obs_list[0].id)
+    # started, one withheld row for the one withheld member, completed; ids only
+    assert await _audit_pairs(master_db) == [
+        (PANEL_EVENT, "started"), ("interpretation.withheld", None), (PANEL_EVENT, "completed")]
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    assert _det(started)["observation_ids"] == [obs_list[0].id]  # the stale card at risk
+    assert (started.entity_id, completed.entity_id) == (panel_id, panel_id)  # the saved row is kept
+    assert _det(completed)["observation_ids"] == [] and _det(completed)["count"] == 0
+    assert _det(completed)["skipped_count"] == 1
+    (withheld,) = await _rows_of(master_db, "interpretation.withheld")
+    assert (withheld.entity_type, withheld.entity_id) == ("observation", obs_list[0].id)
     _no_phi(await _audit_blob(master_db))
 
     spy = _WriteSpy(profile_db)  # a second and a third read answer the same and write nothing
@@ -2350,9 +2542,15 @@ async def test_hc_vrc_030_two_withheld_members_write_two_withheld_rows(rdbs):
     (panel,) = await _panels(profile_db)
     assert (panel.id, panel.summary_text) == (panel_id, old_summary)
     assert [await _snapshot(profile_db, o.id) for o in obs_list] == before
-    rows = await _withheld_rows(master_db)
-    assert [r.event_type for r in rows] == ["interpretation.withheld"] * 2
+    assert await _audit_pairs(master_db) == [
+        (PANEL_EVENT, "started"), ("interpretation.withheld", None),
+        ("interpretation.withheld", None), (PANEL_EVENT, "completed")]
+    rows = await _rows_of(master_db, "interpretation.withheld")
     assert {r.entity_id for r in rows} == {o.id for o in obs_list}
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    assert set(_det(started)["observation_ids"]) == {o.id for o in obs_list}
+    assert _det(started)["count"] == 2
+    assert _det(completed)["observation_ids"] == [] and _det(completed)["skipped_count"] == 2
     _no_phi(await _audit_blob(master_db))
 
 
@@ -2378,8 +2576,18 @@ async def test_hc_vrc_030_a_rebuilt_member_stays_rebuilt_when_the_other_is_withh
     assert await _snapshot(profile_db, sodium_id) == sodium_before
     (panel,) = await _panels(profile_db)
     assert (panel.id, panel.summary_text) == (panel_id, old_summary)
-    rows = await _withheld_rows(master_db)
-    assert [(r.event_type, r.entity_id) for r in rows] == [("interpretation.withheld", sodium_id)]
+    # L0 ruling 6656962109 item 2: the rebuilt sibling is named, not replaced unnamed
+    assert await _audit_pairs(master_db) == [
+        (PANEL_EVENT, "started"), ("interpretation.withheld", None), (PANEL_EVENT, "completed")]
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    assert set(_det(started)["observation_ids"]) == {glucose_id, sodium_id}
+    assert _det(started)["count"] == 2
+    assert _det(completed)["observation_ids"] == [glucose_id]  # the card that was replaced
+    assert _det(completed)["count"] == 1 and _det(completed)["skipped_count"] == 1
+    assert (started.entity_id, completed.entity_id) == (panel_id, panel_id)
+    (withheld,) = await _rows_of(master_db, "interpretation.withheld")
+    assert withheld.entity_id == sodium_id
+    _no_phi(await _audit_blob(master_db))
 
     spy = _WriteSpy(profile_db)
     glucose_after = await _snapshot(profile_db, glucose_id)
@@ -2387,6 +2595,10 @@ async def test_hc_vrc_030_a_rebuilt_member_stays_rebuilt_when_the_other_is_withh
         _assert_closed(_read_panel(profile_db, master_db), old_summary)
     assert spy.writes == (0, 0), "the second read wrote"
     spy.close()
+    # only the card still stale is at risk on the second read
+    second = [_det(r)["observation_ids"] for r in await _rows_of(master_db, PANEL_EVENT)
+              if _det(r).get("status") == "started"][1]
+    assert second == [sodium_id]
     assert await _snapshot(profile_db, glucose_id) == glucose_after
     assert await _snapshot(profile_db, sodium_id) == sodium_before
 
@@ -2535,4 +2747,45 @@ async def test_hc_vrc_024_withheld_stale_rebuild_on_grounded_and_batch_serves_no
         # the withheld row closes the pair, as it does on GET and POST
         assert pairs == [("interpretation.grounded", "started"),
                          ("interpretation.withheld", "completed")], pairs
+    _no_phi(await _audit_blob(master_db))
+
+
+# ── HC-VRC-031: a withheld member with a saved card fails closed whatever the saved panel is ──
+# L0 ruling 6656962109 item 3. The stale member's card is kept, nothing old is served, and
+# the read answers the same every time. Measured at 26872a5a: read 1 answered 201 "normal"
+# (the member dropped), read 2 answered 500.
+
+SAVED_CARD_CASES = [
+    pytest.param("no_panel_stale_card", False, id="no-saved-panel"),
+    pytest.param("fresh_panel_stale_card", True, id="forced-with-a-saved-fresh-panel"),
+    pytest.param("no_panel_stale_card", True, id="forced-with-no-saved-panel"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,force", SAVED_CARD_CASES)
+async def test_hc_vrc_031_a_withheld_member_with_a_saved_card_fails_the_panel_read_closed(
+    rdbs, kind, force
+):
+    profile_db, master_db = rdbs
+    obs_list, _, old_summary = await _panel_case(profile_db, kind)
+    glucose_id = obs_list[0].id
+    before = await _state(profile_db, obs_list)
+    answers = []
+    for read in (1, 2):
+        with _withhold_for("glucose"):
+            resp = _fire("panel", profile_db, master_db, "", force=force)
+        _assert_closed(resp, old_summary)
+        answers.append((resp.status_code, resp.json()["detail"]))
+        assert await _state(profile_db, obs_list) == before, f"read {read} changed the vault"
+        rows = await _rows_of(master_db, "interpretation.withheld")
+        assert [r.entity_id for r in rows] == [glucose_id] * read  # one row per read
+    assert answers[0] == answers[1] == (500, ESCALATE_TEMPLATE)
+    # the first read: started naming the stale card, the withheld row, completed with no id
+    first = (await _audit_pairs(master_db))[:3]
+    assert first == [(PANEL_EVENT, "started"), ("interpretation.withheld", None),
+                     (PANEL_EVENT, "completed")]
+    started, completed = (await _rows_of(master_db, PANEL_EVENT))[:2]
+    assert _det(started)["observation_ids"] == [glucose_id]
+    assert _det(completed)["observation_ids"] == [] and _det(completed)["skipped_count"] == 1
     _no_phi(await _audit_blob(master_db))
