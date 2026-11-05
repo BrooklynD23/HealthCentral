@@ -197,18 +197,21 @@ interface ObservationRowProps {
   observation: Observation;
   /** Where the row sits in the list now. A Source Trace verify holds the row at the place it had when the sheet was used. */
   index: number;
+  /** The list this row is on. A Source Trace verify is held under the list it was clicked on, not the one on screen at the answer. */
+  filterKey: string;
   selected: boolean;
   expanded: boolean;
   onSelect: (observation: Observation) => void;
   onEdit: (observation: Observation, opener: HTMLElement) => void;
   onVerify: (observation: Observation) => void;
-  onVerified: (observation: Observation, saved: Observation, index: number) => void;
+  onVerified: (observation: Observation, saved: Observation, index: number, filterKey: string) => void;
   onToggleExpand: (id: string) => void;
 }
 
 /**
- * An observation is flat, so equal fields mean an equal row. react-query keeps the old object only when the whole
- * list is equal by position; once a row leaves the list, every row below it arrives as a new object with the same fields.
+ * An observation is flat, so equal fields mean an equal row. react-query keeps the old object for each item that is
+ * equal at its position, so rows above a removed row keep theirs; every row below it moves up one place and arrives as
+ * a new object with the same fields.
  */
 function sameObservation(a: Observation, b: Observation): boolean {
   if (a === b) return true;
@@ -226,6 +229,7 @@ function sameRow(prev: ObservationRowProps, next: ObservationRowProps): boolean 
 const ObservationRow = memo(function ObservationRow({
   observation,
   index,
+  filterKey,
   selected,
   expanded,
   onSelect,
@@ -263,7 +267,7 @@ const ObservationRow = memo(function ObservationRow({
             <ObservationSourceTrace
               observation={observation}
               // The sheet toasts for itself and keeps focus, so this holds the row and nothing else.
-              onVerified={(saved) => onVerified(observation, saved, index)}
+              onVerified={(saved) => onVerified(observation, saved, index, filterKey)}
               trigger={
                 <button
                   type="button"
@@ -480,13 +484,18 @@ export function VerificationWorkbench() {
   };
 
   /** Keep the row on screen as checked, ahead of (and surviving) the refetch that drops it from the needs_verification list. */
-  const holdChecked = (observation: Observation, saved: Observation | undefined, at?: number): Observation => {
+  const holdChecked = (
+    observation: Observation,
+    saved: Observation | undefined,
+    at?: number,
+    key: string = filterKey
+  ): Observation => {
     const checked: Observation = { ...observation, ...saved, user_verified: true };
     const index = at ?? Math.max(0, observations?.findIndex((row) => row.id === observation.id) ?? 0);
     setHeld((prev) => ({
-      key: filterKey,
+      key,
       rows: [
-        ...(prev.key === filterKey ? prev.rows : NO_HELD_ROWS).filter(
+        ...(prev.key === key ? prev.rows : NO_HELD_ROWS).filter(
           (entry) => entry.observation.id !== observation.id
         ),
         { observation: checked, index },
@@ -543,9 +552,9 @@ export function VerificationWorkbench() {
     latestRef.current = { handleVerify, holdChecked };
   });
   const verifyRow = useCallback((observation: Observation) => latestRef.current.handleVerify(observation), []);
-  const holdFromSheet = useCallback((observation: Observation, saved: Observation, index: number) => {
+  const holdFromSheet = useCallback((observation: Observation, saved: Observation, index: number, key: string) => {
     focusShowSourceAfterVerifyRef.current = observation.id;
-    latestRef.current.holdChecked(observation, saved, index);
+    latestRef.current.holdChecked(observation, saved, index, key);
   }, []);
   const toggleExpand = useCallback((id: string) => setExpandedRow((current) => (current === id ? null : id)), []);
 
@@ -1035,6 +1044,7 @@ export function VerificationWorkbench() {
                           key={observation.id}
                           observation={observation}
                           index={index}
+                          filterKey={filterKey}
                           selected={selectedRow === observation.id}
                           expanded={expandedRow === observation.id}
                           onSelect={handleRowSelect}
