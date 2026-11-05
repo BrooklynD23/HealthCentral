@@ -653,6 +653,12 @@ async def get_download_progress(
     """Get download progress for all tiers from database, merged with live in-memory data."""
     selector = get_model_selector()
 
+    # Copied before the row is read. A task that finishes between the read and the key check below
+    # has already dropped its key, and the row held here is the one from before its terminal write:
+    # a key that was set when the read began still counts as running (the next poll reads the new row).
+    with _live_progress_lock:
+        active_before_read = frozenset(_active_downloads)
+
     progress = await selector.get_download_progress(
         profile_id=session.profile_id,
         db=profile_db,
@@ -668,7 +674,8 @@ async def get_download_progress(
         if prog.status in ("pending", "downloading"):
             progress_key = _make_progress_key(session.profile_id, tier)
             with _live_progress_lock:
-                running = progress_key in _active_downloads
+                # Also the set as it is now: a POST can add its key and commit the pending row after the copy.
+                running = progress_key in active_before_read or progress_key in _active_downloads
             if not running:
                 # Reported, not written: no task holds this row, so nothing will move it on.
                 response[tier] = DownloadProgressResponse(
@@ -1068,7 +1075,9 @@ async def _download_model_task(
         _clear_live_progress(progress_key)
         await _write_download_status(profile_id, tier, selector, "failed", 0.0, str(e))
     finally:
-        # After the terminal write, so a GET never sees the old active row with no key.
+        # After the terminal write. A GET that starts once the key is gone reads the terminal row. A GET that
+        # started earlier copied the key before it read the row, so it reports the row it read (the one from
+        # before this write) as running, for one poll, and the next poll reads the terminal row.
         # discard: tests call this task directly with no key set. Runs on cancellation too.
         with _live_progress_lock:
             _active_downloads.discard(progress_key)
