@@ -22,6 +22,18 @@ HC-VRC-012  GET /observations/?abnormal_only=true
 HC-VRC-013  panel summary over HTTP
 HC-VRC-014  the LLM prompt's Flag line
 HC-VRC-015  parity with a plain Verify and with _classify_severity
+HC-VRC-016  the doctor summary and the questions never print a stored None flag
+HC-VRC-017  a saved template card on the old wording is rebuilt on read (single)
+HC-VRC-018  below, and a printed N at an in-range value with an old "outside"
+HC-VRC-019  a card in agreement is returned untouched, no write
+HC-VRC-020  a model-written card is never rebuilt, the model is never called
+HC-VRC-021  a saved template panel on the old wording is rebuilt on read
+HC-VRC-022  a panel in agreement, or written by another model_id, is untouched
+HC-VRC-023  disagreements and uncomparable rows are never rebuilt
+HC-VRC-024  a withheld rebuild keeps the old row and serves none of its text
+HC-VRC-025  strict safety mode refuses first
+HC-VRC-026  audit rows of a rebuilding read
+HC-VRC-027  no rewrite loop: a fresh card is never stale
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -44,6 +56,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+import api.export as export_api
 import api.observations as obs_api
 import models  # noqa: F401  (registers tables on Base.metadata)
 from api import documents as documents_api
@@ -1133,3 +1146,76 @@ async def test_hc_vrc_015_helper_matches_plain_verify_and_severity_for_unflagged
             mismatches.append((value, lo, hi, helper, stored.flag, severity_place))
         assert _abnormal(helper, False) is bool(stored.is_abnormal), (value, lo, hi, helper, stored.is_abnormal)
     assert mismatches == [], mismatches
+
+
+# ── HC-VRC-016: the doctor summary never prints a stored None flag ───────────
+# Ruling 6651067491: `.get('flag', 'abnormal')` returns the stored None because the
+# key exists. A row the range check calls out of range has flag None and is_abnormal
+# True after import; the sentence must say "abnormal", not "None".
+
+NONE_PRINTS = ("[None]", "(None)", "flagged as None")
+
+
+def _no_none(text: str) -> None:
+    for bad in NONE_PRINTS:
+        assert bad not in text, text
+
+
+async def _seed_unflagged_abnormal(profile_db) -> None:
+    await _seed(profile_db, value=300.0, flag=None, is_abnormal=True,
+                collected_at=datetime(2026, 3, 1, 9, 0, 0))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_016_key_findings_line_says_abnormal(dbs):
+    profile_db, master_db = dbs
+    await _seed_unflagged_abnormal(profile_db)
+    resp = _call(profile_db, master_db, export_api.router, "/export", "POST",
+                 "/export/doctor-summary", json={})
+    assert resp.status_code == 200, resp.text
+    findings = resp.json()["key_findings"]
+    assert findings, resp.text
+    for line in findings:
+        _no_none(line)
+    assert any("(abnormal)" in line for line in findings), findings
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_016_abnormal_values_section_says_abnormal(dbs):
+    profile_db, master_db = dbs
+    await _seed_unflagged_abnormal(profile_db)
+    resp = _call(profile_db, master_db, export_api.router, "/export", "POST",
+                 "/export/doctor-summary", json={})
+    assert resp.status_code == 200, resp.text
+    summary_id = resp.json()["summary_id"]
+    download = _call(profile_db, master_db, export_api.router, "/export", "GET",
+                     f"/export/doctor-summary/{summary_id}/download", params={"format": "text"})
+    assert download.status_code == 200, download.text
+    _no_none(download.text)
+    assert "[abnormal]" in download.text, download.text
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_016_question_context_says_abnormal(dbs):
+    profile_db, master_db = dbs
+    await _seed_unflagged_abnormal(profile_db)
+    resp = _call(profile_db, master_db, export_api.router, "/export", "POST", "/export/questions")
+    assert resp.status_code == 200, resp.text
+    abnormal = [q for q in resp.json() if q["category"] == "abnormal"]
+    assert abnormal, resp.text
+    for q in abnormal:
+        _no_none(q["context"] + " | " + q["question"])
+        assert "flagged as abnormal" in q["context"], q["context"]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_016_a_printed_flag_still_prints_as_before(dbs):
+    profile_db, master_db = dbs
+    await _seed(profile_db, value=300.0, flag="H", is_abnormal=True,
+                collected_at=datetime(2026, 3, 1, 9, 0, 0))
+    resp = _call(profile_db, master_db, export_api.router, "/export", "POST",
+                 "/export/doctor-summary", json={})
+    assert resp.status_code == 200, resp.text
+    assert any("(H)" in line for line in resp.json()["key_findings"]), resp.text
+    q = _call(profile_db, master_db, export_api.router, "/export", "POST", "/export/questions")
+    assert "flagged as H" in next(x for x in q.json() if x["category"] == "abnormal")["context"]
