@@ -44,15 +44,16 @@ from __future__ import annotations
 import hashlib
 import inspect
 import io
+import json
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -65,11 +66,14 @@ from api.interpretations import router as interpretations_router
 from core.auth import get_profile_db_session
 from core.database import Base
 from core.profile_database import ProfileDatabaseBase
-from models import Document, Observation
+from models import Document, LabInterpretation, Observation, PanelInterpretation, UserModelSettings
+from models.audit import AuditLog
 from models.knowledge_base import BiomarkerKnowledge
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.interpret import InterpretationContext, InterpretModule
 from modules.interpret_safety import InterpretationSafetyGuard
 from modules.knowledge_loader import BiomarkerInfo, get_knowledge_loader
+from modules.model_selector import ModelSelector
 from scripts.seed_knowledge_base import BIOMARKER_DATA
 from tests.support.routes import route_client
 
@@ -1219,3 +1223,696 @@ async def test_hc_vrc_016_a_printed_flag_still_prints_as_before(dbs):
     assert any("(H)" in line for line in resp.json()["key_findings"]), resp.text
     q = _call(profile_db, master_db, export_api.router, "/export", "POST", "/export/questions")
     assert "flagged as H" in next(x for x in q.json() if x["category"] == "abnormal")["context"]
+
+
+# ── HC-VRC-017 to 027: saved template cards and panels are rebuilt on read ───
+# L0 ruling 6651183114 (owner answer "Regenerate on read"). A card stores no status,
+# so "disagrees with its wording" is read from the saved sentence. Only a card the
+# template wrote (model_tier "template", model_id "template-v1") is rebuilt, only when
+# the helper says above, below or within and the card claims the opposite; the
+# model is never called on a read; every other case is returned as it is, with no write.
+
+DAY = datetime(2026, 3, 1, 9, 0, 0)
+VIEWED = datetime(2026, 3, 2, 8, 0, 0)
+FALSE_DOSING = "Your LDL is 190 mg/dL [KB:ldl]. You should take 20 mg atorvastatin daily."
+READS = [pytest.param("GET", id="GET"), pytest.param("POST", id="POST")]
+
+
+class _WriteSpy:
+    """Counts commits and non-empty flushes on one session (a read must make neither)."""
+
+    def __init__(self, session):
+        self._sync = session.sync_session
+        self.commits = 0
+        self.flushes = 0
+        event.listen(self._sync, "after_commit", self._on_commit)
+        event.listen(self._sync, "before_flush", self._on_flush)
+
+    def _on_commit(self, _session):
+        self.commits += 1
+
+    def _on_flush(self, session, _ctx, _instances):
+        if session.new or session.dirty or session.deleted:
+            self.flushes += 1
+
+    def reset(self):
+        self.commits = self.flushes = 0
+
+    @property
+    def writes(self) -> tuple[int, int]:
+        return self.commits, self.flushes
+
+    def close(self):
+        event.remove(self._sync, "after_commit", self._on_commit)
+        event.remove(self._sync, "before_flush", self._on_flush)
+
+
+@pytest_asyncio.fixture
+async def rdbs(monkeypatch):
+    """Both databases, and a model that raises if anything touches it (a read never calls it)."""
+    infer = AsyncMock(side_effect=AssertionError("the model was called on a read"))
+    select_model = AsyncMock(side_effect=AssertionError("the model was selected on a read"))
+    monkeypatch.setattr(ModelSelector, "run_inference", infer)
+    monkeypatch.setattr(ModelSelector, "get_model_for_inference", select_model)
+    async with _dbs_ctx() as pair:
+        yield pair
+    assert infer.await_count == 0 and select_model.await_count == 0
+
+
+def _obs_url(obs_id: str, method: str) -> str:
+    base = f"/interpretations/observations/{obs_id}"
+    return f"{base}/interpretation" if method == "GET" else f"{base}/interpret"
+
+
+def _read(profile_db, master_db, obs_id: str, method: str):
+    resp = _call(profile_db, master_db, interpretations_router, "/interpretations", method,
+                 _obs_url(obs_id, method))
+    return resp
+
+
+def _ok(method: str) -> int:
+    return 200 if method == "GET" else 201
+
+
+async def _cards_of(profile_db, obs_id: str) -> list[LabInterpretation]:
+    profile_db.expire_all()
+    return list((await profile_db.execute(
+        select(LabInterpretation).where(LabInterpretation.observation_id == obs_id)
+    )).scalars().all())
+
+
+async def _snapshot(profile_db, obs_id: str) -> tuple:
+    (card,) = await _cards_of(profile_db, obs_id)
+    return (card.id, card.interpretation_text, card.regeneration_count, card.updated_at,
+            card.model_id, card.model_tier)
+
+
+async def _audit_events(master_db) -> list[str]:
+    master_db.expire_all()
+    rows = (await master_db.execute(select(AuditLog).order_by(AuditLog.timestamp))).scalars().all()
+    return [r.event_type for r in rows]
+
+
+async def _add_card(profile_db, obs_id: str, text: str, *, model_tier="template",
+                    model_id="template-v1", viewed_at=VIEWED, regeneration_count=0) -> str:
+    card = LabInterpretation(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, observation_id=obs_id,
+        interpretation_text=text, severity_level="normal", advice_text=None,
+        citations_json="[]", context_json=None, model_id=model_id, model_tier=model_tier,
+        confidence_score=0.85, requires_physician_review=False, safety_validation_json=None,
+        regeneration_count=regeneration_count, viewed_at=viewed_at,
+    )
+    profile_db.add(card)
+    await profile_db.commit()
+    return card.id
+
+
+async def _old_card(profile_db, kw: dict, old: str | None, new: str | None, kb=None, **card_kw):
+    """An observation plus a saved card whose `new` sentence was written as `old`
+    (the wording main printed before this row). With old=None the card is today's text."""
+    obs = _obs(user_verified=card_kw.pop("verified", True), **kw)
+    profile_db.add(obs)
+    await profile_db.commit()
+    text = await _text(obs, kb)
+    if old is not None:
+        assert new in text, text  # the precondition: the sentence being replaced is the new one
+        text = text.replace(new, old)
+        assert old in text
+    return SimpleNamespace(id=obs.id), await _add_card(profile_db, obs.id, text, **card_kw), text
+
+
+# ── HC-VRC-017: unflagged 300 against 70-100 whose card says "within" ────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+async def test_hc_vrc_017_unflagged_300_card_saying_within_is_rebuilt_once(rdbs, method):
+    profile_db, master_db = rdbs
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    assert WITHIN in old_text
+    first = _read(profile_db, master_db, obs.id, method)
+    assert first.status_code == _ok(method), first.text
+    body = first.json()
+    assert ABOVE in body["interpretation_text"], body["interpretation_text"]
+    assert WITHIN not in body["interpretation_text"]
+    assert body["id"] != old_id
+    (row,) = await _cards_of(profile_db, obs.id)
+    assert row.id == body["id"]
+    assert row.regeneration_count == 1
+    assert row.previous_interpretation_id == old_id
+    assert row.model_id == "template-v1" and row.model_tier == "template"
+
+    spy = _WriteSpy(profile_db)
+    before = await _snapshot(profile_db, obs.id)
+    for _ in range(2):
+        again = _read(profile_db, master_db, obs.id, method)
+        assert again.status_code == _ok(method), again.text
+        assert again.json()["id"] == body["id"]
+    assert spy.writes == (0, 0), "a second read wrote"
+    assert await _snapshot(profile_db, obs.id) == before
+    spy.close()
+
+
+# ── HC-VRC-018: below, and a printed N in range with an old "outside" ────────
+
+REBUILD_CASES = [
+    pytest.param(dict(value=40.0, is_abnormal=False), WITHIN, BELOW, id="unflagged-40-within"),
+    pytest.param(dict(value=300.0, is_abnormal=False), BELOW, ABOVE, id="unflagged-300-below"),
+    pytest.param(dict(value=40.0, is_abnormal=False), ABOVE, BELOW, id="unflagged-40-above"),
+    pytest.param(dict(value=85.0, flag="N", is_abnormal=True), OUTSIDE, WITHIN, id="N-85-outside"),
+    pytest.param(dict(value=85.0, flag="Normal", is_abnormal=True), OUTSIDE, WITHIN, id="Normal-85-outside"),
+    pytest.param(dict(value=85.0, is_abnormal=True), OUTSIDE, WITHIN, id="unflagged-85-outside"),
+    pytest.param(dict(value=85.0, is_abnormal=True), ABOVE, WITHIN, id="unflagged-85-above"),
+    pytest.param(dict(value=85.0, is_abnormal=True), BELOW, WITHIN, id="unflagged-85-below"),
+    pytest.param(dict(value=300.0, flag="High", is_abnormal=True), WITHIN, ABOVE, id="High-300-within"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw,old,new", REBUILD_CASES)
+async def test_hc_vrc_018_other_stale_wordings_are_rebuilt(rdbs, method, kw, old, new):
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(profile_db, kw, old, new)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    text = resp.json()["interpretation_text"]
+    assert new in text, text
+    assert old not in text, text
+    assert resp.json()["id"] != old_id
+    assert len(await _cards_of(profile_db, obs.id)) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("place,old_place", [("above", "within"), ("below", "within"),
+                                              ("within", "above"), ("within", "below")])
+async def test_hc_vrc_018_knowledge_base_form_is_rebuilt(rdbs, method, place, old_place):
+    profile_db, master_db = rdbs
+    data = next(d for d in BIOMARKER_DATA if d["analyte_canonical"] == "ldl_cholesterol")
+    master_db.add(BiomarkerKnowledge(id="kb-ldl_cholesterol", **data))
+    await master_db.commit()
+    kb = _kb_from(data)
+    value = {**PLACE_VALUE, "within": 85.0}[place]
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(value=value, analyte_canonical="ldl_cholesterol", is_abnormal=place != "within"),
+        _kb_text(kb, old_place), _kb_text(kb, place), kb=kb)
+    assert "[KB:kb-ldl_cholesterol]" in old_text
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    text = resp.json()["interpretation_text"]
+    assert _kb_text(kb, place) in text, text
+    assert _kb_text(kb, old_place) not in text, text
+    assert resp.json()["id"] != old_id
+
+
+# ── HC-VRC-019: a card in agreement is returned untouched ────────────────────
+
+AGREE_CASES = [
+    pytest.param(dict(value=300.0, is_abnormal=True), id="above"),
+    pytest.param(dict(value=40.0, is_abnormal=True), id="below"),
+    pytest.param(dict(value=85.0, is_abnormal=False), id="within"),
+    pytest.param(dict(value=300.0, flag="H", is_abnormal=True), id="H-300"),
+    pytest.param(dict(value=85.0, flag="N", is_abnormal=False), id="N-85"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw", AGREE_CASES)
+async def test_hc_vrc_019_card_in_agreement_is_returned_untouched_with_no_write(rdbs, method, kw):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(profile_db, kw, None, None, regeneration_count=3)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    assert resp.json()["id"] == card_id
+    assert resp.json()["interpretation_text"] == text
+    assert spy.writes == (0, 0), "a card in agreement was written"
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_019_get_marks_an_unviewed_card_viewed_and_nothing_else(rdbs):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=True), None, None, viewed_at=None)
+    resp = _read(profile_db, master_db, obs.id, "GET")
+    assert resp.status_code == 200, resp.text
+    (row,) = await _cards_of(profile_db, obs.id)
+    assert (row.id, row.interpretation_text, row.regeneration_count) == (card_id, text, 0)
+    assert row.viewed_at is not None
+
+
+# ── HC-VRC-020: a model-written card is left alone ───────────────────────────
+
+MODEL_CARDS = [
+    pytest.param(dict(model_tier="high", model_id="biomistral-7b-q4"), id="high-tier"),
+    pytest.param(dict(model_tier="template", model_id="other-template-v2"), id="template-tier-other-id"),
+    pytest.param(dict(model_tier="mid", model_id="template-v1"), id="other-tier-template-id"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("card_kw", MODEL_CARDS)
+async def test_hc_vrc_020_model_written_card_with_a_false_sentence_is_unchanged(rdbs, method, card_kw):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE, **card_kw)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    assert resp.json()["id"] == card_id
+    assert resp.json()["interpretation_text"] == text
+    assert WITHIN in resp.json()["interpretation_text"]
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+    # rdbs asserts at teardown that get_model_for_inference and run_inference never ran
+    assert ModelSelector.run_inference.await_count == 0
+    assert ModelSelector.get_model_for_inference.await_count == 0
+
+
+# ── HC-VRC-021/022: panels ───────────────────────────────────────────────────
+
+CMP_GLUCOSE = dict(analyte_canonical="glucose", analyte_raw="Glucose", unit="mg/dL",
+                   ref_low=LO, ref_high=HI)
+
+
+def _panel_url() -> str:
+    return "/interpretations/panels/cmp/interpret"
+
+
+def _read_panel(profile_db, master_db):
+    return _call(profile_db, master_db, interpretations_router, "/interpretations", "POST",
+                 _panel_url(), params={"collected_at": DAY.isoformat()})
+
+
+async def _panels(profile_db) -> list[PanelInterpretation]:
+    profile_db.expire_all()
+    return list((await profile_db.execute(select(PanelInterpretation))).scalars().all())
+
+
+async def _old_panel(profile_db, rows: list[dict], shown_abnormal: list[bool], *,
+                     model_id="template-v1", card_sentences=None):
+    """Observations, their saved cards, and a saved cmp panel whose summary was written from
+    `shown_abnormal` (what main stored: is_abnormal as import saved it)."""
+    obs_list, summaries = [], []
+    for kw in rows:
+        obs = _obs(user_verified=True, collected_at=DAY, **kw)
+        profile_db.add(obs)
+        obs_list.append(obs)
+    await profile_db.commit()
+    texts = [await _text(o) for o in obs_list]
+    obs_list = [SimpleNamespace(id=o.id, analyte_canonical=o.analyte_canonical, value=o.value, unit=o.unit)
+                for o in obs_list]
+    for obs, shown, text in zip(obs_list, shown_abnormal, texts):
+        await _add_card(profile_db, obs.id, text)
+        summaries.append({"analyte": obs.analyte_canonical, "value": obs.value, "unit": obs.unit,
+                          "severity": "abnormal_high" if shown else "normal", "is_abnormal": shown})
+    summary_text = _module()._generate_panel_summary("cmp", "Comprehensive Metabolic Panel", summaries)
+    panel = PanelInterpretation(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, panel_name="cmp", collected_at=DAY,
+        observation_ids_json=json.dumps([o.id for o in obs_list]),
+        summary_text=summary_text, overall_status="normal", relationship_insights_json=None,
+        advice_text=None, citations_json="[]", model_id=model_id, confidence_score=0.8,
+        requires_physician_review=False,
+    )
+    profile_db.add(panel)
+    await profile_db.commit()
+    return obs_list, panel.id, summary_text
+
+
+SODIUM_ROW = dict(analyte_canonical="sodium", analyte_raw="Sodium", value=140.0, unit="mmol/L",
+                  ref_low=135.0, ref_high=145.0, is_abnormal=False)
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_021_panel_with_an_old_normal_line_is_rebuilt_once(rdbs):
+    profile_db, master_db = rdbs
+    obs_list, old_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False])
+    assert "2 of 2 values are within normal range." in old_summary
+    assert "Items requiring attention" not in old_summary
+
+    first = _read_panel(profile_db, master_db)
+    assert first.status_code == 201, first.text
+    body = first.json()
+    assert "GLUCOSE: 300.0 mg/dL (above normal)" in body["summary_text"], body["summary_text"]
+    assert "1 of 2 values are within normal range." in body["summary_text"]
+    assert body["overall_status"] == "borderline"
+    assert body["id"] != old_id
+    (row,) = await _panels(profile_db)  # exactly one row: the old one is gone
+    assert row.id == body["id"]
+    glucose_card = (await _cards_of(profile_db, obs_list[0].id))
+    assert [c.regeneration_count for c in glucose_card] == [1]
+    assert ABOVE in glucose_card[0].interpretation_text
+
+    spy = _WriteSpy(profile_db)
+    second = _read_panel(profile_db, master_db)
+    assert second.status_code == 201, second.text
+    assert second.json()["id"] == body["id"]
+    assert spy.writes == (0, 0), "a second panel read wrote"
+    spy.close()
+    assert len(await _panels(profile_db)) == 1
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_021_panel_with_a_false_attention_line_is_rebuilt(rdbs):
+    # printed N at 85 whose stored True put it under "Items requiring attention"
+    profile_db, master_db = rdbs
+    _, old_id, old_summary = await _old_panel(
+        profile_db, [dict(value=85.0, flag="N", is_abnormal=True), SODIUM_ROW], [True, False])
+    assert "GLUCOSE: 85.0 mg/dL" in old_summary
+    resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    assert "Items requiring attention" not in resp.json()["summary_text"]
+    assert "2 of 2 values are within normal range." in resp.json()["summary_text"]
+    assert resp.json()["id"] != old_id
+    assert len(await _panels(profile_db)) == 1
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_022_panel_in_agreement_is_returned_untouched(rdbs):
+    profile_db, master_db = rdbs
+    _, old_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=True), SODIUM_ROW], [True, False])
+    spy = _WriteSpy(profile_db)
+    for _ in range(2):
+        resp = _read_panel(profile_db, master_db)
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["id"] == old_id
+        assert resp.json()["summary_text"] == old_summary
+    assert spy.writes == (0, 0)
+    spy.close()
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_022_panel_with_another_model_id_is_unchanged(rdbs):
+    profile_db, master_db = rdbs
+    _, old_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False],
+        model_id="biomistral-7b-q4")
+    spy = _WriteSpy(profile_db)
+    resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == old_id
+    assert resp.json()["summary_text"] == old_summary
+    assert spy.writes == (0, 0)
+    spy.close()
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_022_a_member_without_a_saved_card_never_causes_a_rewrite(rdbs):
+    # The glucose card was withheld when the panel was written: no card, no line, and
+    # the read must not call that stale.
+    profile_db, master_db = rdbs
+    obs_list, old_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False])
+    for card in await _cards_of(profile_db, obs_list[0].id):
+        await profile_db.delete(card)
+    await profile_db.commit()
+    spy = _WriteSpy(profile_db)
+    resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == old_id
+    assert spy.writes == (0, 0)
+    spy.close()
+
+
+# ── HC-VRC-023: disagreements and uncomparable rows are never rebuilt ────────
+
+NEVER = [
+    pytest.param(dict(value=300.0, flag="N", is_abnormal=True), None, None, id="N-at-300-disagrees"),
+    pytest.param(dict(value=85.0, flag="H", is_abnormal=True), None, None, id="H-at-85-disagrees"),
+    pytest.param(dict(value=85.0, flag="L", is_abnormal=True), ABOVE, BELOW, id="L-at-85-card-says-above"),
+    pytest.param(dict(value=None, value_text="pending", flag="N", is_abnormal=True),
+                 OUTSIDE, WITHIN, id="N-no-value-old-outside"),
+    pytest.param(dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100 mg/dL",
+                      is_abnormal=False), None, None, id="text-only-range-keep"),
+    pytest.param(dict(value=300.0, ref_low=None, ref_high=None, is_abnormal=False),
+                 WITHIN, NO_RANGE, id="no-range-old-within"),
+    pytest.param(dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="  ", is_abnormal=False),
+                 None, None, id="blank-range-text"),
+    pytest.param(dict(value=300.0, flag="High", is_abnormal=True), OUTSIDE, ABOVE, id="outside-on-printed-High-300"),
+    pytest.param(dict(value=40.0, flag="Low", is_abnormal=True), OUTSIDE, BELOW, id="outside-on-printed-Low-40"),
+    pytest.param(dict(value=85.0, flag="A", is_abnormal=True), None, None, id="other-flag-keep"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw,old,new", NEVER)
+async def test_hc_vrc_023_cases_the_helper_does_not_decide_are_not_rebuilt(rdbs, method, kw, old, new):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(profile_db, kw, old, new)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    assert resp.json()["id"] == card_id
+    assert resp.json()["interpretation_text"] == text
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_023_a_card_with_no_readable_claim_is_not_stale(rdbs):
+    profile_db, master_db = rdbs
+    obs = _obs(user_verified=True, value=300.0, is_abnormal=False)
+    profile_db.add(obs)
+    await profile_db.commit()
+    card_id = await _add_card(profile_db, obs.id, "Your GLUCOSE result is 300.0 mg/dL. Ask your doctor.")
+    for method in ("GET", "POST"):
+        resp = _read(profile_db, master_db, obs.id, method)
+        assert resp.status_code == _ok(method), resp.text
+        assert resp.json()["id"] == card_id
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_023_a_knowledge_base_card_whose_text_has_changed_is_not_stale(rdbs):
+    profile_db, master_db = rdbs
+    data = next(d for d in BIOMARKER_DATA if d["analyte_canonical"] == "ldl_cholesterol")
+    kb = _kb_from(data)
+    obs, card_id, text = await _old_card(
+        profile_db, dict(value=300.0, analyte_canonical="ldl_cholesterol", is_abnormal=False),
+        _kb_text(kb, "within"), _kb_text(kb, "above"), kb=kb)
+    # the master DB holds a revised KB (another id and other words): the old claim cannot be read
+    master_db.add(BiomarkerKnowledge(id="kb-revised", **{
+        **data, "normal_interpretation": "Revised words.", "high_interpretation": "Other high words.",
+        "low_interpretation": "Other low words."}))
+    await master_db.commit()
+    resp = _read(profile_db, master_db, obs.id, "POST")
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] == card_id
+    assert resp.json()["interpretation_text"] == text
+
+
+# ── HC-VRC-024: a withheld rebuild keeps the old row and serves none of its text ──
+
+
+def _force_withhold():
+    return patch.object(InterpretModule, "_generate_interpretation",
+                        AsyncMock(return_value=(FALSE_DOSING, None)))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+async def test_hc_vrc_024_withheld_rebuild_keeps_the_old_row_and_answers_500(rdbs, method):
+    profile_db, master_db = rdbs
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    with _force_withhold():
+        resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+    assert WITHIN not in resp.text, "the old false sentence was served"
+    assert "normal reference range" not in resp.text
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_events(master_db) == ["interpretation.withheld"]
+
+
+# ── HC-VRC-025: strict safety mode refuses first ─────────────────────────────
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+async def test_hc_vrc_025_strict_mode_refuses_an_unverified_row_before_any_rebuild(rdbs, method):
+    profile_db, master_db = rdbs
+    profile_db.add(UserModelSettings(id=str(uuid.uuid4()), profile_id=PROFILE_ID, strict_safety_mode=True))
+    await profile_db.commit()
+    obs, _, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE, verified=False, viewed_at=None)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "observation_unverified"
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_events(master_db) == ["interpretation.unverified_refused"]
+
+
+# ── HC-VRC-026: the audit rows of a rebuilding read ──────────────────────────
+
+
+def _no_phi(rows_blob: str) -> None:
+    for leaked in ("glucose", "mg/dL", "above the reference", "within the normal", "300.0", "Your "):
+        assert leaked not in rows_blob, leaked
+
+
+async def _audit_blob(master_db) -> str:
+    master_db.expire_all()
+    rows = (await master_db.execute(select(AuditLog))).scalars().all()
+    return " ".join(
+        str(getattr(r, c.name)) for r in rows for c in r.__table__.columns if c.name != "timestamp"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method,event_type", [("GET", "interpretation.view"),
+                                               ("POST", "interpretation.generate")])
+async def test_hc_vrc_026_a_rebuilding_read_keeps_its_audit_row_and_writes_no_started_row(
+    rdbs, method, event_type
+):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    assert ABOVE in resp.json()["interpretation_text"]  # it did rebuild
+    assert await _audit_events(master_db) == [event_type]  # one row, no "started"
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_026_a_rebuilding_panel_read_keeps_its_audit_row(rdbs):
+    profile_db, master_db = rdbs
+    await _old_panel(profile_db, [dict(value=300.0, is_abnormal=False), SODIUM_ROW], [False, False])
+    resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    assert "GLUCOSE: 300.0" in resp.json()["summary_text"]
+    assert await _audit_events(master_db) == ["interpretation.panel_generate"]
+    _no_phi(await _audit_blob(master_db))
+
+
+# ── HC-VRC-027: no rewrite loop ──────────────────────────────────────────────
+
+LOOP_CASES = [
+    ("above", dict(value=300.0)), ("below", dict(value=40.0)), ("within", dict(value=85.0)),
+    ("stored-true-300", dict(value=300.0, is_abnormal=True)),
+    ("H-300", dict(value=300.0, flag="H", is_abnormal=True)),
+    ("L-40", dict(value=40.0, flag="L", is_abnormal=True)),
+    ("High-300", dict(value=300.0, flag="High", is_abnormal=True)),
+    ("N-85", dict(value=85.0, flag="N", is_abnormal=True)),
+    ("N-300-disagrees", dict(value=300.0, flag="N", is_abnormal=True)),
+    ("H-85-disagrees", dict(value=85.0, flag="H", is_abnormal=True)),
+    ("A-85-keep", dict(value=85.0, flag="A", is_abnormal=True)),
+    ("no-range", dict(value=300.0, ref_low=None, ref_high=None)),
+    ("text-only-range", dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100")),
+    ("blank-range-text", dict(value=300.0, ref_low=None, ref_high=None, ref_range_text=" ")),
+    ("high-only", dict(value=300.0, ref_low=None)),
+    ("zero-high", dict(value=5.0, ref_low=None, ref_high=0.0)),
+    ("no-value", dict(value=None, value_text="pending")),
+]
+LOOP_KBS = [pytest.param(None, id="no-kb")] + [pytest.param(d, id=d["analyte_canonical"]) for d in BIOMARKER_DATA]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data", LOOP_KBS)
+async def test_hc_vrc_027_a_fresh_card_is_never_stale(rdbs, data):
+    profile_db, master_db = rdbs
+    analyte = "glucose" if data is None else data["analyte_canonical"]
+    if data is not None:
+        master_db.add(BiomarkerKnowledge(id=f"kb-{analyte}", **data))
+        await master_db.commit()
+    ids = []
+    for _, kw in LOOP_CASES:
+        obs = _obs(user_verified=True, analyte_canonical=analyte, **kw)
+        profile_db.add(obs)
+        ids.append(obs.id)
+    await profile_db.commit()
+
+    created = {}
+    with route_client(interpretations_router, "/interpretations", profile_id=PROFILE_ID,
+                      master_db=master_db) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        for obs_id in ids:
+            resp = client.post(_obs_url(obs_id, "POST"))
+            assert resp.status_code == 201, resp.text
+            created[obs_id] = resp.json()["id"]
+            assert client.get(_obs_url(obs_id, "GET")).status_code == 200  # marks viewed
+        spy = _WriteSpy(profile_db)
+        for obs_id in ids:
+            for method in ("POST", "GET", "POST", "GET"):
+                resp = client.request(method, _obs_url(obs_id, method))
+                assert resp.status_code == _ok(method), resp.text
+                assert resp.json()["id"] == created[obs_id], (analyte, obs_id, method)
+        assert spy.writes == (0, 0), (analyte, "a read wrote")
+        spy.close()
+
+
+PANEL_LOOP = [
+    pytest.param([dict(value=300.0)], id="above"),
+    pytest.param([dict(value=85.0, flag="N", is_abnormal=True)], id="N-in-range-stored-true"),
+    pytest.param([dict(value=300.0, flag="N", is_abnormal=True)], id="N-300-disagrees"),
+    pytest.param([dict(value=300.0, ref_low=None, ref_high=None)], id="no-range"),
+    pytest.param([dict(value=300.0, flag="A", is_abnormal=True)], id="other-flag"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("glucose_rows", PANEL_LOOP)
+async def test_hc_vrc_027_a_fresh_panel_is_never_stale(rdbs, glucose_rows):
+    profile_db, master_db = rdbs
+    for kw in glucose_rows + [SODIUM_ROW]:
+        profile_db.add(_obs(user_verified=True, collected_at=DAY, **{**CMP_GLUCOSE, **kw}))
+    await profile_db.commit()
+    first = _read_panel(profile_db, master_db)
+    assert first.status_code == 201, first.text
+    spy = _WriteSpy(profile_db)
+    for _ in range(3):
+        again = _read_panel(profile_db, master_db)
+        assert again.status_code == 201, again.text
+        assert again.json()["id"] == first.json()["id"]
+    assert spy.writes == (0, 0)
+    spy.close()
+    assert len(await _panels(profile_db)) == 1
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_027_a_panel_with_a_withheld_member_is_never_stale(rdbs):
+    profile_db, master_db = rdbs
+    profile_db.add(_obs(user_verified=True, collected_at=DAY, value=300.0, is_abnormal=False))
+    profile_db.add(_obs(user_verified=True, collected_at=DAY, **SODIUM_ROW))
+    await profile_db.commit()
+    real = InterpretModule._generate_interpretation
+
+    async def _withhold_glucose(self, context, master_db):
+        if context.observation.analyte_canonical == "glucose":
+            return FALSE_DOSING, None
+        return await real(self, context, master_db)
+
+    with patch.object(InterpretModule, "_generate_interpretation", _withhold_glucose):
+        first = _read_panel(profile_db, master_db)
+        assert first.status_code == 201, first.text
+        assert "GLUCOSE" not in first.json()["summary_text"]  # the withheld member is not in it
+        spy = _WriteSpy(profile_db)
+        for _ in range(3):
+            again = _read_panel(profile_db, master_db)
+            assert again.status_code == 201, again.text
+            assert again.json()["id"] == first.json()["id"]
+        assert spy.writes == (0, 0)
+        spy.close()
+    assert len(await _panels(profile_db)) == 1
