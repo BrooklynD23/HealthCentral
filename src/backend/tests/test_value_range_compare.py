@@ -32,9 +32,10 @@ HC-VRC-022  a panel in agreement, or written by another model_id, is untouched
 HC-VRC-023  disagreements and uncomparable rows are never rebuilt
 HC-VRC-024  a withheld rebuild keeps the old row and serves none of its text
 HC-VRC-025  strict safety mode refuses first
-HC-VRC-026  audit rows of a rebuilding read
+HC-VRC-026  audit rows of a rebuilding read (the started/completed pair)
 HC-VRC-027  no rewrite loop: a fresh card is never stale
 HC-VRC-028  grounded and batch reach the rebuild; GET keeps its ownership check
+HC-VRC-029  the A2 pair on every rebuilding route: fail closed, order, no rows on agreement
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -47,7 +48,7 @@ import inspect
 import io
 import json
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -1788,7 +1789,9 @@ async def test_hc_vrc_024_withheld_rebuild_keeps_the_old_row_and_answers_500(rdb
     assert WITHIN not in resp.text, "the old false sentence was served"
     assert "normal reference range" not in resp.text
     assert await _snapshot(profile_db, obs.id) == before
-    assert await _audit_events(master_db) == ["interpretation.withheld"]
+    # The rebuild is irreversible, so it opens with a started row; the withheld row closes it.
+    assert await _audit_events(master_db) == ["interpretation.generate", "interpretation.withheld"]
+    assert [s for _, s in await _audit_pairs(master_db)] == ["started", "completed"]
 
 
 # ── HC-VRC-025: strict safety mode refuses first ─────────────────────────────
@@ -1829,18 +1832,37 @@ async def _audit_blob(master_db) -> str:
     )
 
 
+async def _audit_pairs(master_db) -> list[tuple[str, str | None]]:
+    """(event_type, intent) per audit row, in order. The intent is the `status` stored on the row."""
+    master_db.expire_all()
+    rows = (await master_db.execute(
+        select(AuditLog).order_by(AuditLog.timestamp, AuditLog.id))).scalars().all()
+    return [(r.event_type, (json.loads(r.details_json) if r.details_json else {}).get("status"))
+            for r in rows]
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize("method,event_type", [("GET", "interpretation.view"),
-                                               ("POST", "interpretation.generate")])
-async def test_hc_vrc_026_a_rebuilding_read_keeps_its_audit_row_and_writes_no_started_row(
-    rdbs, method, event_type
+@pytest.mark.parametrize("method,want", [
+    ("GET", [("interpretation.generate", "started"), ("interpretation.generate", "completed"),
+             ("interpretation.view", None)]),
+    ("POST", [("interpretation.generate", "started"), ("interpretation.generate", "completed")]),
+])
+async def test_hc_vrc_026_a_rebuilding_read_writes_the_started_and_completed_pair(
+    rdbs, method, want
 ):
+    # AO-DESIGN "D: two-row on irreversible": the rebuild deletes the saved card, so it is
+    # bracketed like an explicit regenerate. The GET keeps its view row after the pair.
     profile_db, master_db = rdbs
     obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
     resp = _read(profile_db, master_db, obs.id, method)
     assert resp.status_code == _ok(method), resp.text
     assert ABOVE in resp.json()["interpretation_text"]  # it did rebuild
-    assert await _audit_events(master_db) == [event_type]  # one row, no "started"
+    assert await _audit_pairs(master_db) == want
+    master_db.expire_all()
+    started = (await master_db.execute(
+        select(AuditLog).where(AuditLog.event_type == "interpretation.generate")
+        .order_by(AuditLog.timestamp, AuditLog.id))).scalars().first()
+    assert (started.entity_type, started.entity_id) == ("observation", obs.id)
     _no_phi(await _audit_blob(master_db))
 
 
@@ -2049,3 +2071,189 @@ async def test_hc_vrc_028_a_stale_card_on_another_profiles_row_is_403_and_untouc
     spy.close()
     assert await _snapshot(profile_db, obs.id) == before
     assert await _audit_events(master_db) == []
+
+
+# ── HC-VRC-029: the A2 pair on every route that can rebuild ──────────────────
+# L0 ruling 6654607932 item 1 (AO-DESIGN "D: two-row on irreversible"). A rebuild deletes
+# the saved card, so it is bracketed like an explicit regenerate: a `started` row is
+# committed first and a failed audit write stops the rebuild; `completed` follows it.
+# Only a rebuild writes the pair: a card in agreement, a model-written card or a card the
+# helper does not decide writes none.
+
+ROUTES = [pytest.param(r, id=r) for r in ("GET", "POST", "grounded", "batch")]
+ROUTE_EVENT = {"GET": "interpretation.generate", "POST": "interpretation.generate",
+               "grounded": "interpretation.grounded", "batch": "interpretation.batch_generate"}
+ROUTE_OK = {"GET": 200, "POST": 201, "grounded": 201, "batch": 200}
+
+
+def _fire(route: str, profile_db, master_db, obs_id: str, *, soft: bool = False):
+    """One read through `route`. soft=True answers an unhandled server error as a 500
+    response instead of raising it into the test (route_client's raise_server_exceptions)."""
+    base = f"/interpretations/observations/{obs_id}"
+    method, url, kwargs = {
+        "GET": ("GET", f"{base}/interpretation", {}),
+        "POST": ("POST", f"{base}/interpret", {}),
+        "grounded": ("POST", f"{base}/interpret-grounded", {}),
+        "batch": ("POST", "/interpretations/batch", {"json": {"observation_ids": [obs_id]}}),
+    }[route]
+    with patch.object(interp_api, "get_rag_module", return_value=_stub_rag()), route_client(
+        interpretations_router, "/interpretations", profile_id=PROFILE_ID, master_db=master_db,
+        raise_server_exceptions=not soft,
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        return client.request(method, url, **kwargs)
+
+
+def _audit_fails_on(status: str):
+    """Make the audit_intent commit of one half of the pair (`started` or `completed`) raise."""
+    real = interp_api.audit_intent
+
+    async def _wrapped(db, st, log_fn, **kw):
+        if st == status:
+            raise RuntimeError("audit down")
+        return await real(db, st, log_fn, **kw)
+
+    return patch.object(interp_api, "audit_intent", _wrapped)
+
+
+@contextmanager
+def _ordered(profile_db):
+    """Yield a log of 'started', 'completed' (after the audit commit returns) and 'delete'
+    (a profile flush that removes a row), in the order they happened."""
+    log: list[str] = []
+    real = interp_api.audit_intent
+
+    async def _wrapped(db, st, log_fn, **kw):
+        row = await real(db, st, log_fn, **kw)
+        log.append(st)
+        return row
+
+    def _on_flush(session, _ctx, _instances):
+        if session.deleted:
+            log.append("delete")
+
+    sync = profile_db.sync_session
+    event.listen(sync, "before_flush", _on_flush)
+    try:
+        with patch.object(interp_api, "audit_intent", _wrapped):
+            yield log
+    finally:
+        event.remove(sync, "before_flush", _on_flush)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ROUTES)
+async def test_hc_vrc_029_a_failed_started_row_stops_the_rebuild(rdbs, route):
+    profile_db, master_db = rdbs
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    before = await _snapshot(profile_db, obs.id)
+    with _audit_fails_on("started"):
+        resp = _fire(route, profile_db, master_db, obs.id, soft=True)
+    assert resp.status_code == 500, resp.text
+    assert old_text not in resp.text and WITHIN not in resp.text
+    assert "normal reference range" not in resp.text
+    (row,) = await _cards_of(profile_db, obs.id)  # no new card, the old one is not deleted
+    assert (row.id, row.interpretation_text) == (old_id, old_text)
+    assert await _snapshot(profile_db, obs.id) == before
+    assert await _audit_pairs(master_db) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ROUTES)
+async def test_hc_vrc_029_started_is_committed_before_the_old_row_is_deleted(rdbs, route):
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    with _ordered(profile_db) as log:
+        resp = _fire(route, profile_db, master_db, obs.id)
+    assert resp.status_code == ROUTE_OK[route], resp.text
+    assert log == ["started", "delete", "completed"], log
+    (row,) = await _cards_of(profile_db, obs.id)
+    assert row.id != old_id and ABOVE in row.interpretation_text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ROUTES)
+async def test_hc_vrc_029_a_failed_completed_row_leaves_the_started_row_on_record(rdbs, route):
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(
+        profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    with _audit_fails_on("completed"):
+        resp = _fire(route, profile_db, master_db, obs.id, soft=True)
+    assert resp.status_code == 500, resp.text
+    assert await _audit_pairs(master_db) == [(ROUTE_EVENT[route], "started")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ["grounded", "batch"])
+async def test_hc_vrc_029_grounded_and_batch_write_their_own_pair_with_ids_only(rdbs, route):
+    profile_db, master_db = rdbs
+    obs, _, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    resp = _fire(route, profile_db, master_db, obs.id)
+    assert resp.status_code == ROUTE_OK[route], resp.text
+    assert await _audit_pairs(master_db) == [
+        (ROUTE_EVENT[route], "started"), (ROUTE_EVENT[route], "completed")]
+    master_db.expire_all()
+    rows = (await master_db.execute(
+        select(AuditLog).order_by(AuditLog.timestamp, AuditLog.id))).scalars().all()
+    if route == "batch":
+        for row in rows:
+            assert json.loads(row.details_json)["observation_ids"] == [obs.id]
+            assert json.loads(row.details_json)["count"] == 1
+    else:
+        assert all((r.entity_type, r.entity_id) == ("observation", obs.id) for r in rows)
+    _no_phi(await _audit_blob(master_db))
+
+
+NO_ROW_CASES = (
+    [pytest.param(p.values[0], None, None, {}, id=f"agree-{p.id}") for p in AGREE_CASES]
+    + [pytest.param(dict(value=300.0, is_abnormal=False), WITHIN, ABOVE, p.values[0], id=f"model-{p.id}")
+       for p in MODEL_CARDS]
+    + [pytest.param(p.values[0], p.values[1], p.values[2], {}, id=f"keep-{p.id}") for p in NEVER]
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ROUTES)
+@pytest.mark.parametrize("kw,old,new,card_kw", NO_ROW_CASES)
+async def test_hc_vrc_029_a_read_that_does_not_rebuild_writes_no_started_row(
+    rdbs, route, kw, old, new, card_kw
+):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(profile_db, kw, old, new, **card_kw)
+    before = await _snapshot(profile_db, obs.id)
+    spy = _WriteSpy(profile_db)
+    resp = _fire(route, profile_db, master_db, obs.id)
+    assert resp.status_code == ROUTE_OK[route], resp.text
+    assert spy.writes == (0, 0), "a read that does not rebuild wrote to the profile"
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+    statuses = [s for _, s in await _audit_pairs(master_db)]
+    assert "started" not in statuses and "completed" not in statuses, statuses
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("route", ROUTES)
+async def test_hc_vrc_029_the_second_read_after_a_rebuild_writes_no_started_row(rdbs, route):
+    profile_db, master_db = rdbs
+    obs, old_id, _ = await _old_card(profile_db, dict(value=300.0, is_abnormal=False), WITHIN, ABOVE)
+    assert _fire(route, profile_db, master_db, obs.id).status_code == ROUTE_OK[route]
+    (new_card,) = await _cards_of(profile_db, obs.id)
+    assert new_card.id != old_id
+    rows_after_first = len(await _audit_pairs(master_db))
+    spy = _WriteSpy(profile_db)
+    for _ in range(2):
+        assert _fire(route, profile_db, master_db, obs.id).status_code == ROUTE_OK[route]
+    assert spy.writes == (0, 0), "a second read wrote"
+    spy.close()
+    pairs = await _audit_pairs(master_db)
+    assert [s for _, s in pairs].count("started") == 1, pairs
+    assert [s for _, s in pairs].count("completed") == 1, pairs
+    assert (await _cards_of(profile_db, obs.id))[0].id == new_card.id
+    assert len(pairs) > rows_after_first  # the reads still write their own plain audit rows
+
