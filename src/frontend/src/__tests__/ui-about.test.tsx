@@ -70,8 +70,10 @@ afterEach(() => {
   window.history.pushState({}, '', '/');
 });
 
-/** App's own router reads window.location, so the route is the real one. */
-async function renderAbout() {
+const T0_SELECTORS = ['[data-about-safety]', '[data-about-not-advice]', '[data-about-local-first]', '[data-about-example-label]'];
+
+/** App's own router reads window.location, so the route is the real one. Resolves at the page's first render. */
+async function renderAboutFirst() {
   window.history.pushState({}, '', '/about');
   const view = render(
     <MotionProvider>
@@ -79,6 +81,13 @@ async function renderAbout() {
     </MotionProvider>
   );
   await screen.findByRole('heading', { level: 1 });
+  return view;
+}
+
+/** The whole page: the first render, then the part that mounts after the first paint (the ribbon onwards). */
+async function renderAbout() {
+  const view = await renderAboutFirst();
+  await screen.findByRole('slider');
   return view;
 }
 
@@ -157,6 +166,37 @@ describe('HC-UIABT-002: the T0 statements sit outside every S1 wrapper', () => {
       // None of them holds T0 content.
       expect(group.querySelector('[data-t0]')).toBeNull();
     }
+  });
+});
+
+describe('HC-UIABT-006: a light first render (G10 first visit)', () => {
+  it('HC-UIABT-006: the first render holds the four T0 statements but not the ribbon or the S1 sections, which mount after the first paint', async () => {
+    await renderAboutFirst();
+    // First render: the T0 text is there at once.
+    const first = T0_SELECTORS.map((selector) => document.querySelector<HTMLElement>(selector));
+    T0_SELECTORS.forEach((selector, index) => {
+      expect(first[index], `${selector} in the first render`).not.toBeNull();
+      expect(first[index]!.hasAttribute('data-t0'), `${selector} data-t0`).toBe(true);
+    });
+    // The heavy part is not: no ribbon, no S1 group, no orb, no call to action.
+    // Booleans and counts, not elements: a failure message then names the check instead of printing an svg.
+    expect(screen.queryByRole('slider') === null, 'no ribbon in the first render').toBe(true);
+    expect(document.querySelectorAll('[data-about-group]').length, 'S1 groups in the first render').toBe(0);
+    expect(screen.queryByRole('status') === null, 'no orb status in the first render').toBe(true);
+    expect(screen.queryByRole('link', { name: 'Open Asclexis' }) === null, 'no call to action in the first render').toBe(true);
+    // The labelled region is already there, holding the ribbon's place.
+    const region = screen.getByRole('region', { name: EXAMPLE_LABEL });
+    expect(region.querySelector('[data-about-ribbon-slot]') !== null, 'ribbon slot in the first render').toBe(true);
+
+    // After the first paint: the ribbon in the labelled region, then S1 and the call to action.
+    expect(await within(region).findByRole('slider')).toBeInTheDocument();
+    expect(region.querySelector('[data-about-ribbon-slot]') === null, 'slot gone once the ribbon is in').toBe(true);
+    expect(document.querySelectorAll('[data-about-group]').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('link', { name: 'Open Asclexis' })).toBeInTheDocument();
+    // The T0 nodes were not remounted: the same elements, so a probe baseline taken at the first render still holds.
+    T0_SELECTORS.forEach((selector, index) => {
+      expect(document.querySelector(selector) === first[index], `${selector} is the same node`).toBe(true);
+    });
   });
 });
 

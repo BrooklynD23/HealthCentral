@@ -15,7 +15,14 @@
  * - S3: ThinkingOrb (64 px) in the how-it-works part; its status prop is the visible line.
  *
  * The route has no shell, so there is no Safety Rail, as on /setup. The page's own safety statement stands in for it.
+ *
+ * First paint (G10 first visit): the first render is the header and the four T0 statements only. The ribbon, the S1
+ * sections (with the orb) and the call to action mount in a second, time-sliced render after the first paint, so the
+ * page's mount is never one long stretch on the main thread. Everything that mounts later sits below the T0 text, so
+ * no T0 rect moves; the ribbon slot holds a screen's height until then, so the page scrolls from the first paint and a
+ * classic scrollbar does not appear later and push the centred column sideways.
  */
+import { startTransition, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { RangeRibbon } from '@/components/results/RangeRibbon';
 import { BeamBorder } from '@/components/ui/BeamBorder';
@@ -50,7 +57,27 @@ const STEPS: Array<{ name: string; text: string }> = [
   { name: 'Ask', text: 'Ask a question about your results. Answers point to the sources they come from.' },
 ];
 
+/**
+ * False on the first render, true after the first paint. The frame callback runs before the next paint, and the
+ * timeout it queues runs after that paint. The update is a transition, so React renders it in slices.
+ */
+function useAfterFirstPaint(): boolean {
+  const [painted, setPainted] = useState(false);
+  useEffect(() => {
+    let timer: number | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      timer = window.setTimeout(() => startTransition(() => setPainted(true)), 0);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, []);
+  return painted;
+}
+
 export function AboutPage() {
+  const painted = useAfterFirstPaint();
   return (
     <div className="min-h-screen bg-surface px-4 py-10 text-ink sm:px-6 sm:py-16">
       <main className="mx-auto w-full max-w-3xl space-y-10">
@@ -82,47 +109,55 @@ export function AboutPage() {
           <p id="about-example-label" data-t0 data-about-example-label className="text-sm font-medium text-ink">
             Example data, not yours
           </p>
-          <RangeRibbon trend={EXAMPLE_TREND} />
+          {painted ? (
+            <RangeRibbon trend={EXAMPLE_TREND} />
+          ) : (
+            <div data-about-ribbon-slot aria-hidden="true" className="min-h-screen" />
+          )}
         </section>
 
-        <ShowcaseReveal id="about">
-          <section data-about-group="how-it-works" aria-labelledby="about-how-heading" className="space-y-4">
-            <h2 id="about-how-heading" className="font-display text-2xl font-semibold tracking-tight">
-              How it works
-            </h2>
-            <ThinkingOrb size={64} status="How it reads a report" />
-            <ol aria-labelledby="about-how-heading" className="space-y-3">
-              {STEPS.map((step, index) => (
-                <li key={step.name} className="flex gap-3">
-                  <span aria-hidden="true" className="w-6 shrink-0 text-ink-secondary">
-                    {index + 1}.
-                  </span>
-                  <p>
-                    <span className="font-medium">{step.name}.</span> <span className="text-ink-secondary">{step.text}</span>
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </section>
+        {painted && (
+          <>
+            <ShowcaseReveal id="about">
+              <section data-about-group="how-it-works" aria-labelledby="about-how-heading" className="space-y-4">
+                <h2 id="about-how-heading" className="font-display text-2xl font-semibold tracking-tight">
+                  How it works
+                </h2>
+                <ThinkingOrb size={64} status="How it reads a report" />
+                <ol aria-labelledby="about-how-heading" className="space-y-3">
+                  {STEPS.map((step, index) => (
+                    <li key={step.name} className="flex gap-3">
+                      <span aria-hidden="true" className="w-6 shrink-0 text-ink-secondary">
+                        {index + 1}.
+                      </span>
+                      <p>
+                        <span className="font-medium">{step.name}.</span> <span className="text-ink-secondary">{step.text}</span>
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </section>
 
-          {/* pt-10 stands in for main's space-y-10: ShowcaseReveal wraps each section in its own div, so the sibling
-              margin never reaches between the two sections. */}
-          <section data-about-group="capstone" aria-labelledby="about-capstone-heading" className="space-y-3 pt-10">
-            <h2 id="about-capstone-heading" className="font-display text-2xl font-semibold tracking-tight">
-              Capstone project
-            </h2>
-            <p className="text-ink-secondary">
-              Asclexis is a capstone project. This page is part of the demo: the chart above uses made-up numbers, and
-              nothing on this page reads your records.
-            </p>
-          </section>
-        </ShowcaseReveal>
+              {/* pt-10 stands in for main's space-y-10: ShowcaseReveal wraps each section in its own div, so the sibling
+                  margin never reaches between the two sections. */}
+              <section data-about-group="capstone" aria-labelledby="about-capstone-heading" className="space-y-3 pt-10">
+                <h2 id="about-capstone-heading" className="font-display text-2xl font-semibold tracking-tight">
+                  Capstone project
+                </h2>
+                <p className="text-ink-secondary">
+                  Asclexis is a capstone project. This page is part of the demo: the chart above uses made-up numbers, and
+                  nothing on this page reads your records.
+                </p>
+              </section>
+            </ShowcaseReveal>
 
-        <BeamBorder active className="inline-block rounded-xl p-1">
-          <Button asChild size="lg">
-            <Link to="/">Open Asclexis</Link>
-          </Button>
-        </BeamBorder>
+            <BeamBorder active className="inline-block rounded-xl p-1">
+              <Button asChild size="lg">
+                <Link to="/">Open Asclexis</Link>
+              </Button>
+            </BeamBorder>
+          </>
+        )}
       </main>
     </div>
   );
