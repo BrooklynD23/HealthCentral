@@ -175,7 +175,7 @@ class ModelSettingsResponse(BaseModel):
     auto_detect_enabled: bool
     hardware_info: HardwareInfoResponse
     tier_availability: dict[str, TierStatusResponse]
-    ocr_preference_enabled: bool = True
+    ocr_preference_enabled: bool = False
     ocr_effective: bool = False
     ocr_blockers: list[str] = Field(default_factory=list)
     agent_enabled: bool = True

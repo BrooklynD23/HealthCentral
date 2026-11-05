@@ -102,7 +102,7 @@ async function axeAfterThemeSettles(page: Page, theme: 'light' | 'dark') {
 }
 
 /**
- * /trends fixtures for this spec's observations. mockApi.ts has trend fixtures for glucose, ldl and hba1c, but this
+ * /results fixtures for this spec's observations. mockApi.ts has trend fixtures for glucose, ldl and hba1c, but this
  * spec's lipid observations are ldl_cholesterol and hdl_cholesterol, which it does not know (an unmocked request is a
  * 599 and trips the G7 guard). Each analyte has its own chart title and latest value, so "the chart on screen" can be
  * read off the page. Glucose is answered by mockApi.ts: title "Glucose", latest 101.
@@ -380,7 +380,7 @@ test.describe('UI-PALETTE', () => {
     await expect(ldl.locator('[data-t0]')).toHaveText('142 mg/dL (unverified)');
     await expect(dialog(page).getByRole('option', { name: /Lipid panel: cholesterol \(unverified\)/ })).toBeVisible();
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/results\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
     // L0 ruling 6586583230: the chart is LDL's, not the first analyte's (glucose).
     await expectChart(page, 'LDL chart', 143);
     await expect(chartTitle(page, 'Glucose')).toHaveCount(0);
@@ -412,14 +412,14 @@ test.describe('UI-PALETTE', () => {
     // Text no analyte or page matches, so the hit is the only record option and no Results row shares its name.
     await box.pressSequentially('zzq');
     await dialog(page).getByRole('option', { name: /LDL Cholesterol/ }).click();
-    await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/results\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
     await expectChart(page, 'LDL chart', 143);
     await expect(chartTitle(page, 'Glucose')).toHaveCount(0);
     expect(asked, 'no /observations/trends/glucose request, only LDL').toEqual(['ldl_cholesterol']);
   });
 
-  test('HC-UIPAL-004: on /trends a row clicked earlier does not outlast a palette pick (the page is not remounted)', async ({ page }) => {
-    await openApp(page, '/trends', OBSERVATIONS, mockLipidTrends);
+  test('HC-UIPAL-004: on /results a row clicked earlier does not outlast a palette pick (the page is not remounted)', async ({ page }) => {
+    await openApp(page, '/results', OBSERVATIONS, mockLipidTrends);
     await expectChart(page, 'Glucose', 101);
     await page.getByRole('main').getByRole('button', { name: /HDL Cholesterol/ }).click();
     await expectChart(page, 'HDL chart', 52);
@@ -427,14 +427,14 @@ test.describe('UI-PALETTE', () => {
     const box = await openWithKeys(page);
     await box.pressSequentially('chol');
     await dialog(page).getByRole('option', { name: /LDL Cholesterol/ }).click();
-    await expect(page).toHaveURL(/\/trends\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/results\?analyte=ldl_cholesterol$/, { timeout: 15_000 });
     await expectChart(page, 'LDL chart', 143);
     await expect(chartTitle(page, 'HDL chart')).toHaveCount(0);
   });
 
-  test('HC-UIPAL-004: /trends?analyte=nope shows the first analyte, asks for nothing named nope, and logs nothing', async ({ page }) => {
+  test('HC-UIPAL-004: /results?analyte=nope shows the first analyte, asks for nothing named nope, and logs nothing', async ({ page }) => {
     let asked: string[] = [];
-    const { guard } = await openApp(page, '/trends?analyte=nope', OBSERVATIONS, async (p) => {
+    const { guard } = await openApp(page, '/results?analyte=nope', OBSERVATIONS, async (p) => {
       await mockLipidTrends(p);
       asked = trendRequests(p);
     });
@@ -445,9 +445,9 @@ test.describe('UI-PALETTE', () => {
     guard.assertClean();
   });
 
-  test('HC-UIPAL-004: /trends?analyte=ldl_cholesterol is a clean page (G7), its Safety Rail is up (G9), and it asks for LDL only', async ({ page }) => {
+  test('HC-UIPAL-004: /results?analyte=ldl_cholesterol is a clean page (G7), its Safety Rail is up (G9), and it asks for LDL only', async ({ page }) => {
     let asked: string[] = [];
-    const { guard } = await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, async (p) => {
+    const { guard } = await openApp(page, '/results?analyte=ldl_cholesterol', OBSERVATIONS, async (p) => {
       await mockLipidTrends(p);
       asked = trendRequests(p);
     });
@@ -457,41 +457,21 @@ test.describe('UI-PALETTE', () => {
     expect(asked, 'the first and only trend request is LDL, never glucose').toEqual(['ldl_cholesterol']);
   });
 
-  // PRE-EXISTING, not from the ?analyte= reader: the unedited /trends page with a chart on it (plain /trends, the
-  // first analyte, at 70db0339) overflows horizontally at 390 and 320 and has a dark color-contrast violation on its
-  // active panel tab (.bg-accent.text-white). ui-shell's G6 and G1 do not see it because the shell mock answers
-  // /observations with [] (the empty state, no chart). UI-PG-RESULTS replaces the page and deletes these marks.
-  // L0 ruling 6591279413: the gates are asserted positively (G6 fits, no blocking axe violation) and marked
-  // test.fail, so the report reads "expected to fail". That is a gate failure this row carries, not a pass.
-  // Placement differs from ui-shell.spec.ts:1104, which calls test.fail at the top of the test: here it is called
-  // immediately before the positive assertion, after the chart assertion and after the measurement have returned. A
-  // setup or chart failure therefore stays a real failure and cannot read as the expected one.
-  // What the mark cannot see: any change in the size of the overflow, a further contrast defect in dark (any
-  // violation keeps the expected failure), and the dark check runs at 1440 only (at 390 the blocking nodes differ).
-  // If a mark reports "expected to fail but passed", the debt is paid: delete the mark.
-  const TRENDS_DEBT = 'pre-existing on /trends';
-
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`G6: /trends?analyte=ldl_cholesterol has no horizontal scroll at ${viewport.width} (expected to fail, fixBy UI-PG-RESULTS)`, async ({ page }) => {
+    test(`G6: /results?analyte=ldl_cholesterol has no horizontal scroll at ${viewport.width}`, async ({ page }) => {
       await page.setViewportSize(viewport);
-      await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
+      await openApp(page, '/results?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
       await expectChart(page, 'LDL chart', 143);
       const scroll = await noHorizontalScroll(page);
-      test.fail(true, `${TRENDS_DEBT}: horizontal overflow, fixBy UI-PG-RESULTS`);
       expect(scroll.ok, `no horizontal scroll at ${viewport.width} (scrollWidth ${scroll.scrollWidth}, innerWidth ${scroll.innerWidth})`).toBe(true);
     });
   }
 
   for (const theme of ['light', 'dark'] as const) {
-    test(`G1: /trends?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}${theme === 'dark' ? ' (expected to fail, fixBy UI-PG-RESULTS)' : ''}`, async ({ page }) => {
-      await openApp(page, '/trends?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
+    test(`G1: /results?analyte=ldl_cholesterol has no serious or critical axe violation in ${theme}`, async ({ page }) => {
+      await openApp(page, '/results?analyte=ldl_cholesterol', OBSERVATIONS, mockLipidTrends);
       await expectChart(page, 'LDL chart', 143);
-      // The summary rows fade in one after another; axe reads colours, so measure once they have all settled.
-      await page.waitForFunction(() =>
-        Array.from(document.querySelectorAll('main button')).every((el) => getComputedStyle(el).opacity === '1')
-      );
       const blocking = (await axeAfterThemeSettles(page, theme)).blocking;
-      if (theme === 'dark') test.fail(true, `${TRENDS_DEBT}: color-contrast in dark, fixBy UI-PG-RESULTS`);
       expect(blocking.map(describeViolation), `axe in ${theme}`).toEqual([]);
     });
   }

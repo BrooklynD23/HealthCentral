@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { RangeTick } from '@/components/results/RangeTick';
 
 interface ReferenceRangeComparisonProps {
   value: number;
@@ -8,6 +9,11 @@ interface ReferenceRangeComparisonProps {
   className?: string;
 }
 
+/**
+ * The range text, a RangeTick (band plus marker on its own scale) and the value with its Low/High/Normal word.
+ * The tick has no axis labels, so nothing prints a scale the tick does not draw. The value text is T0 (data-t0).
+ * RangeTick guards a zero-width range and a non-finite value itself (GAUGE-ZERO-WIDTH, HC-UIRR-008).
+ */
 export function ReferenceRangeComparison({
   value,
   refLow,
@@ -17,36 +23,12 @@ export function ReferenceRangeComparison({
 }: ReferenceRangeComparisonProps) {
   if (refLow === null || refHigh === null) return null;
 
-  const range = refHigh - refLow;
-  const padding = range > 0 ? range * 0.3 : Math.max(Math.abs(refHigh) * 0.3, 1);
-  const hasValue = Number.isFinite(value);
-  const paddedMin = (hasValue ? Math.min(refLow, value) : refLow) - padding;
-  const displayMin = refLow >= 0 && value >= 0 ? Math.max(0, paddedMin) : paddedMin;
-  const displayMax = (hasValue ? Math.max(refHigh, value) : refHigh) + padding;
-  const displayRange = displayMax - displayMin;
-  if (!(Number.isFinite(displayRange) && displayRange > 0)) {
-    return (
-      <div className={cn('space-y-2', className)}>
-        <div className="flex items-center justify-between text-xs text-ink-secondary">
-          <span>Reference Range</span>
-          <span>
-            {refLow} - {refHigh} {unit}
-          </span>
-        </div>
-        <div className="text-xs font-medium">
-          {value} {unit}
-        </div>
-      </div>
-    );
-  }
-
-  const refLowPct = ((refLow - displayMin) / displayRange) * 100;
-  const refHighPct = ((refHigh - displayMin) / displayRange) * 100;
-  const valuePct = Math.max(0, Math.min(100, ((value - displayMin) / displayRange) * 100));
-
-  const isLow = value < refLow;
-  const isHigh = value > refHigh;
-  const isNormal = !isLow && !isHigh;
+  // A verdict only on a scale that exists: with a non-finite value or bound every comparison is false, and "Normal"
+  // would be printed for a number that was never compared.
+  const finite = Number.isFinite(value) && Number.isFinite(refLow) && Number.isFinite(refHigh);
+  const isLow = finite && value < refLow;
+  const isHigh = finite && value > refHigh;
+  const isNormal = finite && !isLow && !isHigh;
 
   return (
     <div className={cn('space-y-2', className)}>
@@ -57,52 +39,12 @@ export function ReferenceRangeComparison({
         </span>
       </div>
 
-      <div className="relative h-8">
-        {/* Track */}
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-2 rounded-full bg-surface-sunken" />
-
-        {/* Normal range highlight */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full bg-status-verified/20"
-          style={{
-            left: `${refLowPct}%`,
-            width: `${refHighPct - refLowPct}%`,
-          }}
-        />
-
-        {/* Low boundary marker */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-px h-4 bg-status-verified/40"
-          style={{ left: `${refLowPct}%` }}
-        />
-
-        {/* High boundary marker */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 w-px h-4 bg-status-verified/40"
-          style={{ left: `${refHighPct}%` }}
-        />
-
-        {/* Value indicator */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
-          style={{ left: `${valuePct}%` }}
-        >
-          <div
-            className={cn(
-              'w-4 h-4 rounded-full border-2 border-white shadow-soft',
-              isNormal && 'bg-status-verified',
-              isLow && 'bg-status-info',
-              isHigh && 'bg-status-attention'
-            )}
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-ink-tertiary">{displayMin.toFixed(1)}</span>
+      <div className="flex items-center gap-3">
+        <RangeTick value={value} refLow={refLow} refHigh={refHigh} />
         <span
+          data-t0
           className={cn(
-            'font-medium',
+            'text-xs font-medium',
             isNormal && 'text-status-verified',
             isLow && 'text-status-info',
             isHigh && 'text-status-attention'
@@ -113,7 +55,6 @@ export function ReferenceRangeComparison({
           {isHigh && ' (High)'}
           {isNormal && ' (Normal)'}
         </span>
-        <span className="text-ink-tertiary">{displayMax.toFixed(1)}</span>
       </div>
     </div>
   );

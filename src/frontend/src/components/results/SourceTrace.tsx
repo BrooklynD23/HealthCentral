@@ -102,6 +102,12 @@ export interface SourceTraceProps extends TraceSource {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: ReactNode;
+  /**
+   * Called with the server's answer when "It matches, mark as checked" succeeds, before the toast. A page whose list
+   * drops a verified row (/verify, needs_verification) uses it to hold the row, because the sheet verifies through
+   * its own mutation and the page's handler never runs. Callers that omit it behave as before.
+   */
+  onVerified?: (saved: Observation) => void;
 }
 
 function analyteName(observation: Observation): string {
@@ -155,6 +161,7 @@ export function SourceTrace({
   open,
   onOpenChange,
   trigger,
+  onVerified,
 }: SourceTraceProps) {
   const name = analyteName(observation);
   const date = formatCollected(observation.collected_at);
@@ -179,20 +186,23 @@ export function SourceTrace({
 
   // No unverify endpoint exists (be/api/observations.py:384 is verify only), so the
   // confirmation has no Undo.
-  const markChecked = () => {
+  // mutateAsync, not a mutate-level onSuccess: that callback is dropped when this sheet unmounts mid-POST (a refetch that
+  // answered without the row), and the row would be verified on the server with no hold and no toast. The callbacks stay
+  // outside the try, so a throw from the page's callback never reads as a failed verify.
+  const markChecked = async () => {
     const observationId = observation.id;
-    verify.mutate(
-      { observationId, data: {} },
-      {
-        onSuccess: () => {
-          setCheckedId(observationId);
-          notify({
-            message: `${[name, date].filter(Boolean).join(', ')} is now marked as checked`,
-            still: true,
-          });
-        },
-      }
-    );
+    let saved: Observation;
+    try {
+      saved = await verify.mutateAsync({ observationId, data: {} });
+    } catch {
+      return; // verify.isError renders the alert below; nothing says checked.
+    }
+    onVerified?.(saved);
+    setCheckedId(observationId);
+    notify({
+      message: `${[name, date].filter(Boolean).join(', ')} is now marked as checked`,
+      still: true,
+    });
   };
 
   return (
@@ -369,9 +379,11 @@ export function excerptFromPage(
 export function ObservationSourceTrace({
   observation,
   trigger,
+  onVerified,
 }: {
   observation: Observation;
   trigger: ReactNode;
+  onVerified?: (saved: Observation) => void;
 }) {
   const [open, setOpen] = useState(false);
   // The excerpt is set in JetBrains Mono (font-display: swap). Loading it now, not when the sheet opens,
@@ -403,6 +415,7 @@ export function ObservationSourceTrace({
       sourceStatus={sourceStatus}
       sourceFileLoading={documentQuery.isPending}
       excerptLoading={pagesQuery.isPending}
+      onVerified={onVerified}
     />
   );
 }

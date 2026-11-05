@@ -18,11 +18,17 @@
  * - Slider semantics. ← → step and Home/End jump with no transition. A pointer
  *   press picks the nearest point and the cursor glides for --dur-sm; the glide
  *   is a FLIP that ends at identity, so no element keeps a CSS transform.
- * - M10 reveal, once per analyte per session: the line draws in 640 ms and the
+ * - M10 reveal, once per analyte per page load (nothing is stored): the line draws in 640 ms and the
  *   points rise from .6 to 1 at 40 ms intervals. The reveal is value-blind, no
  *   number tweens, and reduced motion shows the final frame.
  * - The text layer carries data-t0 (§2.7). Colours are CSS tokens;
  *   serializeRangeRibbonSvg resolves them for export.
+ * - viewHeight (optional, default 160) sets the drawing's height in user units; the width stays 320. The page
+ *   passes a taller one on a phone, where the width is the limit and a 2:1 drawing would be too short to read.
+ *   The plot, the cursor line and the export all follow it.
+ * - Per point, when the report gave them: "Reported: X unit" (the value as printed, before a unit conversion) and
+ *   "Read confidence: High/Medium/Low" (the extraction's confidence, in the bands SourceTrace uses). Both show in
+ *   the readout and in the Result cell, for every point, not only the latest.
  */
 import {
   useEffect,
@@ -36,20 +42,22 @@ import {
 } from 'react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { duration, ease } from '@/motion/tokens';
+import { useAuthStore } from '@/stores/authStore';
 import type { TrendData, TrendPoint } from '@/services/types';
 
 const VIEW_W = 320;
-const VIEW_H = 160;
+const DEFAULT_VIEW_H = 160;
+// Below this the plot would be a few pixels high, so the default is used instead.
+const MIN_VIEW_H = 96;
 const PAD_X = 16;
 const PLOT_TOP = 24;
-const PLOT_BOTTOM = 136;
+const PLOT_FOOT = 24;
 const PLOT_W = VIEW_W - PAD_X * 2;
 const MARK_R = 5;
 const STEP_MS = 40;
 const POINT_MS = Math.round(duration.sm * 1000);
 const DRAW_MS = Math.round(duration.draw * 1000);
 const EASE_OUT = `cubic-bezier(${ease.out.join(', ')})`;
-const REVEAL_KEY = 'hc:range-ribbon:revealed:';
 
 type Side = 'above' | 'below' | 'within' | 'none' | 'conflict';
 type Move = 'start' | 'pointer' | 'key';
@@ -100,6 +108,10 @@ interface LayoutPoint {
   label: string;
   value: number;
   unit: string;
+  /** "Reported: 135 g/L": the value as the report printed it, when a unit conversion happened. */
+  reported: string | null;
+  /** "High", "Medium" or "Low": how sure the extraction was, when it says. */
+  confidence: string | null;
   verified: boolean;
   side: Side;
   x: number;
@@ -107,6 +119,8 @@ interface LayoutPoint {
 }
 
 interface Layout {
+  viewHeight: number;
+  plotBottom: number;
   points: LayoutPoint[];
   highY: number | null;
   lowY: number | null;
@@ -154,7 +168,45 @@ function finiteOrNull(n: number | null): number | null {
   return typeof n === 'number' && Number.isFinite(n) ? cleanNumber(n) : null;
 }
 
-function buildLayout(trend: TrendData): Layout {
+/**
+ * Where a result sits against a reference range, as the ribbon reads it: the value and both bounds are cleaned
+ * (binary noise dropped), then compared. The Results page uses this for its badge and its printed Latest value, so
+ * the badge and the number follow the ribbon's band. The ribbon also weighs the flag's direction, which the badge does
+ * not. Null when the value is not a finite number.
+ */
+export function bandOfValue(
+  value: unknown,
+  refLow: number | null | undefined,
+  refHigh: number | null | undefined
+): { value: number; side: BandSide } | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const cleaned = cleanNumber(value);
+  return { value: cleaned, side: bandSideOf(cleaned, finiteOrNull(refLow ?? null), finiteOrNull(refHigh ?? null)) };
+}
+
+function viewHeightOf(requested: number | undefined): number {
+  return typeof requested === 'number' && Number.isFinite(requested) && requested >= MIN_VIEW_H
+    ? requested
+    : DEFAULT_VIEW_H;
+}
+
+// The same bands as SourceTrace's readConfidenceWords (>= 0.8 High, >= 0.5 Medium, else Low). That helper is not
+// exported, so the bands are repeated here; ui-results.test.tsx pins the boundaries.
+function readConfidenceWords(confidence: number | null | undefined): string | null {
+  if (typeof confidence !== 'number' || !Number.isFinite(confidence)) return null;
+  if (confidence >= 0.8) return 'High';
+  if (confidence >= 0.5) return 'Medium';
+  return 'Low';
+}
+
+function reportedWords(value: number | null | undefined, unit: string | null | undefined): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || typeof unit !== 'string') return null;
+  return `Reported: ${[cleanNumber(value), unit].filter((part) => part !== '').join(' ')}`;
+}
+
+function buildLayout(trend: TrendData, requestedHeight?: number): Layout {
+  const viewHeight = viewHeightOf(requestedHeight);
+  const plotBottom = viewHeight - PLOT_FOOT;
   const low = finiteOrNull(trend.ref_low);
   const high = finiteOrNull(trend.ref_high);
 
@@ -171,7 +223,7 @@ function buildLayout(trend: TrendData): Layout {
       },
     ];
   });
-  if (parsed.length === 0) return { points: [], highY: null, lowY: null, band: null };
+  if (parsed.length === 0) return { viewHeight, plotBottom, points: [], highY: null, lowY: null, band: null };
   parsed.sort((a, b) => a.time - b.time || a.index - b.index);
 
   const tMin = parsed[0].time;
@@ -191,13 +243,15 @@ function buildLayout(trend: TrendData): Layout {
   lo -= pad;
   hi += pad;
   const yOf = (value: number): number =>
-    PLOT_BOTTOM - ((value - lo) / (hi - lo)) * (PLOT_BOTTOM - PLOT_TOP);
+    plotBottom - ((value - lo) / (hi - lo)) * (plotBottom - PLOT_TOP);
 
   const points: LayoutPoint[] = parsed.map((p, order) => ({
     order,
     label: formatDate(p.parts),
     value: p.value,
     unit: p.raw.unit,
+    reported: reportedWords(p.raw.original_value, p.raw.original_unit),
+    confidence: readConfidenceWords(p.raw.extraction_confidence),
     verified: p.raw.user_verified === true,
     side: sideOf(p.value, flagDirectionOf(p.raw.flag), low, high),
     x: xOf(p.time),
@@ -210,7 +264,7 @@ function buildLayout(trend: TrendData): Layout {
     highY !== null && lowY !== null
       ? { top: Math.min(highY, lowY), height: Math.abs(lowY - highY) }
       : null;
-  return { points, highY, lowY, band };
+  return { viewHeight, plotBottom, points, highY, lowY, band };
 }
 
 // No source rule in the words: the backend prefers one observation with both
@@ -225,6 +279,18 @@ function rangeCaption(low: number | null, high: number | null, unit: string): st
 
 function valueLabel(point: LayoutPoint): string {
   return [point.value, point.unit].filter((part) => part !== '').join(' ');
+}
+
+// What follows the value, in the readout and the Result cell: Reported first, then the read confidence.
+function detailWords(point: LayoutPoint): string[] {
+  return [
+    ...(point.reported !== null ? [point.reported] : []),
+    ...(point.confidence !== null ? [`Read confidence: ${point.confidence}`] : []),
+  ];
+}
+
+function resultText(point: LayoutPoint): string {
+  return [valueLabel(point), ...detailWords(point)].join(' · ');
 }
 
 function valueTextOf(point: LayoutPoint): string {
@@ -243,23 +309,14 @@ function nearestIndex(points: LayoutPoint[], x: number): number {
   return best;
 }
 
-// A view that cannot read or write sessionStorage still renders. The reveal then
-// may replay on the next mount, which is cosmetic only.
-function hasRevealed(analyte: string): boolean {
-  try {
-    return window.sessionStorage.getItem(REVEAL_KEY + analyte) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function markRevealed(analyte: string): void {
-  try {
-    window.sessionStorage.setItem(REVEAL_KEY + analyte, '1');
-  } catch {
-    // Storage is blocked. The reveal may replay on the next mount.
-  }
-}
+// Analytes already revealed in this page load. Held in memory only: an analyte name is never written to browser
+// storage (L0 ruling on the UI-PG-RESULTS PR), so a reload reveals again. It is presentation only.
+const revealedAnalytes = new Set<string>();
+// A lock or logout ends the session without a reload, so the names must not outlive it: the next profile gets its
+// own reveal. Read-only subscribe on the auth store; nothing renders or paints differently.
+useAuthStore.subscribe((state, previous) => {
+  if (previous.isAuthenticated && !state.isAuthenticated) revealedAnalytes.clear();
+});
 
 function triangleD(x: number, y: number, side: 'above' | 'below'): string {
   return side === 'above'
@@ -269,10 +326,12 @@ function triangleD(x: number, y: number, side: 'above' | 'below'): string {
 
 interface RangeRibbonProps {
   trend: TrendData;
+  /** The drawing's height in user units (the width is 320). Default 160. */
+  viewHeight?: number;
 }
 
-export function RangeRibbon({ trend }: RangeRibbonProps): ReactElement {
-  const layout = useMemo(() => buildLayout(trend), [trend]);
+export function RangeRibbon({ trend, viewHeight }: RangeRibbonProps): ReactElement {
+  const layout = useMemo(() => buildLayout(trend, viewHeight), [trend, viewHeight]);
   if (layout.points.length === 0) {
     return <p className="text-sm text-ink-secondary">No values to chart yet.</p>;
   }
@@ -293,7 +352,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
 
   // Decided once per mount. The reveal is written in an effect, so StrictMode's
   // double render cannot see its own write and skip the reveal.
-  const [revealing] = useState(() => !reduced && !hasRevealed(analyte));
+  const [revealing] = useState(() => !reduced && !revealedAnalytes.has(analyte));
   const [selected, setSelected] = useState(() => count - 1);
   const [move, setMove] = useState<Move>('start');
 
@@ -303,7 +362,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
   const lastX = useRef<number | null>(null);
 
   useEffect(() => {
-    if (revealing) markRevealed(analyte);
+    if (revealing) revealedAnalytes.add(analyte);
   }, [revealing, analyte]);
 
   useLayoutEffect(() => {
@@ -409,7 +468,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
         aria-valuetext={valueTextOf(current)}
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
-        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        viewBox={`0 0 ${VIEW_W} ${layout.viewHeight}`}
         width="100%"
         style={{ cursor: 'pointer' }}
         className="block h-auto w-full rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -504,7 +563,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
           x1={currentX}
           x2={currentX}
           y1={PLOT_TOP - 6}
-          y2={PLOT_BOTTOM + 6}
+          y2={layout.plotBottom + 6}
           stroke="var(--ink-1)"
           strokeWidth={1}
           strokeDasharray="2 2"
@@ -528,6 +587,9 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
         <span className="font-medium text-ink">
           {current.label}: {valueLabel(current)}
         </span>
+        {detailWords(current).map((words) => (
+          <span key={words}> · {words}</span>
+        ))}
         {current.side !== 'none' && <span> · {SIDE_WORDS[current.side]}</span>}
         <span> · {current.verified ? 'Checked by you' : 'Not yet checked'}</span>
       </p>
@@ -546,7 +608,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
           {points.map((p) => (
             <tr key={p.order}>
               <th data-t0 scope="row" className="text-left font-normal">{p.label}</th>
-              <td data-t0>{valueLabel(p)}</td>
+              <td data-t0>{resultText(p)}</td>
               <td data-t0>{SIDE_WORDS[p.side]}</td>
               <td data-t0>{p.verified ? 'Checked by you' : 'Not yet checked'}</td>
             </tr>
@@ -555,6 +617,15 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
       </table>
     </figure>
   );
+}
+
+// The viewBox attribute is parsed, not viewBox.baseVal: jsdom has no baseVal, and the attribute is what the page wrote.
+function viewBoxSize(svg: SVGSVGElement): { width: number; height: number } {
+  const parts = (svg.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
+  const [, , width, height] = parts;
+  return parts.length === 4 && width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height)
+    ? { width, height }
+    : { width: VIEW_W, height: DEFAULT_VIEW_H };
 }
 
 /**
@@ -566,8 +637,15 @@ export function serializeRangeRibbonSvg(svg: SVGSVGElement): string {
   // XMLSerializer adds the SVG namespace itself. A setAttribute('xmlns') here
   // would duplicate it, and the output would not be well-formed XML.
   const clone = svg.cloneNode(true) as SVGSVGElement;
-  clone.setAttribute('width', String(VIEW_W));
-  clone.setAttribute('height', String(VIEW_H));
+  const size = viewBoxSize(svg);
+  clone.setAttribute('width', String(size.width));
+  clone.setAttribute('height', String(size.height));
+  // The drawing shows no text, so a patient cannot see these two before sharing the file, and they hold the analyte,
+  // a lab value and its date (L0 ruling 6615916306). data-side can read "conflict", a flag disagreement no mark shows.
+  // All three stay on the live svg.
+  clone.removeAttribute('aria-label');
+  clone.removeAttribute('aria-valuetext');
+  clone.querySelectorAll('[data-side]').forEach((el) => el.removeAttribute('data-side'));
   const computed = window.getComputedStyle(document.documentElement);
   const markup = new XMLSerializer().serializeToString(clone);
   return markup.replace(/var\((--[\w-]+)\)/g, (_match, token: string) => {

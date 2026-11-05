@@ -27,7 +27,7 @@ import type {
   ProviderInfo,
   TiersListResponse,
 } from '../../src/services/modelSettings';
-import type { SessionListResponse } from '../../src/services/assistant';
+import type { SafetyModeResponse, SessionListResponse } from '../../src/services/assistant';
 import type { BadgeListResponse, StreakResponse } from '../../src/services/types';
 import type { TimelineResponse } from '../../src/services/timeline';
 import type { BackupListResponse, BackupSchedule } from '../../src/services/backup';
@@ -310,6 +310,7 @@ const providerFixture: ProviderInfo = {
 };
 
 const shellFixtures = new Map<string, unknown>([
+  ['/assistant/safety-mode', { strict_safety_mode: false } satisfies SafetyModeResponse],
   ['/assistant/sessions', assistantSessionsFixture],
   ['/backup', backupListFixture],
   ['/backup/schedule', backupScheduleFixture],

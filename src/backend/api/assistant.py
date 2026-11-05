@@ -40,6 +40,7 @@ from modules.agent.cache import (
     put_cached,
 )
 from modules.agent.graph import RunContext, new_run_id, run_agent
+from modules.agent.guardrails.classifier import classify_advice
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.agent.schemas import AgentTerminal
 from modules.agent.settings import is_agent_enabled
@@ -1178,7 +1179,27 @@ async def chat(
             if not agent_failed:
                 await db.commit()
 
-        if not use_agent or agent_failed:
+        if (not use_agent or agent_failed) and classify_advice(request.question).is_advice_seeking:
+            # LEGACY-ADVICE-GATE: pre-model gate, same classifier as the agent graph.
+            # The runner is never called; the audit row carries no question text.
+            segments = [ResponseSegment(segment_type="uncertainty", content=ESCALATE_TEMPLATE)]
+            full_response = ESCALATE_TEMPLATE
+            verification = VerificationInfo()
+            insufficient_context = False
+            insufficient_reasons = []
+            is_valid = False
+            validation_errors = ["pre_model_advice"]
+            await audit_and_commit(
+                db,
+                create_audit_log,
+                event_type="assistant.prohibited_blocked",
+                action="assistant.prohibited_blocked",
+                profile_id=session.profile_id,
+                entity_type="chat_session",
+                entity_id=chat_session.id,
+                details={"reason": "pre_model_advice", "decision": "escalate"},
+            )
+        elif not use_agent or agent_failed:
             # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75
             # module. OFF keeps the 0.6 module, so OFF is unchanged.
             legacy_rag = get_strict_rag_module() if await is_strict_safety_mode(profile_db) else rag

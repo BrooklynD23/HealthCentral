@@ -12,7 +12,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { ExternalApiBreakGlassWarning } from '../components/settings/ExternalApiBreakGlassWarning';
-import { LabInterpreter } from '@/pages/LabInterpreter';
+import { ResultsPage } from '@/pages/ResultsPage';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -124,7 +124,7 @@ describe('ExternalApiBreakGlassWarning unknown state (B-1, BGS-1)', () => {
   });
 });
 
-describe('HC-EXT-003e: lab interpreter shows the status notice when the settings fetch fails', () => {
+describe('HC-EXT-003e: the Results page shows the status notice when the settings fetch fails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.getState().setAuth({
@@ -146,12 +146,13 @@ describe('HC-EXT-003e: lab interpreter shows the status notice when the settings
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
-          <LabInterpreter />
+          <ResultsPage />
         </MemoryRouter>
       </QueryClientProvider>
     );
 
-    await screen.findByText(/Interpret CBC Panel/i);
+    // The tab list exists only once the observations have loaded (the old wait was the Interpret CBC Panel button).
+    await screen.findByRole('tablist', { name: 'Lab panels' });
     expect(await screen.findByRole('status')).toHaveTextContent(UNKNOWN_COPY);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
+from .database import install_sqlite_foreign_keys
 from .security import (
     unseal_key_with_dpapi,
     KeySealingError,
@@ -59,6 +60,10 @@ class ProfileDatabaseConnection:
     engine: AsyncEngine
     session_maker: async_sessionmaker[AsyncSession]
     _encryption_key: bytes = field(repr=False)  # Sensitive - don't log
+    # Orphan counts that migration 017 cleaned while this connection was opened
+    # ({check id: n}); one-shot: the login route that writes the master audit
+    # row clears it (P6-CLEANUP-AUDIT). Counts only, never row content.
+    fk_cleanup_counts: dict[str, int] = field(default_factory=dict)
 
     async def close(self) -> None:
         """Close the database connection and clear sensitive data."""
@@ -372,6 +377,10 @@ class PerProfileDatabaseManager:
                     raise
                 cursor.close()
 
+            # FK enforcement (SQL-FK-001). Registered after the key listener, so
+            # PRAGMA key runs first on every new connection.
+            install_sqlite_foreign_keys(engine.sync_engine)
+
             # Create session maker
             session_maker = async_sessionmaker(
                 engine,
@@ -381,7 +390,7 @@ class PerProfileDatabaseManager:
 
             # Run profile migrations (with baseline detection)
             # This runs in a thread to avoid blocking the event loop
-            await run_profile_migration_async(db_path, encryption_key)
+            fk_cleanup_counts = await run_profile_migration_async(db_path, encryption_key)
 
             # Create and cache connection
             connection = ProfileDatabaseConnection(
@@ -389,6 +398,7 @@ class PerProfileDatabaseManager:
                 engine=engine,
                 session_maker=session_maker,
                 _encryption_key=encryption_key,
+                fk_cleanup_counts=dict(fk_cleanup_counts or {}),
             )
             self._connections[profile_id] = connection
 

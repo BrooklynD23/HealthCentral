@@ -329,10 +329,10 @@ def is_ocr_available() -> bool:
 
 
 def user_ocr_preference_enabled(user_settings: object | None) -> bool:
-    """Default ON when no settings row exists yet."""
+    """Default OFF: OCR runs only after the patient turns it on (no settings row = not chosen)."""
     if user_settings is None:
-        return True
-    return bool(getattr(user_settings, "ocr_preference_enabled", True))
+        return False
+    return bool(getattr(user_settings, "ocr_preference_enabled", False))
 
 
 def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:

@@ -6,14 +6,22 @@ from datetime import datetime, time, timedelta, timezone
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 import api.gamification as gamification_api
 from api.medications import router as med_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import AdherencePattern, DoseTaken, Medication, MedicationSchedule, UserModelSettings
+from models import (
+    AdherencePattern,
+    BadgeDefinition,
+    DoseTaken,
+    Medication,
+    MedicationSchedule,
+    UserModelSettings,
+)
+from tests.support.db import fk_profile_engine
 from tests.support.routes import route_client
 
 PROFILE = "profile-a"
@@ -32,8 +40,11 @@ async def profile_db():
         await engine.dispose()
 
 
-def _client(profile_db):
-    ctx = route_client(med_router, "/medications", profile_id=PROFILE)
+def _client(profile_db, raise_server_exceptions=True):
+    ctx = route_client(
+        med_router, "/medications", profile_id=PROFILE,
+        raise_server_exceptions=raise_server_exceptions,
+    )
     client = ctx.__enter__()
 
     async def _override_profile_db():
@@ -328,13 +339,49 @@ async def test_hc_med_http_013_log_dose_own_schedule_and_no_schedule_unchanged(p
     assert await _dose_count(profile_db) == 2
 
 
+# The eight ids migration 003 seeds into badge_definition. create_all leaves the
+# table empty, and earned_badges.badge_id is an FK to it, so with the pragma ON
+# the badge insert after a first dose would fail on its own FK.
+_BADGE_IDS = (
+    "first-log", "3-day-streak", "week-warrior", "two-week-titan",
+    "month-master", "perfect-week", "multi-med-master", "comeback-kid",
+)
+
+
+@pytest_asyncio.fixture
+async def fk_profile_db():
+    """Profile vault with create_all, badge_definition seeded, PRAGMA foreign_keys=ON."""
+    engine = fk_profile_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    for order, badge_id in enumerate(_BADGE_IDS):
+        session.add(BadgeDefinition(
+            id=badge_id, name=badge_id, description=badge_id, icon="spark",
+            criteria_type="count", criteria_json="{}", sort_order=order,
+        ))
+    await session.commit()
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
+async def _assert_fk_pragma_on(db: AsyncSession) -> None:
+    """Guard: the test is meaningless if the engine is not enforcing FKs."""
+    assert (await db.execute(text("PRAGMA foreign_keys"))).scalar_one() == 1
+
+
 @pytest.mark.asyncio
-async def test_hc_med_http_014_log_dose_unknown_schedule_keeps_main_behaviour(profile_db):
-    # Pins pre-SCHED-OWNER behaviour: SQLite FKs are off, so an unknown id is
-    # stored as-is with no variance. Not a 500; changing it is out of scope.
-    med_a, _, _, _ = await _seed_two_with_schedules(profile_db)
+async def test_hc_med_http_014_log_dose_unknown_schedule_stores_null_link_fk_on(fk_profile_db):
+    # With PRAGMA foreign_keys ON (production), storing an unknown schedule_id
+    # as-is is an FK violation: a 500 and a lost dose. The dose is kept with a
+    # NULL schedule link instead; no variance, no new validation error.
+    await _assert_fk_pragma_on(fk_profile_db)
+    med_a, _, _, _ = await _seed_two_with_schedules(fk_profile_db)
     unknown = str(uuid.uuid4())
-    ctx, client = _client(profile_db)
+    ctx, client = _client(fk_profile_db, raise_server_exceptions=False)
     try:
         resp = client.post(
             f"/medications/{med_a}/doses",
@@ -344,7 +391,37 @@ async def test_hc_med_http_014_log_dose_unknown_schedule_keeps_main_behaviour(pr
     finally:
         ctx.__exit__(None, None, None)
     assert resp.status_code == 201, resp.text
-    assert resp.json()["dose"]["variance_minutes"] is None
+    body = resp.json()["dose"]
+    assert body["variance_minutes"] is None
+    assert body["schedule_id"] is None
+    # Read back from the DB (column select, not the identity map).
+    stored = (await fk_profile_db.execute(
+        select(DoseTaken.id, DoseTaken.schedule_id, DoseTaken.variance_minutes)
+    )).all()
+    assert len(stored) == 1
+    assert stored[0].id == body["id"]
+    assert stored[0].schedule_id is None
+    assert stored[0].variance_minutes is None
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_014b_log_dose_other_medications_schedule_still_422_fk_on(fk_profile_db):
+    # SCHED-OWNER holds on the pragma-ON engine: another medication's schedule
+    # is a 422 with nothing stored (not coerced to a NULL link / 201).
+    await _assert_fk_pragma_on(fk_profile_db)
+    med_a, _, _, sched_b = await _seed_two_with_schedules(fk_profile_db)
+    ctx, client = _client(fk_profile_db, raise_server_exceptions=False)
+    try:
+        resp = client.post(
+            f"/medications/{med_a}/doses",
+            params={"schedule_id": sched_b},
+            json={"taken_at": "2026-07-15T08:05:00Z"},
+        )
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 422, resp.text
+    assert "does not belong" in resp.json()["detail"]
+    assert await _dose_count(fk_profile_db) == 0
 
 
 @pytest.mark.asyncio
@@ -374,6 +451,44 @@ async def test_hc_med_http_015_learn_patterns_other_medications_schedule_rejecte
     assert "does not belong" in foreign.json()["detail"]
     assert leaked == 0
     assert own.status_code == 200, own.text
+    assert unscoped.status_code == 200, unscoped.text
+
+
+@pytest.mark.asyncio
+async def test_hc_med_http_016_learn_patterns_unknown_schedule_404_fk_on(fk_profile_db):
+    # With PRAGMA foreign_keys ON (production), a schedule_id that resolves to no
+    # schedule used to reach save_patterns and fail adherence_patterns.schedule_id
+    # as an FK violation (500). It is a 404 now, before anything is written.
+    med_a, _, _, _ = await _seed_two_with_schedules(fk_profile_db)
+    unknown = str(uuid.uuid4())
+    # 14 recent doses tagged with a schedule that does not exist. FK enforcement
+    # would refuse them, so seed with the pragma OFF (a no-op inside an open
+    # transaction, hence commit first) and turn it back ON.
+    await fk_profile_db.commit()
+    await fk_profile_db.execute(text("PRAGMA foreign_keys=OFF"))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for day in range(1, 15):
+        taken = (now - timedelta(days=day)).replace(hour=8, minute=0, second=0, microsecond=0)
+        fk_profile_db.add(DoseTaken(
+            id=str(uuid.uuid4()), medication_id=med_a, schedule_id=unknown, taken_at=taken,
+            log_method="manual", was_skipped=False, logged_at=taken,
+        ))
+    await fk_profile_db.commit()
+    await fk_profile_db.execute(text("PRAGMA foreign_keys=ON"))
+    await _assert_fk_pragma_on(fk_profile_db)
+    ctx, client = _client(fk_profile_db)
+    try:
+        missing = client.post(f"/medications/{med_a}/learn-patterns", params={"schedule_id": unknown})
+        # Read before any other call: the no-schedule call below may write rows.
+        patterns_after_404 = (await fk_profile_db.execute(
+            select(func.count()).select_from(AdherencePattern)
+        )).scalar_one()
+        unscoped = client.post(f"/medications/{med_a}/learn-patterns")
+    finally:
+        ctx.__exit__(None, None, None)
+    assert missing.status_code == 404, missing.text
+    assert missing.json()["detail"] == "Schedule not found"
+    assert patterns_after_404 == 0
     assert unscoped.status_code == 200, unscoped.text
 
 

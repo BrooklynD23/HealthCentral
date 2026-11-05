@@ -16,7 +16,7 @@ export function TopBar() {
   usePaletteShortcuts();
 
   return (
-    <header className="sticky top-0 z-40 flex flex-wrap items-center gap-x-2 border-b border-border bg-surface px-3 py-1 lg:h-16 lg:flex-nowrap lg:gap-6 lg:px-8 lg:py-0">
+    <header className="sticky top-0 z-40 flex flex-wrap items-center gap-x-2 border-b border-border bg-surface px-3 py-1 lg:h-24 lg:flex-nowrap lg:gap-6 lg:px-8 lg:py-0">
       <span className="lg:hidden">
         <BrandMark wordmark={false} />
       </span>
