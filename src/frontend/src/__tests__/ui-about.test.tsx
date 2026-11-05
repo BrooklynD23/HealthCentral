@@ -13,7 +13,7 @@
  *   network).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -249,6 +249,31 @@ describe('HC-UIABT-004: content, copy and the showcase pieces (G7 itself is e2e)
   });
 });
 
+describe('UI-ABOUT: copy that states the limit with the claim (brand section 4)', () => {
+  it('the intro does not claim Asclexis answers nothing, and sends the meaning to the healthcare provider', async () => {
+    await renderAbout();
+    const intro = screen.getByRole('heading', { level: 1 }).nextElementSibling?.textContent ?? '';
+    expect(intro).not.toMatch(/does not answer/i);
+    expect(intro).toMatch(/ask better questions/);
+    expect(intro).toMatch(/healthcare provider can tell you what your results mean for you/);
+  });
+
+  it('the results step names the reference range used for that chart, not the range printed on the report', async () => {
+    await renderAbout();
+    const steps = document.querySelector('ol')?.textContent ?? '';
+    expect(steps).toMatch(/next to the reference range used for that chart/);
+    expect(steps).not.toMatch(/printed on your report/);
+  });
+
+  it('the local-first statement names the optional external AI setting as its one exception', async () => {
+    await renderAbout();
+    const statement = document.querySelector('[data-about-local-first]')?.textContent ?? '';
+    expect(statement).toMatch(/Your records stay on this device/);
+    expect(statement).toMatch(/optional external AI setting/);
+    expect(statement).toMatch(/off unless you turn it on/);
+  });
+});
+
 describe('UI-ABOUT: the profile menu links to /about', () => {
   it('the menu has an About link to /about between Settings and Lock now', async () => {
     const user = userEvent.setup();
@@ -268,5 +293,20 @@ describe('UI-ABOUT: the profile menu links to /about', () => {
     expect(about.getAttribute('href')).toBe('/about');
     expect(settings.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(about.compareDocumentPosition(lock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('choosing About closes the menu', async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/inbox']}>
+          <ProfileMenu />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    await user.click(screen.getByRole('button', { name: 'Profile and settings' }));
+    await user.click(await screen.findByRole('link', { name: 'About' }));
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'About' })).toBeNull());
   });
 });

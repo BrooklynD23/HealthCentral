@@ -40,7 +40,7 @@ const SMALL_PHONE = { width: 320, height: 640 };
 const THEMES: Theme[] = ['light', 'dark'];
 
 const EXAMPLE_LABEL = 'Example data, not yours';
-/** The four T0 elements the plan names (§4.2). All sit outside every ShowcaseReveal. */
+/** The plan (§4.2) names three T0 elements: the safety statement, the local-first statement and the "not medical advice" text. The example label is this row's fourth. All sit outside every ShowcaseReveal. */
 const T0_SELECTORS = ['[data-about-safety]', '[data-about-not-advice]', '[data-about-local-first]', '[data-about-example-label]'];
 const H1 = (page: Page) => page.getByRole('heading', { level: 1 });
 
@@ -157,6 +157,32 @@ test.describe('HC-UIABT e2e', () => {
     await expect(page.getByRole('navigation', { name: 'Main navigation' })).toHaveCount(0);
   });
 
+  test('the profile menu leads to /about and "Open Asclexis" leads on to the shell (signed in)', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await installMockApi(page);
+    await seedMockSession(page);
+    await page.goto('/');
+    const nav = page.getByRole('navigation', { name: 'Main navigation' }).first();
+    await expect(nav).toBeVisible();
+    await page.getByRole('button', { name: 'Profile and settings' }).click();
+    await page.getByRole('link', { name: 'About', exact: true }).click();
+    await expect(page).toHaveURL(/\/about$/);
+    await expect(H1(page)).toHaveText('About Asclexis');
+    await page.getByRole('link', { name: 'Open Asclexis' }).click();
+    await expect(page).not.toHaveURL(/\/about/);
+    await expect(nav).toBeVisible();
+  });
+
+  test('"Open Asclexis" with no profile leads to /setup', async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await installMockApi(page);
+    await page.goto('/about');
+    await expect(H1(page)).toHaveText('About Asclexis');
+    await page.getByRole('link', { name: 'Open Asclexis' }).click();
+    await expect(page).toHaveURL(/\/setup/);
+    await expect(page.getByRole('heading', { name: 'Welcome to Asclexis' })).toBeVisible();
+  });
+
   test('HC-UIABT-003: "Example data, not yours" is real text that names the ribbon region', async ({ page }) => {
     await openAbout(page);
     const label = page.getByText(EXAMPLE_LABEL, { exact: true });
@@ -228,11 +254,10 @@ test.describe('QUIET-BOX UI-ABOUT timing gates', () => {
   for (const theme of THEMES) {
     test(`QUIET-BOX G2 on /about (${theme})`, async ({ page }) => {
       await page.setViewportSize(DESKTOP);
-      await page.goto('/about');
-      await expect(H1(page)).toBeVisible();
-      await settle(page);
 
-      // G2: layout shift over the load (lazy chunk, fonts, orb) and the theme change.
+      // G2: layout shift over the first load (lazy chunk, fonts, orb, S1, the ribbon reveal) and the theme change.
+      // No earlier visit: a second load would measure a page whose S1 and ribbon reveal were already played and whose
+      // chunks and fonts were already fetched.
       const cls = await measureCls(page, async () => {
         await page.goto('/about');
         await expect(H1(page)).toBeVisible();
@@ -268,86 +293,106 @@ test.describe('QUIET-BOX UI-ABOUT timing gates', () => {
       await page.goto('/about');
       await expect(H1(page)).toBeVisible();
       await settle(page);
-      await applyTheme(page, theme);
 
-      // A fresh load under reduced motion: S1 shows its opacity-only set, the ribbon its final frame, the beam a frame.
+      // A first visit under reduced motion: S1 shows its opacity-only set, the ribbon its final frame, the beam a
+      // frame, and a press on the ribbon moves its cursor with no transform left behind.
       const offenders = await reducedMotionSnapshot(page, async () => {
+        // S1 and the ribbon reveal play only on the first visit per session. Without this the reload takes the skip
+        // path and the snapshot would not see S1 at all.
+        await page.evaluate(() => window.sessionStorage.clear());
         await page.reload();
         await expect(H1(page)).toBeVisible();
         await expect(page.locator('canvas')).toHaveCount(1);
+        // The reload resets data-theme to light (index.html), so the theme goes on after it.
+        await applyTheme(page, theme);
+        const ribbon = page.getByRole('slider', { name: 'Example analyte: results over time' });
+        await ribbon.focus();
+        await page.keyboard.press('Home');
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('End');
+        await ribbon.click({ position: { x: 20, y: 40 } });
       });
       expect(offenders, `G5 ${theme}`).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.dataset.theme), 'G5 theme on the screenshot').toBe(theme);
       const shot = testInfo.outputPath(`about-${theme}-reduced.png`);
       await page.screenshot({ path: shot, fullPage: false });
       testInfo.annotations.push({ type: 'gate-g5-screenshot', description: shot });
     });
 
-    test(`QUIET-BOX G10 / HC-UIABT-002 stillness on /about through the whole S1 sequence (${theme})`, async ({ page }, testInfo) => {
-      // The probe's sampler lives in the page, so /about is reached by a client-side navigation from /setup.
-      // First pass: load the lazy chunks (page, orb) by visiting once, then go back, so the probed mount is warm.
-      await page.setViewportSize(DESKTOP);
-      await installMockApi(page);
-      await page.goto('/setup');
-      await page.waitForLoadState('networkidle');
-      await spaTo(page, '/about');
-      await expect(H1(page)).toBeVisible();
-      await expect(page.locator('canvas')).toHaveCount(1);
-      await spaTo(page, '/setup');
-      await expect(page.getByRole('heading', { name: 'About Asclexis' })).toHaveCount(0);
-      await page.waitForLoadState('networkidle');
-      await applyTheme(page, theme);
-
-      // S1 plays only on the first visit per session. Clear the session so the probed mount is a first visit, and
-      // record the S1 groups from the page, so a probe that saw nothing move is not read as a pass.
-      await page.evaluate(() => {
-        window.sessionStorage.clear();
-        const w = window as unknown as {
-          __aboutMoves: { running: boolean; groups: Record<string, { minOpacity: number; moved: boolean; samples: number }> };
-        };
-        w.__aboutMoves = { running: true, groups: {} };
-        const tick = () => {
-          if (!w.__aboutMoves.running) return;
-          document.querySelectorAll('[data-about-group]').forEach((el) => {
-            const name = el.getAttribute('data-about-group') ?? '';
-            let opacity = 1;
-            for (let node: Element | null = el; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
-            const transform = el.parentElement ? getComputedStyle(el.parentElement).transform : 'none';
-            const record = (w.__aboutMoves.groups[name] ??= { minOpacity: 1, moved: false, samples: 0 });
-            record.samples += 1;
-            record.minOpacity = Math.min(record.minOpacity, opacity);
-            if (transform !== 'none' && !/^matrix\(1, 0, 0, 1, 0, 0\)$/.test(transform)) record.moved = true;
-          });
-          requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      });
-
-      // The groups S1 wraps are 6 or fewer at 60 ms stagger + 480 ms, so the 800 ms window covers the sequence.
-      const report = await stillnessProbe(page, {
-        trigger: async () => {
+    for (const mount of ['warm', 'first-visit'] as const) {
+      test(`QUIET-BOX G10 / HC-UIABT-002 stillness on /about through the whole S1 sequence, ${mount} mount (${theme})`, async ({ page }, testInfo) => {
+        // The probe's sampler lives in the page, so /about is reached by a client-side navigation from /setup.
+        await page.setViewportSize(DESKTOP);
+        await installMockApi(page);
+        await page.goto('/setup');
+        await page.waitForLoadState('networkidle');
+        if (mount === 'warm') {
+          // Load the lazy chunks (page, orb) by visiting once, then go back, so the probed mount is warm.
           await spaTo(page, '/about');
           await expect(H1(page)).toBeVisible();
-        },
-        expected: ['[data-about-not-advice]', '[data-about-local-first]', '[data-about-safety]', '[data-about-example-label]'],
-        kind: 'interaction',
-        windowMs: 1000,
-      });
-      testInfo.annotations.push({ type: 'gate-g10', description: `about ${theme}: ${JSON.stringify(report)}` });
+          await expect(page.locator('canvas')).toHaveCount(1);
+          await spaTo(page, '/setup');
+          await expect(page.getByRole('heading', { name: 'About Asclexis' })).toHaveCount(0);
+          await page.waitForLoadState('networkidle');
+        }
+        // first-visit: no warm-up. The page chunk and the orb chunk arrive during the probe (gate G10 names the first
+        // visit to a lazy route), so a T0 rect that changes when a chunk lands is seen.
+        await applyTheme(page, theme);
 
-      const moves = await page.evaluate(() => {
-        const w = window as unknown as { __aboutMoves: { running: boolean; groups: Record<string, { minOpacity: number; moved: boolean; samples: number }> } };
-        w.__aboutMoves.running = false;
-        return w.__aboutMoves.groups;
+        // S1 plays only on the first visit per session. Clear the session so the probed mount is a first visit, and
+        // record the S1 groups from the page, so a probe that saw nothing move is not read as a pass.
+        await page.evaluate(() => {
+          window.sessionStorage.clear();
+          const w = window as unknown as {
+            __aboutMoves: { running: boolean; groups: Record<string, { minOpacity: number; moved: boolean; samples: number }> };
+          };
+          w.__aboutMoves = { running: true, groups: {} };
+          const tick = () => {
+            if (!w.__aboutMoves.running) return;
+            document.querySelectorAll('[data-about-group]').forEach((el) => {
+              const name = el.getAttribute('data-about-group') ?? '';
+              let opacity = 1;
+              for (let node: Element | null = el; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+              const transform = el.parentElement ? getComputedStyle(el.parentElement).transform : 'none';
+              const record = (w.__aboutMoves.groups[name] ??= { minOpacity: 1, moved: false, samples: 0 });
+              record.samples += 1;
+              record.minOpacity = Math.min(record.minOpacity, opacity);
+              if (transform !== 'none' && !/^matrix\(1, 0, 0, 1, 0, 0\)$/.test(transform)) record.moved = true;
+            });
+            requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        });
+
+        // The groups S1 wraps are 6 or fewer at 60 ms stagger + 480 ms, so the 1000 ms window covers the sequence.
+        const report = await stillnessProbe(page, {
+          trigger: async () => {
+            await spaTo(page, '/about');
+            await expect(H1(page)).toBeVisible();
+          },
+          expected: ['[data-about-not-advice]', '[data-about-local-first]', '[data-about-safety]', '[data-about-example-label]'],
+          kind: 'interaction',
+          windowMs: 1000,
+          lazyRoute: mount === 'first-visit',
+        });
+        testInfo.annotations.push({ type: 'gate-g10', description: `about ${mount} ${theme}: ${JSON.stringify(report)}` });
+        if (mount === 'first-visit') await expect(page.locator('canvas')).toHaveCount(1);
+
+        const moves = await page.evaluate(() => {
+          const w = window as unknown as { __aboutMoves: { running: boolean; groups: Record<string, { minOpacity: number; moved: boolean; samples: number }> } };
+          w.__aboutMoves.running = false;
+          return w.__aboutMoves.groups;
+        });
+        testInfo.annotations.push({ type: 'gate-g10-s1-groups', description: JSON.stringify(moves) });
+        const names = Object.keys(moves);
+        expect(names.length, 'S1 groups seen').toBeGreaterThanOrEqual(2);
+        for (const name of names) {
+          // The probe is only evidence if the S1 groups really moved while it ran.
+          expect(moves[name].minOpacity, `S1 group ${name} started hidden`).toBeLessThan(0.99);
+          expect(moves[name].moved, `S1 group ${name} rose`).toBe(true);
+        }
+        expect(report.nodes).toBeGreaterThanOrEqual(T0_SELECTORS.length);
       });
-      testInfo.annotations.push({ type: 'gate-g10-s1-groups', description: JSON.stringify(moves) });
-      const names = Object.keys(moves);
-      expect(names.length, 'S1 groups seen').toBeGreaterThanOrEqual(2);
-      for (const name of names) {
-        // The probe is only evidence if the S1 groups really moved while it ran.
-        expect(moves[name].minOpacity, `S1 group ${name} started hidden`).toBeLessThan(0.99);
-        expect(moves[name].moved, `S1 group ${name} rose`).toBe(true);
-      }
-      expect(report.nodes).toBeGreaterThanOrEqual(T0_SELECTORS.length);
-    });
+    }
   }
 });
