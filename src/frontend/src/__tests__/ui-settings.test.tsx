@@ -891,10 +891,11 @@ describe('HC-UISET-019: a download the server reports as failed (it died, or the
     await waitFor(() => expect(api.apiPost).toHaveBeenCalledWith('/settings/model/download', { tier: 'mid' }));
   });
 
-  // The GET reads the row and then asks whether a task holds it, so a download that finishes in between can answer
-  // `failed` for one poll (api/model_settings.py, HC-UISET-018). The poll after it says `completed`: the tiers must still be
+  // A second POST for a tier whose first task is still running adds a second task under the same key. When the first task
+  // ends it drops the key, and the server reports the second task's `downloading` row as `failed` until that task finishes
+  // (api/model_settings.py). The poll after it says `completed`: the tiers must still be
   // refreshed, or the finished tier keeps showing Download until the page is reloaded.
-  it('downloading, one failed poll, then completed: the tiers are fetched again', async () => {
+  it('downloading, a failed poll, then completed: the tiers are fetched again', async () => {
     const answer = (status: string, progress: number) => ({
       mid: { tier: 'mid', status, progress, downloaded_bytes: progress * GB, total_bytes: GB, path: null, error: null },
     });
@@ -912,15 +913,29 @@ describe('HC-UISET-019: a download the server reports as failed (it died, or the
     await waitFor(() => expect(tierFetches()).toBeGreaterThan(before), { timeout: 6000 });
   }, 20000);
 
-  it('a tier that stays completed across polls does not refetch the tiers each time', async () => {
-    downloadProgress = { mid: { tier: 'mid', status: 'completed', progress: 100, downloaded_bytes: GB, total_bytes: GB, path: null, error: null } };
+  // The data changes on every poll (the sibling tier's bytes move), so the effect runs on every poll. A fixture that repeats
+  // one body keeps the same data reference (react-query structural sharing), the effect never re-runs, and the rule
+  // "completed now" would pass this test too. Break that pins it: `p.status === 'completed'` alone in the justCompleted rule.
+  it('a tier that stays completed while a sibling tier moves on every poll does not refetch the tiers', async () => {
+    const base = vi.mocked(api.apiGet).getMockImplementation()!;
+    let polls = 0;
+    vi.mocked(api.apiGet).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === '/settings/model/download-progress') {
+        polls += 1;
+        return {
+          mid: { tier: 'mid', status: 'completed', progress: 100, downloaded_bytes: GB, total_bytes: GB, path: null, error: null },
+          low: { tier: 'low', status: 'downloading', progress: polls / 100, downloaded_bytes: polls * 1000, total_bytes: GB, path: null, error: null },
+        };
+      }
+      return (base as (path: string, ...rest: unknown[]) => unknown)(path, ...rest);
+    }) as never);
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
     const tierFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/tiers').length;
-    const progressFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/download-progress').length;
-    const polls = progressFetches();
+    await waitFor(() => expect(polls).toBeGreaterThanOrEqual(1));
+    const polled = polls;
     const before = tierFetches();
-    await waitFor(() => expect(progressFetches()).toBeGreaterThanOrEqual(polls + 2), { timeout: 8000 });
+    await waitFor(() => expect(polls).toBeGreaterThanOrEqual(polled + 2), { timeout: 8000 });
     expect(tierFetches()).toBe(before);
   }, 20000);
 });

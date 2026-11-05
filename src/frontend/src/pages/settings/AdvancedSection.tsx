@@ -132,7 +132,8 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
   // The panels wait on the model settings and on the tiers, and say so when the settings cannot load. Both requests start
   // here, together (HC-UISET-020): the tier card used to ask for the tiers after the settings reply, a second round trip,
   // and a card of skeleton blocks that becomes seven rows moves everything under it. One skeleton, then all of it. A tiers
-  // request that fails is not waited on: the tier card says there are no tiers to show. Each card below asks for the rest
+  // request that fails is waited on with its retry (the app's query client retries once, about a second later), and then
+  // the tier card says there are no tiers to show. Each card below asks for the rest
   // itself, so a reply re-renders its own card and not the whole panel: opening Advanced is a burst of replies, and one
   // render of the whole panel per reply would add a task to that burst for each of them (G10, stillness; the readings
   // found a burst of tasks under 50 ms at dev x1, not one long task).
@@ -223,8 +224,10 @@ function TierCard() {
     prevProgressRef.current = downloadProgress;
     if (!prev || !downloadProgress) return;
     // A tier that is completed now and was not on the previous poll. Not "the previous poll was pending or downloading":
-    // the server can answer `failed` once for a download that finishes between its two reads (api/model_settings.py), and
-    // downloading, failed, completed would then never refresh the tiers.
+    // a second POST for a tier whose first task is still running adds a second task under the same key. When the first
+    // task ends it drops the key, and the server reports the second task's downloading row as `failed` until that task
+    // finishes (api/model_settings.py). The sequence is then downloading, failed, completed, and a rule that needs the
+    // previous poll to be active would never refresh the tiers.
     const justCompleted = Object.entries(downloadProgress).some(
       ([tier, p]) => p.status === 'completed' && prev[tier]?.status !== 'completed'
     );
