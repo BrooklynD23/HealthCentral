@@ -128,34 +128,25 @@ export function AdvancedSection({ exportResult, onExportResult }: AdvancedSectio
   );
 }
 
-/**
- * Starts the tiers request together with the model settings one. The tier card mounts only after the settings reply, so
- * asking for the tiers there made them a second round trip (HC-UISET-020). This renders nothing and re-renders only itself.
- */
-function StartTiersRequest() {
-  useTiers();
-  return null;
-}
-
-function AdvancedPanels(props: AdvancedSectionProps) {
-  return (
-    <>
-      <StartTiersRequest />
-      <AdvancedGate {...props} />
-    </>
-  );
-}
-
-function AdvancedGate({ exportResult, onExportResult }: AdvancedSectionProps) {
-  // The panels wait on the model settings, and say so when they cannot load. Each card below asks for the rest itself, so a
-  // reply re-renders its own card and not the whole panel: opening Advanced is a burst of replies, and one render of the
-  // whole panel per reply would add a task to that burst for each of them (G10, stillness; the readings found a burst of
-  // tasks under 50 ms at dev x1, not one long task).
-  const { isLoading, isError } = useModelSettings();
+function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) {
+  // The panels wait on the model settings and on the tiers, and say so when the settings cannot load. Both requests start
+  // here, together (HC-UISET-020): the tier card used to ask for the tiers after the settings reply, a second round trip,
+  // and a card of skeleton blocks that becomes seven rows moves everything under it. One skeleton, then all of it. A tiers
+  // request that fails is not waited on: the tier card says there are no tiers to show. Each card below asks for the rest
+  // itself, so a reply re-renders its own card and not the whole panel: opening Advanced is a burst of replies, and one
+  // render of the whole panel per reply would add a task to that burst for each of them (G10, stillness; the readings
+  // found a burst of tasks under 50 ms at dev x1, not one long task).
+  const { isLoading: settingsLoading, isError } = useModelSettings();
+  const { isLoading: tiersLoading } = useTiers();
+  // Waited on once. A tiers request that failed is asked again when the tier card mounts (react-query retries an errored
+  // query on mount) and reads as loading again: waiting on that would unmount the card, which asks again, in a loop.
+  const tiersSettled = useRef(false);
+  if (!tiersLoading) tiersSettled.current = true;
+  const isLoading = settingsLoading || (tiersLoading && !tiersSettled.current);
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div data-testid="advanced-loading" className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Skeleton className="h-40 rounded-2xl" />
           <Skeleton className="h-40 rounded-2xl" />
@@ -211,7 +202,7 @@ function AdvancedGate({ exportResult, onExportResult }: AdvancedSectionProps) {
 
 function TierCard() {
   const { data: settings } = useModelSettings();
-  const { data: tiersData, isLoading: tiersLoading } = useTiers();
+  const { data: tiersData } = useTiers();
   const setTier = useSetTier();
   const startDownload = useStartDownload();
   const queryClient = useQueryClient();
@@ -231,10 +222,11 @@ function TierCard() {
     const prev = prevProgressRef.current;
     prevProgressRef.current = downloadProgress;
     if (!prev || !downloadProgress) return;
-    const justCompleted = Object.values(downloadProgress).some(
-      (p) => p.status === 'completed'
-    ) && Object.values(prev).some(
-      (p) => p.status === 'pending' || p.status === 'downloading'
+    // A tier that is completed now and was not on the previous poll. Not "the previous poll was pending or downloading":
+    // the server can answer `failed` once for a download that finishes between its two reads (api/model_settings.py), and
+    // downloading, failed, completed would then never refresh the tiers.
+    const justCompleted = Object.entries(downloadProgress).some(
+      ([tier, p]) => p.status === 'completed' && prev[tier]?.status !== 'completed'
     );
     if (justCompleted) {
       queryClient.invalidateQueries({ queryKey: ['model-settings'] });
@@ -259,13 +251,7 @@ function TierCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6 space-y-3">
-        {tiersLoading ? (
-          <div data-testid="tiers-loading" className="space-y-3">
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-24 rounded-xl" />
-            <Skeleton className="h-24 rounded-xl" />
-          </div>
-        ) : tiersData?.tiers.map((tier) => {
+        {tiersData?.tiers.map((tier) => {
           const desc = tierDescriptions[tier.tier];
           const isSelected = settings?.preferred_tier === tier.tier;
           const isRecommended = tiersData.recommended_tier === tier.tier;
