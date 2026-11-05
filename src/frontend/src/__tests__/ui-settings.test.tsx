@@ -24,7 +24,7 @@
  *   HC-UISET-016  the diagnostics link back to /settings stays in Advanced
  *   HC-UISET-017  the export result is still there after a section change or Hide
  *   HC-UISET-019  the server's answer for a download that died (failed) leaves Download enabled and shows no bar
- *   HC-UISET-020  the tiers request starts with the settings one; while it loads the tier card is a skeleton, not "Run hardware detection first"
+ *   HC-UISET-020  the tiers request starts with the settings one; the panels wait for both, so nothing shifts and "Run hardware detection first" is not shown while they load
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -890,9 +890,42 @@ describe('HC-UISET-019: a download the server reports as failed (it died, or the
     await user.click(mid.getByRole('button', { name: 'Download' }));
     await waitFor(() => expect(api.apiPost).toHaveBeenCalledWith('/settings/model/download', { tier: 'mid' }));
   });
+
+  // The GET reads the row and then asks whether a task holds it, so a download that finishes in between can answer
+  // `failed` for one poll (api/model_settings.py, HC-UISET-018). The poll after it says `completed`: the tiers must still be
+  // refreshed, or the finished tier keeps showing Download until the page is reloaded.
+  it('downloading, one failed poll, then completed: the tiers are fetched again', async () => {
+    const answer = (status: string, progress: number) => ({
+      mid: { tier: 'mid', status, progress, downloaded_bytes: progress * GB, total_bytes: GB, path: null, error: null },
+    });
+    downloadProgress = answer('downloading', 0.6);
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    expect(await screen.findByText('60%')).toBeInTheDocument();
+
+    downloadProgress = diedAnswer;
+    await waitFor(() => expect(within(screen.getByTestId('tier-row-mid')).getByRole('button', { name: 'Download' })).toBeEnabled(), { timeout: 6000 });
+
+    const tierFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/tiers').length;
+    const before = tierFetches();
+    downloadProgress = answer('completed', 1);
+    await waitFor(() => expect(tierFetches()).toBeGreaterThan(before), { timeout: 6000 });
+  }, 20000);
+
+  it('a tier that stays completed across polls does not refetch the tiers each time', async () => {
+    downloadProgress = { mid: { tier: 'mid', status: 'completed', progress: 100, downloaded_bytes: GB, total_bytes: GB, path: null, error: null } };
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    const tierFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/tiers').length;
+    const progressFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/download-progress').length;
+    const polls = progressFetches();
+    const before = tierFetches();
+    await waitFor(() => expect(progressFetches()).toBeGreaterThanOrEqual(polls + 2), { timeout: 8000 });
+    expect(tierFetches()).toBe(before);
+  }, 20000);
 });
 
-describe('HC-UISET-020: the tiers request starts with the settings one, and while it loads there is no "Run hardware detection first" line', () => {
+describe('HC-UISET-020: the tiers request starts with the settings one, and the panels wait for both', () => {
   const FALSE_LINE = 'Run hardware detection first to see available tiers.';
 
   /** Holds the reply of the given paths until released, and records the order GETs start and settings answers in. */
@@ -923,18 +956,35 @@ describe('HC-UISET-020: the tiers request starts with the settings one, and whil
     await screen.findByTestId('tier-row-low');
   });
 
-  it('while the tiers load there is a skeleton and not the line; the tier rows replace it', async () => {
-    const { release } = holdReplies(['/settings/model/tiers']);
+  // With the settings in and the tiers still out, a tier card of three skeleton blocks becomes seven rows when the tiers
+  // land, and every card under it moves (below lg the columns are one). So the panels show one skeleton until both are in.
+  it('settings in, tiers still out: one skeleton, no false line, no cards under it; all of it at once when the tiers land', async () => {
+    const { events, release } = holdReplies(['/settings/model/tiers']);
     const { user } = renderSettings('/settings?section=advanced');
     await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
-    await screen.findByRole('button', { name: 'Export training data' });
-    expect(screen.getByTestId('tiers-loading')).toBeInTheDocument();
+    await waitFor(() => expect(events).toContain('/settings/model:reply'));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+    expect(screen.getByTestId('advanced-loading')).toBeInTheDocument();
     expect(screen.queryByText(FALSE_LINE)).not.toBeInTheDocument();
+    expect(screen.queryByText('Model Tier')).not.toBeInTheDocument();
+    expect(screen.queryByText('Hardware Detection')).not.toBeInTheDocument();
 
     release['/settings/model/tiers']();
     await screen.findByTestId('tier-row-low');
-    expect(screen.queryByTestId('tiers-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('advanced-loading')).not.toBeInTheDocument();
     expect(screen.queryByText(FALSE_LINE)).not.toBeInTheDocument();
+    expect(await screen.findByText('Hardware Detection')).toBeInTheDocument();
+  });
+
+  it('tiers in, settings still out: the same skeleton, and the tier rows wait for the settings', async () => {
+    const { release } = holdReplies(['/settings/model']);
+    const { user } = renderSettings('/settings?section=advanced');
+    await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+    expect(screen.getByTestId('advanced-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('tier-row-low')).not.toBeInTheDocument();
+    release['/settings/model']();
+    await screen.findByTestId('tier-row-low');
   });
 
   it('the line stays for a tiers request that settled with nothing to show', async () => {
@@ -946,7 +996,16 @@ describe('HC-UISET-020: the tiers request starts with the settings one, and whil
     const { user } = renderSettings('/settings?section=advanced');
     await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
     expect(await screen.findByText(FALSE_LINE)).toBeInTheDocument();
-    expect(screen.queryByTestId('tiers-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('advanced-loading')).not.toBeInTheDocument();
+    // The tier card asks again when it mounts (react-query retries an errored query on mount); the panels must not wait on
+    // that second request, or the card unmounts, mounts and asks again for as long as the tiers fail.
+    const tierFetches = () => vi.mocked(api.apiGet).mock.calls.filter(([path]) => path === '/settings/model/tiers').length;
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+    const settled = tierFetches();
+    expect(settled).toBeLessThanOrEqual(3);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+    expect(tierFetches()).toBe(settled);
+    expect(screen.getByText(FALSE_LINE)).toBeInTheDocument();
   });
 });
 
