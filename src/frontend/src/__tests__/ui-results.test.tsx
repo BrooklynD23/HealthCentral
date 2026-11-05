@@ -1,7 +1,7 @@
 /**
- * UI-PG-RESULTS (HC-UIRES-001 .. 028): the Results page that folds Trends and Interpret around the Range Ribbon.
+ * UI-PG-RESULTS (HC-UIRES-001 .. 031): the Results page that folds Trends and Interpret around the Range Ribbon.
  * Plan: docs/plans/2026-10-23-frontend-revamp-plan.md (UI-PG-RESULTS); L0 rulings on PR #476
- * (comments 6600140569, 6600985053, 6606545865 and 6615916306).
+ * (comments 6600140569, 6600985053, 6606545865, 6615916306 and 6651066532).
  *
  * The modules under test are loaded with a dynamic import inside each test, so before they exist every id fails on
  * its own line instead of the whole file failing to load. Only the network is mocked: the page, the ribbon and the
@@ -670,7 +670,45 @@ describe('HC-UIRES-030 the first date format is paid before the Explain click', 
     expect(screen.queryByText('Stored card text.')).toBeNull();
   });
 
-  it("HC-UIRES-030: the card's first commit holds its text, disclaimer and footer date, none of it behind a frame", async () => {
+  describe('when the browser has requestIdleCallback (jsdom does not, so the tests above ran the 300 ms fallback)', () => {
+    let idleCallback: (() => void) | null = null;
+    const requestIdle = vi.fn((callback: () => void) => {
+      idleCallback = callback;
+      return 41;
+    });
+    const cancelIdle = vi.fn();
+
+    beforeEach(() => {
+      idleCallback = null;
+      requestIdle.mockClear();
+      cancelIdle.mockClear();
+      Object.defineProperty(window, 'requestIdleCallback', { value: requestIdle, configurable: true, writable: true });
+      Object.defineProperty(window, 'cancelIdleCallback', { value: cancelIdle, configurable: true, writable: true });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(window, 'requestIdleCallback');
+      Reflect.deleteProperty(window, 'cancelIdleCallback');
+    });
+
+    // The warm-up formats new Date(0); the page may format other dates for its own reasons, so only that one is counted.
+    function warmCalls(spy: { mock: { contexts: unknown[] } }): number {
+      return spy.mock.contexts.filter((date) => date instanceof Date && date.getTime() === 0).length;
+    }
+
+    it('HC-UIRES-030: nothing is formatted at mount, one format runs when the browser goes idle, and leaving the page cancels a warm-up that has not run', async () => {
+      const formatDate = vi.spyOn(Date.prototype, 'toLocaleDateString');
+      const { unmount } = await renderPage();
+      await pageLoaded();
+      expect(requestIdle).toHaveBeenCalledTimes(1);
+      expect(warmCalls(formatDate)).toBe(0);
+      act(() => idleCallback?.());
+      expect(warmCalls(formatDate)).toBe(1);
+      unmount();
+      expect(cancelIdle).toHaveBeenCalledWith(41);
+    });
+  });
+
+  it("HC-UIRES-030: the card's first commit holds its text, disclaimer and footer date, with no timer or frame between the click and them", async () => {
     setupApi({ interpretation: 'stored' });
     const { client } = await renderPage();
     await pageLoaded();
