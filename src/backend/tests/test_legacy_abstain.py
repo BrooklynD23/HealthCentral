@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from modules.agent.guardrails.classifier import classify_advice
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.faithfulness import FaithfulnessScorer, FaithfulnessScores
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
@@ -126,10 +127,15 @@ def test_hc_leg_006_safe_chat_does_not_overwrite_the_abstention_over_http():
 def test_hc_leg_007_prohibited_advice_still_escalates_over_http():
     """Prohibited: SAFE-CHAT's escalation wins over W-4's abstention (owner SAFE-CHAT-TPL)."""
     with legacy_chat_client(build_chunks("glucose"), PROHIBITED_ANSWER) as (client, append_turns):
-        resp = client.post(CHAT_PATH, json={"question": "What should I do about my glucose?"})
+        # LEGACY-ADVICE-GATE: "What should I do about my glucose?" now escalates before the
+        # model. This phrasing passes classify_advice, so the post-hoc prohibited check is
+        # what escalates the model's advice.
+        assert classify_advice("What was my glucose?").is_advice_seeking is False
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
+    assert "pre_model_advice" not in body["validation_errors"]
     assert body["segments"] == [
         {"segment_type": "uncertainty", "content": ESCALATE_TEMPLATE, "citations": []}
     ]
