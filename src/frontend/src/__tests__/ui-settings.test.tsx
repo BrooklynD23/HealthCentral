@@ -24,6 +24,7 @@
  *   HC-UISET-016  the diagnostics link back to /settings stays in Advanced
  *   HC-UISET-017  the export result is still there after a section change or Hide
  *   HC-UISET-019  the server's answer for a download that died (failed) leaves Download enabled and shows no bar
+ *   HC-UISET-020  the tiers request starts with the settings one; while it loads the tier card is a skeleton, not "Run hardware detection first"
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -888,6 +889,64 @@ describe('HC-UISET-019: a download the server reports as failed (it died, or the
 
     await user.click(mid.getByRole('button', { name: 'Download' }));
     await waitFor(() => expect(api.apiPost).toHaveBeenCalledWith('/settings/model/download', { tier: 'mid' }));
+  });
+});
+
+describe('HC-UISET-020: the tiers request starts with the settings one, and while it loads there is no "Run hardware detection first" line', () => {
+  const FALSE_LINE = 'Run hardware detection first to see available tiers.';
+
+  /** Holds the reply of the given paths until released, and records the order GETs start and settings answers in. */
+  function holdReplies(paths: string[]) {
+    const events: string[] = [];
+    const release: Record<string, () => void> = {};
+    const held: Record<string, Promise<void> | undefined> = {};
+    for (const path of paths) held[path] = new Promise<void>((resolve) => { release[path] = resolve; });
+    const base = vi.mocked(api.apiGet).getMockImplementation()!;
+    vi.mocked(api.apiGet).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === '/settings/model' || path === '/settings/model/tiers') events.push(`${path}:start`);
+      if (held[path]) await held[path];
+      if (path === '/settings/model') events.push(`${path}:reply`);
+      return (base as (path: string, ...rest: unknown[]) => unknown)(path, ...rest);
+    }) as never);
+    return { events, release };
+  }
+
+  it('the tiers GET starts before the settings reply lands', async () => {
+    const { events, release } = holdReplies(['/settings/model']);
+    const { user } = renderSettings('/settings?section=advanced');
+    await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
+    await waitFor(() => expect(events).toContain('/settings/model:start'));
+    // Nothing has answered yet: a tiers request that starts only after the settings reply is a waterfall.
+    await waitFor(() => expect(events).toContain('/settings/model/tiers:start'));
+    expect(events).not.toContain('/settings/model:reply');
+    release['/settings/model']();
+    await screen.findByTestId('tier-row-low');
+  });
+
+  it('while the tiers load there is a skeleton and not the line; the tier rows replace it', async () => {
+    const { release } = holdReplies(['/settings/model/tiers']);
+    const { user } = renderSettings('/settings?section=advanced');
+    await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
+    await screen.findByRole('button', { name: 'Export training data' });
+    expect(screen.getByTestId('tiers-loading')).toBeInTheDocument();
+    expect(screen.queryByText(FALSE_LINE)).not.toBeInTheDocument();
+
+    release['/settings/model/tiers']();
+    await screen.findByTestId('tier-row-low');
+    expect(screen.queryByTestId('tiers-loading')).not.toBeInTheDocument();
+    expect(screen.queryByText(FALSE_LINE)).not.toBeInTheDocument();
+  });
+
+  it('the line stays for a tiers request that settled with nothing to show', async () => {
+    const base = vi.mocked(api.apiGet).getMockImplementation()!;
+    vi.mocked(api.apiGet).mockImplementation((async (path: string, ...rest: unknown[]) => {
+      if (path === '/settings/model/tiers') throw new Error('tiers down');
+      return (base as (path: string, ...rest: unknown[]) => unknown)(path, ...rest);
+    }) as never);
+    const { user } = renderSettings('/settings?section=advanced');
+    await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
+    expect(await screen.findByText(FALSE_LINE)).toBeInTheDocument();
+    expect(screen.queryByTestId('tiers-loading')).not.toBeInTheDocument();
   });
 });
 
