@@ -493,12 +493,12 @@ test.describe('HC-UISH-005 Safety Rail is opaque and on top', () => {
 });
 
 // ---------------------------------------------------------------------------
-// HC-UISH-006: the relabelled toggle is an honest, disabled switch.
+// HC-UISH-006: the relabelled toggle is a working switch (SAFETY-MODE-TOGGLE) with the stage-1 note.
 // ---------------------------------------------------------------------------
 test.describe('HC-UISH-006 relabelled safety toggle', () => {
   test.use({ viewport: DESKTOP });
 
-  test('HC-UISH-006: no "Safety Mode", ON or OFF in the top bar, and the switch is disabled with its note', async ({
+  test('HC-UISH-006: no "Safety Mode", ON or OFF in the top bar, and the switch is enabled with its note', async ({
     page,
   }) => {
     await openRoute(page, '/inbox');
@@ -513,24 +513,8 @@ test.describe('HC-UISH-006 relabelled safety toggle', () => {
     await expect(toggle.locator('xpath=..')).not.toContainText(/\b(ON|OFF)\b/);
     await expect(page.locator(TOGGLE_NOTE)).not.toContainText(/\b(ON|OFF)\b/);
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
-    await expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    await expect(toggle).toBeEnabled();
     await expect(toggle).toHaveAccessibleDescription(/standard safety checks always run/i);
-  });
-
-  test('HC-UISH-006: clicking the disabled switch changes no DOM state outside its popover', async ({ page }) => {
-    await openRoute(page, '/inbox');
-    const banner = page.getByRole('banner');
-    await expect(banner).toBeVisible({ timeout: 15_000 });
-    // Snapshot the whole app root, not only the banner: a click that changed the rail or the route container
-    // would pass a banner-only check. Portals are appended to body, outside #root, so the popover is not in it.
-    await page.waitForLoadState('networkidle');
-    await settleRoute(page);
-    const root = page.locator('#root');
-    const before = await root.evaluate((el) => el.innerHTML);
-    await page.getByRole('switch', { name: 'Stricter safety mode' }).click({ force: true });
-    await page.waitForTimeout(300);
-    expect(await root.evaluate((el) => el.innerHTML)).toBe(before);
-    await expect(page.getByRole('switch', { name: 'Stricter safety mode' })).toHaveAttribute('aria-checked', 'false');
   });
 });
 
@@ -547,8 +531,8 @@ test.describe('HC-UISH-006 phone toggle popover', () => {
     await info.click();
     const popover = page.getByRole('dialog', { name: 'About the stricter safety mode' });
     await expect(popover).toBeVisible();
-    await expect(popover).toContainText('Not available yet. The standard safety checks always run.');
-    await expect(popover).toContainText('A stricter mode is being designed; this switch will turn it on when it is ready.');
+    await expect(popover).toContainText('The standard safety checks always run.');
+    await expect(popover).toContainText('It never turns the standard checks off.');
     await expect(popover).not.toContainText(/\b(ON|OFF)\b/);
   });
 });

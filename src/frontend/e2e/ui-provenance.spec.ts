@@ -167,6 +167,7 @@ async function mockApi(page: Page): Promise<string[]> {
       if (path === '/documents') return json([documentFixture]);
       if (path === '/documents/highlights/summary') return json([]);
       if (path === '/pinboards') return json([]);
+      if (path === '/assistant/safety-mode') return json({ strict_safety_mode: false });
       // SOURCE-TRACE-WIRE: "Show source" on /interpret reads the document's file name.
       if (path === `/documents/${DOCUMENT_ID}`) return json(documentFixture);
       if (path === `/documents/${DOCUMENT_ID}/entities`) return json([]);
