@@ -149,10 +149,10 @@ function AdvancedReads() {
 }
 
 /**
- * Mounts the cards one per commit, each after the frame that laid out the last, in a transition: one commit of all of them was one layout of
- * them all, and two cards' worth of style and layout in one frame kept G10's sampler from running for 20 ms and more
- * (HC-UISET-023). A card waits in its <Stage> for its number. Only the Stages read the count, so a new stage renders the card
- * it lets in and no other: the children of the provider are the same elements on every stage.
+ * Mounts the cards a few per commit, each commit after the frame that laid out the last, in a transition: three cards' style
+ * and layout in one frame kept G10's sampler from running for 20 ms and more (HC-UISET-023). A card waits in its <Stage> for
+ * its number. Only the Stages read the count, so a new stage renders the cards it lets in and no other: the children of the
+ * provider are the same elements on every stage.
  */
 const StageContext = createContext(Number.POSITIVE_INFINITY);
 
@@ -161,19 +161,17 @@ function StagedCards({ count, children }: { count: number; children: ReactNode }
   useEffect(() => {
     if (stage >= count) return;
     const next = () => startTransition(() => setStage(stage + 1));
-    // The frame lays out the card committed last; the next one renders once that frame is done and the browser is idle, so a
-    // timer that is due runs first. Rendered straight from the frame, the next card's render and layout followed it with no
-    // gap, and the sampler waited behind all three (37-51 ms on a production build). Without requestIdleCallback, a timer.
+    // The frame lays out the cards committed last; the next ones render once that frame is done and the browser is idle, so a
+    // timer that is due runs first. Rendered straight from the frame, the next cards' render and layout followed it with no
+    // gap, and the sampler waited behind all three (37-51 ms on a production build). Without requestIdleCallback, from the frame.
     let idle = 0;
-    let timer = 0;
     const raf = requestAnimationFrame(() => {
       if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(next, { timeout: 200 });
-      else timer = window.setTimeout(next, 0);
+      else next();
     });
     return () => {
       cancelAnimationFrame(raf);
       if (idle) cancelIdleCallback(idle);
-      window.clearTimeout(timer);
     };
   }, [stage, count]);
   return <StageContext.Provider value={stage}>{children}</StageContext.Provider>;
@@ -234,8 +232,11 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
           sits in the last column. Expanded, the page is 1764 px by default and 1843 px with a download running (the progress
           bar adds the difference), against the 1800 px bound of HC-UISET-005: the second figure is over the bound and is
           not ruled yet. */}
-      {/* Each column fills top to bottom, so a card that arrives never moves one that is there. */}
-      <StagedCards count={6}>
+      {/* The cards arrive in document order, so one that arrives never moves one that is there (each column fills top to
+          bottom, and below xl the last column sits under the other two). Hardware and OCR, then the other three: one card's
+          style and layout measured 3-7 ms on a production build, so each group costs about what the tier card alone does. One
+          card per commit was six commits, and each commit is a wait for the tests in jsdom (HC-UISET-002 timed out). */}
+      <StagedCards count={3}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
           <div className="space-y-6">
             <TierCard />
@@ -243,13 +244,13 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
 
           <div className="space-y-6">
             <Stage n={2}><HardwareCard /></Stage>
-            <Stage n={3}><OcrCard /></Stage>
-            <Stage n={4}><StatusCard /></Stage>
+            <Stage n={2}><OcrCard /></Stage>
+            <Stage n={3}><StatusCard /></Stage>
           </div>
 
           <div className="space-y-6 lg:col-span-2 xl:col-span-1">
-            <Stage n={5}><EnvironmentCard /></Stage>
-            <Stage n={6}><TrainingCard exportResult={exportResult} onExportResult={onExportResult} /></Stage>
+            <Stage n={3}><EnvironmentCard /></Stage>
+            <Stage n={3}><TrainingCard exportResult={exportResult} onExportResult={onExportResult} /></Stage>
           </div>
         </div>
       </StagedCards>

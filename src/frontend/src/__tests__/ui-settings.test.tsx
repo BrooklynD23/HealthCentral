@@ -27,7 +27,7 @@
  *   HC-UISET-020  the tiers request starts with the settings one; the panels wait for both, so nothing shifts and "Run hardware detection first" is not shown while they load
  *   HC-UISET-021  those two reads start when the section mounts: a press after they settle renders no skeleton, a press before them does, and a failed read is asked again on the press
  *   HC-UISET-022  Current Status shows the break-glass warning by the External API row (D12), on the same conditions as Assistant & privacy
- *   HC-UISET-023  the press renders the button at once and the panels after it, one card per commit, top to bottom in each column
+ *   HC-UISET-023  the press renders the button at once and the panels after it, the tier card alone, then the other cards in two commits, in document order
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -192,7 +192,7 @@ function renderSettings(url = '/settings', gcTime?: number, retry: number | fals
 const openAdvanced = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(await screen.findByRole('button', { name: 'Show advanced settings' }));
   await screen.findByTestId('tier-row-low');
-  // The tier card mounts first and the other cards one per frame after it (so that opening Advanced is a run of small tasks,
+  // The tier card mounts first and the other cards in two commits after it (so that opening Advanced is a run of small tasks,
   // HC-UISET-023): Export training data is in the last of them.
   await screen.findByRole('button', { name: 'Export training data' });
 };
@@ -1411,12 +1411,14 @@ describe('HC-UISET-022: Current Status shows the break-glass warning by the Exte
   });
 });
 
-// G10 on "Show advanced settings": the panels used to render inside the click, and two cards' worth of layout after it, so the
-// sampler waited behind one long stretch of main-thread work. The press now commits the button alone; the panels follow in a
-// transition (rendered in slices) and one card per commit, each a frame after the last.
-describe('HC-UISET-023: the press renders the button at once, and the panels after it, one card per commit', () => {
+// G10 on "Show advanced settings": the panels used to render inside the click, and three cards' worth of layout after it, so
+// the sampler waited behind one long stretch of main-thread work. The press now commits the button alone; the panels follow in
+// a transition (rendered in slices), the tier card alone and then the other cards in two commits, in document order, each after
+// the frame that laid out the last.
+describe('HC-UISET-023: the press renders the button at once, and the panels after it, the tier card alone first', () => {
   const SHOW = 'Show advanced settings';
-  const CARDS = ['Model Tier', 'Hardware Detection', 'Document import (OCR)', 'Current Status', 'Environment & tools', 'Training Data'];
+  const STAGES = [['Model Tier'], ['Hardware Detection', 'Document import (OCR)'], ['Current Status', 'Environment & tools', 'Training Data']];
+  const CARDS = STAGES.flat();
 
   async function settled(client: QueryClient) {
     await waitFor(() => {
@@ -1472,7 +1474,7 @@ describe('HC-UISET-023: the press renders the button at once, and the panels aft
     };
   }
 
-  it('the six cards arrive one per commit, the tier card first and each column top to bottom', async () => {
+  it('the cards arrive in three commits, the tier card alone first, in document order', async () => {
     const { user, client } = renderSettings('/settings?section=advanced');
     await screen.findByRole('button', { name: SHOW });
     await settled(client);
@@ -1480,12 +1482,12 @@ describe('HC-UISET-023: the press renders the button at once, and the panels aft
     await user.click(screen.getByRole('button', { name: SHOW }));
     await screen.findByRole('button', { name: 'Export training data' });
     await waitFor(() => expect(screen.getByText('Current Status')).toBeInTheDocument());
-    expect(commits()).toEqual(CARDS.map((title) => [title]));
+    expect(commits()).toEqual(STAGES);
   });
 
   // Rendered straight from the frame, a card's render and layout followed the last card's layout with no gap for a timer. jsdom
   // has no requestIdleCallback, so the test brings one and runs it by hand.
-  it('where the browser has requestIdleCallback, each card after the tier card waits for an idle callback', async () => {
+  it('where the browser has requestIdleCallback, each commit after the tier card waits for an idle callback', async () => {
     const pending: IdleRequestCallback[] = [];
     vi.stubGlobal('requestIdleCallback', (callback: IdleRequestCallback) => pending.push(callback));
     vi.stubGlobal('cancelIdleCallback', () => {});
@@ -1495,12 +1497,12 @@ describe('HC-UISET-023: the press renders the button at once, and the panels aft
       await settled(client);
       await user.click(screen.getByRole('button', { name: SHOW }));
       await screen.findByTestId('tier-row-low');
-      for (const title of CARDS.slice(1)) {
+      for (const stage of STAGES.slice(1)) {
         await waitFor(() => expect(pending).toHaveLength(1));
         await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
-        expect(screen.queryByText(title)).not.toBeInTheDocument();
+        for (const title of stage) expect(screen.queryByText(title), title).not.toBeInTheDocument();
         await act(async () => { pending.shift()!({ didTimeout: false, timeRemaining: () => 10 }); });
-        expect(await screen.findByText(title)).toBeInTheDocument();
+        for (const title of stage) expect(await screen.findByText(title)).toBeInTheDocument();
       }
       await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
       expect(pending).toHaveLength(0);
@@ -1518,7 +1520,7 @@ describe('HC-UISET-023: the press renders the button at once, and the panels aft
     for (const title of CARDS) expect(screen.queryByText(title)).not.toBeInTheDocument();
     const commits = watchCards();
     await openAdvanced(user);
-    expect(commits()).toEqual(CARDS.map((title) => [title]));
+    expect(commits()).toEqual(STAGES);
   });
 });
 
