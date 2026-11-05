@@ -1199,3 +1199,186 @@ def test_hc_kcn_008_chip_display_key_is_the_stored_name():
     assert "hemoglobin_a1c" not in entries, "the old key matches no stored name"
     assert entries.get("glucose") == "Glucose"
     assert "DISPLAY[a] ??" in source and "How's my ${name}?" in source
+
+
+# ---------------------------------------------------------------------------
+# HC-KCN-009: a result stored under an OLD name keeps its KB row and its critical limits.
+#
+# `Glucose Fasting` has no synonym, so the normalizer stores `glucose_fasting`. The default
+# critical table has no such key, so the KB row was that result's only critical limit. The
+# rename must not turn that flag off (review round 1 BLOCKER, ruling 6651067212). One alias
+# map in the loader (and the biomarker route) reads the old stored names from the renamed row.
+# These tests are NOT parametrised through LABELS: HC-KCN-001 asserts
+# `info.analyte_canonical == stored`, and an aliased lookup returns the renamed row.
+# ---------------------------------------------------------------------------
+
+# (label, stored name the normalizer gives it, value, ref_low, ref_high, flag, severity)
+OLD_NAME_GLUCOSE = [
+    pytest.param(450.0, "H", "critical_high", id="450-high"),
+    pytest.param(40.0, "L", "critical_low", id="40-low"),
+]
+
+
+async def _interpret_stored(master, profile_db, analyte, value, lo, hi, unit, flag):
+    """interpret_observation on a result stored under `analyte`; returns (context info, result)."""
+    obs = _obs(analyte, value, lo, hi, unit, flag=flag)
+    profile_db.add(obs)
+    await profile_db.commit()
+    module, _ = _module()
+    context = await module._assemble_context(obs, profile_db, master)
+    result = await module.interpret_observation(obs.id, profile_db, master)
+    assert result.success, result.error_message
+    return context.biomarker_info, result.interpretation
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value,flag,severity", OLD_NAME_GLUCOSE)
+async def test_hc_kcn_009_glucose_fasting_label_keeps_its_critical_flag_and_kb_text(
+    master, profile_db, value, flag, severity
+):
+    """Would not notice: whether 50 / 400 are clinically right (the owner sees them at the gate).
+    It would also not notice a second route to the same flag, so the control below pins that
+    the default table has no `glucose_fasting` key and the KB row is the only source."""
+    stored = _stored("Glucose Fasting")
+    assert stored == "glucose_fasting", "precondition: the normalizer's name for this label changed"
+    assert "glucose_fasting" not in InterpretationSafetyGuard().DEFAULT_CRITICAL_THRESHOLDS
+
+    info, card = await _interpret_stored(master, profile_db, stored, value, 70.0, 100.0, "mg/dL", flag)
+    assert info is not None, "no knowledge-base row for a result stored as glucose_fasting"
+    assert card.requires_physician_review is True
+    assert card.severity_level == severity
+    assert card.physician_review_reason and "critical" in card.physician_review_reason.lower()
+    text_ = info.high_interpretation if flag == "H" else info.low_interpretation
+    assert f"{text_} [KB:{info.id}]" in card.interpretation_text
+    assert f"{info.description} [KB:{info.id}]" in card.interpretation_text
+    citations = json.loads(card.citations_json)
+    assert any(c["type"] == "knowledge_base" and c["id"] == info.id for c in citations), citations
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_009_glucose_fasting_in_range_is_not_flagged(master, profile_db):
+    """Control: the alias does not flag everything. Would not notice: a limit set too high."""
+    info, card = await _interpret_stored(
+        master, profile_db, "glucose_fasting", 90.0, 70.0, 100.0, "mg/dL", None
+    )
+    assert info is not None
+    assert card.requires_physician_review is False
+    assert card.severity_level == "normal"
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_009_hemoglobin_a1c_stored_literally_keeps_its_critical_flag_and_kb_text(
+    master, profile_db
+):
+    """Would not notice: unit mix-ups (the limit compares the raw value). The default table has
+    no hba1c / hemoglobin_a1c key, so the KB limit 10.0 is the only source."""
+    guard = InterpretationSafetyGuard()
+    assert "hemoglobin_a1c" not in guard.DEFAULT_CRITICAL_THRESHOLDS
+    info, card = await _interpret_stored(
+        master, profile_db, "hemoglobin_a1c", 10.5, 4.0, 5.6, "%", "H"
+    )
+    assert info is not None, "no knowledge-base row for a result stored as hemoglobin_a1c"
+    assert card.requires_physician_review is True
+    assert card.severity_level == "critical_high"
+    assert card.physician_review_reason == "Critical high value: 10.5 is above critical threshold of 10.0"
+    assert f"{info.high_interpretation} [KB:{info.id}]" in card.interpretation_text
+    assert f"{info.description} [KB:{info.id}]" in card.interpretation_text
+
+    # Control: below the limit, no review flag.
+    _, below = await _interpret_stored(master, profile_db, "hemoglobin_a1c", 9.5, 4.0, 5.6, "%", "H")
+    assert below.requires_physician_review is False
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_009_hemoglobin_a1c_high_gets_its_interventions(master, profile_db):
+    """Would not notice: that the advice text is educational (HC-KCN-007 scans the text)."""
+    _, loader = _module()
+    recs = await RecommendationEngine(knowledge_loader=loader).generate_recommendations(
+        analyte_canonical="hemoglobin_a1c", value=7.2, ref_low=4.0, ref_high=5.6, db=master
+    )
+    assert {r.title for r in recs.recommendations} == {
+        "Reduce Refined Carbohydrates", "Regular Physical Activity",
+    }
+    _, card = await _interpret_stored(master, profile_db, "hemoglobin_a1c", 7.2, 4.0, 5.6, "%", "H")
+    advice = card.advice_text or ""
+    assert "Reduce Refined Carbohydrates" in advice and "[INT:" in advice, advice
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("old,new", sorted(RENAMES.items()))
+async def test_hc_kcn_009_loader_returns_the_same_rows_for_the_old_and_the_new_name(master, old, new):
+    """Would not notice: the three loader methods each have their own key line, so this calls
+    each one. A fresh loader per call: the cache is keyed by the name, and a shared loader could
+    answer the second call from the first call's entry."""
+    bio_old = await KnowledgeLoader().get_biomarker_knowledge(old, master)
+    bio_new = await KnowledgeLoader().get_biomarker_knowledge(new, master)
+    assert bio_new is not None, f"no row under the new name {new!r}"
+    assert bio_old == bio_new
+
+    for condition in ("high", "low"):
+        itv_old = await KnowledgeLoader().get_interventions(old, condition, master)
+        itv_new = await KnowledgeLoader().get_interventions(new, condition, master)
+        assert itv_old == itv_new, (old, condition)
+        if (new, condition) == ("hba1c", "high"):
+            assert len(itv_new) == 2, "control: the comparison is not between two empty lists"
+
+    rel_old = await KnowledgeLoader().get_relationships(old, master)
+    rel_new = await KnowledgeLoader().get_relationships(new, master)
+    assert rel_old == rel_new
+    if new in ("glucose", "hba1c"):
+        assert rel_new, "control: the comparison is not between two empty lists"
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_009_one_loader_asked_for_both_names_gives_one_answer(master):
+    """Would not notice: a cache keyed by the raw name (it would still be right, just twice).
+    Catches a cache key built from one name and a query built from another."""
+    loader = KnowledgeLoader()
+    first = await loader.get_biomarker_knowledge("hemoglobin_a1c", master)
+    second = await loader.get_biomarker_knowledge("HbA1c", master)
+    assert first is not None and first == second
+    i_first = await loader.get_interventions("hemoglobin_a1c", "high", master)
+    i_second = await loader.get_interventions("hba1c", "high", master)
+    assert i_first and i_first == i_second
+
+
+@pytest.mark.parametrize("name", ["glucose_fasting", "hemoglobin_a1c", "wbc"])
+def test_hc_kcn_009_biomarker_route_reads_old_and_new_names_the_same(data_root, name):
+    """Through HTTP (route_client), real master session. The session is created here, in a sync
+    test, and first connects inside the TestClient's loop (NullPool: no connection outlives a call).
+    Would not notice: the response_model hiding a field; both bodies come from the same model."""
+    from sqlalchemy.pool import NullPool
+
+    from api.interpretations import router
+    from tests.support.routes import route_client
+
+    run_master_migrations()
+    _run_seed()
+    engine = create_async_engine(_async_url(), poolclass=NullPool)
+    session = AsyncSession(engine, expire_on_commit=False)
+    new = RENAMES[name]
+    with route_client(router, "/interpretations", master_db=session) as client:
+        old_resp = client.get(f"/interpretations/knowledge/biomarker/{name}")
+        new_resp = client.get(f"/interpretations/knowledge/biomarker/{new}")
+        shout = client.get(f"/interpretations/knowledge/biomarker/{name.upper()}")
+        missing = client.get("/interpretations/knowledge/biomarker/not_a_biomarker")
+    assert new_resp.status_code == 200, new_resp.text
+    assert old_resp.status_code == 200, old_resp.text
+    assert old_resp.json() == new_resp.json()
+    assert new_resp.json()["analyte_canonical"] == new
+    assert shout.status_code == 200 and shout.json() == new_resp.json(), "lookup lower-cases first"
+    assert missing.status_code == 404, missing.text
+
+
+def test_hc_kcn_009_alias_map_equals_the_migration_renames():
+    """Would not notice: a name the normalizer stores for a fourth analyte. HC-KCN-002 owns that.
+    The import is inside the test so the file still collects when the map does not exist yet."""
+    from modules.knowledge_loader import KB_ANALYTE_ALIASES, kb_lookup_name
+
+    migration = ScriptDirectory.from_config(_cfg()).get_revision("003_kb_canonical_names").module
+    assert dict(KB_ANALYTE_ALIASES) == migration.ANALYTE_RENAMES == RENAMES
+    for old, new in RENAMES.items():
+        assert kb_lookup_name(old) == new
+        assert kb_lookup_name(old.upper()) == new
+        assert kb_lookup_name(new) == new
+    assert kb_lookup_name("Total_Cholesterol") == "total_cholesterol"
