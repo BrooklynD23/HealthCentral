@@ -42,6 +42,7 @@ import {
 } from 'react';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { duration, ease } from '@/motion/tokens';
+import { useAuthStore } from '@/stores/authStore';
 import type { TrendData, TrendPoint } from '@/services/types';
 
 const VIEW_W = 320;
@@ -311,6 +312,11 @@ function nearestIndex(points: LayoutPoint[], x: number): number {
 // Analytes already revealed in this page load. Held in memory only: an analyte name is never written to browser
 // storage (L0 ruling on the UI-PG-RESULTS PR), so a reload reveals again. It is presentation only.
 const revealedAnalytes = new Set<string>();
+// A lock or logout ends the session without a reload, so the names must not outlive it: the next profile gets its
+// own reveal. Read-only subscribe on the auth store; nothing renders or paints differently.
+useAuthStore.subscribe((state, previous) => {
+  if (previous.isAuthenticated && !state.isAuthenticated) revealedAnalytes.clear();
+});
 
 function triangleD(x: number, y: number, side: 'above' | 'below'): string {
   return side === 'above'
