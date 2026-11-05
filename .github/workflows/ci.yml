@@ -414,6 +414,7 @@ jobs:
       #   ui-palette:659     palette
       #   ui-export:395      2 themes
       #   ui-ask:1096        /explain
+      #   ui-records:1147    2 themes, /timeline, /search, /pinboards
       # (A mocked spec titled "UI-PG-REVIEW Gate G3 ...", such as the /verify one from #452, joins the same way.)
       # Excluded: the six ui-auth G3 titles (describe "UI-PG-AUTH gate G on /setup and /recover"). They need the
       # real backend and a preview on port 3000 (ui-auth.spec.ts:14-17), and this job runs no backend.
