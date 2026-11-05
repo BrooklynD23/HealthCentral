@@ -1734,7 +1734,8 @@ describe('HC-UIRES-026 the Normal Range badge', () => {
   function withLatest(value: number, over: Partial<TrendData>, abnormal = false) {
     return (canonical: string): TrendData => ({
       ...trendFor(canonical, 'HEMOGLOBIN'),
-      data_points: [trendPoint('2026-01-10T00:00:00', value, { is_abnormal: abnormal })],
+      // A flagged point is one the report printed a flag on (H here); import cannot store is_abnormal without one today.
+      data_points: [trendPoint('2026-01-10T00:00:00', value, { is_abnormal: abnormal, flag: abnormal ? 'H' : null })],
       ...over,
     });
   }
@@ -1827,6 +1828,27 @@ describe('HC-UIRES-026 the Normal Range badge', () => {
     expect(await screen.findByText('Flagged on the report')).toBeInTheDocument();
     expect(screen.queryByText('Outside Range')).toBeNull();
     expect(screen.queryByText('Normal Range')).toBeNull();
+  });
+
+  // Same fault as the per-row badge (HC-UIRES-029, L0 ruling 6651066532): is_abnormal with no printed flag is not
+  // "Flagged on the report". Once an unflagged value can be stored abnormal it would be claimed here (recurring #9).
+  it('HC-UIRES-026: is_abnormal with no printed flag, inside the band, is not Flagged on the report', async () => {
+    await open((canonical) => ({
+      ...withLatest(14.2, {})(canonical),
+      data_points: [trendPoint('2026-01-10T00:00:00', 14.2, { is_abnormal: true, flag: null })],
+    }));
+    await screen.findByText(/Latest value: 14.2/);
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+  });
+
+  it('HC-UIRES-026: is_abnormal with no printed flag, on a chart with no range, is not Flagged on the report', async () => {
+    await open((canonical) => ({
+      ...withLatest(14.2, { ref_low: null, ref_high: null })(canonical),
+      data_points: [trendPoint('2026-01-10T00:00:00', 14.2, { is_abnormal: true, flag: null })],
+    }));
+    await screen.findByText(/Latest value: 14.2/);
+    expect(screen.queryByText('Flagged on the report')).toBeNull();
   });
 
   it('HC-UIRES-026: a flagged value on a chart with no range is the report\'s flag, not Outside Range', async () => {
