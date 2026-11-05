@@ -50,6 +50,9 @@ export function useSafetyMode() {
 
   // A ref, not mutation.isPending: a second click before React re-renders must still be ignored.
   const inFlight = useRef(false);
+  // Counts the clicks that sent a PATCH. A read-back is only current if no click came after the failure
+  // it belongs to: a newer click owns the cache, whether its PATCH is still pending or has settled.
+  const clickCount = useRef(0);
 
   const mutation = useMutation({
     mutationFn: setSafetyMode,
@@ -60,6 +63,7 @@ export function useSafetyMode() {
       return { previous };
     },
     onError: (_error, _next, context) => {
+      const clicksAtFailure = clickCount.current;
       // The query is gone after queryClient.clear() (lock flow): a late write would hand the old
       // profile's value to the next one.
       if (queryClient.getQueryState(SAFETY_MODE_KEY)) {
@@ -71,8 +75,9 @@ export function useSafetyMode() {
         void getSafetyMode().catch(() => undefined).then((response) => {
           if (!queryClient.getQueryState(SAFETY_MODE_KEY)) return; // cleared meanwhile, as above
           const readBack = response?.strict_safety_mode;
-          // A newer click owns the cache now; its own answer will settle it.
-          if (typeof readBack === 'boolean' && !inFlight.current) {
+          // Write only if no click has come since the failure. A newer click owns the cache, whether it is
+          // still pending or already settled: its own answer is newer than this read.
+          if (typeof readBack === 'boolean' && clickCount.current === clicksAtFailure) {
             queryClient.setQueryData<SafetyModeResponse>(SAFETY_MODE_KEY, { strict_safety_mode: readBack });
           }
           // Unless the server confirms the old value, the mode may have changed (or cannot be told).
@@ -94,6 +99,7 @@ export function useSafetyMode() {
   function setStrict(next: boolean) {
     if (value === undefined || inFlight.current) return;
     inFlight.current = true;
+    clickCount.current += 1;
     mutation.mutate(next);
   }
 

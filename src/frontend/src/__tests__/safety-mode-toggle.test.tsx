@@ -399,6 +399,52 @@ describe('HC-SMT-003 a failed PATCH restores the previous state', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'true');
   });
 
+  it.each([false, true])(
+    'a read-back that lands after the next click settled does not overwrite it (start %s)',
+    async (start) => {
+      const user = userEvent.setup();
+      const server = fakeServer(start);
+      const queryClient = renderToggle();
+      const shown = (value: boolean) => String(value);
+
+      const toggle = await knownSwitch();
+      const readBack = deferred<unknown>();
+      vi.mocked(api.apiGet).mockImplementation(() => readBack.promise);
+      // First click: the PATCH fails uncommitted, the rollback runs, the read-back is held.
+      const first = deferred<void>();
+      server.patchGate = first;
+      await user.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', shown(!start)));
+      await act(async () => {
+        first.reject(new Error('503'));
+      });
+      await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', shown(start)));
+      await waitFor(() => expect(api.apiGet).toHaveBeenCalledTimes(2));
+
+      // Second click, while the first read-back is still out: this PATCH settles in full (onSettled has run).
+      const second = deferred<void>();
+      server.patchGate = second;
+      await user.click(toggle);
+      await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', shown(!start)));
+      expect(api.apiPatch).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        second.resolve();
+      });
+      await waitFor(() => expect(server.value).toBe(!start));
+      await waitFor(() => expect(queryClient.getQueryData(KEY)).toEqual({ strict_safety_mode: !start }));
+      expect(toggle).toHaveAttribute('aria-checked', shown(!start));
+
+      // Only now does the older read-back land, with the value from before the second click.
+      await act(async () => {
+        readBack.resolve({ strict_safety_mode: start });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(toggle).toHaveAttribute('aria-checked', shown(!start));
+      expect(queryClient.getQueryData(KEY)).toEqual({ strict_safety_mode: !start });
+      expect(server.value).toBe(!start);
+    }
+  );
+
   it('restores an ON switch to ON when the PATCH to turn it off fails', async () => {
     const user = userEvent.setup();
     const server = fakeServer(true);
