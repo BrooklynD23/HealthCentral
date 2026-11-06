@@ -423,6 +423,7 @@ from alembic import command  # noqa: E402
 from core import migrations  # noqa: E402
 from core.config import settings as _settings  # noqa: E402
 from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available  # noqa: E402
+from tests.support.migrations import PROFILE_HEAD  # noqa: E402
 from tests.test_fk_migration_017 import (  # noqa: E402
     KEY,
     REV_016,
@@ -830,7 +831,7 @@ async def test_hc_fkb_006_unversioned_pre_017_vault_opens_cleans_and_deletes(
         conn = _connect(vault, ctx.key)
         try:
             assert conn.execute("SELECT version_num FROM alembic_version").fetchone()[0] == (
-                "017_fk_cascade_alignment"
+                PROFILE_HEAD
             )
             assert _fk_actions(conn, "document_category")["doc_id"] == "CASCADE"
             assert set(_fk_actions(conn, "care_plan_task").values()) == {"SET NULL"}
