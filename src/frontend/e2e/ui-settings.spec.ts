@@ -246,6 +246,44 @@ test.describe('HC-UISET-005: section height at 1440', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// HC-UISET-024: the same 2 viewports bound as HC-UISET-005, with a download running. The progress block adds height below the tier
+// rows, and HC-UISET-005 measures the page without it. Same bound, same viewport: nothing here moves BOUND or DESKTOP.
+// ---------------------------------------------------------------------------
+test.describe('HC-UISET-024: advanced height at 1440 with a download running', () => {
+  const BOUND = 2 * DESKTOP.height;
+
+  test('HC-UISET-024: advanced is at most 2 viewports tall expanded with a download running', async ({ page }) => {
+    await openSettings(page, 'advanced');
+    let started = false;
+    await page.route(/\/api\/v1\/settings\/model\/download\/?$/, (route) => {
+      started = true;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ tier: 'mid', status: 'pending', progress: 0, downloaded_bytes: 0, total_bytes: 0, path: null, error: null }) });
+    });
+    await page.route(/\/api\/v1\/settings\/model\/download-progress\/?$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(started ? { mid: { tier: 'mid', status: 'downloading', progress: 0.3, downloaded_bytes: 1_000_000_000, total_bytes: 3_000_000_000, path: null, error: null } } : {}),
+      })
+    );
+    await expandAdvanced(page);
+    const download = page.getByTestId('tier-row-mid').getByRole('button', { name: 'Download' });
+    await download.scrollIntoViewIfNeeded();
+    await download.click();
+    // The running state: the block's title and its bytes line are on screen (the block has finished growing in).
+    await expect(page.getByText('Downloading mid…')).toBeVisible();
+    await expect(page.getByText(/0\.93 GB \/ 2\.79 GB/)).toBeVisible();
+    // The block's height and its bar animate in (0.5 s); wait them out so the figure is the settled one.
+    await page.waitForTimeout(1000);
+    const height = await pageHeight(page);
+    console.log(`HC-UISET-024 advanced with a download running: ${height} px (bound ${BOUND})`);
+    test.info().annotations.push({ type: 'height', description: `advanced expanded, download running: ${height} px (bound ${BOUND})` });
+    expect(started, 'the Download press reached POST /settings/model/download').toBe(true);
+    expect(height, `advanced expanded height with a download running ${height} px`).toBeLessThanOrEqual(BOUND);
+  });
+});
+
 // The three columns are narrow (about 340 px each at 1280): a label that is cut, or a button whose caption wraps on its hyphen,
 // costs the patient the word. Detail text may be shortened to two lines only when the whole text can be read: from the title,
 // and from the fix dialog, which prints it whole.
