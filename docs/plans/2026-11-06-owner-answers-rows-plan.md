@@ -87,7 +87,7 @@ Queue rows: [queue.md, "Planned 2026-11-06, owner answers"](2026-10-15-build-pro
 
 **Facts (re-read on `c0f23fc9`).**
 - `006_ocr_preference` added the column with `server_default="1"` (`migrations/profile/versions/006_ocr_preference.py:21-29`); the model now defaults to `False` (`models/model_settings.py:114-118`). Every product write goes through the ORM (`api/model_settings.py:361`, `modules/model_selector.py:286`, `:325`, `:801`, `api/assistant.py:620`, `:716`), so new rows already start off; rows saved before, by a tier save, voice toggle or hardware detection, still hold 1.
-- Profile head: `017_fk_cascade_alignment` (17 files; `017` revises `016_strict_safety_mode`). No open PR adds a profile migration.
+- Profile head: `017_fk_cascade_alignment` (17 files; `017` revises `016_strict_safety_mode`). No open PR adds a profile migration. (BATCH-1106B: since #512, `4e80c5f5`, the head is `018_ocr_opt_in`, 18 files.)
 - The unversioned-vault matcher compares a schema fingerprint of tables, columns (name, type, notnull, pk) and FK actions, **not defaults** (`core/migrations.py:568-598`), and returns the newest matching revision (`:647-649`).
 
 **Planner probe** (a throwaway data-only `018` added to a scratch copy, then `migrations._reference_fingerprints()`):

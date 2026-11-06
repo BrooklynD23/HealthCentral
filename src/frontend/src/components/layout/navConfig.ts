@@ -5,6 +5,7 @@ import {
   FileOutput,
   History,
   Inbox,
+  LayoutDashboard,
   MessageCircle,
   MoreHorizontal,
   Pill,
@@ -41,6 +42,11 @@ export interface NavTab {
 
 export const navGroups: NavGroup[] = [
   {
+    // Plan §3.1: Overview is the unlabelled "—" group, first (UI-OVERVIEW). An empty label renders no heading text.
+    label: '',
+    items: [{ label: 'Overview', to: '/overview', icon: LayoutDashboard }],
+  },
+  {
     label: 'Records',
     items: [
       { label: 'Documents', to: '/inbox', icon: Inbox },
@@ -72,9 +78,9 @@ export const navGroups: NavGroup[] = [
 
 /** The phone tab bar (plan §3.2): five slots, More opens the sheet of every group. */
 export const navTabs: NavTab[] = [
-  { label: 'Documents', to: '/inbox', icon: Inbox },
-  { label: 'Review values', to: '/verify', icon: CheckCircle },
+  { label: 'Overview', to: '/overview', icon: LayoutDashboard },
   { label: 'Results', to: '/results', icon: TrendingUp },
+  { label: 'Documents', to: '/inbox', icon: Inbox },
   { label: 'Ask', to: '/explain', icon: MessageCircle },
   { label: 'More', icon: MoreHorizontal },
 ];

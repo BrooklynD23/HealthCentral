@@ -40,7 +40,8 @@ async def build_vault(case: dict, *, profile_id: str):
     Returns the ``session_maker`` for the populated profile database. Vault
     shape (per the golden fixtures):
 
-      ``observations``: [{name, value, unit, collected_at, verified}, ...]
+      ``observations``: [{name, value, unit, collected_at, verified,
+                          ref_low?, ref_high?, flag?}, ...]
       ``documents``:     [{id, status}, ...]
       ``chunks``:        [{id, document_id, text}, ...]
 
@@ -95,7 +96,7 @@ async def build_vault(case: dict, *, profile_id: str):
         await seed_document(session_maker, profile_id=profile_id, doc_id=default_doc_id)
 
     for obs in vault.get("observations", []):
-        await seed_observation(
+        observation_id = await seed_observation(
             session_maker,
             profile_id=profile_id,
             doc_id=default_doc_id,
@@ -105,6 +106,19 @@ async def build_vault(case: dict, *, profile_id: str):
             verified=bool(obs.get("verified", False)),
             collected_at=_parse_collected_at(obs.get("collected_at")),
         )
+        # ADVICE-CLASSIFIER-FIX: a golden may carry the row's printed range and flag
+        # (seed_observation does not take them), so a range question can be answered.
+        printed = {k: obs[k] for k in ("ref_low", "ref_high", "flag") if k in obs}
+        if printed:
+            from sqlalchemy import update as sa_update
+
+            from models.observation import Observation
+
+            async with session_maker() as session:
+                await session.execute(
+                    sa_update(Observation).where(Observation.id == observation_id).values(**printed)
+                )
+                await session.commit()
 
     for chunk_def in vault.get("chunks", []):
         document_id = doc_ids.get(chunk_def["document_id"], chunk_def["document_id"])

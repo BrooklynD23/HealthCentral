@@ -83,16 +83,17 @@ def test_hc_t2e_003_metric_driven_by_real_validation():
     doc = t2e.load_questions(FIXTURE)
     chunks = t2e.build_chunks(doc)
 
-    # LEGACY-ADVICE-GATE: these two advice-seeking questions escalate before the model.
-    gated = {"Is my glucose in the normal range?", "Is my TSH normal?"}
+    # ADVICE-CLASSIFIER-FIX: "Is my glucose in the normal range?" and "Is my TSH normal?" are range
+    # questions now, not advice, so nothing in the fixture escalates before the model.
+    gated: set[str] = set()
     assert len(doc["questions"]) == 20
 
     cited_rows = t2e.run_questions(doc["questions"], chunks, runner_patch=FakeRunner(CITED))
     cited = t2e.summarise(cited_rows, "fake")
     assert {r["question"] for r in cited_rows if r["kind"] == "escalated"} == gated
     assert {r["question"] for r in cited_rows if r["kind"] == "answered_cited"} == set(doc["questions"]) - gated
-    assert cited["answered_cited"] == 18
-    assert cited["escalated"] == 2
+    assert cited["answered_cited"] == 20
+    assert cited["escalated"] == 0
     assert cited["abstained"] == 0
     assert cited["cite_value_mismatch"] == 0  # real route Citation shape maps back to chunk 1
 
@@ -100,21 +101,21 @@ def test_hc_t2e_003_metric_driven_by_real_validation():
     uncited = t2e.summarise(uncited_rows, "fake")
     assert {r["question"] for r in uncited_rows if r["kind"] == "escalated"} == gated
     assert {r["question"] for r in uncited_rows if r["kind"] == "abstained"} == set(doc["questions"]) - gated
-    assert uncited["abstained"] == 18
-    assert uncited["escalated"] == 2
+    assert uncited["abstained"] == 20
+    assert uncited["escalated"] == 0
     assert uncited["answered_cited"] == 0
-    assert uncited["validation_errors"]["Report facts section missing citations"] == 18
+    assert uncited["validation_errors"]["Report facts section missing citations"] == 20
 
     timed_out_rows = t2e.run_questions(doc["questions"][:2], chunks, runner_patch=FakeRunner("", "timeout"))
     timed_out = t2e.summarise(timed_out_rows, "fake")
-    # The second question is gated (LEGACY-ADVICE-GATE): it escalates, the runner never times out on it.
-    assert doc["questions"][1] in gated
+    # The second question is a range question: it reaches the runner, so it times out like the first.
+    assert doc["questions"][1] == "Is my glucose in the normal range?"
     assert [(r["question"], r["kind"]) for r in timed_out_rows] == [
         ("What was my latest glucose?", "timeout"),
-        ("Is my glucose in the normal range?", "escalated"),
+        ("Is my glucose in the normal range?", "timeout"),
     ]
-    assert timed_out["timeout"] == 1
-    assert timed_out["escalated"] == 1
+    assert timed_out["timeout"] == 2
+    assert timed_out["escalated"] == 0
     assert timed_out["abstained"] == 0
 
 
