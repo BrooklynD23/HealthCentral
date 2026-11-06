@@ -335,6 +335,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
 
 // UI-SHELL review round 2 MINOR 1: row 2 of the phone top bar must stay still during a route change, as the
 // desktop toggle does (L0 ruling 10:24:24Z). Below lg the note is display: none, so the visible label is probed.
+// UI-OVERVIEW: the trigger is the Results tab. /results is a lazy route (App.tsx:41) and stays in the final tab bar;
+// the Documents tab links to /inbox, the page this test starts on, so clicking it would not be a route change.
 test.describe('HC-UISH-009 phone toggle label stays still', () => {
   test.describe.configure({ retries: 0 });
   test.use({ viewport: PHONE });
@@ -349,7 +351,7 @@ test.describe('HC-UISH-009 phone toggle label stays still', () => {
     await page.evaluate(() => document.fonts.ready);
     const report = await stillnessProbe(page, {
       trigger: () =>
-        page.getByRole('navigation', { name: 'Tab bar' }).getByRole('link', { name: 'Review values', exact: true }).click(),
+        page.getByRole('navigation', { name: 'Tab bar' }).getByRole('link', { name: 'Results', exact: true }).click(),
       expected: [RAIL, TOGGLE_LABEL],
       kind: 'navigation',
       lazyRoute: true,
