@@ -1,0 +1,708 @@
+{
+ "version": 1,
+ "note": "Synthetic labelled set for ADVICE-CLASSIFIER-FIX. 'expect' is the label (advice + category, none, or owner = the owner decides, not asserted). 'main' is the verdict of classify_advice on origin/main b432f494, frozen here so HC-ACF-003 can print before/after.",
+ "entries": [
+  {
+   "id": "ACF-001",
+   "question": "Should I stop metformin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: four named",
+   "main": "none"
+  },
+  {
+   "id": "ACF-002",
+   "question": "Can I stop metformin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: four named",
+   "main": "none"
+  },
+  {
+   "id": "ACF-003",
+   "question": "How much metformin should I take?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: four named",
+   "main": "none"
+  },
+  {
+   "id": "ACF-004",
+   "question": "Should I take more insulin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: four named",
+   "main": "none"
+  },
+  {
+   "id": "ACF-005",
+   "question": "Should I stop taking my statin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "agent golden advice-stop-statin",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-006",
+   "question": "Can I stop my insulin dose?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "agent golden advice-stop-insulin-dose",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-007",
+   "question": "Should I increase my insulin dose given this glucose reading?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "agent golden advice-should-i-increase-insulin",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-008",
+   "question": "Should I start taking metformin for my glucose?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "agent golden advice-should-i-start-metformin",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-009",
+   "question": "Should I start taking a statin for my cholesterol?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "agent golden advice-start-statin-cholesterol",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-010",
+   "question": "Should I stop taking metformin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "HC-LAG-001 (test_legacy_advice_gate.py)",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-011",
+   "question": "Can I skip my metformin today?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: paraphrase",
+   "main": "none"
+  },
+  {
+   "id": "ACF-012",
+   "question": "Can I stop lisinopril?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: paraphrase",
+   "main": "none"
+  },
+  {
+   "id": "ACF-013",
+   "question": "How many units of insulin should I take?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: paraphrase",
+   "main": "none"
+  },
+  {
+   "id": "ACF-014",
+   "question": "How often should I take metformin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: paraphrase",
+   "main": "none"
+  },
+  {
+   "id": "ACF-015",
+   "question": "Is it OK to double my dose?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: paraphrase",
+   "main": "none"
+  },
+  {
+   "id": "ACF-016",
+   "question": "Should I take less insulin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "plan: paraphrase",
+   "main": "none"
+  },
+  {
+   "id": "ACF-017",
+   "question": "What should I do about my glucose?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "legacy golden escalate-prohibited-advice",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-018",
+   "question": "Do I have diabetes based on this A1c?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-do-i-have-diabetes",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-019",
+   "question": "Do I need treatment for my thyroid based on this TSH?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-do-i-need-treatment-tsh",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-020",
+   "question": "Should I go to the emergency room for my sodium level?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-er-for-sodium",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-021",
+   "question": "How worried should I be about my vitamin D being this low?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-how-worried-vitamin-d",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-022",
+   "question": "Is my creatinine level bad?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-is-my-creatinine-bad",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-023",
+   "question": "Is my potassium level dangerous?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-is-this-dangerous",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-024",
+   "question": "Should I go to the ER because of my potassium level?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-should-i-go-to-er-potassium",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-025",
+   "question": "Do I need treatment for my high glucose?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-treatment-high-glucose",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-026",
+   "question": "Should I be worried about my TSH result?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "agent golden advice-worried-about-tsh",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-027",
+   "question": "Do I have diabetes?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-028",
+   "question": "Do I have high cholesterol according to my results?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-029",
+   "question": "Could this be cancer?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-030",
+   "question": "Could I have diabetes?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-031",
+   "question": "Could this be from my medication?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-032",
+   "question": "Could this be from stress?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-033",
+   "question": "What treatment should I get?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-034",
+   "question": "Is this dangerous?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-035",
+   "question": "Is that result bad?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "must-catch-treatment-diagnosis",
+   "source": "plan: must-catch list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-036",
+   "question": "Do I have a glucose result on file?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: six named",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-037",
+   "question": "Do I have any cholesterol results from 2024?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: six named",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-038",
+   "question": "Do I have a recent LDL on file?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: six named",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-039",
+   "question": "What treatment was listed in my visit note?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: six named",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-040",
+   "question": "Could this be from my March lab?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: six named",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-041",
+   "question": "Is that result the one marked abnormal?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: six named",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-042",
+   "question": "What was my glucose?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: record-question list",
+   "main": "none"
+  },
+  {
+   "id": "ACF-043",
+   "question": "What was my latest glucose?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: record-question list",
+   "main": "none"
+  },
+  {
+   "id": "ACF-044",
+   "question": "What was my LDL result?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: record-question list",
+   "main": "none"
+  },
+  {
+   "id": "ACF-045",
+   "question": "Do I have an A1c on file?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: record-question list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-046",
+   "question": "Could this be the same test as last time?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "plan: record-question list",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-047",
+   "question": "Can I see my glucose history?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "synthetic: widening guard (a medication word in a record question)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-048",
+   "question": "What medications am I taking?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "synthetic: widening guard (a medication word in a record question)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-049",
+   "question": "When did I start taking metformin?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "synthetic: widening guard (a medication word in a record question)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-050",
+   "question": "What dose of metformin is in my visit note?",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "synthetic: widening guard (a medication word in a record question)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-051",
+   "question": "Show me my medication changes.",
+   "expect": "none",
+   "category": null,
+   "group": "must-not-catch-record-question",
+   "source": "synthetic: widening guard (a medication word in a record question)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-052",
+   "question": "Is my LDL high?",
+   "expect": "none",
+   "category": null,
+   "group": "already-answered-stay-answered",
+   "source": "existing answer tests",
+   "main": "none"
+  },
+  {
+   "id": "ACF-053",
+   "question": "Is my LDL cholesterol high?",
+   "expect": "none",
+   "category": null,
+   "group": "already-answered-stay-answered",
+   "source": "existing answer tests",
+   "main": "none"
+  },
+  {
+   "id": "ACF-054",
+   "question": "Is my glucose high?",
+   "expect": "none",
+   "category": null,
+   "group": "already-answered-stay-answered",
+   "source": "existing answer tests",
+   "main": "none"
+  },
+  {
+   "id": "ACF-055",
+   "question": "Is my glucose in the usual range?",
+   "expect": "none",
+   "category": null,
+   "group": "already-answered-stay-answered",
+   "source": "existing answer tests",
+   "main": "none"
+  },
+  {
+   "id": "ACF-056",
+   "question": "Is my HDL in range?",
+   "expect": "none",
+   "category": null,
+   "group": "already-answered-stay-answered",
+   "source": "existing answer tests",
+   "main": "none"
+  },
+  {
+   "id": "ACF-057",
+   "question": "Is my glucose normal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "range-question",
+   "source": "plan: range questions",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-058",
+   "question": "Is my glucose in the normal range?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "range-question",
+   "source": "plan: range questions",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-059",
+   "question": "Is my TSH normal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "range-question",
+   "source": "plan: range questions",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-060",
+   "question": "Is my creatinine level normal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "range-question",
+   "source": "plan: range questions + agent golden advice-is-creatinine-normal",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-061",
+   "question": "Is my glucose abnormal?",
+   "expect": "owner",
+   "category": null,
+   "group": "owner-labelled",
+   "source": "plan: owner decides under ADVICE-PATTERNS-YES",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-062",
+   "question": "Is that result abnormal?",
+   "expect": "owner",
+   "category": null,
+   "group": "owner-labelled",
+   "source": "plan: owner decides under ADVICE-PATTERNS-YES",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-063",
+   "question": "Do I have diabetes on file?",
+   "expect": "owner",
+   "category": null,
+   "group": "owner-labelled",
+   "source": "plan: owner decides under ADVICE-PATTERNS-YES",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-064",
+   "question": "Is this normal?",
+   "expect": "owner",
+   "category": null,
+   "group": "owner-labelled",
+   "source": "plan: owner decides under ADVICE-PATTERNS-YES",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-065",
+   "draft_sentence": "Your verified Glucose result was 95.0 mg/dL (collected Jan 15, 2026).",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "agent value sentence (draft._observation_sentence)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-066",
+   "draft_sentence": "Your Glucose has increased across your verified results.",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "agent trend sentence",
+   "main": "none"
+  },
+  {
+   "id": "ACF-067",
+   "draft_sentence": "Open follow-up you saved (wording taken from your documents, not checked): Recheck glucose (due 2026-02-01). The note says: \"Recheck fasting glucose in 3 months.\"",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "agent care-task sentence",
+   "main": "none"
+  },
+  {
+   "id": "ACF-068",
+   "draft_sentence": "You have 1 open follow-up item.",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "agent care-task summary",
+   "main": "none"
+  },
+  {
+   "id": "ACF-069",
+   "draft_sentence": "Medication change: metformin 500 mg twice daily (2026-01-02). The note says: \"Continue metformin.\"",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "agent medication-change sentence",
+   "main": "none"
+  },
+  {
+   "id": "ACF-070",
+   "draft_sentence": "Your history includes 3 recorded events.",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "agent timeline summary",
+   "main": "none"
+  },
+  {
+   "id": "ACF-071",
+   "draft_ref": "modules.interpret:SENTENCE_ABOVE",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "modules.interpret.SENTENCE_ABOVE",
+   "main": "none"
+  },
+  {
+   "id": "ACF-072",
+   "draft_ref": "modules.interpret:SENTENCE_BELOW",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "modules.interpret.SENTENCE_BELOW",
+   "main": "none"
+  },
+  {
+   "id": "ACF-073",
+   "draft_ref": "modules.interpret:SENTENCE_WITHIN",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "modules.interpret.SENTENCE_WITHIN",
+   "main": "none"
+  },
+  {
+   "id": "ACF-074",
+   "draft_ref": "modules.interpret:SENTENCE_OUTSIDE",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "modules.interpret.SENTENCE_OUTSIDE",
+   "main": "none"
+  },
+  {
+   "id": "ACF-075",
+   "draft_ref": "modules.interpret:SENTENCE_FLAG_RANGE_DISAGREE",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "modules.interpret.SENTENCE_FLAG_RANGE_DISAGREE",
+   "main": "none"
+  },
+  {
+   "id": "ACF-076",
+   "draft_sentence": "This report did not include a reference range, so this result can't be compared to one.",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "no-range sentence (modules/interpret.py status block, inline literal)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-077",
+   "draft_ref": "modules.agent.guardrails.templates:ESCALATE_TEMPLATE",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "guardrails.templates.ESCALATE_TEMPLATE",
+   "main": "none"
+  },
+  {
+   "id": "ACF-078",
+   "draft_ref": "modules.agent.guardrails.templates:ABSTAIN_TEMPLATE",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "guardrails.templates.ABSTAIN_TEMPLATE",
+   "main": "none"
+  }
+ ]
+}
