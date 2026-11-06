@@ -155,17 +155,40 @@ describe('HC-UIABT-002: the T0 statements sit outside every S1 wrapper', () => {
   });
 
   it('HC-UIABT-002: the S1 groups are really wrapped (a first visit starts them hidden), so the guard above can fail', async () => {
-    await renderAbout();
+    // The groups mount after the first paint, and the fade-in starts as they do, so a read after the page settles
+    // can land mid-fade (CI saw '0.18...'). A MutationObserver, installed before render, reads each wrapper's
+    // opacity in the microtask that follows the mutation that adds it: before any animation frame can run.
+    const startingOpacity = new Map<string, string>();
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        record.addedNodes.forEach((node) => {
+          if (!(node instanceof HTMLElement)) return;
+          const found = node.matches('[data-about-group]') ? [node] : Array.from(node.querySelectorAll<HTMLElement>('[data-about-group]'));
+          for (const group of found) {
+            const name = group.getAttribute('data-about-group') ?? '';
+            if (!startingOpacity.has(name)) startingOpacity.set(name, (group.parentElement as HTMLElement).style.opacity);
+          }
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    try {
+      await renderAbout();
+    } finally {
+      observer.disconnect();
+    }
     const groups = Array.from(document.querySelectorAll<HTMLElement>('[data-about-group]'));
     expect(groups.length).toBeGreaterThanOrEqual(2);
     expect(groups.length).toBeLessThanOrEqual(6);
     for (const group of groups) {
-      const wrapper = group.parentElement as HTMLElement;
-      // ShowcaseReveal's group wrapper starts at opacity 0 on the first visit per session.
-      expect(wrapper.style.opacity, group.getAttribute('data-about-group') ?? '').toBe('0');
+      const name = group.getAttribute('data-about-group') ?? '';
+      // ShowcaseReveal's group wrapper starts at opacity 0 on the first visit per session. A group the observer
+      // never saw mount reads undefined, which fails here rather than passing.
+      expect(startingOpacity.get(name), `${name} starting opacity`).toBe('0');
       // None of them holds T0 content.
       expect(group.querySelector('[data-t0]')).toBeNull();
     }
+    expect(startingOpacity.size, 'every group was seen mounting').toBe(groups.length);
   });
 });
 
