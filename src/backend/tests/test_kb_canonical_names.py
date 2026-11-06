@@ -1405,7 +1405,7 @@ def test_hc_kcn_009_alias_map_equals_the_migration_renames():
 # only when the KB unit is that canonical unit. Unknown or missing unit: never critical.
 # Would not notice (all four): whether a KB limit or a normalize factor is clinically right
 # (owner-approved content, and normalize's own tests), nor unit spellings outside both tables
-# (HbA1c mmol/mol, glucose mg%): those are never critical.
+# (HbA1c mmol/mol, glucose mg/L): those are never critical.
 # ---------------------------------------------------------------------------
 
 
@@ -1435,8 +1435,12 @@ UNIT_BADGE_CASES = {
     "converted-not-critical": ("glucose", 7.0, "mmol/L", 3.9, 5.6, "abnormal_high"),
     "converted-creatinine-not-critical": ("creatinine", 500.0, "umol/L", 62, 106, "abnormal_high"),
     "converted-creatinine-critical": ("creatinine", 1000.0, "umol/L", 62, 106, "critical_high"),
-    "unknown-unit-low-number": ("glucose", 4.5, "g/L", 0.7, 1.0, "abnormal_high"),
-    "unknown-unit-huge-number": ("glucose", 450.0, "mg%", 70, 100, "abnormal_high"),
+    "unknown-unit-low-number": ("glucose", 4.5, "mg/L", 0.7, 1.0, "abnormal_high"),
+    "unknown-unit-huge-number": ("glucose", 450.0, "mg/L", 70, 100, "abnormal_high"),
+    "mg-percent-is-mg-per-dl": ("glucose", 450.0, "mg%", 70, 100, "critical_high"),
+    "g-per-l-is-100-mg-per-dl-critical-low": ("glucose", 0.3, "g/L", 0.7, 1.0, "critical_low"),
+    "g-per-l-normal": ("glucose", 0.95, "g/L", 0.7, 1.0, "normal"),
+    "g-per-l-critical-high": ("glucose", 4.5, "g/L", 0.7, 1.0, "critical_high"),
     "missing-unit-none": ("glucose", 450.0, None, 70, 100, "abnormal_high"),
     "missing-unit-empty": ("glucose", 450.0, "", 70, 100, "abnormal_high"),
     "missing-unit-blank": ("glucose", 40.0, "   ", 70, 100, "abnormal_low"),
@@ -1478,7 +1482,7 @@ async def test_hc_kcn_010_the_old_hba1c_name_is_never_critical_in_mmol_per_mol_e
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("unit", ["mg/dL", "g/L", None])
+@pytest.mark.parametrize("unit", ["mg/dL", "mg/L", None])
 @pytest.mark.parametrize(
     "value,expected",
     [(85, "normal"), (105, "borderline_high"), (130, "abnormal_high"),
@@ -1528,7 +1532,7 @@ BANNER_CASES = {
     "same-unit": ("mg/dL", 450.0, "critical_high", True),
     "converted-critical": ("mmol/L", 25.0, "critical_high", True),
     "converted-not-critical": ("mmol/L", 7.0, "abnormal_low", False),
-    "unknown-unit": ("g/L", 4.5, "abnormal_low", False),
+    "unknown-unit": ("mg/L", 4.5, "abnormal_low", False),
     "missing-unit": (None, 450.0, "abnormal_high", False),
 }
 
@@ -1646,7 +1650,27 @@ SENTENCES = {
     ),
     "wbc-cells/uL": (
         "white_blood_cells", 1500.0, "cells/uL", 4.0, 11.0, "L",
-        "Critical low value: 1500 cells/uL (1.5 10^3/uL) is below the critical threshold of 2 10^3/uL.",
+        "Critical low value: 1500 cells/uL (1.5 x10^3/uL) is below the critical threshold of 2 x10^3/uL.",
+    ),
+    "glucose-0-mmol": (
+        "glucose", 0.0, "mmol/L", 3.9, 5.6, "L",
+        "Critical low value: 0 mmol/L (0.0 mg/dL) is below the critical threshold of 50 mg/dL.",
+    ),
+    "wbc-0-cells": (
+        "white_blood_cells", 0.0, "cells/uL", 4000.0, 11000.0, "L",
+        "Critical low value: 0 cells/uL (0.0 x10^3/uL) is below the critical threshold of 2 x10^3/uL.",
+    ),
+    "glucose-0.3-g/L": (
+        "glucose", 0.3, "g/L", 0.7, 1.0, "L",
+        "Critical low value: 0.3 g/L (30.0 mg/dL) is below the critical threshold of 50 mg/dL.",
+    ),
+    "glucose-40-mg%": (
+        "glucose", 40.0, "mg%", 70.0, 100.0, "L",
+        "Critical low value: 40 mg% is below the critical threshold of 50 mg%.",
+    ),
+    "ldl-4.92-mmol": (
+        "ldl_cholesterol", 4.92, "mmol/L", 0.0, 3.4, "H",
+        "Critical high value: 4.92 mmol/L (190.3 mg/dL) is above the critical threshold of 190 mg/dL.",
     ),
     "glucose-same-unit": (
         "glucose", 40.0, "mg/dL", 70.0, 100.0, "L",
@@ -1747,10 +1771,25 @@ async def test_hc_kcn_013_a_saved_critical_on_an_unconvertible_unit_is_not_downg
     master, profile_db
 ):
     saved_id, obs_id = await _saved(
-        master, profile_db, "glucose", 450.0, "mg%", 70.0, 100.0, "H",
+        master, profile_db, "glucose", 450.0, "mg/L", 70.0, 100.0, "H",
         severity_level="critical_high", requires_physician_review=True,
         physician_review_reason="Critical high value: 450.0 is above critical threshold of 400.0",
     )
     result = await _module()[0].interpret_observation(obs_id, profile_db, master)
     assert result.interpretation.id == saved_id
     assert result.interpretation.severity_level == "critical_high"
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_g_per_l_critical_banner_is_rebuilt_with_no_banner(master, profile_db):
+    """Main saved a 'Critical low' card on a normal 0.95 g/L glucose (0.95 < 50, no unit check)."""
+    saved_id, obs_id = await _saved(
+        master, profile_db, "glucose", 0.95, "g/L", 0.7, 1.0, None,
+        severity_level="critical_low", requires_physician_review=True,
+        physician_review_reason="Critical low value: 0.95 is below critical threshold of 50.0",
+    )
+    card = (await _module()[0].interpret_observation(obs_id, profile_db, master)).interpretation
+    assert card.id != saved_id
+    assert card.severity_level == "normal"
+    assert not card.requires_physician_review
+    assert card.physician_review_reason is None

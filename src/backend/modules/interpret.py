@@ -132,11 +132,17 @@ _CELL_COUNT_FACTORS = {
 }
 
 
+# KB-UNIT-BADGE: exact definitions for a KB unit of mg/dL (not clinical factors): mg per 100 mL
+# is mg/dL, and 1 g/L is 100 mg/dL.
+_MG_DL_UNIT = normalize_unit("mg/dL")
+_MG_DL_FACTORS = {normalize_unit("mg%"): 1.0, normalize_unit("g/L"): 100.0}
+
+
 def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> Optional[float]:
     """KB-UNIT-BADGE (D1): `value`, reported in `unit`, in the unit the KB's critical limits use.
 
     Same unit after normalising: the value as is. White cells and platelets: the listed
-    spellings above. Otherwise the value is converted with normalize.convert_to_canonical (the
+    spellings above. A mg/dL KB unit: mg% (x1) and g/L (x100). Otherwise the value is converted with normalize.convert_to_canonical (the
     app's one tested table); it is used when the canonical unit is the KB's standard_unit, or
     when the KB unit is another listed variant of the same table entry (converted with that
     entry's own factor). None (no critical check) for a missing unit, an unconvertible unit,
@@ -151,6 +157,8 @@ def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> 
     if info.analyte_canonical in _CELL_COUNT_ANALYTES and standard == _CELL_COUNT_UNIT:
         factor = _CELL_COUNT_FACTORS.get(reported)
         return None if factor is None else value * factor
+    if standard == _MG_DL_UNIT and reported in _MG_DL_FACTORS:
+        return value * _MG_DL_FACTORS[reported]
     converted = convert_to_canonical(info.analyte_canonical, value, unit)
     if converted is None:
         return None
@@ -168,8 +176,21 @@ def _fmt_number(number: float) -> str:
     return f"{number:.10g}"
 
 
-def _fmt_converted(number: float) -> str:
-    return f"{number:.0f}" if abs(number) >= 100 else f"{number:.1f}"
+def _fmt_converted(number: float, limit: Optional[float] = None) -> str:
+    """One decimal under 100, none from 100; up to two more decimals while the rounded number
+    would print equal to the threshold (so never '190 mg/dL is above 190 mg/dL')."""
+    first = 0 if abs(number) >= 100 else 1
+    text = f"{number:.{first}f}"
+    for digits in (first + 1, first + 2):
+        if limit is None or float(text) != limit:
+            break
+        text = f"{number:.{digits}f}"
+    return text
+
+
+def _sentence_unit(unit: str) -> str:
+    """The KB count unit reads as the extractor and labs write it."""
+    return "x10^3/uL" if normalize_unit(unit) == _CELL_COUNT_UNIT else unit
 
 
 class InterpretModule:
@@ -1012,13 +1033,13 @@ class InterpretModule:
         limit = info.critical_low if low else info.critical_high
         if limit is None:
             limit = defaults.get("critical_low" if low else "critical_high")
-        kb_unit = info.standard_unit
+        kb_unit = _sentence_unit(info.standard_unit)
         patient_unit = (observation.unit or "").strip()
         shown = f"{_fmt_number(observation.value)} {patient_unit}"
         # A factor of exactly 1 is a relabel: no parenthesis, and the limit in the patient's unit.
-        relabel = in_kb_unit == observation.value
+        relabel = value_in_kb_unit(info, 1.0, observation.unit) == 1.0
         if not relabel:
-            shown += f" ({_fmt_converted(in_kb_unit)} {kb_unit})"
+            shown += f" ({_fmt_converted(in_kb_unit, limit)} {kb_unit})"
         safety_result.requires_physician_review = True
         safety_result.physician_review_reason = (
             f"Critical {'low' if low else 'high'} value: {shown} is "
