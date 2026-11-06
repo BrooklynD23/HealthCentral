@@ -182,6 +182,24 @@ it as the round 1 BLOCKER; the tests had not covered that label. Recheck: when a
 rename moves the key a lookup uses, run every spelling the normalizer can
 produce for the old key, not only the new one.
 
+A 2026-11-05 instance in KB-UNIT-BADGE (#486), and this one was L0's own. L0's
+first licence (D1, ruling 6673478599) said "anything `convert_to_canonical`
+returns None for, or a missing unit: no critical", and compared a converted
+value only when the KB unit normalised to the table's canonical unit. That
+rule was too narrow. The Opus safety review at `2d406d48` (2 BLOCKER, 1 MAJOR)
+found it would have dropped correct criticals that main shows today: TSH
+(the KB unit `mIU/L` is a listed variant of the table entry, not its
+canonical unit), WBC and platelets (the extractor writes `x10E3/uL`, `K/uL`,
+`cells/uL`, which the table omits on purpose), and the D3 rebuild would then
+have rewritten saved correct criticals into non-critical cards (ruling
+6675742258, "L0's own D1 licence was too narrow"). The fix to one wrong alarm
+had created the missing-alarm bug one layer over. Recheck: before licensing a
+"no critical when it cannot convert" rule, list the analytes whose correct
+alarms main shows today, with the unit spellings the extractor writes for each
+(`extract.py`), and run each through the new rule; every one that fires on
+main must still fire, or the loss is named as a known limit and the owner is
+told.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
@@ -352,6 +370,11 @@ read as authority and the line went out unredacted; it was exposed only once
 Verify stopped erasing free-text flags. Recheck: when a comment states the
 shape of a field, find where the field is written before relying on it.
 
+A 2026-11-05 instance in KB-CANONICAL-NAMES (#486): the row's "`:392` is dead"
+and "never loaded" were false for `glucose_fasting`, and hid the `Glucose
+Fasting` regression that ruling 6651067212 fixed. Recheck: run the old key
+through the lookup before calling a line dead or a row never loaded.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
@@ -463,6 +486,43 @@ And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.p
 finds the core statements that silently skip it. When a parent's ORM cascade is
 relied on, walk every grandchild with a NOT NULL FK.
 
+A 2026-11-05 instance, "clinical check unit-blind on main", found while
+planning KB-UNIT-BADGE (#486, ruling 6673478599). Observations are stored as the
+lab printed them with their unit (`models/observation.py:61-63`), but both
+critical checks compare the bare number with a limit in one fixed unit: the
+badge in `_classify_severity` (`modules/interpret.py:894-897`) and the review
+banner, which passes the raw value to `check_critical_value`
+(`modules/interpret.py:246-255`; defaults at `modules/interpret_safety.py:82-90`,
+glucose 50 and 400). A glucose of **7.0 mmol/L**, a normal result, got a
+`critical_low` badge and the banner "Critical low value: 7.0 is below critical
+threshold of 50.0". The rule "critical limits are in this unit" held at the
+tests' own values (same unit) and nowhere else. A first fix covered the badge
+and the banner for rows with a knowledge-base entry; the path with none
+(potassium, sodium) still compares raw values against the default table
+(queue bullet CRIT-DEFAULT-TABLE-UNITS). Recheck: for any threshold check on a
+lab value, list every call site that compares a number with a limit, name the
+unit each number is in and the unit each limit is in, and run one value in a
+different unit through each site, not only the site you edited.
+
+A 2026-11-06 instance, "the unversioned-vault matcher assumes every revision
+changes the schema", found while planning OCR-OPT-IN-MIGRATION (L0 ruling R2,
+`docs/plans/2026-11-06-owner-answers-rows-plan.md`), before any code was
+written. `_match_unversioned_vault` (`core/migrations.py:631-657`) identifies an
+unversioned vault by a fingerprint of tables, columns and foreign-key actions
+(`_schema_fingerprint`, `:568`) and returns the newest match; HC-FKB-001
+(`test_fk_migration_017.py:2495-2506`) asserts "one fingerprint per revision".
+That rule held for all 17 existing revisions because each one changes the
+schema, and nowhere else. A planner probe added a throwaway data-only `018`
+(one `UPDATE`) to a scratch copy and ran `migrations._reference_fingerprints()`:
+18 revisions, 17 distinct fingerprints, tie `018` / `017`. So HC-FKB-001 would go
+RED, and an unversioned vault with the 017 schema would be stamped `018` and
+skip the `UPDATE` that makes OCR opt-in. Neither the matcher nor its test could
+have noticed: both pass until the first revision that does not touch the
+schema. Recheck: before adding a revision that changes no schema, run
+`_reference_fingerprints()` with it in place and list every tied pair; name each
+data-only revision in the guard test instead of loosening it, and make the
+matcher take the oldest tied revision so later data steps still run.
+
 ---
 
 ## 10. A fully unit-tested feature that was never started
@@ -526,6 +586,10 @@ UI-SHELL (PR #370) failed CI's E2E job on twelve routes with stillness sampling 
 
 **Recheck:** before ruling a timing failure "flake" or "load", time the same action with a bare instrument (a plain timer, a `PerformanceObserver` for `longtask`) on main and on the branch, using the same build. When a probe's result is a duration, find where it reads the clock relative to its own work. Read the probe's other failure lines too: a timing failure can hide a real one in the same run.
 
+A 2026-11-05 instance in UI-PG-SETTINGS (PR #488, G10 on `Show advanced settings`, L0 comment 6665469225): CI failed three attempts at 59, 67 and 61 ms with no colour, rect or opacity lines. A CDP trace of the production build showed no single long task, but four to five short tasks after the click (skeleton layout, then panel layout) holding the sampler back, the largest gap 48.5 ms. A bare 20 ms `setInterval` with no probe also exceeded 40 ms in 3 of 15 runs (47, 55 and 73 ms), so it was app work and not the probe alone; the gap was real, and the fix went into the app. Recheck, widened: when a bare timer is clean on main and not clean on the branch, trace what runs between the click and the next sample before choosing between the probe and the app.
+
+A second finding in the same PR (#488, 2026-11-05, rounds 1 and 2 of the fix for the instance above): round 1 moved the settings and tiers reads to section mount, so the loading state was gone, and a click then mounted the whole panel synchronously inside the click handler. G10 on dev went from 4 misses in 10 to 10 misses in 10, because a render started by a discrete event (a click) cannot yield to the sampler. Round 2 gave the panel a `useDeferredValue` and then rendered the cards in three idle-gated commits, and G10 `Show advanced settings` passed 30 of 30 on production (19 of 30 before; L0 comment 6669591593, `a3878571`). The recheck lesson: after a change removes a loading state (a skeleton, a spinner, a wait), trace where the work moved. Work that used to wait for data now runs at the moment of the event. Re-measure the gap the change was meant to close before calling it closed, on the same build and the same line.
+
 ---
 
 ## 15. A test runner returns while its command is still queued or running, and the result reads as a test failure
@@ -561,3 +625,11 @@ Round 2 (same PR, 2026-11-03) found the same class one event later. The round-1 
 Round 3 (same PR, 2026-11-03) found the class again, with two events that overlap in time. Round 2's chain ran Remove once, alone. A second Remove sent while the first DELETE was still in flight lost the first's record of the removed document: `confirmDelete` passed `onSuccess` to `mutate`, and a per-call `onSuccess` fires only for the observer's latest call (query-core `mutationObserver.ts`). The card and the "3 values ready to review" link stayed for a deleted document: `{"card":"Document imported: private-fresh.pdf","link":"3 values ready to review","rows":[]}`. The fix records the removal from `mutateAsync(id).then(...)`; the tests are HC-UIDOC-018 (vitest, and e2e with `holdDelete()` on the mock, RED at fb6e7ef2: the card count stayed 1). The same round added a 3 s timer that marks an import ready when the list refresh never settles. A timer is an event too: it fires after the Remove, and a fix that put it before the `removedIds` check brought the removed card and the retry alert back (HC-UIDOC-017 fails with that break: 2 failed of 2).
 
 **Recheck, widened again:** the chain also runs the events overlapping, not only in sequence: two Removes with the first held, a second import while the first is still in flight. Hold the first request, send the second, release both, and read the settled page for the state the first event owned. And any callback passed per call to a React Query `mutate` is read as "fires only for the latest call": state that must survive overlap goes in `mutateAsync(...).then`, or in the hook's own options. A timer or any deferred effect joins the chain: fire it after the Remove, not before.
+
+---
+
+## 18. A batch that reports done while most of its lines never ran
+
+L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 18 lines run. A `run()` helper assigned the global `L` that the script also used as the log directory, so every later redirect failed before its command started. Those 13 failed to start and left no log, so nothing in the output said they had not run: the exit status and the final line both read as success.
+
+**Recheck:** before reading results, count the logs against the lines the batch was meant to run (`ls <logdir> | wc -l` against the number of lines), and read each log's own exit line. Make a batch exit non-zero when a line could not start (`set -u`, no helper that reuses a global the script also uses, and a check that every line left a log). A batch that prints "done" is evidence about the script, not about the lines.

@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, memo, useState, useEffect, useLayoutEffect, useCallback, useContext, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { m } from 'framer-motion';
 import {
   CheckCircle,
   AlertTriangle,
@@ -10,11 +9,12 @@ import {
   FileText,
   Info,
   Loader2,
-  X,
 } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input } from '@/components/ui';
+import { Dialog } from '@/components/ui/Dialog';
+import { StatusChip } from '@/components/ui/StatusChip';
+import { notify } from '@/components/ui/toast';
 import { cn } from '@/utils/cn';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useObservations, useVerifyObservation } from '@/services/observations';
 import {
   useDocuments,
@@ -26,7 +26,8 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { apiGet, ApiError } from '@/services/api';
 import { PageImageOverlay } from '@/components/PageImageOverlay';
-import { EntityDetailView } from '@/components/documents/EntityDetailView';
+import { ObservationSourceTrace } from '@/components/results/SourceTrace';
+import { EntityDetailView, InkMarker } from '@/components/documents/EntityDetailView';
 import { ExtractionConfidenceBadge } from '@/components/documents/ExtractionConfidenceBadge';
 import type { Observation, DocumentPage, BoundingBox, Document } from '@/services/types';
 import type { DocumentEntityResponse } from '@/services';
@@ -48,6 +49,95 @@ function parseBbox(json: string | null | undefined): BoundingBox | null {
   return null;
 }
 
+const HIGH_FLAGS = new Set(['H', 'HH', 'HIGH']);
+const LOW_FLAGS = new Set(['L', 'LL', 'LOW']);
+
+/**
+ * Which side of the report's range a value sits on, in words (HC-UIREV-001, WCAG 1.4.1).
+ * The report's own flag wins. Without one, the direction comes from the numbers; with no range to compare
+ * against, nothing is claimed. A value inside its range gets no word at all: this page claims no reassurance
+ * it was not asked to (L0 ruling on review round 3).
+ */
+function rangeStateOf(observation: Observation): 'above-range' | 'below-range' | null {
+  // The extractor can keep the brackets around a flag, as in "(H)".
+  const flag = (observation.flag ?? '').replace(/[()\s]/g, '').toUpperCase();
+  if (HIGH_FLAGS.has(flag)) return 'above-range';
+  if (LOW_FLAGS.has(flag)) return 'below-range';
+  const { value, ref_low: low, ref_high: high } = observation;
+  if (typeof value === 'number') {
+    if (high !== null && value > high) return 'above-range';
+    if (low !== null && value < low) return 'below-range';
+  }
+  // A flag with no side (A, ABNORMAL, CRITICAL) or is_abnormal on numbers inside the range also gets no word here.
+  // This page does not print the flag text itself, so such a row shows no range word at all.
+  return null;
+}
+
+/** The value's tint, from the same state as the words, so a flag form such as "(H)" is read once. */
+function valueTintOf(observation: Observation): string {
+  const state = rangeStateOf(observation);
+  if (state === 'above-range') return 'text-status-attention';
+  if (state === 'below-range') return 'text-status-caution';
+  return 'text-ink';
+}
+
+/**
+ * A value verified in this visit. On the default list (needs_verification) the API drops a row once it is
+ * verified, so the row is held in place, as ink, until the page is left. Reload and it is gone, as before.
+ */
+interface HeldRow {
+  observation: Observation;
+  index: number;
+}
+const NO_HELD_ROWS: HeldRow[] = [];
+
+/**
+ * `fetched` with the held rows laid over it. A fetched row that is verified wins: the server has it, and it may
+ * differ from the copy held here. A row the fetch no longer has comes back only on the needs_verification list,
+ * where the API drops a row once it is verified. On any other list a missing row is gone for a reason (a document
+ * that was reprocessed deletes its rows and makes new ids), and putting it back would show a ghost.
+ */
+function withHeldRows(
+  fetched: Observation[] | undefined,
+  held: HeldRow[],
+  reinsertMissing: boolean
+): Observation[] | undefined {
+  if (!fetched || held.length === 0) return fetched;
+  const heldById = new Map(held.map((entry) => [entry.observation.id, entry.observation]));
+  const rows = fetched.map((row) => (row.user_verified ? row : (heldById.get(row.id) ?? row)));
+  if (!reinsertMissing) return rows;
+  const present = new Set(fetched.map((row) => row.id));
+  // Back at the place each one had on screen, lowest first, so the list reads as it did before the refetch.
+  for (const entry of [...held].sort((a, b) => a.index - b.index)) {
+    if (!present.has(entry.observation.id)) rows.splice(Math.min(entry.index, rows.length), 0, entry.observation);
+  }
+  return rows;
+}
+
+/** "Apr 10, 2026" from the stored date, read as a calendar date so no time zone moves it. Null if there is none. */
+function formatCollectedDate(raw: string | null): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw ?? '');
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** The Ink confirmation. It names a value and a date (T0), so it is still. No Undo: the API cannot unverify. */
+function announceChecked(observation: Observation) {
+  const date = formatCollectedDate(observation.collected_at);
+  notify({
+    message: `${observation.analyte_raw}${date ? `, ${date}` : ''} is now marked as checked`,
+    still: true,
+  });
+}
+
 function documentAttentionHint(doc: Document): string {
   switch (doc.status) {
     case 'pending_ocr':
@@ -63,8 +153,220 @@ function documentAttentionHint(doc: Document): string {
   }
 }
 
+/**
+ * One shared flag, not a prop: a Verify in flight must disable and spin every Verify button, but it must not
+ * re-render the rows (their Source Trace, chips and cells have not changed).
+ */
+const VerifyPendingContext = createContext(false);
+
+function VerifyButton({ observation, onVerify }: { observation: Observation; onVerify: (observation: Observation) => void }) {
+  const pending = useContext(VerifyPendingContext);
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="w-18 shrink-0"
+      aria-label="Verify observation"
+      onClick={(e) => {
+        e.stopPropagation();
+        onVerify(observation);
+      }}
+      disabled={pending}
+    >
+      {pending ? (
+        <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" />
+      ) : (
+        'Verify'
+      )}
+    </Button>
+  );
+}
+
+function formatRefRange(observation: Observation): string {
+  if (observation.ref_range_text) return observation.ref_range_text;
+  if (observation.ref_low !== null && observation.ref_high !== null) {
+    return `${observation.ref_low}-${observation.ref_high}`;
+  }
+  // One limit only: say which side, so "Above the report's range" never sits beside "- mg/dL".
+  if (observation.ref_high !== null) return `≤ ${observation.ref_high}`;
+  if (observation.ref_low !== null) return `≥ ${observation.ref_low}`;
+  return '-';
+}
+
+interface ObservationRowProps {
+  observation: Observation;
+  /** Where the row sits in the list now. A Source Trace verify holds the row at the place it had when the sheet was used. */
+  index: number;
+  /** The list this row is on. A Source Trace verify is held under the list it was clicked on, not the one on screen at the answer. */
+  filterKey: string;
+  selected: boolean;
+  expanded: boolean;
+  onSelect: (observation: Observation) => void;
+  onEdit: (observation: Observation, opener: HTMLElement) => void;
+  onVerify: (observation: Observation) => void;
+  onVerified: (observation: Observation, saved: Observation, index: number, filterKey: string) => void;
+  onToggleExpand: (id: string) => void;
+}
+
+/**
+ * An observation is flat, so equal fields mean an equal row. react-query keeps the old object for each item that is
+ * equal at its position, so rows above a removed row keep theirs; every row below it moves up one place and arrives as
+ * a new object with the same fields.
+ */
+function sameObservation(a: Observation, b: Observation): boolean {
+  if (a === b) return true;
+  const keys = Object.keys(a) as (keyof Observation)[];
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+function sameRow(prev: ObservationRowProps, next: ObservationRowProps): boolean {
+  return (Object.keys(next) as (keyof ObservationRowProps)[]).every((key) =>
+    key === 'observation' ? sameObservation(prev.observation, next.observation) : prev[key] === next[key]
+  );
+}
+
+/** memo: a render of the page that did not change this row (a Verify in flight, a refetch of the others) skips it. */
+const ObservationRow = memo(function ObservationRow({
+  observation,
+  index,
+  filterKey,
+  selected,
+  expanded,
+  onSelect,
+  onEdit,
+  onVerify,
+  onVerified,
+  onToggleExpand,
+}: ObservationRowProps) {
+  const rangeState = rangeStateOf(observation);
+  return (
+    <tr
+      id={`observation-row-${observation.id}`}
+      role="row"
+      className={cn(
+        'block border-b border-black/4 py-2 transition-colors cursor-pointer sm:table-row sm:py-0',
+        selected
+          ? 'bg-accent-subtle'
+          : 'hover:bg-surface-muted/50'
+      )}
+      onClick={() => onSelect(observation)}
+    >
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <InkMarker verified={observation.user_verified} />
+          <span className="font-medium text-ink">
+            {observation.analyte_raw}
+          </span>
+        </div>
+        {/* HC-UIREV-006. The sheet is a portal, but React events bubble through the tree: without this
+            wrapper a click on the button, or anywhere inside the sheet, would reach the row's onClick
+            and select it (and load its page image). It sits under the name, not in the Actions
+            cell, so the table gains no width. */}
+        {observation.doc_id ? (
+          <span role="presentation" className="inline-flex" onClick={(e) => e.stopPropagation()}>
+            <ObservationSourceTrace
+              observation={observation}
+              // The sheet toasts for itself and keeps focus, so this holds the row and nothing else.
+              onVerified={(saved) => onVerified(observation, saved, index, filterKey)}
+              trigger={
+                <button
+                  type="button"
+                  className={cn(
+                    'inline-flex h-11 items-center rounded-sm px-1 text-sm font-medium text-accent',
+                    'underline underline-offset-4 hover:text-accent-hover transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
+                  )}
+                >
+                  Show source
+                </button>
+              }
+            />
+          </span>
+        ) : null}
+      </td>
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+        {/* The header row is hidden below sm, so the cell names itself there. */}
+        <span className="mr-1.5 font-sans text-xs text-ink-secondary sm:hidden">Value</span>
+        {/* The tint is a hint, from the same state as the chip below, which carries the meaning in words (HC-UIREV-001). */}
+        <span
+          data-t0=""
+          className={cn(
+            'font-mono font-semibold',
+            valueTintOf(observation)
+          )}
+        >
+          {observation.value ?? observation.value_text ?? '-'}
+        </span>
+        {observation.unit ? (
+          <span data-t0="" className="text-ink-secondary ml-1 text-sm">
+            {observation.unit}
+          </span>
+        ) : null}
+        {rangeState ? (
+          <div className="mt-1">
+            <StatusChip state={rangeState} />
+          </div>
+        ) : null}
+      </td>
+      <td role="cell" className="block px-4 py-1.5 text-sm text-ink-secondary font-mono sm:table-cell sm:py-4">
+        <span className="font-sans text-xs sm:hidden">Range </span>
+        <span data-t0="">
+          {formatRefRange(observation)} {observation.unit}
+        </span>
+      </td>
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4">
+        {/* sm:min-w-[7.5rem]: "Checked by you" is 0.7 px wider than "Not yet checked". Without a floor above both, the column grows on Verify and the auto layout shifts every other column by a fraction of a pixel. */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:min-w-[7.5rem] sm:flex-col sm:items-start">
+          {/* Keyed by state: the old chip leaves and a new one arrives, so no T0 node changes its own text. */}
+          <StatusChip
+            key={observation.user_verified ? 'checked-by-you' : 'not-checked'}
+            state={observation.user_verified ? 'checked-by-you' : 'not-checked'}
+          />
+          <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
+        </div>
+      </td>
+      <td role="cell" className="block px-4 py-1.5 sm:table-cell sm:py-4 sm:text-right">
+        <div className="flex items-center gap-1 sm:justify-end">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Edit value"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(observation, e.currentTarget);
+            }}
+          >
+            <Edit3 className="w-4 h-4" />
+          </Button>
+          {/* Verify keeps its width (and leaves an equal gap once checked), so the columns never reflow under a value. */}
+          {observation.user_verified ? (
+            <span aria-hidden="true" className="inline-block w-18 shrink-0" />
+          ) : (
+            <VerifyButton observation={observation} onVerify={onVerify} />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand(observation.id);
+            }}
+            aria-label="Expand details"
+          >
+            <ChevronDown
+              className={cn(
+                'w-4 h-4 transition-transform',
+                expanded && 'rotate-180'
+              )}
+            />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}, sameRow);
+
 export function VerificationWorkbench() {
-  const prefersReducedMotion = useReducedMotion();
   const { profileId } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDocId = searchParams.get('doc');
@@ -87,17 +389,68 @@ export function VerificationWorkbench() {
   // re-runs on every `observations` refetch — and verifying a row invalidates
   // that query — so the user's selection snaps back to the cited row.
   const appliedCitationRef = useRef<string | null>(null);
+  // The row the Source Preview was last loaded for, and where it points. The document effect below compares against it,
+  // so a refetch (a Verify invalidates the list) does not reload a preview that is still right.
+  const loadedSourceRef = useRef<{ id: string; docId: string | null; page: number | null } | null>(null);
+  // The Edit button that opened the dialog. Dialog has no trigger here, so focus goes back to it by hand.
+  const editOpenerRef = useRef<HTMLElement | null>(null);
 
   // Fetch observations that need verification
   // A cited observation is normally already *verified* — that is exactly why the
   // assistant was willing to ground an answer on it — so the default
   // needs_verification filter would never contain it. Widen to the whole
   // document when following a citation.
-  const observationFilters =
-    documentReviewMode || citedObservationId || citedEntityId
-      ? { profile_id: profileId || '', doc_id: selectedDocId || undefined }
-      : { profile_id: profileId || '', needs_verification: true };
-  const { data: observations, isLoading, isError, error } = useObservations(observationFilters);
+  const needsVerificationList = !(documentReviewMode || citedObservationId || citedEntityId);
+  const observationFilters = needsVerificationList
+    ? { profile_id: profileId || '', needs_verification: true }
+    : { profile_id: profileId || '', doc_id: selectedDocId || undefined };
+  const { data: fetchedObservations, isLoading, isError, error } = useObservations(observationFilters);
+  // Rows verified in this visit stay on screen as ink. They belong to one filter: another document, another
+  // profile or a citation starts clean.
+  const filterKey = JSON.stringify(observationFilters);
+  const [held, setHeld] = useState<{ key: string; rows: HeldRow[] }>({ key: '', rows: NO_HELD_ROWS });
+  const heldRows = held.key === filterKey ? held.rows : NO_HELD_ROWS;
+  const observations = useMemo(
+    () => withHeldRows(fetchedObservations, heldRows, needsVerificationList),
+    [fetchedObservations, heldRows, needsVerificationList]
+  );
+  // The confirmation waits for the commit that flips the row, so the toast never says "checked" over a row that
+  // still reads "Not yet checked".
+  const [justChecked, setJustChecked] = useState<Observation | null>(null);
+  // The row whose Verify button just left the DOM with its commit: focus would fall to <body> (finding 7).
+  const focusEditAfterVerifyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!justChecked) return;
+    announceChecked(justChecked);
+    if (focusEditAfterVerifyRef.current === justChecked.id) {
+      focusEditAfterVerifyRef.current = null;
+      const rowElement = document.getElementById(`observation-row-${justChecked.id}`);
+      const active = document.activeElement;
+      // Only when focus was lost with the button. A user who moved on during the save keeps their place.
+      if (rowElement && (!active || active === document.body || rowElement.contains(active))) {
+        rowElement.querySelector<HTMLElement>('button[aria-label="Edit value"]')?.focus({ preventScroll: true });
+      }
+    }
+    setJustChecked(null);
+  }, [justChecked]);
+
+  // The row whose Source Trace sheet verified it. If a refetch dropped the row first, the sheet unmounted with it and
+  // focus went to <body>; once the hold re-inserts the row, focus goes to its new "Show source". Apart from
+  // `justChecked` because this path must not announce (the sheet toasts).
+  const focusShowSourceAfterVerifyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const id = focusShowSourceAfterVerifyRef.current;
+    if (!id) return;
+    focusShowSourceAfterVerifyRef.current = null;
+    // A sheet still open keeps focus (its "It matches" button unmounts, so activeElement can read <body> for a moment).
+    if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+    const active = document.activeElement;
+    // Only when focus was lost. A user who moved on during the save keeps their place.
+    if (active && active !== document.body) return;
+    Array.from(document.getElementById(`observation-row-${id}`)?.querySelectorAll('button') ?? [])
+      .find((button) => button.textContent?.trim() === 'Show source')
+      ?.focus({ preventScroll: true });
+  }, [held]);
 
   const { data: allDocuments = [], isLoading: documentsLoading } = useDocuments({
     profile_id: profileId || '',
@@ -106,6 +459,9 @@ export function VerificationWorkbench() {
   const verifyMutation = useVerifyObservation();
   const verifyDocumentMutation = useVerifyDocument();
   const reprocessMutation = useReprocessDocument();
+  // Reprocessing deletes the document's rows and makes new ones, so nothing held here describes the record any more.
+  const retryExtraction = (docId: string) =>
+    reprocessMutation.mutate(docId, { onSuccess: () => setHeld({ key: '', rows: NO_HELD_ROWS }) });
   const selectedDocument = selectedDocId
     ? allDocuments.find((d) => d.id === selectedDocId) ?? null
     : null;
@@ -127,11 +483,44 @@ export function VerificationWorkbench() {
     });
   };
 
+  /** Keep the row on screen as checked, ahead of (and surviving) the refetch that drops it from the needs_verification list. */
+  const holdChecked = (
+    observation: Observation,
+    saved: Observation | undefined,
+    at?: number,
+    key: string = filterKey
+  ): Observation => {
+    const checked: Observation = { ...observation, ...saved, user_verified: true };
+    const index = at ?? Math.max(0, observations?.findIndex((row) => row.id === observation.id) ?? 0);
+    setHeld((prev) => ({
+      key,
+      rows: [
+        ...(prev.key === key ? prev.rows : NO_HELD_ROWS).filter(
+          (entry) => entry.observation.id !== observation.id
+        ),
+        { observation: checked, index },
+      ],
+    }));
+    return checked;
+  };
+
+  /** The server said yes: hold the row, then say so once the commit has flipped it. */
+  const markChecked = (observation: Observation, saved: Observation | undefined) => {
+    setJustChecked(holdChecked(observation, saved));
+  };
+
   const handleVerify = async (observation: Observation) => {
-    await verifyMutation.mutateAsync({
-      observationId: observation.id,
-      data: {},
-    });
+    try {
+      const saved = await verifyMutation.mutateAsync({
+        observationId: observation.id,
+        data: {},
+      });
+      focusEditAfterVerifyRef.current = observation.id;
+      markChecked(observation, saved);
+    } catch {
+      // Nothing was saved, so the row is not held and nothing says "checked". Still, like the success toast (T0 on screen).
+      notify({ message: `Could not mark ${observation.analyte_raw} as checked. Try again.`, still: true });
+    }
   };
 
   const handleMarkAllVerifiedClick = async () => {
@@ -150,15 +539,36 @@ export function VerificationWorkbench() {
     }
   };
 
-  const handleEdit = (observation: Observation) => {
+  const handleEdit = useCallback((observation: Observation, opener: HTMLElement) => {
+    editOpenerRef.current = opener;
     setEditingObservation(observation);
     setEditValue(observation.value?.toString() || observation.value_text || '');
     setSaveError(null);
-  };
+  }, []);
+
+  // The rows are memoised, so what they are handed must not change on every render. These read the latest handlers.
+  const latestRef = useRef({ handleVerify, holdChecked });
+  useLayoutEffect(() => {
+    latestRef.current = { handleVerify, holdChecked };
+  });
+  const verifyRow = useCallback((observation: Observation) => latestRef.current.handleVerify(observation), []);
+  const holdFromSheet = useCallback((observation: Observation, saved: Observation, index: number, key: string) => {
+    focusShowSourceAfterVerifyRef.current = observation.id;
+    latestRef.current.holdChecked(observation, saved, index, key);
+  }, []);
+  const toggleExpand = useCallback((id: string) => setExpandedRow((current) => (current === id ? null : id)), []);
 
   const closeEdit = () => {
     setEditingObservation(null);
     setSaveError(null);
+    const opener = editOpenerRef.current;
+    editOpenerRef.current = null;
+    // After the focus trap lets go. A row that left the list with its verify has no opener to return to.
+    if (opener) {
+      window.setTimeout(() => {
+        if (opener.isConnected) opener.focus();
+      }, 0);
+    }
   };
 
   // Strict parse: never convert "7,5" or "7.5abc" into a number silently.
@@ -185,13 +595,14 @@ export function VerificationWorkbench() {
     if (parsedEdit.kind === 'empty' || parsedEdit.kind === 'error') return;
 
     try {
-      await verifyMutation.mutateAsync({
+      const saved = await verifyMutation.mutateAsync({
         observationId: editingObservation.id,
         data:
           parsedEdit.kind === 'number'
             ? { value: parsedEdit.value }
             : { value_text: parsedEdit.text },
       });
+      markChecked(editingObservation, saved);
       closeEdit();
     } catch (err) {
       setSaveError(
@@ -202,6 +613,7 @@ export function VerificationWorkbench() {
 
   const handleRowSelect = useCallback(async (observation: Observation) => {
     setSelectedRow(observation.id);
+    loadedSourceRef.current = { id: observation.id, docId: observation.doc_id, page: observation.source_page };
 
     if (observation.doc_id) {
       setLoadingSource(true);
@@ -272,7 +684,13 @@ export function VerificationWorkbench() {
     if (!selectedDocId || citedObservationId || citedEntityId) return;
     const match = observations?.find((o) => o.doc_id === selectedDocId);
     if (match) {
-      void handleRowSelect(match);
+      // Select on first load and when the selected row is gone (Retry extraction issues new ids). Re-select the row the
+      // user is on only when its document or page changed. Any other refetch, a Verify above all, keeps the selection
+      // and the Source Preview as they are: they were not what changed.
+      const loaded = loadedSourceRef.current;
+      const kept = loaded ? observations?.find((o) => o.id === loaded.id) : undefined;
+      if (!loaded || !kept) void handleRowSelect(match);
+      else if (kept.doc_id !== loaded.docId || kept.source_page !== loaded.page) void handleRowSelect(kept);
       if (!documentReviewMode) {
         const next = new URLSearchParams(searchParams);
         next.delete('doc');
@@ -287,24 +705,6 @@ export function VerificationWorkbench() {
     }
   };
 
-  const getStatusColor = (observation: Observation) => {
-    if (observation.flag === 'H' || observation.flag === 'HH' || observation.flag === 'HIGH') {
-      return 'text-status-attention';
-    }
-    if (observation.flag === 'L' || observation.flag === 'LL' || observation.flag === 'LOW') {
-      return 'text-status-caution';
-    }
-    return 'text-ink';
-  };
-
-  const formatRefRange = (observation: Observation) => {
-    if (observation.ref_range_text) return observation.ref_range_text;
-    if (observation.ref_low !== null && observation.ref_high !== null) {
-      return `${observation.ref_low}-${observation.ref_high}`;
-    }
-    return '-';
-  };
-
   // Parse bbox JSON for selected observation
   const selectedObservation = observations?.find((o) => o.id === selectedRow) ?? null;
   const selectedBbox: BoundingBox | null = parseBbox(selectedObservation?.source_bbox_json);
@@ -316,12 +716,79 @@ export function VerificationWorkbench() {
 
   // Count unverified items
   const unverifiedCount = observations?.filter((o) => !o.user_verified).length ?? 0;
+  // On the default list no unverified row is left: the queue has ended, even while the rows verified in this
+  // visit are still held on screen as ink (L0 ruling on review round 3, finding 3).
+  const queueDone = needsVerificationList && unverifiedCount === 0;
+
+  // What follows the last unverified value: the documents that still need follow-up, or the all-clear.
+  const attentionDocuments = documentsLoading
+    ? []
+    : allDocuments.filter((d) => DOCUMENT_ATTENTION_STATUSES.has(d.status));
+  const queueEnd = (
+    <>
+      {documentsLoading ? (
+        <Card>
+          <CardContent className="py-16 flex justify-center">
+            <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:animate-pulse text-accent" aria-hidden />
+            <span className="sr-only">Loading documents…</span>
+          </CardContent>
+        </Card>
+      ) : attentionDocuments.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-status-attention" />
+              Documents needing attention
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-ink-secondary">
+              There are no lab values waiting in the verification queue. These imports still need
+              follow-up (OCR, extraction, or document-level review).
+            </p>
+            <ul className="divide-y divide-black/6 rounded-xl border border-black/6 bg-surface-muted/30">
+              {attentionDocuments.map((doc) => (
+                <li key={doc.id} className="p-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-ink truncate">{doc.source || 'Untitled document'}</p>
+                    <p className="text-xs text-ink-secondary mt-0.5">
+                      {doc.doc_type.replace(/_/g, ' ')} · {doc.status.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                  <p className="text-xs text-ink-secondary sm:max-w-md shrink-0">
+                    {documentAttentionHint(doc)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-ink-secondary">
+              Open{' '}
+              <Link to="/inbox" className="text-accent font-medium hover:underline">
+                Inbox
+              </Link>{' '}
+              to preview files or re-import. In Settings, check Document import (OCR) if scans are not readable.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-16">
+            <div className="text-center">
+              <CheckCircle className="w-12 h-12 text-status-verified mx-auto mb-3" />
+              <p className="text-lg font-medium text-ink mb-1">All observations verified</p>
+              <p className="text-ink-secondary">No items need review at this time.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
 
   // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64" role="status" aria-live="polite">
-        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:animate-pulse text-accent" />
         <span className="sr-only">Loading observations for verification...</span>
       </div>
     );
@@ -417,11 +884,11 @@ export function VerificationWorkbench() {
               <div className="flex flex-wrap gap-2">
                 {needsRetry && (
                   <Button
-                    onClick={() => reprocessMutation.mutate(selectedDocument.id)}
+                    onClick={() => retryExtraction(selectedDocument.id)}
                     disabled={reprocessMutation.isPending}
                     className="gap-2"
                   >
-                    {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" /> : null}
                     Continue OCR / Retry extraction
                   </Button>
                 )}
@@ -441,10 +908,6 @@ export function VerificationWorkbench() {
       );
     }
 
-    const attentionDocuments = documentsLoading
-      ? []
-      : allDocuments.filter((d) => DOCUMENT_ATTENTION_STATUSES.has(d.status));
-
     return (
       <div className="space-y-6">
         <div>
@@ -456,68 +919,14 @@ export function VerificationWorkbench() {
           </p>
         </div>
 
-        {documentsLoading ? (
-          <Card>
-            <CardContent className="py-16 flex justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-accent" aria-hidden />
-              <span className="sr-only">Loading documents…</span>
-            </CardContent>
-          </Card>
-        ) : attentionDocuments.length > 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-status-attention" />
-                Documents needing attention
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-ink-secondary">
-                There are no lab values waiting in the verification queue. These imports still need
-                follow-up (OCR, extraction, or document-level review).
-              </p>
-              <ul className="divide-y divide-black/6 rounded-xl border border-black/6 bg-surface-muted/30">
-                {attentionDocuments.map((doc) => (
-                  <li key={doc.id} className="p-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink truncate">{doc.source || 'Untitled document'}</p>
-                      <p className="text-xs text-ink-secondary mt-0.5">
-                        {doc.doc_type.replace(/_/g, ' ')} · {doc.status.replace(/_/g, ' ')}
-                      </p>
-                    </div>
-                    <p className="text-xs text-ink-secondary sm:max-w-md shrink-0">
-                      {documentAttentionHint(doc)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-sm text-ink-secondary">
-                Open{' '}
-                <Link to="/inbox" className="text-accent font-medium hover:underline">
-                  Inbox
-                </Link>{' '}
-                to preview files or re-import. In Settings, check Document import (OCR) if scans are not readable.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <CheckCircle className="w-12 h-12 text-status-verified mx-auto mb-3" />
-                <p className="text-lg font-medium text-ink mb-1">All observations verified</p>
-                <p className="text-ink-secondary">No items need review at this time.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {queueEnd}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink tracking-tight">
             Verification Workbench
@@ -526,12 +935,7 @@ export function VerificationWorkbench() {
             Review and correct extracted values from your documents
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {documentReviewMode && selectedDocument && (
-            <Badge variant="default">
-              Reviewing: {selectedDocument.source || 'Document'}
-            </Badge>
-          )}
+        <div className="flex flex-wrap items-center gap-3">
           {unverifiedCount > 0 && (
             <Badge variant="caution" className="gap-1.5">
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -554,6 +958,7 @@ export function VerificationWorkbench() {
             onClick={() => void handleMarkAllVerifiedClick()}
             disabled={
               !observations?.length ||
+              queueDone ||
               verifyMutation.isPending ||
               verifyDocumentMutation.isPending
             }
@@ -561,19 +966,32 @@ export function VerificationWorkbench() {
             <CheckCircle className="w-4 h-4" />
             {documentReviewMode ? 'Mark Document Verified' : 'Mark All Verified'}
           </Button>
-          {documentReviewMode && selectedDocument && (
+          {/* Shown from the first render too, and disabled until the document is known: it used to mount with the
+              file name and wrap this row. */}
+          {documentReviewMode && (
             <Button
               type="button"
               variant="secondary"
               className="gap-2"
-              onClick={() => reprocessMutation.mutate(selectedDocument.id)}
-              disabled={reprocessMutation.isPending}
+              onClick={() => selectedDocument && retryExtraction(selectedDocument.id)}
+              disabled={!selectedDocument || reprocessMutation.isPending}
             >
-              {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse" /> : null}
               Retry extraction
             </Button>
           )}
         </div>
+        {/* Reserved from the first render: the file name arrives with GET /documents, and a badge that mounted in the
+            actions row then wrapped it and dropped the whole grid 60 px (L0 ruling on review round 3, finding 4). */}
+        {documentReviewMode ? (
+          <div data-reviewing-line="" className="order-last flex min-h-7 basis-full items-center">
+            {selectedDocument ? (
+              <Badge variant="default" className="max-w-full">
+                <span className="truncate">Reviewing: {selectedDocument.source || 'Document'}</span>
+              </Badge>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {citedNotFound && (
@@ -586,6 +1004,8 @@ export function VerificationWorkbench() {
         </div>
       )}
 
+      {queueDone && !documentsLoading ? queueEnd : null}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <Card>
@@ -597,127 +1017,44 @@ export function VerificationWorkbench() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-black/4 bg-surface-muted/50">
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                <table role="table" className="block w-full sm:table">
+                  <thead role="rowgroup" className="hidden sm:table-header-group">
+                    <tr role="row" className="border-b border-black/4 bg-surface-muted/50">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Test Name
                       </th>
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Value
                       </th>
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Reference Range
                       </th>
-                      <th className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-left text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Status
                       </th>
-                      <th className="text-right text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
+                      <th role="columnheader" className="text-right text-xs font-medium text-ink-secondary uppercase tracking-wide px-4 py-3">
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {observations.map((observation, index) => (
-                      <m.tr
-                        key={observation.id}
-                        id={`observation-row-${observation.id}`}
-                        initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className={cn(
-                          'border-b border-black/4 transition-colors cursor-pointer',
-                          selectedRow === observation.id
-                            ? 'bg-accent-subtle'
-                            : 'hover:bg-surface-muted/50'
-                        )}
-                        onClick={() => handleRowSelect(observation)}
-                      >
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-ink">
-                              {observation.analyte_raw}
-                            </span>
-                            {observation.user_verified && (
-                              <Badge variant="verified" className="text-xs gap-1">
-                                <CheckCircle className="w-3 h-3" />
-                                Verified
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={cn(
-                              'font-mono font-semibold',
-                              getStatusColor(observation)
-                            )}
-                          >
-                            {observation.value ?? observation.value_text ?? '-'}
-                          </span>
-                          <span className="text-ink-secondary ml-1 text-sm">
-                            {observation.unit}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4 text-sm text-ink-secondary font-mono">
-                          {formatRefRange(observation)} {observation.unit}
-                        </td>
-                        <td className="px-4 py-4">
-                          <ExtractionConfidenceBadge confidence={observation.extraction_confidence} />
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Edit value"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(observation);
-                              }}
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </Button>
-                            {!observation.user_verified && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                aria-label="Verify observation"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleVerify(observation);
-                                }}
-                                disabled={verifyMutation.isPending}
-                              >
-                                {verifyMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  'Verify'
-                                )}
-                              </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedRow(
-                                  expandedRow === observation.id ? null : observation.id
-                                );
-                              }}
-                              aria-label="Expand details"
-                            >
-                              <ChevronDown
-                                className={cn(
-                                  'w-4 h-4 transition-transform',
-                                  expandedRow === observation.id && 'rotate-180'
-                                )}
-                              />
-                            </Button>
-                          </div>
-                        </td>
-                      </m.tr>
-                    ))}
+                  <tbody role="rowgroup" className="block sm:table-row-group">
+                    <VerifyPendingContext.Provider value={verifyMutation.isPending}>
+                      {observations.map((observation, index) => (
+                        <ObservationRow
+                          key={observation.id}
+                          observation={observation}
+                          index={index}
+                          filterKey={filterKey}
+                          selected={selectedRow === observation.id}
+                          expanded={expandedRow === observation.id}
+                          onSelect={handleRowSelect}
+                          onEdit={handleEdit}
+                          onVerify={verifyRow}
+                          onVerified={holdFromSheet}
+                          onToggleExpand={toggleExpand}
+                        />
+                      ))}
+                    </VerifyPendingContext.Provider>
                   </tbody>
                 </table>
               </div>
@@ -749,7 +1086,7 @@ export function VerificationWorkbench() {
             <CardContent>
               {loadingSource ? (
                 <div className="aspect-3/4 rounded-xl bg-surface-muted flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
+                  <Loader2 className="w-8 h-8 motion-safe:animate-spin motion-reduce:animate-pulse text-accent" />
                 </div>
               ) : sourcePages.length > 0 ? (
                 <div className="aspect-3/4 rounded-xl bg-surface-muted p-4 overflow-auto">
@@ -804,76 +1141,66 @@ export function VerificationWorkbench() {
         </div>
       </div>
 
-      {/* Edit Modal */}
-      {editingObservation && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          role="dialog"
-          aria-modal="true"
-        >
-          <Card className="w-full max-w-md">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Edit Value</CardTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeEdit}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-ink mb-1 block">
-                  {editingObservation.analyte_raw}
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={editValue}
-                    onChange={(e) => {
-                      setEditValue(e.target.value);
-                      setSaveError(null);
-                    }}
-                    aria-invalid={parsedEdit.kind === 'error'}
-                    className="flex-1 px-3 py-2 border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent"
-                    autoFocus
-                  />
-                  <span className="px-3 py-2 bg-surface-muted rounded-lg text-ink-secondary">
-                    {editingObservation.unit}
-                  </span>
-                </div>
-                {(parsedEdit.kind === 'error' || saveError) && (
-                  <p role="alert" className="mt-1 text-sm text-red-600">
-                    {parsedEdit.kind === 'error' ? parsedEdit.message : saveError}
-                  </p>
-                )}
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button
-                  variant="secondary"
-                  onClick={closeEdit}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveEdit}
-                  disabled={
-                    verifyMutation.isPending ||
-                    parsedEdit.kind === 'empty' ||
-                    parsedEdit.kind === 'error'
+      {/* Edit value: still (M0), because it shows the current value (T0). Focus trap, Escape and the title come from Dialog. */}
+      <Dialog
+        open={editingObservation !== null}
+        onOpenChange={(open) => {
+          if (!open) closeEdit();
+        }}
+        title="Edit Value"
+        still
+      >
+        {editingObservation && (
+          <div className="space-y-4">
+            <p className="text-sm text-ink-secondary">
+              Current value:{' '}
+              <span data-t0="" className="font-mono font-semibold text-ink">
+                {editingObservation.value ?? editingObservation.value_text ?? '-'}
+                {editingObservation.unit ? ` ${editingObservation.unit}` : ''}
+              </span>
+            </p>
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <Input
+                  type="text"
+                  label={`New value for ${editingObservation.analyte_raw}`}
+                  value={editValue}
+                  onChange={(e) => {
+                    setEditValue(e.target.value);
+                    setSaveError(null);
+                  }}
+                  error={
+                    parsedEdit.kind === 'error' ? parsedEdit.message : (saveError ?? undefined)
                   }
-                >
-                  {verifyMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : null}
-                  Save & Verify
-                </Button>
+                />
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+              {editingObservation.unit ? (
+                <span className="mt-7 rounded-lg bg-surface-muted px-3 py-2.5 text-ink-secondary">
+                  {editingObservation.unit}
+                </span>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={closeEdit}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={
+                  verifyMutation.isPending ||
+                  parsedEdit.kind === 'empty' ||
+                  parsedEdit.kind === 'error'
+                }
+              >
+                {verifyMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-pulse mr-2" />
+                ) : null}
+                Save & Verify
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

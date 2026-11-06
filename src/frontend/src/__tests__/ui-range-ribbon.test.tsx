@@ -102,6 +102,8 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  // The reveal state is a module-level Set now, so a fresh module per test is what resets it.
+  vi.resetModules();
   sessionStorage.clear();
   animateCalls = [];
   Object.defineProperty(Element.prototype, 'animate', {
@@ -460,10 +462,11 @@ describe('RangeRibbon', () => {
     const inAnimations = animationsFor(1);
     first.unmount();
 
-    // Same date and same index, but the value is out of range.
-    sessionStorage.clear();
+    // Same date and same index, but the value is out of range. A fresh module forgets the first reveal.
+    vi.resetModules();
+    const { RangeRibbon: FreshRibbon } = await loadRibbon();
     animateCalls = [];
-    render(<RangeRibbon trend={outOfRange} />);
+    render(<FreshRibbon trend={outOfRange} />);
     const outAnimations = animationsFor(1);
 
     expect(inAnimations.length).toBeGreaterThan(0);

@@ -1,6 +1,6 @@
 # RSI1-DONATE: Opt-In Local Data Donation Pipeline (RSI-1 / RSI-2) — Implementation Plan
 
-**Last Updated:** 2026-10-22 (Delta 2026-10-22: DON-NER-MEASURE, gate DON-NER-MODEL, PR-2 resume delta, DON-COPY-V3 build and order); 2026-10-17
+**Last Updated:** 2026-11-05 (BATCH-1105A: the reset-tuple append lines at `:61`, `:123`, `:382` and `:388` now say C-P7 (#493, `1b5530d4`) made the append and this plan does not edit `api/profiles.py`); 2026-10-22 (Delta 2026-10-22: DON-NER-MEASURE, gate DON-NER-MODEL, PR-2 resume delta, DON-COPY-V3 build and order); 2026-10-17
 **Owner:** repository owner
 **Status:** PROPOSED (Opus planner). Docs only. No owner approval is recorded here. **Build is blocked on the open owner gates listed at the end.** No answer is inferred. Gates keep their state in [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md).
 **Base measured:** `origin/main` @ `3536cc6` (2026-10-17). Profile migration head `013_adaptive_windows_local`.
@@ -58,7 +58,7 @@ Revoking a purpose deletes that purpose's donated records and everything derived
 
 - The `purpose` enum is fixed by DON-PURPOSES.
 - `NNN` = head on `origin/main` at the final rebase + 1, with `down_revision` = that head. The head literal (4 literals, or `PROFILE_HEAD` after C-P6) is updated in the same PR. Both §c check commands are pasted in the PR.
-- After C-P7: both models are appended to `_SYNTHETIC_RESET_MODELS` in `api/profiles.py` (ask-first file, gate RESET-APPEND, answered "approve" 2026-10-17). If C-P7 has not merged, do not touch `api/profiles.py`, and note the follow-up in the PR.
+- Reset tuple: **not appended by this plan.** C-P7 (#493, merged 2026-11-04 as `1b5530d4`) appended `donated_records` and `donation_consents` to `_SYNTHETIC_RESET_MODELS` in `api/profiles.py` itself, under RESET-APPEND (answered "approve" 2026-10-17; L0 ruling 6628710401). Do not touch `api/profiles.py` here.
 - After C-P6: no FK is added, so there is no `PROFILE_CHECKS` row. If a reviewer asks for an FK, it gets `ondelete=` plus a row.
 
 ### Modules
@@ -120,7 +120,7 @@ Details are counts only. `entity_type="donation"`, and `entity_id=<purpose>`.
 | `src/backend/tests/test_data_donation.py`, `src/backend/tests/test_donation_routes_http.py`, `src/backend/tests/test_phi_second_pass.py` | new: HC-DON-001…020 |
 | `src/backend/tests/test_audit_order_guard.py` | own CLASSIFICATION rows only (R-9) |
 | head literal (`src/backend/tests/test_care_tasks.py`, `src/backend/tests/test_profile_migrations_sqlcipher_fallback.py`, `src/backend/tests/test_source_spans.py`, or `src/backend/tests/support/migrations.py` after C-P6) | head bump |
-| `src/backend/api/profiles.py` | `_SYNTHETIC_RESET_MODELS` append, **only after C-P7** (RESET-APPEND) |
+| `src/backend/api/profiles.py` | not edited here: C-P7 (#493, `1b5530d4`) made the `_SYNTHETIC_RESET_MODELS` append under RESET-APPEND |
 | `src/frontend/src/components/settings/DataDonationCard.tsx`, `src/frontend/src/services/donation.ts`, `src/frontend/src/pages/SettingsPage.tsx`, `src/frontend/src/__tests__/DataDonationCard.test.tsx` | consent UI plus vitest |
 | `docs/compliance/data-privacy.md` | one new section describing the donated set (owned lines only; after F-6 / WEAR-14 per contracts §b) |
 | slots | none (contracts §d) |
@@ -379,13 +379,13 @@ cd ../frontend && npx tsc --noEmit && npx vitest run src/__tests__/DataDonationC
 | RSI-1 | build the pipeline as part of the workflow (owner override) |
 | RSI-2 | everything stays local |
 | RSI-4 | Track 2 = app agent (relevant if "harness traces" is a purpose) |
-| RESET-APPEND | approve (reset tuple append, after C-P7) |
+| RESET-APPEND | approve (reset tuple append, after C-P7); made by C-P7 (#493, `1b5530d4`), not by this plan |
 | AUTO-MERGE | standing for build-program PRs; ask-first diffs still need the owner |
 
 ## Ask-first
 
 - `src/backend/modules/redaction.py`: **called only, never edited.** The acceptance diff must be empty.
-- `src/backend/api/profiles.py`: reset-tuple append only, after C-P7, under RESET-APPEND.
+- `src/backend/api/profiles.py`: not edited by this plan; C-P7 (#493, `1b5530d4`) made the reset-tuple append under RESET-APPEND.
 - Encryption/auth: none. The new tables use the existing SQLCipher profile engine. No key, KDF or `core/auth.py` edit. If one seems needed, STOP.
 - `modules/interpret_safety.py`, `faithfulness.py`, `verifier_agent.py`: not touched.
 

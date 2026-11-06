@@ -176,12 +176,12 @@ _OLD_TEXTS = (
         "for you.",
     ),
     (
-        "glucose_fasting", "high_interpretation",
+        "glucose", "high_interpretation",
         "Elevated fasting glucose may indicate prediabetes or diabetes. "
         "Your healthcare provider can explain whether further testing is needed.",
     ),
     (
-        "glucose_fasting", "low_interpretation",
+        "glucose", "low_interpretation",
         "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, "
         "confusion, and fatigue. Causes include certain medications, missed "
         "meals, or underlying conditions.",
@@ -199,7 +199,7 @@ _OLD_TEXTS = (
         "iron deficiency, vitamin deficiencies, or chronic diseases.",
     ),
     (
-        "wbc", "low_interpretation",
+        "white_blood_cells", "low_interpretation",
         "Low WBC (leukopenia) can increase infection risk. Causes include "
         "viral infections, bone marrow problems, autoimmune conditions, or "
         "certain medications.",
@@ -240,7 +240,7 @@ _PRE_IAW_TEXTS = (
         "this risk.",
     ),
     (
-        "glucose_fasting", "high_interpretation",
+        "glucose", "high_interpretation",
         "Elevated fasting glucose may indicate prediabetes or diabetes. "
         "Further testing and lifestyle modifications may be recommended.",
     ),

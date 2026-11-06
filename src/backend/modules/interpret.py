@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import LabInterpretation, Observation, PanelInterpretation
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.normalize import (
+    UNIT_CONVERSIONS,
     canonical_unit_for,
     convert_to_canonical,
     normalize_unit,
@@ -44,6 +45,19 @@ from .recommend import (
 )
 
 logger = logging.getLogger(__name__)
+
+# VALUE-RANGE-COMPARE: the status sentences a card says when there is no knowledge-base
+# entry. The status block writes them and the saved-card check reads them back.
+SENTENCE_ABOVE = "This value is above the reference range."
+SENTENCE_BELOW = "This value is below the reference range."
+SENTENCE_WITHIN = "This value is within the normal reference range."
+SENTENCE_OUTSIDE = "This value is outside the normal reference range."
+# KEPT-FLAG-DISAGREES (owner answer, 2026-11-05): the printed flag and the printed range
+# disagree for this value. Written for every "disagrees" status, with or without a KB entry.
+SENTENCE_FLAG_RANGE_DISAGREE = (
+    "The flag printed on your report and the printed range disagree for this value. "
+    "Ask your clinician or the lab which applies."
+)
 
 # Citation-enforcing prompt template for LLM interpretation
 LLM_INTERPRETATION_PROMPT = """You are a medical results assistant explaining lab values to patients.
@@ -89,6 +103,8 @@ class InterpretationResult:
     safety_validation: Optional[SafetyValidationResult] = None
     # INTERP-WITHHOLD-MSG: True only when the safety check withheld the card.
     withheld: bool = False
+    # VALUE-RANGE-COMPARE: True only when a saved card was deleted and replaced by this call.
+    replaced: bool = False
 
 
 @dataclass
@@ -97,6 +113,90 @@ class PanelInterpretationResult:
     success: bool
     interpretation: Optional[PanelInterpretation] = None
     error_message: Optional[str] = None
+    # VALUE-RANGE-COMPARE: members whose rebuild the safety check withheld, as
+    # (observation_id, result). Set only on the fail-closed return, which happens when the
+    # read replaces a saved panel or the withheld member has a saved card.
+    withheld_members: list[tuple[str, InterpretationResult]] = field(default_factory=list)
+    # VALUE-RANGE-COMPARE: ids of the member cards this read deleted and rebuilt, set on the
+    # success and the fail-closed return (a sibling rebuilt before a withheld member stays).
+    replaced_member_ids: list[str] = field(default_factory=list)
+
+
+# KB-UNIT-BADGE: spellings of the cell-count unit 10^3/uL the extractor writes (extract.py
+# _UNIT_ALT), for white cells and platelets only. The first group is numerically identical
+# (factor 1); cells/uL is divided by 1000. Any other spelling is not converted. normalize_unit
+# folds the superscript in "10³/µL" to "103/ul", so that key is listed as it folds.
+_CELL_COUNT_ANALYTES = {"white_blood_cells", "platelets"}
+_CELL_COUNT_UNIT = normalize_unit("10^3/uL")
+_CELL_COUNT_FACTORS = {
+    normalize_unit(spelling): factor
+    for spelling, factor in (
+        ("x10E3/uL", 1.0), ("x10^3/uL", 1.0), ("10*3/uL", 1.0), ("K/uL", 1.0),
+        ("10^3/µL", 1.0), ("10³/µL", 1.0), ("10^9/L", 1.0), ("x10^9/L", 1.0),
+        ("cells/uL", 0.001),
+    )
+}
+
+
+# KB-UNIT-BADGE: exact definitions for a KB unit of mg/dL (not clinical factors): mg per 100 mL
+# is mg/dL, and 1 g/L is 100 mg/dL.
+_MG_DL_UNIT = normalize_unit("mg/dL")
+_MG_DL_FACTORS = {normalize_unit("mg%"): 1.0, normalize_unit("g/L"): 100.0}
+
+
+def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> Optional[float]:
+    """KB-UNIT-BADGE (D1): `value`, reported in `unit`, in the unit the KB's critical limits use.
+
+    Same unit after normalising: the value as is. White cells and platelets: the listed
+    spellings above. A mg/dL KB unit: mg% (x1) and g/L (x100). Otherwise the value is converted with normalize.convert_to_canonical (the
+    app's one tested table); it is used when the canonical unit is the KB's standard_unit, or
+    when the KB unit is another listed variant of the same table entry (converted with that
+    entry's own factor). None (no critical check) for a missing unit, an unconvertible unit,
+    or any other KB unit. Never guesses a factor.
+    """
+    reported = normalize_unit(unit or "")
+    standard = normalize_unit(info.standard_unit or "")
+    if not reported or not standard:
+        return None
+    if reported == standard:
+        return value
+    if info.analyte_canonical in _CELL_COUNT_ANALYTES and standard == _CELL_COUNT_UNIT:
+        factor = _CELL_COUNT_FACTORS.get(reported)
+        return None if factor is None else value * factor
+    if standard == _MG_DL_UNIT and reported in _MG_DL_FACTORS:
+        return value * _MG_DL_FACTORS[reported]
+    converted = convert_to_canonical(info.analyte_canonical, value, unit)
+    if converted is None:
+        return None
+    if normalize_unit(converted.canonical_unit) == standard:
+        return converted.canonical_value
+    entry = UNIT_CONVERSIONS.get(info.analyte_canonical.lower())
+    kb_factor = entry[1].get(standard) if entry else None
+    if not kb_factor:
+        return None
+    return converted.canonical_value / kb_factor
+
+
+def _fmt_number(number: float) -> str:
+    """No trailing .0 (10 significant digits, so a large count never prints as 1e+06)."""
+    return f"{number:.10g}"
+
+
+def _fmt_converted(number: float, limit: Optional[float] = None) -> str:
+    """One decimal under 100, none from 100; up to two more decimals while the rounded number
+    would print equal to the threshold (so never '190 mg/dL is above 190 mg/dL')."""
+    first = 0 if abs(number) >= 100 else 1
+    text = f"{number:.{first}f}"
+    for digits in (first + 1, first + 2):
+        if limit is None or float(text) != limit:
+            break
+        text = f"{number:.{digits}f}"
+    return text
+
+
+def _sentence_unit(unit: str) -> str:
+    """The KB count unit reads as the extractor and labs write it."""
+    return "x10^3/uL" if normalize_unit(unit) == _CELL_COUNT_UNIT else unit
 
 
 class InterpretModule:
@@ -179,10 +279,15 @@ class InterpretModule:
             )
             existing_interp = existing.scalar_one_or_none()
             if existing_interp:
-                return InterpretationResult(
-                    success=True,
-                    interpretation=existing_interp,
-                )
+                # VALUE-RANGE-COMPARE: a saved template card the range check disagrees
+                # with is rebuilt by the force path below (one copy of the card logic).
+                if await self._saved_card_is_stale(existing_interp, observation, master_db):
+                    force_regenerate = True
+                else:
+                    return InterpretationResult(
+                        success=True,
+                        interpretation=existing_interp,
+                    )
 
         # Assemble context
         context = await self._assemble_context(
@@ -203,6 +308,7 @@ class InterpretModule:
             ref_low=observation.ref_low,
             ref_high=observation.ref_high,
             biomarker_info=context.biomarker_info,
+            unit=observation.unit,
         )
 
         # Generate citations
@@ -223,16 +329,8 @@ class InterpretModule:
 
         # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
         # before the withhold so a withheld card still carries the flag.
-        if observation.value is not None:
-            critical_result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
-                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
-                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
-            )
-            if critical_result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = critical_result.physician_review_reason
+        # KB-UNIT-BADGE (D2): the banner follows the badge's unit rule.
+        self._apply_critical_check(observation, context.biomarker_info, safety_result)
 
         # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
         # Nothing is saved, deleted or committed before this return. The log
@@ -288,12 +386,14 @@ class InterpretModule:
             regeneration_count=0,
         )
 
+        replaced = False
         if force_regenerate and existing_interp:
             interpretation.regeneration_count = existing_interp.regeneration_count + 1
             interpretation.previous_interpretation_id = existing_interp.id
             # Delete old interpretation
             await profile_db.delete(existing_interp)
             await profile_db.flush()
+            replaced = True
 
         profile_db.add(interpretation)
         await profile_db.commit()
@@ -307,6 +407,7 @@ class InterpretModule:
             success=True,
             interpretation=interpretation,
             safety_validation=safety_result,
+            replaced=replaced,
         )
 
     async def interpret_panel(
@@ -342,18 +443,7 @@ class InterpretModule:
             )
 
         # Find observations for this panel
-        start_date = collected_at.replace(hour=0, minute=0, second=0)
-        end_date = collected_at.replace(hour=23, minute=59, second=59)
-
-        result = await profile_db.execute(
-            select(Observation).where(
-                Observation.profile_id == profile_id,
-                Observation.analyte_canonical.in_(panel_def["analytes"]),
-                Observation.collected_at >= start_date,
-                Observation.collected_at <= end_date,
-            )
-        )
-        observations = result.scalars().all()
+        observations = await _panel_members(profile_db, panel_def, profile_id, collected_at)
 
         if not observations:
             return PanelInterpretationResult(
@@ -362,25 +452,37 @@ class InterpretModule:
             )
 
         # Check for existing interpretation
+        stale_panel: Optional[PanelInterpretation] = None
         if not force_regenerate:
-            existing = await profile_db.execute(
-                select(PanelInterpretation).where(
-                    PanelInterpretation.panel_name == panel_name.lower(),
-                    PanelInterpretation.collected_at >= start_date,
-                    PanelInterpretation.collected_at <= end_date,
-                )
-            )
-            existing_interp = existing.scalar_one_or_none()
+            existing_interp = await _saved_panel(profile_db, panel_name, collected_at)
             if existing_interp:
-                return PanelInterpretationResult(
-                    success=True,
-                    interpretation=existing_interp,
-                )
+                # VALUE-RANGE-COMPARE: a saved template panel the range check disagrees
+                # with is rebuilt below. The old row is held and deleted just before the add.
+                if await self._saved_panel_is_stale(existing_interp, observations, profile_db):
+                    stale_panel = existing_interp
+                else:
+                    return PanelInterpretationResult(
+                        success=True,
+                        interpretation=existing_interp,
+                    )
 
         # Get individual interpretations for each observation
         observation_summaries = []
         abnormal_count = 0
         observation_ids = []
+        withheld_members: list[tuple[str, InterpretationResult]] = []
+        replaced_member_ids: list[str] = []
+        # VALUE-RANGE-COMPARE: members that have a saved card before this read starts.
+        saved_card_ids = set((await profile_db.execute(
+            select(LabInterpretation.observation_id).where(
+                LabInterpretation.observation_id.in_([o.id for o in observations])
+            )
+        )).scalars().all())
+
+        from api.observations import (  # lazy: api imports modules
+            observation_range_status,
+            status_is_abnormal,
+        )
 
         for obs in observations:
             observation_ids.append(obs.id)
@@ -389,17 +491,50 @@ class InterpretModule:
                 profile_db=profile_db,
                 master_db=master_db,
             )
+            if interp_result.replaced is True:
+                replaced_member_ids.append(obs.id)
+            if interp_result.withheld is True and (
+                stale_panel is not None or obs.id in saved_card_ids
+            ):
+                # A read that replaces a saved panel, or a member that already had a card,
+                # never drops a withheld member: the saved panel (and the member's old card)
+                # stay as they are. Keep going so every other stale member is still rebuilt
+                # and every withheld one is named. A first-generation member with no saved
+                # card is still dropped (report only, HC-VRC-027).
+                withheld_members.append((obs.id, interp_result))
+                continue
             if interp_result.interpretation:
+                # VALUE-RANGE-COMPARE: the same status the sentence uses; "disagrees" and
+                # "keep" fall back to the stored is_abnormal.
+                is_abnormal = status_is_abnormal(
+                    observation_range_status(
+                        obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                        bool((obs.ref_range_text or "").strip()),
+                    ),
+                    obs.is_abnormal,
+                )
                 summary = {
                     "analyte": obs.analyte_canonical,
                     "value": obs.value,
                     "unit": obs.unit,
                     "severity": interp_result.interpretation.severity_level,
-                    "is_abnormal": obs.is_abnormal,
+                    "is_abnormal": is_abnormal,
                 }
                 observation_summaries.append(summary)
-                if obs.is_abnormal:
+                if is_abnormal:
                     abnormal_count += 1
+
+        if withheld_members:
+            logger.warning(
+                "Panel %s: %d member(s) withheld on a rebuild; the saved panel is kept",
+                panel_name, len(withheld_members),
+            )
+            return PanelInterpretationResult(
+                success=False,
+                error_message=ESCALATE_TEMPLATE,
+                withheld_members=withheld_members,
+                replaced_member_ids=replaced_member_ids,
+            )
 
         # Generate panel summary
         summary_text = self._generate_panel_summary(
@@ -461,6 +596,12 @@ class InterpretModule:
             requires_physician_review=overall_status == "concerning",
         )
 
+        if stale_panel is not None:
+            # panel_interpretations has no unique constraint, so a rebuild must remove the
+            # old row or the next cached lookup finds two (MultipleResultsFound).
+            await profile_db.delete(stale_panel)
+            await profile_db.flush()
+
         profile_db.add(panel_interpretation)
         await profile_db.commit()
 
@@ -472,7 +613,177 @@ class InterpretModule:
         return PanelInterpretationResult(
             success=True,
             interpretation=panel_interpretation,
+            replaced_member_ids=replaced_member_ids,
         )
+
+    async def _saved_card_is_stale(
+        self,
+        card: LabInterpretation,
+        observation: Observation,
+        master_db: AsyncSession,
+    ) -> bool:
+        """VALUE-RANGE-COMPARE: does a saved template card say the opposite of the range check?
+
+        A card stores no status, so the saved sentence is read. Only a card this module's
+        template wrote is judged (model-written cards are left alone). Only the helper's
+        "above", "below", "within" and "disagrees" can make a card stale; "keep" and
+        "normal_uncompared" never do, and neither does "outside" on an out-of-range value
+        (it is not false) or a card with no readable claim. Reads only: no write, no model.
+
+        KEPT-FLAG-DISAGREES (L0 ruling R3): "disagrees" now has wording. A template card for it
+        is stale when it does not already hold SENTENCE_FLAG_RANGE_DISAGREE and does state one
+        of today's status claims (the four literals, or a KB text with its marker). A card with
+        no readable claim stays as it is, like every other status.
+        """
+        if card.model_tier != self.MODEL_TIER_TEMPLATE or card.model_id != self.MODEL_ID_TEMPLATE:
+            return False
+        # KB-UNIT-BADGE (D3): the unit fix changes a result only when the observation's unit is
+        # missing or is not the KB's unit. A card counts as critical when its badge says so or it
+        # carries the physician-review flag (template cards get that flag only from the critical
+        # check). It is rebuilt when the unit is missing, or the value converts, and a critical
+        # label is involved and the new result differs. A present unit that cannot be converted
+        # never downgrades a saved critical. A same-unit difference is a KB revision: not stale.
+        kb_row = await self._knowledge_loader.get_biomarker_knowledge(
+            analyte_canonical=observation.analyte_canonical,
+            db=master_db,
+        )
+        reported_unit = normalize_unit(observation.unit or "")
+        if kb_row is not None and (
+            not reported_unit or reported_unit != normalize_unit(kb_row.standard_unit or "")
+        ):
+            in_kb_unit = (
+                None if observation.value is None
+                else value_in_kb_unit(kb_row, observation.value, observation.unit)
+            )
+            if not reported_unit or in_kb_unit is not None:
+                new_severity = self._classify_severity(
+                    value=observation.value,
+                    ref_low=observation.ref_low,
+                    ref_high=observation.ref_high,
+                    biomarker_info=kb_row,
+                    unit=observation.unit,
+                )
+                # the banner can also come from the guard's default table (no KB limit)
+                new_critical = new_severity.startswith("critical") or (
+                    in_kb_unit is not None
+                    and self._safety_guard.check_critical_value(
+                        observation.analyte_canonical, in_kb_unit,
+                        kb_row.critical_low, kb_row.critical_high,
+                    ).requires_physician_review
+                )
+                saved_flag = bool(card.requires_physician_review)
+                saved_critical = (card.severity_level or "").startswith("critical") or saved_flag
+                if (saved_critical or new_critical) and (
+                    card.severity_level != new_severity or saved_flag != new_critical
+                ):
+                    return True
+        from api.observations import observation_range_status  # lazy: api imports modules
+
+        status = observation_range_status(
+            observation.flag, observation.value, observation.ref_low, observation.ref_high,
+            bool((observation.ref_range_text or "").strip()),
+        )
+        if status not in ("above", "below", "within", "disagrees"):
+            return False
+
+        text = card.interpretation_text or ""
+        if status == "disagrees" and SENTENCE_FLAG_RANGE_DISAGREE in text:
+            return False  # already says it: never rewritten on every read
+        # Every sentence a card of each kind can hold: the literals, and, only when the card
+        # carries a [KB:] marker, the knowledge-base entry's own texts.
+        sentences: dict[str, list[str]] = {
+            "above": [SENTENCE_ABOVE],
+            "below": [SENTENCE_BELOW],
+            "within": [SENTENCE_WITHIN],
+            "outside": [SENTENCE_OUTSIDE],
+        }
+        if "[KB:" in text:
+            kb = await self._knowledge_loader.get_biomarker_knowledge(
+                analyte_canonical=observation.analyte_canonical,
+                db=master_db,
+            )
+            if kb is not None:
+                for place, kb_text in (
+                    ("above", kb.high_interpretation),
+                    ("below", kb.low_interpretation),
+                    ("within", kb.normal_interpretation),
+                ):
+                    if (kb_text or "").strip():  # an empty text would match every KB card
+                        # the words and the marker, not the id: each install seeds its own KB
+                        # row ids, so a restored vault holds cards naming another row's id
+                        sentences[place].append(f"{kb_text} [KB:")
+
+        def says(place: str) -> bool:
+            return any(sentence in text for sentence in sentences[place])
+
+        if status == "disagrees":
+            return any(says(place) for place in sentences)
+        # The correct claim is checked first, so another sentence inside a knowledge-base
+        # text can never make a card that already says the right thing rewrite on every read.
+        if says(status):
+            return False
+        # "outside" is false only for a value inside the range, never for above or below.
+        wrong = {
+            "above": ("within", "below"),
+            "below": ("within", "above"),
+            "within": ("outside", "above", "below"),
+        }[status]
+        return any(says(place) for place in wrong)
+
+    async def _saved_panel_is_stale(
+        self,
+        panel: PanelInterpretation,
+        observations: list[Observation],
+        profile_db: AsyncSession,
+    ) -> bool:
+        """VALUE-RANGE-COMPARE: does a saved template panel list the wrong values as abnormal?
+
+        For each member that has a saved card (a member with no saved card is skipped),
+        with helper status above, below or within, compare status_is_abnormal against
+        whether the saved summary has an attention line `- ANALYTE: value `. Any mismatch is
+        stale. "disagrees", "keep" and "normal_uncompared" do not count. Model_id other than
+        the template's is left alone.
+        """
+        if panel.model_id != self.MODEL_ID_TEMPLATE:
+            return False
+        try:
+            saved_ids = json.loads(panel.observation_ids_json or "[]")
+        except (TypeError, ValueError):
+            return False
+        if not isinstance(saved_ids, list):
+            return False
+        members = [o for o in observations if o.id in set(saved_ids)]
+        if not members:
+            return False
+        from api.observations import (  # lazy: api imports modules
+            observation_range_status,
+            status_is_abnormal,
+        )
+
+        have_card = set((await profile_db.execute(
+            select(LabInterpretation.observation_id).where(
+                LabInterpretation.observation_id.in_([o.id for o in members])
+            )
+        )).scalars().all())
+        lines = (panel.summary_text or "").splitlines()
+        wanted: dict[str, set[bool]] = {}
+        for obs in members:
+            if obs.id not in have_card:
+                continue
+            status = observation_range_status(
+                obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                bool((obs.ref_range_text or "").strip()),
+            )
+            if status not in ("above", "below", "within"):
+                continue
+            prefix = f"- {obs.analyte_canonical.upper()}: {obs.value} "
+            wanted.setdefault(prefix, set()).add(status_is_abnormal(status, obs.is_abnormal))
+        for prefix, wants in wanted.items():
+            # two members with one prefix and different answers cannot be told apart by the
+            # saved text; leave them, so such a panel is never rewritten on every read
+            if len(wants) == 1 and (next(iter(wants)) != any(line.startswith(prefix) for line in lines)):
+                return True
+        return False
 
     async def _assemble_context(
         self,
@@ -610,23 +921,42 @@ class InterpretModule:
             parts.append(
                 f"The reference range is {obs.ref_low}-{obs.ref_high} {unit_str}."
             )
-        elif obs.ref_range_text:
+        elif (obs.ref_range_text or "").strip():
             parts.append(f"Reference range: {obs.ref_range_text}.")
 
-        # Status interpretation
-        if obs.is_abnormal:
-            if obs.flag in ["H", "HH", "HIGH"]:
+        # Status interpretation. VALUE-RANGE-COMPARE: the value is read against its
+        # numeric range. "keep" takes today's branch by the stored is_abnormal and the
+        # flag exactly as printed. KEPT-FLAG-DISAGREES: "disagrees" says so, in one
+        # sentence, and writes no knowledge-base text.
+        from api.observations import observation_range_status  # lazy: api imports modules
+
+        status = observation_range_status(
+            obs.flag, obs.value, obs.ref_low, obs.ref_high,
+            bool((obs.ref_range_text or "").strip()),
+        )
+        is_abnormal, flag = obs.is_abnormal, obs.flag
+        if status == "above":
+            is_abnormal, flag = True, "H"
+        elif status == "below":
+            is_abnormal, flag = True, "L"
+        elif status in ("within", "normal_uncompared"):
+            is_abnormal = False
+
+        if status == "disagrees":
+            parts.append(SENTENCE_FLAG_RANGE_DISAGREE)
+        elif is_abnormal:
+            if flag in ["H", "HH", "HIGH"]:
                 if kb:
                     parts.append(kb.high_interpretation + f" [KB:{kb.id}]")
                 else:
-                    parts.append("This value is above the reference range.")
-            elif obs.flag in ["L", "LL", "LOW"]:
+                    parts.append(SENTENCE_ABOVE)
+            elif flag in ["L", "LL", "LOW"]:
                 if kb:
                     parts.append(kb.low_interpretation + f" [KB:{kb.id}]")
                 else:
-                    parts.append("This value is below the reference range.")
+                    parts.append(SENTENCE_BELOW)
             else:
-                parts.append("This value is outside the normal reference range.")
+                parts.append(SENTENCE_OUTSIDE)
         else:
             if (
                 obs.ref_low is None
@@ -640,7 +970,7 @@ class InterpretModule:
             elif kb:
                 parts.append(kb.normal_interpretation + f" [KB:{kb.id}]")
             else:
-                parts.append("This value is within the normal reference range.")
+                parts.append(SENTENCE_WITHIN)
 
         # Trend information
         if context.historical_values and context.comparison_current_value is not None:
@@ -677,23 +1007,85 @@ class InterpretModule:
 
         return interpretation_text, advice_text
 
+    def _apply_critical_check(
+        self,
+        observation: Observation,
+        info: Optional[BiomarkerInfo],
+        safety_result: Any,
+    ) -> None:
+        """Set the physician-review flag and reason from the critical-value check.
+
+        With a KB row the value is checked in the KB's unit (same rule as the badge); a missing
+        or unconvertible unit makes no check. The sentence then shows the patient's number and
+        unit first and the converted number beside it. Without a KB row nothing changes: the
+        guard compares the raw value with its default table.
+        """
+        if observation.value is None:
+            return
+        if info is None:
+            result = self._safety_guard.check_critical_value(
+                analyte_canonical=observation.analyte_canonical,
+                value=observation.value,
+                critical_low=None,
+                critical_high=None,
+            )
+            if result.requires_physician_review:
+                safety_result.requires_physician_review = True
+                safety_result.physician_review_reason = result.physician_review_reason
+            return
+        in_kb_unit = value_in_kb_unit(info, observation.value, observation.unit)
+        if in_kb_unit is None:
+            return
+        result = self._safety_guard.check_critical_value(
+            analyte_canonical=observation.analyte_canonical,
+            value=in_kb_unit,
+            critical_low=info.critical_low,
+            critical_high=info.critical_high,
+        )
+        if not result.requires_physician_review:
+            return
+        defaults = self._safety_guard.DEFAULT_CRITICAL_THRESHOLDS.get(
+            observation.analyte_canonical.lower(), {}
+        )
+        low = "critical_low_value" in result.warnings
+        limit = info.critical_low if low else info.critical_high
+        if limit is None:
+            limit = defaults.get("critical_low" if low else "critical_high")
+        kb_unit = _sentence_unit(info.standard_unit)
+        patient_unit = (observation.unit or "").strip()
+        shown = f"{_fmt_number(observation.value)} {patient_unit}"
+        # A factor of exactly 1 is a relabel: no parenthesis, and the limit in the patient's unit.
+        relabel = value_in_kb_unit(info, 1.0, observation.unit) == 1.0
+        if not relabel:
+            shown += f" ({_fmt_converted(in_kb_unit, limit)} {kb_unit})"
+        safety_result.requires_physician_review = True
+        safety_result.physician_review_reason = (
+            f"Critical {'low' if low else 'high'} value: {shown} is "
+            f"{'below' if low else 'above'} the critical threshold of "
+            f"{_fmt_number(limit)} {patient_unit if relabel else kb_unit}."
+        )
+
     def _classify_severity(
         self,
         value: Optional[float],
         ref_low: Optional[float],
         ref_high: Optional[float],
         biomarker_info: Optional[BiomarkerInfo],
+        unit: Optional[str] = None,
     ) -> str:
         """Classify the severity level of a result."""
         if value is None:
             return "normal"
 
-        # Check critical values first
+        # Check critical values first. KB-UNIT-BADGE: the limits are in the KB's unit, so the
+        # value is compared in that unit; a missing or unconvertible unit is never critical.
         if biomarker_info:
-            if biomarker_info.critical_low and value < biomarker_info.critical_low:
-                return "critical_low"
-            if biomarker_info.critical_high and value > biomarker_info.critical_high:
-                return "critical_high"
+            in_kb_unit = value_in_kb_unit(biomarker_info, value, unit)
+            if in_kb_unit is not None:
+                if biomarker_info.critical_low and in_kb_unit < biomarker_info.critical_low:
+                    return "critical_low"
+                if biomarker_info.critical_high and in_kb_unit > biomarker_info.critical_high:
+                    return "critical_high"
 
         # Check against reference range
         if ref_low is not None and value < ref_low:
@@ -836,13 +1228,23 @@ class InterpretModule:
             for rec in context.recommendations.recommendations[:3]:
                 knowledge_text += f"- [{rec.id}] {rec.title}: {rec.text}\n"
 
+        # VALUE-RANGE-COMPARE: an unflagged result outside its range goes to the model as
+        # H or L, not "normal". A printed flag stays exactly as printed.
+        flag = obs.flag
+        if flag is None:
+            from api.observations import observation_range_status  # lazy: api imports modules
+
+            flag = {"above": "H", "below": "L"}.get(
+                observation_range_status(None, obs.value, obs.ref_low, obs.ref_high)
+            )
+
         return LLM_INTERPRETATION_PROMPT.format(
             analyte=kb.display_name if kb else obs.analyte_canonical.upper(),
             value=obs.value if obs.value is not None else obs.value_text or "N/A",
             unit=obs.unit or "",
             ref_low=obs.ref_low or "N/A",
             ref_high=obs.ref_high or "N/A",
-            flag=obs.flag or "normal",
+            flag=flag or "normal",
             knowledge_text=knowledge_text,
         )
 
@@ -979,6 +1381,7 @@ class InterpretModule:
             ref_low=observation.ref_low,
             ref_high=observation.ref_high,
             biomarker_info=context.biomarker_info,
+            unit=observation.unit,
         )
 
         # Generate citations
@@ -999,16 +1402,8 @@ class InterpretModule:
 
         # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
         # before the withhold so a withheld card still carries the flag.
-        if observation.value is not None:
-            critical_result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
-                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
-                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
-            )
-            if critical_result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = critical_result.physician_review_reason
+        # KB-UNIT-BADGE (D2): the banner follows the badge's unit rule.
+        self._apply_critical_check(observation, context.biomarker_info, safety_result)
 
         # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
         # Nothing is saved, deleted or committed before this return. The log
@@ -1251,3 +1646,103 @@ def get_interpret_module() -> InterpretModule:
     if _interpret_module is None:
         _interpret_module = InterpretModule()
     return _interpret_module
+
+
+async def saved_card_needs_rebuild(
+    observation: Observation,
+    profile_db: AsyncSession,
+    master_db: AsyncSession,
+) -> bool:
+    """VALUE-RANGE-COMPARE: would a read of this observation's saved card rebuild it?
+
+    A route asks before the read so it can write the started audit row first (the rebuild
+    deletes the saved card). Same check the module makes at its cached return. Reads only:
+    no write, no model. False when there is no saved card.
+    """
+    saved = (await profile_db.execute(
+        select(LabInterpretation).where(LabInterpretation.observation_id == observation.id)
+    )).scalar_one_or_none()
+    if saved is None:
+        return False
+    return await get_interpret_module()._saved_card_is_stale(saved, observation, master_db)
+
+
+async def _panel_members(
+    profile_db: AsyncSession,
+    panel_def: dict,
+    profile_id: str,
+    collected_at: datetime,
+) -> list[Observation]:
+    """The observations a panel read covers: this profile's panel analytes on the whole day.
+
+    One select for `interpret_panel` and for `panel_rebuild_at_risk`, so the route's check
+    cannot drift from the read it guards.
+    """
+    start_date = collected_at.replace(hour=0, minute=0, second=0)
+    end_date = collected_at.replace(hour=23, minute=59, second=59)
+    result = await profile_db.execute(
+        select(Observation).where(
+            Observation.profile_id == profile_id,
+            Observation.analyte_canonical.in_(panel_def["analytes"]),
+            Observation.collected_at >= start_date,
+            Observation.collected_at <= end_date,
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def _saved_panel(
+    profile_db: AsyncSession,
+    panel_name: str,
+    collected_at: datetime,
+) -> Optional[PanelInterpretation]:
+    """The saved panel row of that day, or None (shared by the read and its check)."""
+    start_date = collected_at.replace(hour=0, minute=0, second=0)
+    end_date = collected_at.replace(hour=23, minute=59, second=59)
+    existing = await profile_db.execute(
+        select(PanelInterpretation).where(
+            PanelInterpretation.panel_name == panel_name.lower(),
+            PanelInterpretation.collected_at >= start_date,
+            PanelInterpretation.collected_at <= end_date,
+        )
+    )
+    return existing.scalar_one_or_none()
+
+
+async def panel_rebuild_at_risk(
+    panel_name: str,
+    collected_at: datetime,
+    profile_id: str,
+    profile_db: AsyncSession,
+    master_db: AsyncSession,
+    force_regenerate: bool,
+) -> tuple[Optional[str], list[str]]:
+    """VALUE-RANGE-COMPARE: what would a panel read delete? (stale panel id or None, stale member ids)
+
+    A route asks before the read so it can write the started audit row first. It follows
+    `interpret_panel`'s branches: no members is nothing at risk; an unforced read with a saved
+    panel in agreement answers from it and touches no member; an unforced read otherwise
+    names the stale saved panel (if any) and every member whose saved card is stale; a forced
+    read skips the saved panel lookup (it deletes no panel row) and names stale members only.
+    Reads only: no write, no model.
+    """
+    from api.observations import PANEL_DEFINITIONS  # lazy: api imports modules
+
+    panel_def = PANEL_DEFINITIONS.get(panel_name.lower())
+    if not panel_def:
+        return None, []
+    observations = await _panel_members(profile_db, panel_def, profile_id, collected_at)
+    if not observations:
+        return None, []
+    stale_panel_id: Optional[str] = None
+    if not force_regenerate:
+        saved = await _saved_panel(profile_db, panel_name, collected_at)
+        if saved is not None:
+            if not await get_interpret_module()._saved_panel_is_stale(saved, observations, profile_db):
+                return None, []
+            stale_panel_id = saved.id
+    stale_members = [
+        obs.id for obs in observations
+        if await saved_card_needs_rebuild(obs, profile_db, master_db)
+    ]
+    return stale_panel_id, stale_members

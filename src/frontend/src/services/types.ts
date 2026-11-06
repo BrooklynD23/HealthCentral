@@ -206,6 +206,9 @@ export interface TrendPoint {
   // D4 (owner, 2026-09-27): unverified points may be charted but must be marked.
   // Optional (I-13): a missing flag is read as unverified (`=== true`).
   user_verified?: boolean;
+  // KEPT-FLAG-DISAGREES: this point's printed flag disagrees with its own report's printed range.
+  // Optional like user_verified: a missing field is read as false (`=== true`).
+  flag_range_disagree?: boolean;
 }
 
 export interface TrendData {
