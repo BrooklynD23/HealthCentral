@@ -1533,3 +1533,78 @@ async def test_hc_kcn_012_banner_follows_the_badge_unit_rule(master, profile_db,
         assert expected.endswith(" is above critical threshold of 400.0")
     else:
         assert card.physician_review_reason is None
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_wrong_severity_card_is_rebuilt_on_read(master, profile_db):
+    _, card = await _interpret_stored(master, profile_db, "glucose", 7.0, 3.9, 5.6, "mmol/L", "H")
+    assert card.severity_level == "abnormal_high"
+    card.severity_level = "critical_low"  # what the unit-blind rule saved for this value
+    await profile_db.commit()
+    saved_id = card.id
+
+    module, _ = _module()
+    result = await module.interpret_observation(card.observation_id, profile_db, master)
+    assert result.success
+    assert result.interpretation.id != saved_id
+    assert result.interpretation.severity_level == "abnormal_high"
+    assert result.interpretation.previous_interpretation_id == saved_id
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_card_with_matching_severity_is_not_rebuilt(master, profile_db):
+    _, card = await _interpret_stored(master, profile_db, "glucose", 25.0, 3.9, 5.6, "mmol/L", "H")
+    assert card.severity_level == "critical_high"
+    module, _ = _module()
+    with patch.object(module, "_generate_interpretation", wraps=module._generate_interpretation) as gen:
+        result = await module.interpret_observation(card.observation_id, profile_db, master)
+    assert result.interpretation.id == card.id
+    gen.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_missed_critical_is_rebuilt_on_read(master, profile_db):
+    """A template card saved as abnormal_* for a value the unit rule calls critical."""
+    _, card = await _interpret_stored(master, profile_db, "glucose", 25.0, 3.9, 5.6, "mmol/L", "H")
+    assert card.severity_level == "critical_high"
+    card.severity_level = "abnormal_high"
+    await profile_db.commit()
+    saved_id = card.id
+    result = await _module()[0].interpret_observation(card.observation_id, profile_db, master)
+    assert result.interpretation.id != saved_id
+    assert result.interpretation.severity_level == "critical_high"
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_non_critical_mismatch_is_not_rebuilt(master, profile_db):
+    _, card = await _interpret_stored(master, profile_db, "glucose", 7.0, 3.9, 5.6, "mmol/L", "H")
+    assert card.severity_level == "abnormal_high"
+    card.severity_level = "normal"
+    await profile_db.commit()
+    result = await _module()[0].interpret_observation(card.observation_id, profile_db, master)
+    assert result.interpretation.id == card.id
+    assert result.interpretation.severity_level == "normal"
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_same_unit_critical_mismatch_is_not_rebuilt(master, profile_db):
+    """(c): a same-unit result's new rule equals the old one, so a difference is a KB revision."""
+    _, card = await _interpret_stored(master, profile_db, "glucose", 450.0, 70.0, 100.0, "mg/dL", "H")
+    assert card.severity_level == "critical_high"
+    card.severity_level = "normal"
+    await profile_db.commit()
+    result = await _module()[0].interpret_observation(card.observation_id, profile_db, master)
+    assert result.interpretation.id == card.id
+    assert result.interpretation.severity_level == "normal"
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_missing_unit_card_saved_critical_is_rebuilt(master, profile_db):
+    _, card = await _interpret_stored(master, profile_db, "glucose", 450.0, 70.0, 100.0, None, "H")
+    assert card.severity_level == "abnormal_high"
+    card.severity_level = "critical_high"  # what the unit-blind rule saved
+    await profile_db.commit()
+    saved_id = card.id
+    result = await _module()[0].interpret_observation(card.observation_id, profile_db, master)
+    assert result.interpretation.id != saved_id
+    assert result.interpretation.severity_level == "abnormal_high"
+    assert not result.interpretation.requires_physician_review

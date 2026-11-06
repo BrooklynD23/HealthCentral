@@ -583,6 +583,28 @@ class InterpretModule:
         """
         if card.model_tier != self.MODEL_TIER_TEMPLATE or card.model_id != self.MODEL_ID_TEMPLATE:
             return False
+        # KB-UNIT-BADGE (D3): the unit fix changes a result only when the observation's unit is
+        # missing or is not the KB's unit. Then a card is rebuilt when it, or the new rule, says
+        # critical and the two differ. A same-unit difference is a KB revision, which is not stale.
+        kb_row = await self._knowledge_loader.get_biomarker_knowledge(
+            analyte_canonical=observation.analyte_canonical,
+            db=master_db,
+        )
+        reported_unit = normalize_unit(observation.unit or "")
+        if kb_row is not None and (
+            not reported_unit or reported_unit != normalize_unit(kb_row.standard_unit or "")
+        ):
+            new_severity = self._classify_severity(
+                value=observation.value,
+                ref_low=observation.ref_low,
+                ref_high=observation.ref_high,
+                biomarker_info=kb_row,
+                unit=observation.unit,
+            )
+            if card.severity_level != new_severity and "critical" in (
+                f"{card.severity_level} {new_severity}"
+            ):
+                return True
         from api.observations import observation_range_status  # lazy: api imports modules
 
         status = observation_range_status(
