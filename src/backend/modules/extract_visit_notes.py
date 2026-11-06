@@ -498,7 +498,7 @@ async def llm_assist_visit_entities(
         from core.model_runner import InferenceConfig
         result = await runner.generate_async(
             _LLM_ASSIST_PROMPT.format(document=text[:6000]),
-            InferenceConfig(max_tokens=512, temperature=0.0),
+            InferenceConfig(max_tokens=512, temperature=0.0, think=False),
         )
     except Exception as exc:
         logger.warning("llm_assist_visit_entities: inference failed: %s", type(exc).__name__)

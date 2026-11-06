@@ -22,6 +22,10 @@ import { ProtectedRoute } from './components/auth';
 // are not also statically imported into the main chunk.
 import { ProfileSetup } from './pages/ProfileSetup';
 
+const OverviewPage = lazy(async () => {
+  const module = await import('./pages/OverviewPage');
+  return { default: module.OverviewPage };
+});
 const DocumentInbox = lazy(async () => {
   const module = await import('./pages/DocumentInbox');
   return { default: module.DocumentInbox };
@@ -135,6 +139,25 @@ function InboxFallback() {
   );
 }
 
+// The Overview page's own loading shape (a header and three cards), so the swap to the loaded page does not move
+// the layout (G2).
+function OverviewFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
 function VerifyFallback() {
   return (
     <div className="space-y-6" role="status" aria-live="polite">
@@ -220,7 +243,8 @@ function App() {
           {/* Protected routes - require authentication */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<AppLayout />}>
-              <Route index element={<Navigate to="/inbox" replace />} />
+              <Route index element={<Navigate to="/overview" replace />} />
+              <Route path="overview" element={lazyRoute(<OverviewPage />, <OverviewFallback />)} />
               <Route path="inbox" element={lazyRoute(<DocumentInbox />, <InboxFallback />)} />
               <Route path="verify" element={lazyRoute(<VerificationWorkbench />, <VerifyFallback />)} />
               <Route path="results" element={lazyRoute(<ResultsPage />)} />

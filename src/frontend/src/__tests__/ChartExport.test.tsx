@@ -48,22 +48,6 @@ vi.mock('@/stores/authStore', () => ({
   ),
 }));
 
-// Mock recharts to avoid layout-dependent rendering in jsdom
-vi.mock('recharts', async () => {
-  const actual = await vi.importActual('recharts');
-  return {
-    ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="responsive-container">
-        <svg data-testid="chart-export-svg" viewBox="0 0 200 100">
-          <rect width="200" height="100" fill="#ffffff" />
-        </svg>
-        {children}
-      </div>
-    ),
-  };
-});
-
 // Mock reduced motion
 vi.mock('@/hooks/useReducedMotion', () => ({
   useReducedMotion: () => true,

@@ -335,6 +335,8 @@ test.describe('HC-UISH-003 route fade and HC-UISH-009 rail stillness', () => {
 
 // UI-SHELL review round 2 MINOR 1: row 2 of the phone top bar must stay still during a route change, as the
 // desktop toggle does (L0 ruling 10:24:24Z). Below lg the note is display: none, so the visible label is probed.
+// UI-OVERVIEW: the trigger is the Results tab. /results is a lazy route (App.tsx:41) and stays in the final tab bar;
+// the Documents tab links to /inbox, the page this test starts on, so clicking it would not be a route change.
 test.describe('HC-UISH-009 phone toggle label stays still', () => {
   test.describe.configure({ retries: 0 });
   test.use({ viewport: PHONE });
@@ -349,7 +351,7 @@ test.describe('HC-UISH-009 phone toggle label stays still', () => {
     await page.evaluate(() => document.fonts.ready);
     const report = await stillnessProbe(page, {
       trigger: () =>
-        page.getByRole('navigation', { name: 'Tab bar' }).getByRole('link', { name: 'Review values', exact: true }).click(),
+        page.getByRole('navigation', { name: 'Tab bar' }).getByRole('link', { name: 'Results', exact: true }).click(),
       expected: [RAIL, TOGGLE_LABEL],
       kind: 'navigation',
       lazyRoute: true,
@@ -377,9 +379,8 @@ test.describe('HC-UISH-004 phone shell', () => {
       const tabs = tabBar.locator('a, button');
       await expect(tabs).toHaveCount(5);
       const names = await tabs.evaluateAll((els) => els.map((el) => el.textContent?.trim() ?? ''));
-      expect(names.map((name) => name.replace(/\s+/g, ' '))).toEqual(
-        expect.arrayContaining(['Documents', 'Review values', 'Results', 'Ask', 'More'])
-      );
+      // UI-OVERVIEW (plan §3.2): the final bar, in order. Exact, so a stray or missing tab fails.
+      expect(names.map((name) => name.replace(/\s+/g, ' '))).toEqual(['Overview', 'Results', 'Documents', 'Ask', 'More']);
       for (let index = 0; index < 5; index += 1) {
         const box = await tabs.nth(index).boundingBox();
         expect(box?.height ?? 0, `tab ${index} height`).toBeGreaterThanOrEqual(56);

@@ -1134,13 +1134,18 @@ def test_hc_fks_002_no_snapshot_for_a_new_vault_or_a_vault_at_head(tmp_path, mon
     assert list(new.parent.glob("vault.pre017*")) == []
 
 
+# A made-up revision one step above the real head, derived from it so a new
+# profile migration does not need these helpers edited.
+LATER_REVISION = f"{int(PROFILE_HEAD.split('_', 1)[0]) + 1:03d}_next"
+
+
 def _config_with_a_later_revision(tmp_path: Path, upgrade_body: str = "pass"):
-    """A profile script directory with a made-up 018 on top of 017."""
+    """A profile script directory with a made-up revision (LATER_REVISION) on top of the head."""
     src = Path(migrations.__file__).parent.parent / "migrations" / "profile"
-    dst = tmp_path / "scripts018"
+    dst = tmp_path / "scripts_later"
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
-    (dst / "versions" / "018_next.py").write_text(
-        'revision = "018_next"\ndown_revision = "017_fk_cascade_alignment"\n'
+    (dst / "versions" / f"{LATER_REVISION}.py").write_text(
+        f'revision = "{LATER_REVISION}"\ndown_revision = "{PROFILE_HEAD}"\n'
         "branch_labels = None\ndepends_on = None\n"
         f"def upgrade():\n    {upgrade_body}\ndef downgrade():\n    pass\n"
     )
@@ -1161,7 +1166,7 @@ def test_hc_fks_002b_pending_helper_is_about_017_not_about_head(tmp_path):
 
     # once an 018 exists, a vault at 018 or at 017 must still not be "pending"
     later = _config_with_a_later_revision(tmp_path)
-    assert pending(later, "018_next") is False
+    assert pending(later, LATER_REVISION) is False
     assert pending(later, "017_fk_cascade_alignment") is False
     assert pending(later, REV_016) is True
     # unknown revision: fail closed, which here means take the snapshot
@@ -1730,8 +1735,8 @@ def _refused_no_match(tmp_path, monkeypatch, request):
 def _failed_with_018_pending(tmp_path, monkeypatch, request):
     monkeypatch.setattr(settings, "database_encryption_required", False)
     path = tmp_path / "vault.db"
-    command.upgrade(_alembic_cfg(path), "head")  # confirmed at 017
-    later = _config_with_a_later_revision(tmp_path, upgrade_body="raise RuntimeError('018 fails')")
+    command.upgrade(_alembic_cfg(path), "head")  # confirmed at the head
+    later = _config_with_a_later_revision(tmp_path, upgrade_body="raise RuntimeError('later revision fails')")
     monkeypatch.setattr(migrations, "_get_alembic_config", lambda section="master": later)
     return path, Exception, [SNAP_NAME]
 
@@ -1747,7 +1752,7 @@ def _refused_aside_occupied(tmp_path, monkeypatch, request):
 
 _REFUSED_CASES = {
     "unversioned-no-match": _refused_no_match,
-    "failed-018-after-017": _failed_with_018_pending,
+    "failed-later-after-head": _failed_with_018_pending,
     "damaged-snapshot-aside-occupied": _refused_aside_occupied,
 }
 
@@ -1780,11 +1785,11 @@ def _purge_case_017_with_018_pending(tmp_path, monkeypatch):
     vault = _head_vault(tmp_path, monkeypatch)
     later = _config_with_a_later_revision(tmp_path)
     monkeypatch.setattr(migrations, "_get_alembic_config", lambda section="master": later)
-    return vault, "018_next"
+    return vault, LATER_REVISION
 
 
 @pytest.mark.parametrize(
-    "where", [_purge_case_at_head, _purge_case_017_with_018_pending], ids=["at-head", "017-with-018-pending"]
+    "where", [_purge_case_at_head, _purge_case_017_with_018_pending], ids=["at-head", "head-with-later-pending"]
 )
 @pytest.mark.parametrize(
     "snap_days,aside_days,snap_kept,aside_kept",
@@ -2492,16 +2497,32 @@ def _tables(path: Path, key: bytes = KEY) -> set[str]:
         conn.close()
 
 
+# Revisions that change rows, not the schema, so they fingerprint like their parent.
+# The matcher stamps the OLDEST tied revision, so the data step still runs on an
+# unversioned vault. Every other revision must have a fingerprint of its own.
+DATA_ONLY_REVISIONS = {"018_ocr_opt_in"}
+
+
 def test_hc_fkb_001_every_revision_has_its_own_fingerprint(reference_fingerprints):
     refs, seconds = reference_fingerprints
     script = ScriptDirectory.from_config(migrations._get_alembic_config("profile"))
-    revisions = [r.revision for r in script.walk_revisions()]
+    walk = list(script.walk_revisions())
+    revisions = [r.revision for r in walk]
+    parent = {r.revision: r.down_revision for r in walk}
 
     assert [rev for rev, _fp in refs] == revisions, "newest first, one per revision"
     assert len(revisions) >= 17
-    assert len({fp for _rev, fp in refs}) == len(revisions), "two revisions share a schema"
-    # 016 and 017 differ only in foreign-key actions: columns alone would tie
     by_rev = dict(refs)
+    assert DATA_ONLY_REVISIONS <= set(revisions), "a named data-only revision is not in the walk"
+    for rev in DATA_ONLY_REVISIONS:
+        assert by_rev[rev] == by_rev[parent[rev]], f"{rev} changes the schema: it is not data-only"
+        others = [r for r in revisions if r not in (rev, parent[rev])]
+        assert all(by_rev[r] != by_rev[rev] for r in others), (
+            f"{rev} ties with a revision other than its own down_revision"
+        )
+    own = [rev for rev in revisions if rev not in DATA_ONLY_REVISIONS]
+    assert len({by_rev[rev] for rev in own}) == len(own), "two revisions share a schema"
+    # 016 and 017 differ only in foreign-key actions: columns alone would tie
     assert by_rev[REV_016] != by_rev["017_fk_cascade_alignment"]
     print(f"throwaway walk over {len(revisions)} revisions: {seconds:.2f}s")
 
@@ -2575,11 +2596,17 @@ def test_hc_fkb_003_unversioned_vault_already_at_017_is_stamped_only(
         conn.commit()
     finally:
         conn.close()
+    conn = _connect(path)
+    try:
+        _insert(conn, "user_model_settings", id="S1", profile_id="profile-a", ocr_preference_enabled=1)
+        conn.commit()
+    finally:
+        conn.close()
     _unversioned(path)
 
     counts = migrations.run_profile_migration(path, KEY)
 
-    assert stamps == [PROFILE_HEAD]
+    assert stamps == ["017_fk_cascade_alignment"], "stamped at the oldest tied revision, not at head"
     assert counts == {}
     assert _rev(path) == PROFILE_HEAD
     assert list(path.parent.glob("vault.pre017*")) == [], "no snapshot: 017 is not pending"
@@ -2588,6 +2615,9 @@ def test_hc_fkb_003_unversioned_vault_already_at_017_is_stamped_only(
         assert conn.execute("SELECT count(*) FROM chunks WHERE id='OC'").fetchone()[0] == 1, (
             "stamp only: the 017 cleanup must not run"
         )
+        assert conn.execute(
+            "SELECT ocr_preference_enabled FROM user_model_settings WHERE id='S1'"
+        ).fetchone()[0] == 0, "the data-only 018 step must run after the stamp"
     finally:
         conn.close()
 
