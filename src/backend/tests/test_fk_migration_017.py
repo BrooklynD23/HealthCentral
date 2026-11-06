@@ -1134,13 +1134,18 @@ def test_hc_fks_002_no_snapshot_for_a_new_vault_or_a_vault_at_head(tmp_path, mon
     assert list(new.parent.glob("vault.pre017*")) == []
 
 
+# A made-up revision one step above the real head, derived from it so a new
+# profile migration does not need these helpers edited.
+LATER_REVISION = f"{int(PROFILE_HEAD.split('_', 1)[0]) + 1:03d}_next"
+
+
 def _config_with_a_later_revision(tmp_path: Path, upgrade_body: str = "pass"):
-    """A profile script directory with a made-up 018 on top of 017."""
+    """A profile script directory with a made-up revision (LATER_REVISION) on top of the head."""
     src = Path(migrations.__file__).parent.parent / "migrations" / "profile"
-    dst = tmp_path / "scripts018"
+    dst = tmp_path / "scripts_later"
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__"))
-    (dst / "versions" / "018_next.py").write_text(
-        'revision = "018_next"\ndown_revision = "017_fk_cascade_alignment"\n'
+    (dst / "versions" / f"{LATER_REVISION}.py").write_text(
+        f'revision = "{LATER_REVISION}"\ndown_revision = "{PROFILE_HEAD}"\n'
         "branch_labels = None\ndepends_on = None\n"
         f"def upgrade():\n    {upgrade_body}\ndef downgrade():\n    pass\n"
     )
@@ -1161,7 +1166,7 @@ def test_hc_fks_002b_pending_helper_is_about_017_not_about_head(tmp_path):
 
     # once an 018 exists, a vault at 018 or at 017 must still not be "pending"
     later = _config_with_a_later_revision(tmp_path)
-    assert pending(later, "018_next") is False
+    assert pending(later, LATER_REVISION) is False
     assert pending(later, "017_fk_cascade_alignment") is False
     assert pending(later, REV_016) is True
     # unknown revision: fail closed, which here means take the snapshot
@@ -1730,8 +1735,8 @@ def _refused_no_match(tmp_path, monkeypatch, request):
 def _failed_with_018_pending(tmp_path, monkeypatch, request):
     monkeypatch.setattr(settings, "database_encryption_required", False)
     path = tmp_path / "vault.db"
-    command.upgrade(_alembic_cfg(path), "head")  # confirmed at 017
-    later = _config_with_a_later_revision(tmp_path, upgrade_body="raise RuntimeError('018 fails')")
+    command.upgrade(_alembic_cfg(path), "head")  # confirmed at the head
+    later = _config_with_a_later_revision(tmp_path, upgrade_body="raise RuntimeError('later revision fails')")
     monkeypatch.setattr(migrations, "_get_alembic_config", lambda section="master": later)
     return path, Exception, [SNAP_NAME]
 
@@ -1747,7 +1752,7 @@ def _refused_aside_occupied(tmp_path, monkeypatch, request):
 
 _REFUSED_CASES = {
     "unversioned-no-match": _refused_no_match,
-    "failed-018-after-017": _failed_with_018_pending,
+    "failed-later-after-head": _failed_with_018_pending,
     "damaged-snapshot-aside-occupied": _refused_aside_occupied,
 }
 
@@ -1780,11 +1785,11 @@ def _purge_case_017_with_018_pending(tmp_path, monkeypatch):
     vault = _head_vault(tmp_path, monkeypatch)
     later = _config_with_a_later_revision(tmp_path)
     monkeypatch.setattr(migrations, "_get_alembic_config", lambda section="master": later)
-    return vault, "018_next"
+    return vault, LATER_REVISION
 
 
 @pytest.mark.parametrize(
-    "where", [_purge_case_at_head, _purge_case_017_with_018_pending], ids=["at-head", "017-with-018-pending"]
+    "where", [_purge_case_at_head, _purge_case_017_with_018_pending], ids=["at-head", "head-with-later-pending"]
 )
 @pytest.mark.parametrize(
     "snap_days,aside_days,snap_kept,aside_kept",
