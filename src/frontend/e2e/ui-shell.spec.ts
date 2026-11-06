@@ -377,9 +377,8 @@ test.describe('HC-UISH-004 phone shell', () => {
       const tabs = tabBar.locator('a, button');
       await expect(tabs).toHaveCount(5);
       const names = await tabs.evaluateAll((els) => els.map((el) => el.textContent?.trim() ?? ''));
-      expect(names.map((name) => name.replace(/\s+/g, ' '))).toEqual(
-        expect.arrayContaining(['Documents', 'Review values', 'Results', 'Ask', 'More'])
-      );
+      // UI-OVERVIEW (plan §3.2): the final bar, in order. Exact, so a stray or missing tab fails.
+      expect(names.map((name) => name.replace(/\s+/g, ' '))).toEqual(['Overview', 'Results', 'Documents', 'Ask', 'More']);
       for (let index = 0; index < 5; index += 1) {
         const box = await tabs.nth(index).boundingBox();
         expect(box?.height ?? 0, `tab ${index} height`).toBeGreaterThanOrEqual(56);
