@@ -109,6 +109,7 @@ export function useImportDocument() {
       importDocument(file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['observations'] });
     },
   });
 }
@@ -120,6 +121,7 @@ export function useDeleteDocument() {
     mutationFn: deleteDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['observations'] });
     },
   });
 }

@@ -362,5 +362,10 @@ export function OverviewPage() {
 
   // isPending, not isLoading: on the render where the lists are first enabled the fetch has not started yet.
   if (waiting.isPending || observations.isPending || medications.isLoading) return <OverviewSkeleton />;
+  // An import or a delete marks the cached lists out of date. While they are fetched again the loading shape stays,
+  // so the reader never sees the old count and then the new one.
+  if ((waiting.isFetching && waiting.isStale) || (observations.isFetching && observations.isStale)) {
+    return <OverviewSkeleton />;
+  }
   return <WithData waiting={waiting.data} observations={observations.data} medications={medications.data} />;
 }
