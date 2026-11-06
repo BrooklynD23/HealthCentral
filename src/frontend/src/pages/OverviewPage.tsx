@@ -51,21 +51,36 @@ const LATEST_LIMIT = 5;
 
 const HIGH_FLAGS = new Set(['H', 'HH', 'HIGH']);
 const LOW_FLAGS = new Set(['L', 'LL', 'LOW']);
+// The same words the backend reads as "normal" (api/observations.py _NORMAL_FLAGS).
+const NORMAL_FLAGS = new Set(['NORMAL', 'N', 'WNL', 'NO', 'FALSE', '0']);
 
 /**
- * Which side of the report's range a value sits on, in words. The report's own flag wins; without one the numbers
- * decide. A value is "in range" only when the report gave a range and the value is inside it: with no range, no
- * claim is made (absence of a range is not normality).
+ * Which side of the report's range a value sits on, in words. This follows the backend's observation_range_status
+ * (VALUE-RANGE-COMPARE): a chip is drawn only where the report's flag and the numbers agree. A flag this page does
+ * not know (A, ABNORMAL, CRIT, *) is not decided, and neither is a flag that disagrees with the numbers (a normal
+ * word on a value outside the range, H on a value inside it, L on a value above it): those get no range chip. With
+ * no range to compare, only an H or L flag makes a claim, and no range is never read as "in range".
  */
 function rangeStateOf(observation: Observation): StatusChipState | null {
   const flag = (observation.flag ?? '').replace(/[()\s]/g, '').toUpperCase();
-  if (HIGH_FLAGS.has(flag)) return 'above-range';
-  if (LOW_FLAGS.has(flag)) return 'below-range';
   const { value, ref_low: low, ref_high: high } = observation;
-  if (typeof value !== 'number') return null;
-  if (high !== null && value > high) return 'above-range';
-  if (low !== null && value < low) return 'below-range';
-  if (low !== null || high !== null) return 'in-range';
+  const hasRange = typeof value === 'number' && (low !== null || high !== null);
+  let place: 'above' | 'below' | 'inside' | null = null;
+  if (typeof value === 'number' && hasRange) {
+    if (low !== null && value < low) place = 'below';
+    else if (high !== null && value > high) place = 'above';
+    else place = 'inside';
+  }
+
+  if (HIGH_FLAGS.has(flag)) return place === null || place === 'above' ? 'above-range' : null;
+  if (LOW_FLAGS.has(flag)) return place === null || place === 'below' ? 'below-range' : null;
+  if (flag !== '' && !NORMAL_FLAGS.has(flag)) return null;
+  const printedNormal = flag !== '';
+  if (place === 'inside') return 'in-range';
+  // A normal word on a value outside the range disagrees with the numbers: no wording is chosen for it.
+  if (printedNormal) return null;
+  if (place === 'above') return 'above-range';
+  if (place === 'below') return 'below-range';
   return null;
 }
 
@@ -320,8 +335,14 @@ export function OverviewPage() {
   const profileId = useAuthStore((state) => state.profileId) || '';
   const documents = useDocuments({ profile_id: profileId });
   // The same filtered list the Review values page asks for, so the count here is the count there.
-  const waiting = useObservations({ profile_id: profileId, needs_verification: true });
-  const observations = useObservations({ profile_id: profileId });
+  //
+  // Before the first import there is nothing to count, and the observation lists are not requested: the answer would
+  // be [] and be cached under the keys the Review values and Results pages use, where it stays fresh for 5 minutes
+  // after the import. An empty profile id keeps the hook disabled, so nothing is fetched or cached.
+  const hasDocuments = (documents.data ?? []).length > 0;
+  const listProfileId = hasDocuments ? profileId : '';
+  const waiting = useObservations({ profile_id: listProfileId, needs_verification: true });
+  const observations = useObservations({ profile_id: listProfileId });
   const medications = useMedications();
 
   if (documents.isLoading) return <OverviewSkeleton />;
@@ -335,8 +356,9 @@ export function OverviewPage() {
       </div>
     );
   }
-  if ((documents.data ?? []).length === 0) return <FirstRun />;
+  if (!hasDocuments) return <FirstRun />;
 
-  if (waiting.isLoading || observations.isLoading || medications.isLoading) return <OverviewSkeleton />;
+  // isPending, not isLoading: on the render where the lists are first enabled the fetch has not started yet.
+  if (waiting.isPending || observations.isPending || medications.isLoading) return <OverviewSkeleton />;
   return <WithData waiting={waiting.data} observations={observations.data} medications={medications.data} />;
 }

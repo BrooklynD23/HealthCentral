@@ -185,13 +185,14 @@ async function renderOverview() {
   if (!load) throw new Error('src/pages/OverviewPage.tsx does not exist');
   const { OverviewPage } = await load();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/overview']}>
         <OverviewPage />
       </MemoryRouter>
     </QueryClientProvider>
   );
+  return Object.assign(view, { client });
 }
 
 describe('HC-UILAND-001: with no documents the checklist has three working links', () => {
@@ -336,12 +337,14 @@ describe('HC-UILAND-002 (vitest half): after the first import the page shows the
     expect(night).toHaveTextContent(/tomorrow/i);
   });
 
-  it('HC-UILAND-002: a schedule limited to other weekdays is skipped (days_of_week is 0 = Monday)', async () => {
+  it('HC-UILAND-002: a schedule limited to other weekdays is skipped (days_of_week is 0 = Monday, so Thursday is 3)', async () => {
     server.documents = [makeDoc()];
-    // 2026-11-05 is a Thursday, which is 3 in the API's numbering. 08:00 is Monday only; 20:00 is every day.
+    // 2026-11-05 is a Thursday: 3 with Monday = 0 (the API), 4 with Sunday = 0. At 07:00 the 09:00 dose is on today's
+    // list only under the API's numbering; the 20:00 dose is every day. [4] is Friday and must be skipped today.
     server.medications = [
       makeMedication([
-        makeSchedule({ id: 's-mon', target_time: '09:00', days_of_week: [0] }),
+        makeSchedule({ id: 's-thu', target_time: '09:00', days_of_week: [3] }),
+        makeSchedule({ id: 's-fri', target_time: '08:00', days_of_week: [4] }),
         makeSchedule({ id: 's-any', target_time: '20:00', days_of_week: null }),
       ]),
     ];
@@ -349,8 +352,116 @@ describe('HC-UILAND-002 (vitest half): after the first import the page shows the
     await renderOverview();
 
     const dose = await screen.findByTestId('overview-next-dose');
-    expect(within(dose).getByText('20:00')).toBeInTheDocument();
-    expect(within(dose).queryByText('09:00')).toBeNull();
+    expect(within(dose).getByText('09:00')).toBeInTheDocument();
+    expect(dose).toHaveTextContent(/today/i);
+    expect(within(dose).queryByText('08:00')).toBeNull();
+    expect(within(dose).queryByText('20:00')).toBeNull();
+  });
+});
+
+describe('HC-UILAND-002 (range words): a chip is shown only where the report\'s flag and the numbers agree', () => {
+  // The backend rule is observation_range_status (api/observations.py, VALUE-RANGE-COMPARE): an unknown flag is not
+  // decided, and a flag that disagrees with the numbers gets no wording.
+  async function chipsFor(over: Partial<Observation>) {
+    server.documents = [makeDoc()];
+    server.observations = [makeObservation({ user_verified: true, ...over })];
+    await renderOverview();
+    const row = await screen.findByTestId('overview-latest-glucose');
+    return row;
+  }
+
+  it('HC-UILAND-002: a flag the page does not know (A) on a value inside the range shows no range chip', async () => {
+    const row = await chipsFor({ value: 90, flag: 'A' });
+    expect(within(row).queryByText('In range')).toBeNull();
+    expect(within(row).queryByText(/the report's range/)).toBeNull();
+    expect(within(row).getByText('Checked by you')).toBeInTheDocument();
+  });
+
+  it('HC-UILAND-002: ABNORMAL, CRIT and * on a value inside the range show no "In range" chip', async () => {
+    for (const flag of ['ABNORMAL', 'CRIT', '*']) {
+      cleanup();
+      const row = await chipsFor({ value: 90, flag });
+      expect(within(row).queryByText('In range')).toBeNull();
+    }
+  });
+
+  it('HC-UILAND-002: no flag, or a normal word (N, NORMAL), on a value inside the range reads "In range"', async () => {
+    for (const flag of [null, 'N', 'NORMAL']) {
+      cleanup();
+      const row = await chipsFor({ value: 90, flag });
+      expect(within(row).getByText('In range')).toBeInTheDocument();
+    }
+  });
+
+  it('HC-UILAND-002: a normal word on a value outside the range, or H on a value inside it, shows no range chip', async () => {
+    for (const over of [
+      { value: 150, flag: 'N' },
+      { value: 90, flag: 'H' },
+      { value: 90, flag: 'L' },
+      { value: 50, flag: 'H' },
+    ]) {
+      cleanup();
+      const row = await chipsFor(over);
+      expect(within(row).queryByText('In range')).toBeNull();
+      expect(within(row).queryByText(/the report's range/)).toBeNull();
+    }
+  });
+
+  it('HC-UILAND-002: H or L agreeing with the numbers, or with no range to compare, reads above / below the range', async () => {
+    cleanup();
+    expect(within(await chipsFor({ value: 150, flag: 'H' })).getByText("Above the report's range")).toBeInTheDocument();
+    cleanup();
+    expect(within(await chipsFor({ value: 50, flag: 'L' })).getByText("Below the report's range")).toBeInTheDocument();
+    cleanup();
+    expect(
+      within(await chipsFor({ value: 150, flag: 'H', ref_low: null, ref_high: null })).getByText(
+        "Above the report's range"
+      )
+    ).toBeInTheDocument();
+  });
+});
+
+describe('HC-UILAND-002 (first run -> import): the first-run Overview leaves no empty observation lists in the cache', () => {
+  it('HC-UILAND-002: with no documents no observation list is requested or cached; after the import the count is the API\'s and nothing else is ever shown', async () => {
+    const { client } = await renderOverview();
+    await screen.findByRole('list', { name: /first steps/i });
+
+    // The Review values and Results pages ask for these same keys. An [] cached here would stay fresh for 5 minutes.
+    expect(server.calls.filter((c) => c.path === '/observations/')).toEqual([]);
+    // (A disabled query may sit in the cache with no data; what must not be there is an answer.)
+    expect(
+      client
+        .getQueryCache()
+        .findAll({ queryKey: ['observations'] })
+        .filter((query) => query.state.data !== undefined)
+    ).toEqual([]);
+
+    // The count node is watched from now on: every text it ever holds is recorded.
+    const seen: string[] = [];
+    const record = () => {
+      const node = document.querySelector('[data-testid="overview-waiting-count"]');
+      if (node && node.textContent !== null && seen[seen.length - 1] !== node.textContent) seen.push(node.textContent);
+    };
+    const watcher = new MutationObserver(record);
+    watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    // The import: the API now has a document and four rows, three waiting. useImportDocument invalidates 'documents'.
+    server.documents = [makeDoc()];
+    server.observations = [
+      makeObservation({ id: 'o1' }),
+      makeObservation({ id: 'o2', analyte_canonical: 'ldl', analyte_raw: 'LDL', value: 142 }),
+      makeObservation({ id: 'o3', analyte_canonical: 'hba1c', analyte_raw: 'HbA1c', value: 6.1 }),
+      makeObservation({ id: 'o4', analyte_canonical: 'tsh', analyte_raw: 'TSH', value: 2, user_verified: true }),
+    ];
+    await client.invalidateQueries({ queryKey: ['documents'] });
+
+    const count = await screen.findByTestId('overview-waiting-count');
+    record();
+    watcher.disconnect();
+    expect(count).toHaveTextContent(/^3$/);
+    expect(seen).toEqual(['3']);
+    expect(screen.queryByText('No values have been read yet.')).toBeNull();
+    expect(screen.getByTestId('overview-latest-glucose')).toBeInTheDocument();
   });
 });
 
