@@ -138,9 +138,10 @@ def _range_sentences(row: dict, unit: str) -> str:
     """ADVICE-CLASSIFIER-FIX: the printed range and the sentence ``observation_range_status``
     picks for this row, from the wording the interpretation card already uses. No new wording.
 
-    above/below/within/disagrees read their sentence; no numeric bound and no range text at all
-    reads the no-range sentence; any other case ("keep": a range that exists only as text, an
-    unrecognised flag) writes no status sentence rather than guess.
+    above/below/within/disagrees read their sentence; no numeric bound, no range text and no
+    printed flag (or a printed normal word) reads the no-range sentence; any other case ("keep":
+    a range that exists only as text, a flag the helper does not read) writes no status sentence
+    rather than guess.
     """
     # Lazy, as InterpretModule does it: api imports modules.
     from api.observations import observation_range_status
@@ -163,8 +164,13 @@ def _range_sentences(row: dict, unit: str) -> str:
         "within": SENTENCE_WITHIN,
         "disagrees": SENTENCE_FLAG_RANGE_DISAGREE,
     }.get(status)
+    flag_word = str(row.get("flag") or "").strip()
     if picked is None and low is None and high is None and not has_text:
-        picked = NO_RANGE_SENTENCE  # "normal_uncompared", or "keep" with nothing to compare
+        # "normal_uncompared" (a printed normal word, nothing to compare), or "keep" with no flag
+        # at all. A "keep" under a printed flag the helper does not read (A, ABN, CRIT, H*) writes
+        # nothing: "can't be compared" would hide a flag the report printed.
+        if status == "normal_uncompared" or not flag_word:
+            picked = NO_RANGE_SENTENCE
     if picked:
         parts.append(picked)
     return " ".join(parts)
