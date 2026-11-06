@@ -1519,7 +1519,7 @@ async def test_hc_kcn_011_interpret_with_model_passes_the_unit(master, profile_d
 BANNER_SENTENCES = {
     "same-unit": "Critical high value: 450 mg/dL is above the critical threshold of 400 mg/dL.",
     "converted-critical": (
-        "Critical high value: 25.0 mmol/L (450 mg/dL) is above the critical threshold of 400 mg/dL."
+        "Critical high value: 25 mmol/L (450 mg/dL) is above the critical threshold of 400 mg/dL."
     ),
 }
 
@@ -1630,23 +1630,27 @@ SENTENCES = {
     ),
     "glucose-2-mmol": (
         "glucose", 2.0, "mmol/L", 3.9, 5.6, "L",
-        "Critical low value: 2.0 mmol/L (36.0 mg/dL) is below the critical threshold of 50 mg/dL.",
+        "Critical low value: 2 mmol/L (36.0 mg/dL) is below the critical threshold of 50 mg/dL.",
     ),
     "glucose-25-mmol": (
         "glucose", 25.0, "mmol/L", 3.9, 5.6, "H",
-        "Critical high value: 25.0 mmol/L (450 mg/dL) is above the critical threshold of 400 mg/dL.",
+        "Critical high value: 25 mmol/L (450 mg/dL) is above the critical threshold of 400 mg/dL.",
     ),
     "wbc-K/uL": (
         "white_blood_cells", 1.5, "K/uL", 4.0, 11.0, "L",
-        "Critical low value: 1.5 K/uL (1.5 10^3/uL) is below the critical threshold of 2 10^3/uL.",
+        "Critical low value: 1.5 K/uL is below the critical threshold of 2 K/uL.",
     ),
     "tsh-uIU/mL": (
         "tsh", 12.0, "µIU/mL", 0.4, 4.0, "H",
-        "Critical high value: 12.0 µIU/mL (12.0 mIU/L) is above the critical threshold of 10 mIU/L.",
+        "Critical high value: 12 µIU/mL is above the critical threshold of 10 µIU/mL.",
+    ),
+    "wbc-cells/uL": (
+        "white_blood_cells", 1500.0, "cells/uL", 4.0, 11.0, "L",
+        "Critical low value: 1500 cells/uL (1.5 10^3/uL) is below the critical threshold of 2 10^3/uL.",
     ),
     "glucose-same-unit": (
         "glucose", 40.0, "mg/dL", 70.0, 100.0, "L",
-        "Critical low value: 40.0 mg/dL is below the critical threshold of 50 mg/dL.",
+        "Critical low value: 40 mg/dL is below the critical threshold of 50 mg/dL.",
     ),
 }
 

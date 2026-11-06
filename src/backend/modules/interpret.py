@@ -163,14 +163,9 @@ def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> 
     return converted.canonical_value / kb_factor
 
 
-def _fmt_threshold(number: float) -> str:
-    return f"{number:g}"
-
-
-def _fmt_patient_value(number: float) -> str:
-    """The patient's number as stored; a trailing .0 is dropped from 100 up."""
-    text = str(number)
-    return text[:-2] if text.endswith(".0") and abs(number) >= 100 else text
+def _fmt_number(number: float) -> str:
+    """No trailing .0 (10 significant digits, so a large count never prints as 1e+06)."""
+    return f"{number:.10g}"
 
 
 def _fmt_converted(number: float) -> str:
@@ -1018,14 +1013,17 @@ class InterpretModule:
         if limit is None:
             limit = defaults.get("critical_low" if low else "critical_high")
         kb_unit = info.standard_unit
-        shown = f"{_fmt_patient_value(observation.value)} {(observation.unit or '').strip()}"
-        if normalize_unit(observation.unit or "") != normalize_unit(kb_unit):
+        patient_unit = (observation.unit or "").strip()
+        shown = f"{_fmt_number(observation.value)} {patient_unit}"
+        # A factor of exactly 1 is a relabel: no parenthesis, and the limit in the patient's unit.
+        relabel = in_kb_unit == observation.value
+        if not relabel:
             shown += f" ({_fmt_converted(in_kb_unit)} {kb_unit})"
         safety_result.requires_physician_review = True
         safety_result.physician_review_reason = (
             f"Critical {'low' if low else 'high'} value: {shown} is "
             f"{'below' if low else 'above'} the critical threshold of "
-            f"{_fmt_threshold(limit)} {kb_unit}."
+            f"{_fmt_number(limit)} {patient_unit if relabel else kb_unit}."
         )
 
     def _classify_severity(
