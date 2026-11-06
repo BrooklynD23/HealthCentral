@@ -2166,6 +2166,14 @@ Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2
 
 Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`
 
+## `docs/research/2026-11-06-judge-laya-ft/00-README.md`
+
+**Judge measurement: fine-tuned Laya with a calibration split and repeated runs (2026-11-06)**
+
+Queue row **JUDGE-LAYA-FT**, plan section lane B: JUDGE-LAYA-FT. Source gate, owner JUDGE-SWAP, answered 2026-10-26, verbatim: "Try both Layla fine tune and NLI judge"…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**

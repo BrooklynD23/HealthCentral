@@ -1238,7 +1238,8 @@
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/research/2026-10-22-judge-laya/00-README.md",
       "docs/research/2026-10-22-mvp/04-local-llm-serving.md",
-      "docs/research/2026-10-22-mvp/07-owner-questions.md"
+      "docs/research/2026-10-22-mvp/07-owner-questions.md",
+      "docs/research/2026-11-06-judge-laya-ft/00-README.md"
     ],
     "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
@@ -1633,6 +1634,7 @@
     "docs/research/2026-10-22-judge-laya/00-README.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/research/2026-11-06-judge-laya-ft/00-README.md",
       "docs/reviews/2026-10-28/qwen3-4b-tier.md"
     ],
     "docs/research/2026-10-22-mvp/00-README.md": [
@@ -4411,6 +4413,10 @@
     "docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md": [
       "docs/plans/2026-10-31-harness-improvements-plan.md",
       "docs/plans/2026-10-31-rsi-harness-plan.md"
+    ],
+    "docs/research/2026-11-06-judge-laya-ft/00-README.md": [
+      "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
+      "docs/research/2026-10-22-judge-laya/00-README.md"
     ],
     "docs/reviews/2026-09-25/DDI-r1-response.md": [
       "docs/reviews/2026-09-25/DDI-r1-codex.txt"
