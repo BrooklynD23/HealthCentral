@@ -440,11 +440,13 @@ USER QUESTION: {question}"""
                 flag_str = ""
                 if latest.flag:
                     flag_str = latest.flag.upper()
-                elif latest.is_abnormal:
-                    if latest.ref_high is not None and latest.value > latest.ref_high:
-                        flag_str = "HIGH"
-                    elif latest.ref_low is not None and latest.value < latest.ref_low:
-                        flag_str = "LOW"
+                else:
+                    # ADVICE-CLASSIFIER-FIX: an unflagged row is read against its own numeric
+                    # range, not by the stored is_abnormal (false on any row imported before #492).
+                    from api.observations import observation_range_status  # lazy: api imports modules
+
+                    place = observation_range_status(None, latest.value, latest.ref_low, latest.ref_high)
+                    flag_str = {"above": "HIGH", "below": "LOW"}.get(place, "")
 
                 # Trend over last 3 readings (newest first). Values are
                 # converted to a canonical unit before comparing across

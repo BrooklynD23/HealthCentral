@@ -50,7 +50,7 @@ _TREATMENT_PATTERNS = [
 ]
 
 _DIAGNOSIS_PATTERNS = [
-    r"\bis (?:my|this|that) (?!(?:\w+\s+){0,4}?(?:marked|flagged|listed|labeled|labelled|noted)\s+(?:as\s+)?(?:abnormal|high|low)\b).*\b(?:dangerous|serious|normal|abnormal|bad|ok|okay|concerning|worrying|critical|high enough|low enough)\b",
+    r"\bis (?:this |that |my (?!(?:ldl|hdl|cholesterol|triglycerides|glucose|a1c|hba1c|tsh|creatinine|potassium|sodium|vitamin d|hemoglobin)(?:\s+(?:cholesterol|a1c|level|levels|result|results|value|reading))?\s+(?:normal|(?:in|within)\s+(?:the\s+)?normal\s+range)\b[\s?.!]*$))(?!(?:\w+\s+){0,4}?(?:marked|flagged|listed|labeled|labelled|noted)\s+(?:as\s+)?(?:abnormal|high|low)\b).*\b(?:dangerous|serious|normal|abnormal|bad|ok|okay|concerning|worrying|critical|high enough|low enough)\b",
     r"\bdo i have\b(?!\s+(?:an?|any|my|the)\s+(?:\w+\s+){0,3}?(?:results?|reports?|tests?|labs?|readings?|values?|records?)\b)(?!\s+(?:an?|any|my|the)\s+(?:\w+\s+){0,4}?on file\b)",
     r"\bcould (?:i (?:be|have)\b|this have\b|this be\b(?!\s+(?:from my\s+(?:\w+\s+){0,2}?(?:visit|lab|labs|report|test|tests|appointment|results?|bloodwork|panel)\b|the same\s+(?:test|lab|labs|report|result|value)\b)))",
     r"\bam i (?:at risk|in danger|going to be (?:ok|okay|fine))\b",
