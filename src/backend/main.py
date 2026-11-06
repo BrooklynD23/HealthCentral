@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import router as api_router
 from core.config import settings
 from core.database import close_database, init_database
-from core.logging_setup import install_correlation_logging
+from core.logging_setup import install_access_log_query_scrub, install_correlation_logging
 from core.migrations import run_master_migrations_async
 from monitoring.correlation import CorrelationIdMiddleware
 from monitoring.health import health_router, metrics_router
@@ -104,6 +104,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     install_correlation_logging()
+    install_access_log_query_scrub()
 
     app = FastAPI(
         title="Asclexis API",
