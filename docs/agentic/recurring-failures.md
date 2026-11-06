@@ -182,6 +182,24 @@ it as the round 1 BLOCKER; the tests had not covered that label. Recheck: when a
 rename moves the key a lookup uses, run every spelling the normalizer can
 produce for the old key, not only the new one.
 
+A 2026-11-05 instance in KB-UNIT-BADGE (#486), and this one was L0's own. L0's
+first licence (D1, ruling 6673478599) said "anything `convert_to_canonical`
+returns None for, or a missing unit: no critical", and compared a converted
+value only when the KB unit normalised to the table's canonical unit. That
+rule was too narrow. The Opus safety review at `2d406d48` (2 BLOCKER, 1 MAJOR)
+found it would have dropped correct criticals that main shows today: TSH
+(the KB unit `mIU/L` is a listed variant of the table entry, not its
+canonical unit), WBC and platelets (the extractor writes `x10E3/uL`, `K/uL`,
+`cells/uL`, which the table omits on purpose), and the D3 rebuild would then
+have rewritten saved correct criticals into non-critical cards (ruling
+6675742258, "L0's own D1 licence was too narrow"). The fix to one wrong alarm
+had created the missing-alarm bug one layer over. Recheck: before licensing a
+"no critical when it cannot convert" rule, list the analytes whose correct
+alarms main shows today, with the unit spellings the extractor writes for each
+(`extract.py`), and run each through the new rule; every one that fires on
+main must still fire, or the loss is named as a known limit and the owner is
+told.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
@@ -467,6 +485,24 @@ that the rule spread on its own. New features inherit schemas, not invariants.
 And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.py`
 finds the core statements that silently skip it. When a parent's ORM cascade is
 relied on, walk every grandchild with a NOT NULL FK.
+
+A 2026-11-05 instance, "clinical check unit-blind on main", found while
+planning KB-UNIT-BADGE (#486, ruling 6673478599). Observations are stored as the
+lab printed them with their unit (`models/observation.py:61-63`), but both
+critical checks compare the bare number with a limit in one fixed unit: the
+badge in `_classify_severity` (`modules/interpret.py:894-897`) and the review
+banner, which passes the raw value to `check_critical_value`
+(`modules/interpret.py:246-255`; defaults at `modules/interpret_safety.py:82-90`,
+glucose 50 and 400). A glucose of **7.0 mmol/L**, a normal result, got a
+`critical_low` badge and the banner "Critical low value: 7.0 is below critical
+threshold of 50.0". The rule "critical limits are in this unit" held at the
+tests' own values (same unit) and nowhere else. A first fix covered the badge
+and the banner for rows with a knowledge-base entry; the path with none
+(potassium, sodium) still compares raw values against the default table
+(queue bullet CRIT-DEFAULT-TABLE-UNITS). Recheck: for any threshold check on a
+lab value, list every call site that compares a number with a limit, name the
+unit each number is in and the unit each limit is in, and run one value in a
+different unit through each site, not only the site you edited.
 
 ---
 

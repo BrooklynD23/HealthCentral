@@ -79,7 +79,7 @@ This extends "Shared files are ordered as follows" in [implementation-program.md
 | `be/modules/export.py`, `be/api/export.py` | E-1 → C-GC1 → WEAR export plans | `:146-147` (P5 merged) |
 | `be/modules/embeddings.py`, `be/core/config.py`, `config/.env.example`, `be/scripts/download_models.py` | W-8 → G-C5 | `:152-153` (tail) |
 | `be/core/audit.py` (`STRING_DETAIL_KEYS`) | {C-DUPAUD, WEAR-D4 / OW-W11 exact diffs}; second lander re-anchors without changing content | new |
-| `be/scripts/seed_knowledge_base.py` | lane A only (SAFE-CHAT-FALLBACK C = B-2 (c), R-1) | new |
+| `be/scripts/seed_knowledge_base.py` | lane A only (SAFE-CHAT-FALLBACK C = B-2 (c), R-1); plus KB-CANONICAL-NAMES (#486, names only, never a word of seeded text; queue row KB-CANONICAL-NAMES: never beside another PR on this file; L0 note 2026-11-06, BATCH-1105D: the row has no lane) | new |
 | `be/tests/legacy_eval/harness.py`, `be/tests/test_safe_chat_prohibited.py` | #72 → B-3 | new |
 | `.gitignore` | F-10 (#68) → W-8; own lines only | `:155` (W-1 merged) |
 | `be/tests/test_assist_utc_http.py`, `be/tests/test_verified_only_consumers.py` | #95 / W-3 own them; B-3 edits them only to add ALLOW judge fakes (R-2) | new |
@@ -126,6 +126,8 @@ OW-W13 (owner order confirmation) is **not** needed for numbering; see R-13.
 **Merge order, owner OW-W13 (answered 2026-10-22, prompt 35, `owner-decisions-2026-09-27.md:386`): "P6 → G-C1 → WEAR-02 → WEAR-15"** ("Integrity and privacy work first; wearables after. Matches the original question's order; wearables wait behind your orphan audit."). So `fk_cascade_alignment` (C-P6) → `export_artifacts` (C-GC1) → `wearables` (WEAR-02) → `symptom_journal` (WEAR-15a) merge in that order: a later one in this list does not merge its migration before the earlier ones are on `main`. Numbering is unchanged: each still takes head+1 at its final rebase (rules 1-4 below), so nothing is reserved and nothing is renumbered now. Migrations outside these four (already merged: `013_adaptive_windows_local` D-2, `014_streaks_hidden` C-GAM2B, `015_data_donation` RSI1-DONATE PR-1) are not ordered by OW-W13. The numbers in the original question (wearables 00 `:187`: P6 `013`, G-C1 `014`, AUDIT-ORDER `015`) are stale.
 
 **Master chain** (`be/migrations/master/versions/`). Head on `3b2236c`: `002_backup_schedules`. **No item in lanes A–F or #94 allocates a master migration.** Any PR that adds one first adds a row here; the same head+1 and single-head rules apply with `c('master')`.
+
+**Row added 2026-11-06 (BATCH-1105D), by L0's handoff on #486:** `003_kb_canonical_names` (KB-CANONICAL-NAMES, PR #486; a data migration that renames installed knowledge-base rows `glucose_fasting`, `hemoglobin_a1c` and `wbc` and the matching intervention and relationship names; `down_revision` `002_backup_schedules`). It is the next master head when #486 merges; until then the head is `002_backup_schedules`. The master head literals (`docs/architecture/backend.md:149`, `docs/capstone-report/architecture-overview.md:157`, `docs/capstone-report/claims-ledger.md:70`, `docs/capstone-report/specs-compliance-matrix.md:130`) are updated when #486 merges, in the batch after it; they are not changed earlier because they are true until then. Rule 2's "same PR" is not followed for them: #486 leaves those files out of its row.
 
 ---
 
