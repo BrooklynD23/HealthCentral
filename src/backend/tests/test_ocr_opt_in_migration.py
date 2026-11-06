@@ -93,3 +93,105 @@ def test_hc_oom_002_an_unversioned_vault_with_the_017_schema_and_ocr_on_reads_of
 
     assert _rev(path) == PROFILE_HEAD
     assert _ocr_values(path) == [0]
+
+
+# ---------------------------------------------------------------------------
+# HTTP: what the patient sees (I-9: route_client with a real migrated vault)
+# ---------------------------------------------------------------------------
+
+
+def _scan_pdf() -> dict:
+    return {"file": ("scan.pdf", _image_only_pdf(_column_page()), "application/pdf")}
+
+
+def _client_for(vault: Path, engine, monkeypatch, tmp_path):
+    """One HTTP client for the documents and settings routes over the vault at ``vault``."""
+    _stub_vault(monkeypatch, tmp_path)
+    router = APIRouter()
+    router.include_router(documents_router, prefix="/documents")
+    router.include_router(model_settings_router, prefix="/settings/model")
+    return route_client(
+        router,
+        "",
+        profile_id=PROFILE,
+        master_db=_CommitTrackingMasterDb(),
+        profile_db=async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False),
+    )
+
+
+@pytest.mark.asyncio
+async def test_hc_oom_003_a_profile_saved_with_ocr_on_is_off_waits_on_the_scan_and_can_opt_in(
+    tmp_path, monkeypatch
+):
+    path = _vault_at_017(tmp_path, monkeypatch)
+    migrations.run_profile_migration(path, KEY)
+    reads = _engine_present(monkeypatch)
+    engine = _pragma_on_vault_engine(path)
+    try:
+        with _client_for(path, engine, monkeypatch, tmp_path) as client:
+            current = client.get("/settings/model")
+            assert current.status_code == 200, current.text
+            assert current.json()["ocr_preference_enabled"] is False, current.json()
+            assert current.json()["ocr_effective"] is False, current.json()
+            assert "user_disabled" in current.json()["ocr_blockers"], current.json()
+
+            imported = client.post("/documents/import", files=_scan_pdf())
+            assert imported.status_code == 201, imported.text
+            assert imported.json()["document"]["status"] == "pending_ocr", imported.json()["document"]
+            assert imported.json()["observations_extracted"] == 0
+            assert reads == [], "OCR is off after the upgrade: no page may reach the OCR reader"
+            doc_id = imported.json()["document"]["id"]
+
+            opted = client.patch("/settings/model/ocr", json={"ocr_preference_enabled": True})
+            assert opted.status_code == 200, opted.text
+            assert opted.json()["ocr_preference_enabled"] is True, opted.json()
+            assert opted.json()["ocr_effective"] is True, opted.json()
+
+            reprocessed = client.post(f"/documents/{doc_id}/reprocess")
+            assert reprocessed.status_code == 200, reprocessed.text
+            assert reprocessed.json()["document"]["status"] == "parsed", reprocessed.json()["document"]
+            assert reads, "the patient opted in again: the waiting scan must now be read"
+    finally:
+        await engine.dispose()
+    assert _ocr_values(path) == [1], "the patient's new choice is stored"
+
+
+@pytest.mark.asyncio
+async def test_hc_oom_003b_a_fresh_profile_is_unchanged_and_a_later_opt_in_survives_reopening(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(settings, "database_encryption_required", False)
+    path = tmp_path / "fresh" / "vault.db"
+    migrations.run_profile_migration(path, KEY)
+    assert _rev(path) == PROFILE_HEAD
+    _engine_present(monkeypatch)
+    engine = _pragma_on_vault_engine(path)
+    try:
+        with _client_for(path, engine, monkeypatch, tmp_path) as client:
+            current = client.get("/settings/model").json()
+            assert current["ocr_preference_enabled"] is False and current["ocr_effective"] is False, current
+            assert _ocr_values(path) == [], "reading the setting must not create a row"
+
+            opted = client.patch("/settings/model/ocr", json={"ocr_preference_enabled": True})
+            assert opted.status_code == 200, opted.text
+    finally:
+        await engine.dispose()
+
+    migrations.run_profile_migration(path, KEY)  # opened again, already at head
+
+    assert _ocr_values(path) == [1], "018 must not run again over a choice made after it"
+
+
+def test_hc_oom_004_the_pre_017_snapshot_is_not_taken_again_for_a_vault_already_at_017(
+    tmp_path, monkeypatch
+):
+    path = _vault_at_017(tmp_path, monkeypatch)
+    taken: list = []
+    monkeypatch.setattr(migrations, "_ensure_pre017_snapshot", lambda *a, **k: taken.append(a))
+    assert migrations._SNAPSHOT_REVISION == REV_017
+
+    migrations.run_profile_migration(path, KEY)
+
+    assert _ocr_values(path) == [0], "018 ran"
+    assert taken == [], "017 is already applied: no snapshot call"
+    assert list(path.parent.glob("vault.pre017*")) == [], "and no snapshot file"
