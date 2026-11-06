@@ -2110,3 +2110,40 @@ describe('HC-UIRES-032 the ribbon forgets which analytes it revealed when the se
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// HC-VER-FE-003: the Results page marks unverified points (D4)
+// Ported from InterpretedTrendChart.test.tsx, deleted with the chart (UI-CHART-CLEANUP).
+// ---------------------------------------------------------------------------
+
+describe('HC-VER-FE-003: /results marks unverified points (D4)', () => {
+  const glucoseTrend = (verified: [boolean, boolean]) => (canonical: string): TrendData => ({
+    ...trendFor(canonical, 'GLUCOSE'),
+    unit: 'mg/dL',
+    ref_low: 70,
+    ref_high: 99,
+    summary: 'GLUCOSE summary',
+    data_points: [
+      trendPoint('2025-01-10T00:00:00', 90, { unit: 'mg/dL', user_verified: verified[0] }),
+      trendPoint('2025-06-10T00:00:00', 95, { unit: 'mg/dL', user_verified: verified[1] }),
+    ],
+  });
+
+  it('HC-VER-FE-003: shows the note and labels an unverified latest value', async () => {
+    setupApi({ trend: glucoseTrend([true, false]) });
+    await renderPage();
+    await pageLoaded();
+    expect(await screen.findByTestId('trend-unverified-note')).toHaveTextContent('1 of 2 points on this chart are unverified');
+    expect(screen.getByText(/95 mg\/dL \(unverified\)/)).toBeInTheDocument();
+  });
+
+  it('HC-VER-FE-003: shows neither when every point is verified', async () => {
+    setupApi({ trend: glucoseTrend([true, true]) });
+    await renderPage();
+    await pageLoaded();
+    expect(await screen.findByText('GLUCOSE summary')).toBeInTheDocument(); // positive anchor
+    expect(screen.getByText(/Latest value: 95 mg\/dL/)).toBeInTheDocument(); // the value is shown, unmarked
+    expect(screen.queryByTestId('trend-unverified-note')).not.toBeInTheDocument();
+    expect(screen.queryByText(/\(unverified\)/)).not.toBeInTheDocument();
+  });
+});
