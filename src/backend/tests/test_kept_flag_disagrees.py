@@ -9,6 +9,9 @@ HC-KFD-002  every other status keeps today's text; the new sentence is never add
 HC-KFD-003  the real safety guard passes the sentence and a card that holds it
 HC-KFD-004  single card over HTTP (POST then GET), severity and stored is_abnormal unchanged
 HC-KFD-005  a panel holding a disagreeing member
+HC-KFD-006  a saved template card on today's wording is rebuilt on read (GET and POST)
+HC-KFD-007  a card that holds the sentence, has no readable claim, or is model-written is left alone
+HC-KFD-008  a panel read that rebuilds reaches the disagreeing member's card
 
 The new sentence is written out here as a literal, not imported, so each test fails on its
 own id before the constant exists.
@@ -37,17 +40,31 @@ from tests.test_value_range_compare import (
     DISAGREE,
     DISAGREE_PARAMS,
     OUTSIDE,
+    PANEL_EVENT,
+    READS,
     SODIUM_ROW,
     SYNTHETIC_KB,
     WITHIN,
+    _add_card,
+    _audit_pairs,
     _call,
     _cards_of,
     _dbs_ctx,
+    _det,
     _guard,
     _kb_from,
+    _kb_text,
     _obs,
+    _ok,
+    _old_card,
+    _old_panel,
+    _panels,
+    _read,
     _read_panel,
+    _rows_of,
+    _snapshot,
     _text,
+    _WriteSpy,
     interpretations_router,
 )
 
@@ -273,5 +290,190 @@ async def test_hc_kfd_005_panel_member_card_says_the_new_sentence(dbs):
     _assert_only_the_new_sentence(card.interpretation_text)
     (other,) = await _cards_of(profile_db, sodium_id)
     assert NEW not in other.interpretation_text
+
+
+# ── HC-KFD-006: saved template cards on today's wording are rebuilt ──────────
+
+# (observation, the sentence main printed before this row)
+REBUILD = [
+    pytest.param(dict(value=300.0, flag="N", is_abnormal=True), OUTSIDE, id="N-at-300-disagrees"),
+    pytest.param(dict(value=85.0, flag="H", is_abnormal=True), ABOVE, id="H-at-85-disagrees"),
+    pytest.param(dict(value=85.0, flag="L", is_abnormal=True), ABOVE, id="L-at-85-card-says-above"),
+    pytest.param(dict(value=85.0, flag="L", is_abnormal=True), BELOW, id="L-at-85-card-says-below"),
+    pytest.param(dict(value=300.0, flag="Normal", is_abnormal=False), WITHIN, id="Normal-at-300-stored-false"),
+    pytest.param(dict(value=85.0, flag="High", is_abnormal=True), OUTSIDE, id="High-at-85-mixed-case"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw,old", REBUILD)
+async def test_hc_kfd_006_an_old_template_card_is_rebuilt_once(rdbs, method, kw, old):
+    profile_db, master_db = rdbs
+    obs, old_id, old_text = await _old_card(profile_db, kw, old, NEW)
+    assert NEW not in old_text and old in old_text
+
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    body = resp.json()
+    assert body["interpretation_text"].count(NEW) == 1, body["interpretation_text"]
+    assert old not in body["interpretation_text"]
+    assert body["id"] != old_id
+    (row,) = await _cards_of(profile_db, obs.id)
+    assert row.id == body["id"]
+    assert row.regeneration_count == 1
+    assert row.previous_interpretation_id == old_id
+    assert row.model_id == "template-v1" and row.model_tier == "template"
+    # the same audit pair a rebuild writes today (HC-VRC-026)
+    want = {
+        "GET": [("interpretation.generate", "started"), ("interpretation.generate", "completed"),
+                ("interpretation.view", None)],
+        "POST": [("interpretation.generate", "started"), ("interpretation.generate", "completed")],
+    }[method]
+    assert await _audit_pairs(master_db) == want
+
+    spy = _WriteSpy(profile_db)  # a second read writes nothing
+    before = await _snapshot(profile_db, obs.id)
+    for _ in range(2):
+        again = _read(profile_db, master_db, obs.id, method)
+        assert again.status_code == _ok(method), again.text
+        assert again.json()["id"] == body["id"]
+    assert spy.writes == (0, 0), "a second read wrote"
+    spy.close()
+    assert await _snapshot(profile_db, obs.id) == before
+    # rdbs raises if the model was selected or called; the count is checked again here
+    assert ModelSelector.run_inference.await_count == 0
+    assert ModelSelector.get_model_for_inference.await_count == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("old_place", ["above", "below", "within"])
+async def test_hc_kfd_006_a_knowledge_base_form_card_is_rebuilt(rdbs, method, old_place):
+    profile_db, master_db = rdbs
+    master_db.add(BiomarkerKnowledge(id="kb-ldl_cholesterol", **LDL))
+    await master_db.commit()
+    obs, old_id, old_text = await _old_card(
+        profile_db, dict(analyte_canonical="ldl_cholesterol", value=85.0, flag="H", is_abnormal=True),
+        _kb_text(LDL_KB, old_place), NEW, kb=LDL_KB)
+    assert "[KB:kb-ldl_cholesterol]" in old_text
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    text = resp.json()["interpretation_text"]
+    assert text.count(NEW) == 1, text
+    for words in _kb_words(LDL_KB):
+        assert words not in text, text
+    assert resp.json()["id"] != old_id
+    assert len(await _cards_of(profile_db, obs.id)) == 1
+
+
+# ── HC-KFD-007: what is left alone ───────────────────────────────────────────
+
+
+def _unchanged(profile_db, obs_id):
+    async def _go(method, master_db, card_id, text, before):
+        spy = _WriteSpy(profile_db)
+        resp = _read(profile_db, master_db, obs_id, method)
+        assert resp.status_code == _ok(method), resp.text
+        assert resp.json()["id"] == card_id
+        assert resp.json()["interpretation_text"] == text
+        assert spy.writes == (0, 0)
+        spy.close()
+        assert await _snapshot(profile_db, obs_id) == before
+    return _go
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw", [p.values[0] for p in REBUILD], ids=[p.id for p in REBUILD])
+async def test_hc_kfd_007_a_card_that_already_holds_the_sentence_is_never_rewritten(rdbs, method, kw):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(profile_db, kw, None, None, regeneration_count=2)
+    assert NEW in text
+    before = await _snapshot(profile_db, obs.id)
+    await _unchanged(profile_db, obs.id)(method, master_db, card_id, text, before)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("old", OLD_SENTENCES)
+@pytest.mark.parametrize("card_kw", [
+    pytest.param(dict(model_tier="high", model_id="biomistral-7b-q4"), id="high-tier"),
+    pytest.param(dict(model_tier="template", model_id="other-template-v2"), id="template-tier-other-id"),
+    pytest.param(dict(model_tier="mid", model_id="template-v1"), id="other-tier-template-id"),
+])
+async def test_hc_kfd_007_a_model_written_card_with_a_disagreement_is_left_alone(
+    rdbs, method, old, card_kw
+):
+    profile_db, master_db = rdbs
+    obs, card_id, text = await _old_card(
+        profile_db, dict(value=85.0, flag="H", is_abnormal=True), old, NEW, **card_kw)
+    before = await _snapshot(profile_db, obs.id)
+    await _unchanged(profile_db, obs.id)(method, master_db, card_id, text, before)
+    assert old in text and NEW not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+async def test_hc_kfd_007_a_template_card_with_no_readable_claim_is_not_stale(rdbs, method):
+    # Same rule as HC-VRC-023: a card whose words say nothing the status block writes is kept.
+    profile_db, master_db = rdbs
+    obs = _obs(user_verified=True, value=300.0, flag="N", is_abnormal=True)
+    obs_id = obs.id
+    profile_db.add(obs)
+    await profile_db.commit()
+    text = "Your GLUCOSE result is 300.0 mg/dL. Ask your doctor."
+    card_id = await _add_card(profile_db, obs_id, text)
+    before = await _snapshot(profile_db, obs_id)
+    await _unchanged(profile_db, obs_id)(method, master_db, card_id, text, before)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+async def test_hc_kfd_007_a_knowledge_base_card_with_a_stale_marker_but_no_claim_is_kept(rdbs, method):
+    # A KB card's "What this test measures ... [KB:id]" line carries a marker but no status claim.
+    profile_db, master_db = rdbs
+    master_db.add(BiomarkerKnowledge(id="kb-ldl_cholesterol", **LDL))
+    await master_db.commit()
+    obs = _obs(user_verified=True, analyte_canonical="ldl_cholesterol", value=85.0, flag="H",
+               is_abnormal=True)
+    obs_id = obs.id
+    profile_db.add(obs)
+    await profile_db.commit()
+    text = f"Your LDL result is 85.0 mg/dL. {LDL['description']} [KB:kb-ldl_cholesterol]"
+    card_id = await _add_card(profile_db, obs_id, text)
+    before = await _snapshot(profile_db, obs_id)
+    await _unchanged(profile_db, obs_id)(method, master_db, card_id, text, before)
+
+
+# ── HC-KFD-008: a panel read that rebuilds reaches the member ────────────────
+
+
+@pytest.mark.asyncio
+async def test_hc_kfd_008_a_rebuilding_panel_read_rebuilds_the_disagreeing_member_card(rdbs):
+    # The saved panel is stale for another reason (sodium 150 is above its range but the saved
+    # summary lists nothing). The read goes through interpret_observation for every member, so
+    # the disagreeing glucose card is rebuilt there; no change to the panel check is needed.
+    profile_db, master_db = rdbs
+    sodium_high = {**SODIUM_ROW, "value": 150.0, "is_abnormal": True}
+    obs_list, old_panel_id, old_summary = await _old_panel(
+        profile_db, [dict(value=300.0, flag="N", is_abnormal=True), sodium_high], [True, False],
+        old_card=(OUTSIDE, NEW))
+    glucose_id = obs_list[0].id
+    (old_card,) = await _cards_of(profile_db, glucose_id)
+    assert OUTSIDE in old_card.interpretation_text and NEW not in old_card.interpretation_text
+
+    resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["id"] != old_panel_id
+    (card,) = await _cards_of(profile_db, glucose_id)
+    assert card.interpretation_text.count(NEW) == 1, card.interpretation_text
+    assert OUTSIDE not in card.interpretation_text
+    assert card.previous_interpretation_id == old_card.id
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, "started"), (PANEL_EVENT, "completed")]
+    started, completed = await _rows_of(master_db, PANEL_EVENT)
+    for row in (started, completed):
+        assert _det(row)["observation_ids"] == [glucose_id], _det(row)
+    assert len(await _panels(profile_db)) == 1
 
 

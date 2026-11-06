@@ -1723,6 +1723,30 @@ NEVER = [
 ]
 
 
+# KEPT-FLAG-DISAGREES (L0 ruling R3): a disagreement now has wording, so a saved template card
+# holding today's old sentence for one is rebuilt to the flag-range sentence. These three left NEVER.
+REBUILT_DISAGREEMENTS = [
+    pytest.param(dict(value=300.0, flag="N", is_abnormal=True), OUTSIDE, id="N-at-300-disagrees"),
+    pytest.param(dict(value=85.0, flag="H", is_abnormal=True), ABOVE, id="H-at-85-disagrees"),
+    pytest.param(dict(value=85.0, flag="L", is_abnormal=True), ABOVE, id="L-at-85-card-says-above"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw,old", REBUILT_DISAGREEMENTS)
+async def test_hc_vrc_023_disagreements_are_rebuilt_to_the_flag_range_sentence(rdbs, method, kw, old):
+    profile_db, master_db = rdbs
+    obs, card_id, _ = await _old_card(profile_db, kw, old, FLAG_RANGE_DISAGREE)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    text = resp.json()["interpretation_text"]
+    assert FLAG_RANGE_DISAGREE in text, text
+    assert old not in text, text
+    assert resp.json()["id"] != card_id
+    assert len(await _cards_of(profile_db, obs.id)) == 1
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", READS)
 @pytest.mark.parametrize("kw,old,new", NEVER)

@@ -626,9 +626,14 @@ class InterpretModule:
 
         A card stores no status, so the saved sentence is read. Only a card this module's
         template wrote is judged (model-written cards are left alone). Only the helper's
-        "above", "below" and "within" can make a card stale; "disagrees", "keep" and
+        "above", "below", "within" and "disagrees" can make a card stale; "keep" and
         "normal_uncompared" never do, and neither does "outside" on an out-of-range value
         (it is not false) or a card with no readable claim. Reads only: no write, no model.
+
+        KEPT-FLAG-DISAGREES (L0 ruling R3): "disagrees" now has wording. A template card for it
+        is stale when it does not already hold SENTENCE_FLAG_RANGE_DISAGREE and does state one
+        of today's status claims (the four literals, or a KB text with its marker). A card with
+        no readable claim stays as it is, like every other status.
         """
         if card.model_tier != self.MODEL_TIER_TEMPLATE or card.model_id != self.MODEL_ID_TEMPLATE:
             return False
@@ -678,10 +683,12 @@ class InterpretModule:
             observation.flag, observation.value, observation.ref_low, observation.ref_high,
             bool((observation.ref_range_text or "").strip()),
         )
-        if status not in ("above", "below", "within"):
+        if status not in ("above", "below", "within", "disagrees"):
             return False
 
         text = card.interpretation_text or ""
+        if status == "disagrees" and SENTENCE_FLAG_RANGE_DISAGREE in text:
+            return False  # already says it: never rewritten on every read
         # Every sentence a card of each kind can hold: the literals, and, only when the card
         # carries a [KB:] marker, the knowledge-base entry's own texts.
         sentences: dict[str, list[str]] = {
@@ -709,6 +716,8 @@ class InterpretModule:
         def says(place: str) -> bool:
             return any(sentence in text for sentence in sentences[place])
 
+        if status == "disagrees":
+            return any(says(place) for place in sentences)
         # The correct claim is checked first, so another sentence inside a knowledge-base
         # text can never make a card that already says the right thing rewrite on every read.
         if says(status):
