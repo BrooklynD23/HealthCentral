@@ -39,7 +39,7 @@ flowchart TD
         subgraph care["Care"]
             MEDS["MedicationCoach<br/>/medications"]
             MEDDET["MedicationDetail<br/>/medications/:medicationId"]
-            NOTIF["NotificationSettings (Reminders)<br/>/notifications"]
+            NOTIF["NotificationSettings (Reminders)<br/>/notifications → /medications?tab=reminders"]
             TASKS["CareTasksPage (Follow-ups)<br/>/care-tasks"]
         end
 
@@ -66,7 +66,12 @@ flowchart TD
   Range Ribbon (`components/results/RangeRibbon.tsx`) replaces Recharts on this
   page, and the lab-interpreter components are imported by path so Recharts
   stays out of the Results bundle (UI-BUDGET).
-- Unknown paths redirect to `/` (`App.tsx` `path="*"`).
+- `/notifications` is a redirect shim to the Reminders tab of
+  `/medications?tab=reminders` (`pages/NotificationSettings.tsx`, UI-PG-MEDS).
+- Unknown paths redirect to `/` (`App.tsx` `path="*"`). Sign-in, unlock and
+  the recovery-code acknowledgement still navigate to `/inbox`
+  (`pages/ProfileSetup.tsx`, `pages/RecoverProfile.tsx`), so `/overview` is
+  reached from `/`, unknown paths and the nav, not straight after sign-in.
 - 17 page components live in `pages/` (`ls src/frontend/src/pages/*.tsx`), plus
   `pages/settings/` (the four Settings sections: Advanced, Assistant privacy,
   Preferences, Security).
