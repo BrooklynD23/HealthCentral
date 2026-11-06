@@ -12,6 +12,7 @@
  * `data-t0` and sits outside any moving wrapper. To keep a count from changing under the reader, no card is drawn
  * until all three lists have answered, so a count never appears as 0 and then turns into the real number.
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -343,8 +344,11 @@ export function OverviewPage() {
   // after the import. An empty profile id keeps the hook disabled, so nothing is fetched or cached.
   const hasDocuments = (documents.data ?? []).length > 0;
   const listProfileId = hasDocuments ? profileId : '';
-  const waiting = useObservations({ profile_id: listProfileId, needs_verification: true });
-  const observations = useObservations({ profile_id: listProfileId });
+  const waitingFilters = { profile_id: listProfileId, needs_verification: true };
+  const observationFilters = { profile_id: listProfileId };
+  const waiting = useObservations(waitingFilters);
+  const observations = useObservations(observationFilters);
+  const queryClient = useQueryClient();
   const medications = useMedications();
 
   if (documents.isLoading) return <OverviewSkeleton />;
@@ -362,9 +366,17 @@ export function OverviewPage() {
 
   // isPending, not isLoading: on the render where the lists are first enabled the fetch has not started yet.
   if (waiting.isPending || observations.isPending || medications.isLoading) return <OverviewSkeleton />;
-  // An import or a delete marks the cached lists out of date. While they are fetched again the loading shape stays,
-  // so the reader never sees the old count and then the new one.
-  if ((waiting.isFetching && waiting.isStale) || (observations.isFetching && observations.isStale)) {
+  // An import or a delete invalidates the cached lists. While an invalidated list is fetched again the loading shape
+  // stays, so the reader never sees the old count and then the new one. Only an invalidation counts: a refetch on
+  // window focus or reconnect after the 5-minute staleTime keeps the page and the keyboard focus where they are.
+  const refetchingAfterInvalidation = (
+    result: { isFetching: boolean },
+    filters: { profile_id: string; needs_verification?: boolean }
+  ) => result.isFetching && queryClient.getQueryState(['observations', filters])?.isInvalidated === true;
+  if (
+    refetchingAfterInvalidation(waiting, waitingFilters) ||
+    refetchingAfterInvalidation(observations, observationFilters)
+  ) {
     return <OverviewSkeleton />;
   }
   return <WithData waiting={waiting.data} observations={observations.data} medications={medications.data} />;
