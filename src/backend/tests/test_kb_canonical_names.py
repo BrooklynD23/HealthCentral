@@ -27,6 +27,10 @@ HC-KCN-007  prohibited-pattern guard over every newly reachable text field.
 HC-KCN-008  the Explain chip key for a stored `hba1c` name.
 HC-KCN-009  a result stored under an old name keeps its KB row and critical limits (loader and
             biomarker route read the old names through one alias map).
+HC-KCN-010  KB-UNIT-BADGE: the critical badge compares in the KB limit's unit (D1).
+HC-KCN-011  both severity callers pass observation.unit.
+HC-KCN-012  KB-UNIT-BADGE D2: the physician-review banner follows the badge's unit rule.
+HC-KCN-013  KB-UNIT-BADGE D3: a saved card whose severity the rule now disagrees with is rebuilt.
 
 Known gap (HC-KCN-007 reader scan, HC-KCN-008): scripts/change_scope.py gives backend=false for a
 PR that touches only src/frontend, so a frontend-only PR does not run this file. See HC-KCN-007.
@@ -42,7 +46,7 @@ import uuid
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -1393,3 +1397,139 @@ def test_hc_kcn_009_alias_map_equals_the_migration_renames():
         assert kb_lookup_name(old.upper()) == new
         assert kb_lookup_name(new) == new
     assert kb_lookup_name("Total_Cholesterol") == "total_cholesterol"
+
+
+# ---------------------------------------------------------------------------
+# HC-KCN-010..013: KB-UNIT-BADGE. Critical limits are in the KB's standard_unit; a value
+# reported in another unit is converted with normalize.convert_to_canonical (D1) and compared
+# only when the KB unit is that canonical unit. Unknown or missing unit: never critical.
+# Would not notice (all four): whether a KB limit or a normalize factor is clinically right
+# (owner-approved content, and normalize's own tests), nor unit spellings outside both tables
+# (K/uL for WBC, HbA1c mmol/mol, TSH uIU/mL against a mIU/L limit): those are never critical.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_010_seeded_units_and_limits_are_as_planned(master):
+    loader = KnowledgeLoader()
+    got = {}
+    for name in ("glucose", "creatinine", "hba1c", "tsh"):
+        info = await loader.get_biomarker_knowledge(name, master)
+        got[name] = (info.standard_unit, info.critical_low, info.critical_high)
+    assert got == {
+        "glucose": ("mg/dL", 50.0, 400.0),
+        "creatinine": ("mg/dL", None, 10.0),
+        "hba1c": ("%", None, 10.0),
+        "tsh": ("mIU/L", 0.1, 10.0),
+    }
+
+
+# analyte, value, unit, ref_lo, ref_hi, expected
+UNIT_BADGE_CASES = {
+    "same-unit-critical-high": ("glucose", 450.0, "mg/dL", 70, 100, "critical_high"),
+    "same-unit-case-and-space": ("glucose", 450.0, " MG/DL ", 70, 100, "critical_high"),
+    "same-unit-hba1c": ("hba1c", 10.5, "%", 4.0, 5.6, "critical_high"),
+    "same-unit-tsh": ("tsh", 12.0, "mIU/L", 0.4, 4.0, "critical_high"),
+    "converted-critical-high-direction": ("glucose", 25.0, "mmol/L", 3.9, 5.6, "critical_high"),
+    "converted-critical-low": ("glucose", 2.5, "mmol/L", 3.9, 5.6, "critical_low"),
+    "converted-not-critical": ("glucose", 7.0, "mmol/L", 3.9, 5.6, "abnormal_high"),
+    "converted-creatinine-not-critical": ("creatinine", 500.0, "umol/L", 62, 106, "abnormal_high"),
+    "converted-creatinine-critical": ("creatinine", 1000.0, "umol/L", 62, 106, "critical_high"),
+    "unknown-unit-low-number": ("glucose", 4.5, "g/L", 0.7, 1.0, "abnormal_high"),
+    "unknown-unit-huge-number": ("glucose", 450.0, "mg%", 70, 100, "abnormal_high"),
+    "missing-unit-none": ("glucose", 450.0, None, 70, 100, "abnormal_high"),
+    "missing-unit-empty": ("glucose", 450.0, "", 70, 100, "abnormal_high"),
+    "missing-unit-blank": ("glucose", 40.0, "   ", 70, 100, "abnormal_low"),
+    "hba1c-mmol-mol-normal": ("hba1c", 35.0, "mmol/mol", 20, 42, "normal"),
+    "hba1c-mmol-mol-high-never-critical": ("hba1c", 120.0, "mmol/mol", 20, 42, "abnormal_high"),
+    "tsh-other-unit-than-the-limit-never-critical": ("tsh", 12.0, "uIU/mL", 0.4, 4.0, "abnormal_high"),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", list(UNIT_BADGE_CASES), ids=list(UNIT_BADGE_CASES))
+async def test_hc_kcn_010_critical_badge_compares_in_the_limit_unit(master, case):
+    analyte, value, unit, lo, hi, expected = UNIT_BADGE_CASES[case]
+    info = await KnowledgeLoader().get_biomarker_knowledge(analyte, master)
+    assert info is not None
+    module, _ = _module()
+    assert module._classify_severity(value, lo, hi, info, unit=unit) == expected
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_010_the_old_hba1c_name_is_never_critical_in_mmol_per_mol_either(master):
+    info = await KnowledgeLoader().get_biomarker_knowledge("hemoglobin_a1c", master)
+    assert info is not None
+    module, _ = _module()
+    assert module._classify_severity(120.0, 20, 42, info, unit="mmol/mol") == "abnormal_high"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("unit", ["mg/dL", "g/L", None])
+@pytest.mark.parametrize(
+    "value,expected",
+    [(85, "normal"), (105, "borderline_high"), (130, "abnormal_high"),
+     (65, "borderline_low"), (55, "abnormal_low")],
+)
+async def test_hc_kcn_010_range_classification_is_unchanged(master, value, expected, unit):
+    """The unit decides the critical step only, never the range step (also with no KB row)."""
+    info = await KnowledgeLoader().get_biomarker_knowledge("glucose", master)
+    module, _ = _module()
+    assert module._classify_severity(value, 70, 100, info, unit=unit) == expected
+    assert module._classify_severity(value, 70, 100, None, unit=unit) == expected
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_011_interpret_observation_card_badge_uses_the_unit(master, profile_db):
+    for value, severity in ((7.0, "abnormal_high"), (25.0, "critical_high")):
+        _, card = await _interpret_stored(master, profile_db, "glucose", value, 3.9, 5.6, "mmol/L", "H")
+        assert card.severity_level == severity, value
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_011_interpret_with_model_passes_the_unit(master, profile_db):
+    obs = _obs("glucose", 7.0, 3.9, 5.6, "mmol/L", flag="H")
+    profile_db.add(obs)
+    await profile_db.commit()
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": "Glucose is above range."}]})
+    module = InterpretModule(knowledge_loader=KnowledgeLoader(), model_selector=selector)
+    with patch.object(module, "_classify_severity", wraps=module._classify_severity) as spy:
+        await module.interpret_with_model(
+            observation_id=obs.id, profile_id=PROFILE_ID, profile_db=profile_db, master_db=master
+        )
+    spy.assert_called_once()
+    assert spy.call_args.kwargs["unit"] == "mmol/L"
+
+
+# unit, value, severity, does the banner fire
+BANNER_CASES = {
+    "same-unit": ("mg/dL", 450.0, "critical_high", True),
+    "converted-critical": ("mmol/L", 25.0, "critical_high", True),
+    "converted-not-critical": ("mmol/L", 7.0, "abnormal_low", False),
+    "unknown-unit": ("g/L", 4.5, "abnormal_low", False),
+    "missing-unit": (None, 450.0, "abnormal_high", False),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", list(BANNER_CASES), ids=list(BANNER_CASES))
+async def test_hc_kcn_012_banner_follows_the_badge_unit_rule(master, profile_db, case):
+    from modules.normalize import convert_to_canonical
+
+    unit, value, severity, fires = BANNER_CASES[case]
+    info, card = await _interpret_stored(master, profile_db, "glucose", value, 70.0, 100.0, unit, "H")
+    assert card.severity_level == severity
+    assert bool(card.requires_physician_review) is fires
+    assert (card.severity_level.startswith("critical")) == bool(card.requires_physician_review)
+    if fires:
+        in_kb_unit = value if unit == "mg/dL" else convert_to_canonical("glucose", value, unit).canonical_value
+        expected = InterpretationSafetyGuard().check_critical_value(
+            "glucose", in_kb_unit, info.critical_low, info.critical_high
+        ).physician_review_reason
+        assert card.physician_review_reason == expected
+        assert expected.startswith("Critical high value: ")
+        assert expected.endswith(" is above critical threshold of 400.0")
+    else:
+        assert card.physician_review_reason is None

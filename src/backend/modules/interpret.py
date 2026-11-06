@@ -115,6 +115,26 @@ class PanelInterpretationResult:
     replaced_member_ids: list[str] = field(default_factory=list)
 
 
+def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> Optional[float]:
+    """KB-UNIT-BADGE (D1): `value`, reported in `unit`, in the unit the KB's critical limits use.
+
+    Same unit after normalising: the value as is. Otherwise the value is converted with
+    normalize.convert_to_canonical (the app's one tested table) and used only when the KB's
+    standard_unit is that canonical unit. None (no critical check) for a missing unit, an
+    unconvertible unit, or a KB unit that is not the canonical one. Never guesses a factor.
+    """
+    reported = normalize_unit(unit or "")
+    standard = normalize_unit(info.standard_unit or "")
+    if not reported or not standard:
+        return None
+    if reported == standard:
+        return value
+    converted = convert_to_canonical(info.analyte_canonical, value, unit)
+    if converted is None or normalize_unit(converted.canonical_unit) != standard:
+        return None
+    return converted.canonical_value
+
+
 class InterpretModule:
     """
     Main orchestrator for lab result interpretation.
@@ -224,6 +244,7 @@ class InterpretModule:
             ref_low=observation.ref_low,
             ref_high=observation.ref_high,
             biomarker_info=context.biomarker_info,
+            unit=observation.unit,
         )
 
         # Generate citations
@@ -244,10 +265,17 @@ class InterpretModule:
 
         # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
         # before the withhold so a withheld card still carries the flag.
-        if observation.value is not None:
+        # KB-UNIT-BADGE (D2): same unit rule as the badge. With a KB row the value is checked in
+        # the KB's unit, and a missing or unconvertible unit makes no critical check.
+        check_value = observation.value
+        if observation.value is not None and context.biomarker_info:
+            check_value = value_in_kb_unit(
+                context.biomarker_info, observation.value, observation.unit
+            )
+        if check_value is not None:
             critical_result = self._safety_guard.check_critical_value(
                 analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
+                value=check_value,
                 critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
                 critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
             )
@@ -884,17 +912,21 @@ class InterpretModule:
         ref_low: Optional[float],
         ref_high: Optional[float],
         biomarker_info: Optional[BiomarkerInfo],
+        unit: Optional[str] = None,
     ) -> str:
         """Classify the severity level of a result."""
         if value is None:
             return "normal"
 
-        # Check critical values first
+        # Check critical values first. KB-UNIT-BADGE: the limits are in the KB's unit, so the
+        # value is compared in that unit; a missing or unconvertible unit is never critical.
         if biomarker_info:
-            if biomarker_info.critical_low and value < biomarker_info.critical_low:
-                return "critical_low"
-            if biomarker_info.critical_high and value > biomarker_info.critical_high:
-                return "critical_high"
+            in_kb_unit = value_in_kb_unit(biomarker_info, value, unit)
+            if in_kb_unit is not None:
+                if biomarker_info.critical_low and in_kb_unit < biomarker_info.critical_low:
+                    return "critical_low"
+                if biomarker_info.critical_high and in_kb_unit > biomarker_info.critical_high:
+                    return "critical_high"
 
         # Check against reference range
         if ref_low is not None and value < ref_low:
@@ -1190,6 +1222,7 @@ class InterpretModule:
             ref_low=observation.ref_low,
             ref_high=observation.ref_high,
             biomarker_info=context.biomarker_info,
+            unit=observation.unit,
         )
 
         # Generate citations
@@ -1210,10 +1243,17 @@ class InterpretModule:
 
         # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
         # before the withhold so a withheld card still carries the flag.
-        if observation.value is not None:
+        # KB-UNIT-BADGE (D2): same unit rule as the badge. With a KB row the value is checked in
+        # the KB's unit, and a missing or unconvertible unit makes no critical check.
+        check_value = observation.value
+        if observation.value is not None and context.biomarker_info:
+            check_value = value_in_kb_unit(
+                context.biomarker_info, observation.value, observation.unit
+            )
+        if check_value is not None:
             critical_result = self._safety_guard.check_critical_value(
                 analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
+                value=check_value,
                 critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
                 critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
             )
