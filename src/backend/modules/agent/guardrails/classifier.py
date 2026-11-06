@@ -35,7 +35,7 @@ _MEDICATION_PATTERNS = [
     r"\bshould i (?:still )?(?:be )?tak(?:e|ing) my\b",
     r"\bdo i (?:still )?need my\b.*\b(?:medication|medicine|pill|dose|statin|insulin|drug)\b",
     r"\bhow (?:much|many|often)\b(?:\s+[\w'-]+){0,6}?\s+(?:should|do|can|could|may) i (?:take|use|inject)\b",
-    r"\b(?:take|use|inject)\s+(?:more|less|extra|double|half)\b",
+    r"\b(?:(?:do|does|should|can|could|may|will|would|must|shall) (?:i|we)(?:\s+[\w'-]+){0,3}?|is it (?:safe|okay|ok)(?: for me)?)\s+(?:to\s+)?(?:take|use|inject)\s+(?:more|less|extra|double|half)\b",
 ]
 
 _TREATMENT_PATTERNS = [
@@ -51,9 +51,10 @@ _TREATMENT_PATTERNS = [
 
 _DIAGNOSIS_PATTERNS = [
     # Record frames (a question about what the records hold) are anchored to the END of the
-    # question: words after the frame are still read. The analyte list is a copy of the keys of
+    # question: words after the frame are still read, and so are severity words before it (the
+    # filler ahead of a marked/flagged frame skips none of them). The analyte list is a copy of the keys of
     # nodes/plan.py:_ANALYTE_KEYWORDS (test_hc_acf_015 lists what the copy lacks).
-    r"\bis (?:this |that |my (?!(?:ldl|hdl|cholesterol|triglycerides|glucose|a1c|hba1c|tsh|creatinine|potassium|sodium|vitamin d|hemoglobin)(?:\s+(?:cholesterol|a1c|level|levels|result|results|value|reading))?\s+(?:normal|(?:in|within)\s+(?:the\s+)?normal\s+range)\b[\s?.!]*$))(?!(?:\w+\s+){0,4}?(?:marked|flagged|listed|labeled|labelled|noted)\s+(?:as\s+)?(?:abnormal|high|low)[\s?.!]*$).*\b(?:dangerous|serious|normal|abnormal|bad|ok|okay|concerning|worrying|critical|high enough|low enough)\b",
+    r"\bis (?:this |that |my (?!(?:ldl|hdl|cholesterol|triglycerides|glucose|a1c|hba1c|tsh|creatinine|potassium|sodium|vitamin d|hemoglobin)(?:\s+(?:cholesterol|a1c|level|levels|result|results|value|reading))?\s+(?:normal|(?:in|within)\s+(?:the\s+)?normal\s+range)\b[\s?.!]*$))(?!(?:(?!(?:dangerous|serious|normal|abnormal|bad|ok|okay|concerning|worrying|critical|enough)\b)\w+\s+){0,4}?(?:marked|flagged|listed|labeled|labelled|noted)\s+(?:as\s+)?(?:abnormal|high|low)[\s?.!]*$).*\b(?:dangerous|serious|normal|abnormal|bad|ok|okay|concerning|worrying|critical|high enough|low enough)\b",
     r"\bdo i have\b(?!\s+(?:an?|any|my|the)\s+(?:(?:recent|latest|current|last|new|old|lab|blood|test|ldl|hdl|cholesterol|triglycerides|glucose|a1c|hba1c|tsh|creatinine|potassium|sodium|vitamin d|hemoglobin)\s+){0,3}(?:results?|reports?|tests?|labs?|readings?|values?|records?)(?:\s+on file)?(?:\s+from\s+(?:the\s+)?(?:(?:last|this)\s+(?:year|month|week)|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s+\d{4})?|\d{4}))?[\s?.!]*$)(?!\s+(?:an?|any|my|the)\s+(?:(?:recent|latest|current|last)\s+)?(?:ldl|hdl|cholesterol|triglycerides|glucose|a1c|hba1c|tsh|creatinine|potassium|sodium|vitamin d|hemoglobin)\s+on file[\s?.!]*$)",
     r"\bcould (?:i (?:be|have)\b|this have\b|this be\b(?!\s+(?:from\s+my\s+(?:(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)|last|latest|recent|previous|most recent|\d{4})\s+){0,2}(?:(?:visit|labs?|reports?|tests?|blood|appointment|results?|bloodwork|panel)\b\s*){1,3}|the\s+same\s+(?:test|lab|labs|report|result|value)(?:\s+as\s+(?:last time|before|the (?:last|previous) one))?)[\s?.!]*$))",
     r"\bam i (?:at risk|in danger|going to be (?:ok|okay|fine))\b",

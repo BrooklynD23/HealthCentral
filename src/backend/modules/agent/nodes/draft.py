@@ -141,7 +141,8 @@ def _range_sentences(row: dict, unit: str) -> str:
     above/below/within/disagrees read their sentence; no numeric bound, no range text and no
     printed flag (or a printed normal word) reads the no-range sentence; any other case ("keep":
     a range that exists only as text, a flag the helper does not read) writes no status sentence
-    rather than guess.
+    rather than guess. A "keep" under a printed flag writes no range line either, and a one-sided
+    range gets its status sentence without a printed bound (a bound would be new wording).
     """
     # Lazy, as InterpretModule does it: api imports modules.
     from api.observations import observation_range_status
@@ -155,8 +156,11 @@ def _range_sentences(row: dict, unit: str) -> str:
     low, high = row.get("ref_low"), row.get("ref_high")
     has_text = bool(row.get("has_range_text"))
     status = observation_range_status(row.get("flag"), row["value"], low, high, has_text)
+    flag_word = str(row.get("flag") or "").strip()
     parts: list[str] = []
-    if low is not None and high is not None:
+    # A "keep" under a printed flag the helper does not read (A, ABN, CRIT, H*) prints no range
+    # line either: the range alone would invite a "normal" reading of a value the lab flagged.
+    if low is not None and high is not None and not (status == "keep" and flag_word):
         parts.append(f"The reference range is {low}-{high}{unit}.")
     picked = {
         "above": SENTENCE_ABOVE,
@@ -164,7 +168,6 @@ def _range_sentences(row: dict, unit: str) -> str:
         "within": SENTENCE_WITHIN,
         "disagrees": SENTENCE_FLAG_RANGE_DISAGREE,
     }.get(status)
-    flag_word = str(row.get("flag") or "").strip()
     if picked is None and low is None and high is None and not has_text:
         # "normal_uncompared" (a printed normal word, nothing to compare), or "keep" with no flag
         # at all. A "keep" under a printed flag the helper does not read (A, ABN, CRIT, H*) writes
