@@ -106,6 +106,7 @@ This extends "Shared files are ordered as follows" in [implementation-program.md
 | `export_artifacts` | C-GC1 | new table (+ RESET-APPEND, `PROFILE_CHECKS` row) | Wave 14; after C-P6 (OW-W13) |
 | `wearables` | WEAR-02 (#94) | new tables | after M0; after C-GC1 (OW-W13) |
 | `symptom_journal` | WEAR-15a (#94) | new table, after WEAR-02 | after M0; last of the OW-W13 four |
+| `ocr_opt_in` | OCR-OPT-IN-MIGRATION (PR #512) | data-only `UPDATE user_model_settings SET ocr_preference_enabled = 0`; no schema change, so `_match_unversioned_vault` returns the oldest tied revision and HC-FKB-001 names it in `DATA_ONLY_REVISIONS`; downgrade a no-op | `018` at the final rebase (head+1 over `017_fk_cascade_alignment`) |
 | ~~`audit_outbox`~~ | AUDIT-ORDER B | **withdrawn** (AO-DESIGN = D, merged as #78 with no migration) | — |
 
 Every migration PR, data-only ones included:
