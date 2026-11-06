@@ -247,13 +247,15 @@ test.describe('HC-UISET-005: section height at 1440', () => {
 });
 
 // ---------------------------------------------------------------------------
-// HC-UISET-024: the same 2 viewports bound as HC-UISET-005, with a download running. The progress block adds height below the tier
-// rows, and HC-UISET-005 measures the page without it. Same bound, same viewport: nothing here moves BOUND or DESKTOP.
+// HC-UISET-024: Advanced with a download running at 1440 fits 1840 px. The progress block adds height below the tier rows, and
+// HC-UISET-005 (1800 px, default state) measures the page without it. Owner answer SETTINGS-HEIGHT-BOUND ("1800 normally, compact
+// download (Recommended)") and L0 ruling 6693828966: 1800 px holds by default, the running state is a recorded known limit bounded
+// here at 1840 px. HC-UISET-005's bound and DESKTOP are not moved.
 // ---------------------------------------------------------------------------
 test.describe('HC-UISET-024: advanced height at 1440 with a download running', () => {
-  const BOUND = 2 * DESKTOP.height;
+  const RUNNING_BOUND = 1840;
 
-  test('HC-UISET-024: advanced is at most 2 viewports tall expanded with a download running', async ({ page }) => {
+  test('HC-UISET-024: advanced is at most 1840 px tall expanded with a download running', async ({ page }) => {
     await openSettings(page, 'advanced');
     let started = false;
     await page.route(/\/api\/v1\/settings\/model\/download\/?$/, (route) => {
@@ -277,10 +279,10 @@ test.describe('HC-UISET-024: advanced height at 1440 with a download running', (
     // The block's height and its bar animate in (0.5 s); wait them out so the figure is the settled one.
     await page.waitForTimeout(1000);
     const height = await pageHeight(page);
-    console.log(`HC-UISET-024 advanced with a download running: ${height} px (bound ${BOUND})`);
-    test.info().annotations.push({ type: 'height', description: `advanced expanded, download running: ${height} px (bound ${BOUND})` });
+    console.log(`HC-UISET-024 advanced with a download running: ${height} px (bound ${RUNNING_BOUND})`);
+    test.info().annotations.push({ type: 'height', description: `advanced expanded, download running: ${height} px (bound ${RUNNING_BOUND})` });
     expect(started, 'the Download press reached POST /settings/model/download').toBe(true);
-    expect(height, `advanced expanded height with a download running ${height} px`).toBeLessThanOrEqual(BOUND);
+    expect(height, `advanced expanded height with a download running ${height} px`).toBeLessThanOrEqual(RUNNING_BOUND);
   });
 });
 
