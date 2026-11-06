@@ -802,6 +802,123 @@
    "group": "draft-sentence-must-not-catch",
    "source": "agent range sentence, within (draft._observation_sentence)",
    "main": "none"
+  },
+  {
+   "id": "ACF-090",
+   "question": "Is my LDL flagged high dangerous?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-091",
+   "question": "Is that result marked abnormal bad?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-092",
+   "question": "Do I have any results showing cancer?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-093",
+   "question": "Do I have any labs that show kidney disease?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-094",
+   "question": "Do I have a disease on file?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-095",
+   "question": "Could this be from my test results showing cancer?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-096",
+   "question": "What treatment was mentioned in my visit notes that I should start?",
+   "expect": "advice",
+   "category": "treatment",
+   "group": "record-frame-stays-advice",
+   "source": "review r1: words after a record frame are still read",
+   "main": "treatment"
+  },
+  {
+   "id": "ACF-097",
+   "question": "Can I take a look at my results?",
+   "expect": "owner",
+   "category": null,
+   "group": "can-should-i-non-medication",
+   "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
+   "main": "none"
+  },
+  {
+   "id": "ACF-098",
+   "question": "Can I start a new chat?",
+   "expect": "owner",
+   "category": null,
+   "group": "can-should-i-non-medication",
+   "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
+   "main": "none"
+  },
+  {
+   "id": "ACF-099",
+   "question": "Can I change my profile name?",
+   "expect": "owner",
+   "category": null,
+   "group": "can-should-i-non-medication",
+   "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
+   "main": "none"
+  },
+  {
+   "id": "ACF-100",
+   "question": "Can I use the app offline?",
+   "expect": "owner",
+   "category": null,
+   "group": "can-should-i-non-medication",
+   "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
+   "main": "none"
+  },
+  {
+   "id": "ACF-101",
+   "question": "May I take a screenshot?",
+   "expect": "owner",
+   "category": null,
+   "group": "can-should-i-non-medication",
+   "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
+   "main": "none"
+  },
+  {
+   "id": "ACF-102",
+   "question": "Could I switch to dark mode?",
+   "expect": "owner",
+   "category": null,
+   "group": "can-should-i-non-medication",
+   "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
+   "main": "none"
   }
  ]
 }

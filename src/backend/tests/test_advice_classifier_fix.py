@@ -12,6 +12,7 @@ HC-ACF-002  the set holds every named question and every advice-bait golden ques
 HC-ACF-003  before/after table against the verdict frozen from origin/main
 HC-ACF-004  compiled pattern shape: no nested or adjacent unbounded ``.*`` (no wall-clock timing)
 HC-ACF-005  the fixture's agent value sentence is the one the draft node writes
+HC-ACF-015  the range frame's analyte copy against nodes/plan.py:_ANALYTE_KEYWORDS (drift is visible)
 """
 
 from __future__ import annotations
@@ -51,6 +52,26 @@ RANGE_QUESTIONS = (
     "Is my glucose in the normal range?",
     "Is my TSH normal?",
     "Is my creatinine level normal?",
+)
+# Review round 1: questions that carry words AFTER a record frame. Each must stay advice.
+FRAME_PROBES = (
+    "Is my LDL flagged high dangerous?",
+    "Is that result marked abnormal bad?",
+    "Do I have any results showing cancer?",
+    "Do I have any labs that show kidney disease?",
+    "Do I have a disease on file?",
+    "Could this be from my test results showing cancer?",
+    "What treatment was mentioned in my visit notes that I should start?",
+)
+# Review round 1: "can/should/may I + verb" with any object also reaches app and record
+# questions. The owner decides these under ADVICE-PATTERNS-YES; HC-ACF-003 prints them.
+NON_MEDICATION_GROUP = "can-should-i-non-medication"
+NON_MEDICATION = (
+    "Can I take a look at my results?",
+    "Can I start a new chat?",
+    "Can I change my profile name?",
+    "Can I use the app offline?",
+    "May I take a screenshot?",
 )
 OWNER_LABELLED = (
     "Is my glucose abnormal?",
@@ -119,6 +140,8 @@ def test_hc_acf_002_set_holds_named_and_golden_questions():
         *NAMED_RECORD,
         *RANGE_QUESTIONS,
         *OWNER_LABELLED,
+        *FRAME_PROBES,
+        *NON_MEDICATION,
         "Should I stop taking metformin?",  # HC-LAG-001
         "Is my LDL high?",
         "Is my LDL cholesterol high?",
@@ -149,8 +172,25 @@ def test_hc_acf_003_before_after_table(capsys):
             f"{entry['id']:<8}{entry['group']:<34}{expect:<22}{main:<11}{head:<11}{_text(entry)[:70]}"
         )
     table = "\n".join(lines)
+    # What the fix newly blocks: everything that was "none" on main and is advice on head, with
+    # its label, so the owner sees the cost of the wider medication pattern as well as the gain.
+    newly = [
+        f"  {entry['id']:<8}{head:<11}{'owner decides' if entry['expect'] == 'owner' else _label(entry):<16}"
+        f"{entry['group']:<30}{_text(entry)[:60]}"
+        for entry, main, head in rows
+        if main == "none" and head != "none"
+    ]
+    non_medication = [
+        f"  {entry['id']:<8}main {main:<11}head {head:<11}{_text(entry)}"
+        for entry, main, head in rows
+        if entry["group"] == NON_MEDICATION_GROUP
+    ]
+    summary = (
+        "\nNEWLY BLOCKED (main none -> head advice):\n" + "\n".join(newly)
+        + f"\nGROUP {NON_MEDICATION_GROUP} (owner decides):\n" + "\n".join(non_medication)
+    )
     with capsys.disabled():
-        print("\nHC-ACF-003 labelled set, origin/main vs head\n" + table)
+        print("\nHC-ACF-003 labelled set, origin/main vs head\n" + table + summary)
 
     by_text = {_text(e): (m, h) for e, m, h in rows}
     # The four medication questions move from "none" to "medication"; the six record questions
@@ -160,6 +200,15 @@ def test_hc_acf_003_before_after_table(capsys):
     for question in NAMED_RECORD:
         main, head = by_text[question]
         assert main != "none" and head == "none", question
+    # The words-after-a-frame probes were advice on main and stay advice.
+    for question in FRAME_PROBES:
+        main, head = by_text[question]
+        assert main != "none" and head == main, question
+    # The non-medication group is in the table, and in the newly-blocked list exactly when it moved.
+    for question in NON_MEDICATION:
+        assert question in table
+        main, head = by_text[question]
+        assert any(question in line for line in newly) == (main == "none" and head != "none"), question
     # Nothing the owner labelled "not advice" is newly caught, and nothing that was caught and
     # is labelled advice is released.
     for entry, main, head in rows:
@@ -361,6 +410,11 @@ SCENARIOS = {
     "no-range": (
         dict(value=85.0, ref_low=None, ref_high=None, flag=None, is_abnormal=False),
         [NO_RANGE], None),
+    # A printed flag the helper does not read (CRIT) and no range: no status sentence is written
+    # (the no-range sentence would hide the flag). On main this question escalated. Owner-listed.
+    "unrecognised-flag-no-range": (
+        dict(value=300.0, ref_low=None, ref_high=None, flag="CRIT", is_abnormal=True),
+        [], "CRIT"),
     # The range exists only as text; nothing parses it, so no status sentence is written.
     "range-text-only": (
         dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100", flag=None, is_abnormal=False),
@@ -507,10 +561,10 @@ async def test_hc_acf_011_agent_off_marks_the_context_from_the_helper(make_vault
         assert flag_lines == [], (name, flag_lines)
     else:
         assert flag_lines == [f"Flag         : {marker}"], (name, flag_lines)
-    # The answer is served with its citation; nothing in it calls an unflagged 300 normal.
+    # The answer is served with its citation. (The model's text is canned here; what the model is
+    # told is the Flag line asserted above.)
     assert body["is_valid"], body["validation_errors"]
     assert any(seg["citations"] for seg in body["segments"]), body["segments"]
-    assert "within" not in body["full_response"].lower() or fields["value"] != 300.0
     assert _prohibited(body["full_response"]) == []
 
 
@@ -592,3 +646,13 @@ async def test_hc_acf_013_other_questions_get_the_value_sentence_only(make_vault
 )
 def test_hc_acf_014_range_frame_does_not_hide_advice(question):
     assert classify_advice(question).is_advice_seeking is True
+
+
+def test_hc_acf_015_range_frame_analytes_match_the_planner_list():
+    """The range frame in classifier.py copies the analyte names of nodes/plan.py. A key added to
+    the planner but not to the frame still escalates ("Is my X normal?" stays diagnosis), which is
+    conservative; this test makes the gap visible so a new key is a decision, not drift."""
+    from modules.agent.nodes.plan import _ANALYTE_KEYWORDS
+
+    not_covered = {k for k in _ANALYTE_KEYWORDS if _verdict(f"Is my {k} normal?") != "none"}
+    assert not_covered == {"ldl-c", "hdl-c"}, sorted(not_covered)
