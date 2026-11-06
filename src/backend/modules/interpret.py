@@ -52,6 +52,12 @@ SENTENCE_ABOVE = "This value is above the reference range."
 SENTENCE_BELOW = "This value is below the reference range."
 SENTENCE_WITHIN = "This value is within the normal reference range."
 SENTENCE_OUTSIDE = "This value is outside the normal reference range."
+# KEPT-FLAG-DISAGREES (owner answer, 2026-11-05): the printed flag and the printed range
+# disagree for this value. Written for every "disagrees" status, with or without a KB entry.
+SENTENCE_FLAG_RANGE_DISAGREE = (
+    "The flag printed on your report and the printed range disagree for this value. "
+    "Ask your clinician or the lab which applies."
+)
 
 # Citation-enforcing prompt template for LLM interpretation
 LLM_INTERPRETATION_PROMPT = """You are a medical results assistant explaining lab values to patients.
@@ -910,8 +916,9 @@ class InterpretModule:
             parts.append(f"Reference range: {obs.ref_range_text}.")
 
         # Status interpretation. VALUE-RANGE-COMPARE: the value is read against its
-        # numeric range. "disagrees" and "keep" take today's branch by the stored
-        # is_abnormal and the flag exactly as printed; no wording is written for them.
+        # numeric range. "keep" takes today's branch by the stored is_abnormal and the
+        # flag exactly as printed. KEPT-FLAG-DISAGREES: "disagrees" says so, in one
+        # sentence, and writes no knowledge-base text.
         from api.observations import observation_range_status  # lazy: api imports modules
 
         status = observation_range_status(
@@ -926,7 +933,9 @@ class InterpretModule:
         elif status in ("within", "normal_uncompared"):
             is_abnormal = False
 
-        if is_abnormal:
+        if status == "disagrees":
+            parts.append(SENTENCE_FLAG_RANGE_DISAGREE)
+        elif is_abnormal:
             if flag in ["H", "HH", "HIGH"]:
                 if kb:
                     parts.append(kb.high_interpretation + f" [KB:{kb.id}]")
