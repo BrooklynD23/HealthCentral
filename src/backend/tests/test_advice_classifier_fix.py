@@ -25,6 +25,7 @@ import pytest
 
 from modules.agent.guardrails import classifier as classifier_module
 from modules.agent.guardrails.classifier import classify_advice
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 
 TESTS = Path(__file__).resolve().parent
 FIXTURE = TESTS / "fixtures" / "advice_classifier" / "labelled_v1.json"
@@ -287,3 +288,307 @@ def test_hc_acf_005_value_sentence_is_the_one_the_draft_node_writes():
     written = _observation_sentence(row, "UTC")
     fixture_sentences = {e["draft_sentence"] for e in _entries() if "draft_sentence" in e}
     assert written in fixture_sentences
+
+
+# ==============================================================================================
+# Task 2: "Is my X normal?" is answered with the #492 comparison, on both paths.
+# L0 ruling R1 (option A). The agent writes the printed range and the sentence
+# observation_range_status picks; the legacy context marker comes from the same helper.
+#
+# HC-ACF-010  agent ON, over HTTP: each scenario reads the helper's sentence, with a citation
+# HC-ACF-011  agent OFF, over HTTP: the model's context carries the helper's marker, served + cited
+# HC-ACF-012  the no-range sentence is byte-identical to the one InterpretModule emits; the
+#             composed agent sentences are the ones the fixture holds
+# HC-ACF-013  a question that is not a range question gets the value sentence only
+# HC-ACF-014  range questions stay advice when advice rides along, or the subject is no analyte
+# ==============================================================================================
+
+import uuid  # noqa: E402
+from datetime import datetime  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
+
+import pytest_asyncio  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+import api.assistant as A  # noqa: E402
+from api.assistant import router as assistant_router  # noqa: E402
+from core.auth import get_profile_db_session  # noqa: E402
+from core.profile_database import ProfileDatabaseBase  # noqa: E402
+from models import chat_session, model_settings  # noqa: F401,E402  register tables
+from models.document import Document  # noqa: E402
+from models.observation import Observation  # noqa: E402
+from modules.agent.cache import clear_cache  # noqa: E402
+from modules.interpret import (  # noqa: E402
+    SENTENCE_ABOVE,
+    SENTENCE_BELOW,
+    SENTENCE_FLAG_RANGE_DISAGREE,
+    SENTENCE_OUTSIDE,
+    SENTENCE_WITHIN,
+)
+from modules.interpret_safety import InterpretationSafetyGuard  # noqa: E402
+from modules.rag import RAGModule  # noqa: E402
+from tests.support.routes import route_client  # noqa: E402
+
+PROFILE = "profile-a"  # route_client's default session
+WHEN = datetime(2026, 6, 15, 12, 0, 0)
+NO_RANGE = "This report did not include a reference range, so this result can't be compared to one."
+STATUS_SENTENCES = (SENTENCE_ABOVE, SENTENCE_BELOW, SENTENCE_WITHIN, SENTENCE_OUTSIDE,
+                    SENTENCE_FLAG_RANGE_DISAGREE, NO_RANGE)
+RANGE_Q = "Is my glucose normal?"
+
+
+def _range_line(low: float, high: float) -> str:
+    return f"The reference range is {low}-{high} mg/dL."
+
+
+# name -> (row fields, sentences the answer must hold, legacy context marker or None)
+SCENARIOS = {
+    # A row imported before #492: stored is_abnormal False, no printed flag, 300 against 70-100.
+    "above-unflagged-pre-492": (
+        dict(value=300.0, ref_low=70.0, ref_high=100.0, flag=None, is_abnormal=False),
+        [_range_line(70.0, 100.0), SENTENCE_ABOVE], "HIGH"),
+    "within": (
+        dict(value=85.0, ref_low=70.0, ref_high=100.0, flag=None, is_abnormal=False),
+        [_range_line(70.0, 100.0), SENTENCE_WITHIN], None),
+    "below": (
+        dict(value=40.0, ref_low=70.0, ref_high=100.0, flag=None, is_abnormal=False),
+        [_range_line(70.0, 100.0), SENTENCE_BELOW], "LOW"),
+    # A printed L at 18 against 12-16: the flag and the range disagree. The printed flag stays as is.
+    "printed-L-disagrees": (
+        dict(value=18.0, ref_low=12.0, ref_high=16.0, flag="L", is_abnormal=True),
+        [_range_line(12.0, 16.0), SENTENCE_FLAG_RANGE_DISAGREE], "L"),
+    "no-range": (
+        dict(value=85.0, ref_low=None, ref_high=None, flag=None, is_abnormal=False),
+        [NO_RANGE], None),
+    # The range exists only as text; nothing parses it, so no status sentence is written.
+    "range-text-only": (
+        dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100", flag=None, is_abnormal=False),
+        [], None),
+}
+
+
+async def _vault(**obs_fields):
+    engine = create_async_engine(
+        "sqlite+aiosqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    db = AsyncSession(engine, expire_on_commit=False)
+    db.add(Document(
+        id="doc-1", profile_id=PROFILE, path_hash="doc-1", content_hash="doc-1", doc_type="pdf",
+        status="verified", collection_date=WHEN, imported_at=WHEN,
+    ))
+    db.add(Observation(
+        id="obs-1", profile_id=PROFILE, doc_id="doc-1", analyte_canonical="glucose",
+        analyte_raw="Glucose", unit="mg/dL", collected_at=WHEN, user_verified=True,
+        verified_at=WHEN, **obs_fields,
+    ))
+    await db.commit()
+    return db, engine
+
+
+@pytest_asyncio.fixture
+async def make_vault():
+    opened = []
+
+    async def _make(**fields):
+        db, engine = await _vault(**fields)
+        opened.append((db, engine))
+        return db
+
+    clear_cache()
+    try:
+        yield _make
+    finally:
+        clear_cache()
+        for db, engine in opened:
+            await db.close()
+            await engine.dispose()
+
+
+def _chat(profile_db, question: str, *, agent: bool, runner=None):
+    patches = [patch.object(A, "is_agent_enabled", return_value=agent)]
+    if not agent:
+        # No embedding model and no reference corpus: the observation context is what is under test.
+        patches += [
+            patch.object(RAGModule, "_search_vectors_async", AsyncMock(return_value=[])),
+            patch.object(RAGModule, "_get_reference_chunks", AsyncMock(return_value=[])),
+            patch("core.external_runner.get_runner_for_request", AsyncMock(return_value=runner)),
+        ]
+    for p in patches:
+        p.start()
+    try:
+        # audit rows are added synchronously (core/audit.py); an AsyncMock master would warn
+        master = MagicMock()
+        master.commit = master.flush = master.refresh = AsyncMock()
+        with route_client(assistant_router, "/assistant", profile_id=PROFILE, master_db=master) as client:
+
+            async def _override_profile_db():
+                return profile_db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            resp = client.post("/assistant/chat", json={"question": question})
+    finally:
+        for p in reversed(patches):
+            p.stop()
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def _cited_ids(body: dict) -> set[str]:
+    ids = set()
+    for seg in body["segments"]:
+        for c in seg["citations"]:
+            oid = c.get("observation_id") or c.get("text_snippet") or ""
+            if oid.startswith("obs-"):
+                ids.add(oid)
+    return ids
+
+
+def _prohibited(text: str) -> list[str]:
+    guard = InterpretationSafetyGuard()
+    return [name for pattern, name in guard._compiled_prohibited if pattern.search(text)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", list(SCENARIOS))
+async def test_hc_acf_010_agent_on_answers_range_question_with_the_helper_sentence(make_vault, name):
+    fields, expected, _ = SCENARIOS[name]
+    body = _chat(await make_vault(**fields), RANGE_Q, agent=True)
+
+    text = body["full_response"]
+    assert body["is_valid"] and "pre_model_advice" not in body["validation_errors"], text
+    assert text != ESCALATE_TEMPLATE, "a range question must be answered, not escalated"
+    assert f"{fields['value']}" in text
+    for sentence in expected:
+        assert sentence in text, (name, text)
+    for other in STATUS_SENTENCES:
+        if other not in expected:
+            assert other not in text, (name, other, text)
+    assert _cited_ids(body) == {"obs-1"}, body["segments"]
+    assert _prohibited(text) == [], text
+    assert classify_advice(text).is_advice_seeking is False, text
+
+
+class _CapturingRunner:
+    """Stands in for the runner get_runner_for_request returns; keeps every prompt it was given."""
+
+    def __init__(self, text: str) -> None:
+        from types import SimpleNamespace
+
+        self.prompts: list[str] = []
+        self._result = SimpleNamespace(text=text, finish_reason="stop")
+
+    def is_available(self) -> bool:
+        return True
+
+    async def generate_async(self, prompt, config):
+        self.prompts.append(prompt)
+        return self._result
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", list(SCENARIOS))
+async def test_hc_acf_011_agent_off_marks_the_context_from_the_helper(make_vault, name):
+    fields, _, marker = SCENARIOS[name]
+    value = f"{fields['value']}"
+    runner = _CapturingRunner(f"REPORT FACTS:\nYour glucose result was {value} mg/dL [cite:1].")
+    body = _chat(await make_vault(**fields), RANGE_Q, agent=False, runner=runner)
+
+    # The question reached the model: it is no longer escalated before it.
+    assert body["full_response"] != ESCALATE_TEMPLATE
+    assert "pre_model_advice" not in body["validation_errors"]
+    assert len(runner.prompts) == 1, "the model was never reached"
+    prompt = runner.prompts[0]
+    assert f"Latest value : {value} mg/dL" in prompt
+    flag_lines = [line.strip() for line in prompt.splitlines() if line.strip().startswith("Flag")]
+    if marker is None:
+        assert flag_lines == [], (name, flag_lines)
+    else:
+        assert flag_lines == [f"Flag         : {marker}"], (name, flag_lines)
+    # The answer is served with its citation; nothing in it calls an unflagged 300 normal.
+    assert body["is_valid"], body["validation_errors"]
+    assert any(seg["citations"] for seg in body["segments"]), body["segments"]
+    assert "within" not in body["full_response"].lower() or fields["value"] != 300.0
+    assert _prohibited(body["full_response"]) == []
+
+
+def test_hc_acf_012_no_range_sentence_is_the_one_interpret_emits():
+    from modules.agent.nodes.draft import NO_RANGE_SENTENCE
+
+    assert NO_RANGE_SENTENCE == NO_RANGE
+    emitted = _interpret_emits_no_range()
+    assert NO_RANGE in emitted
+    assert NO_RANGE_SENTENCE in emitted
+
+
+def _interpret_emits_no_range() -> str:
+    import asyncio
+    from types import SimpleNamespace
+
+    from modules.interpret import InterpretationContext, InterpretModule
+
+    module = InterpretModule(
+        knowledge_loader=SimpleNamespace(get_biomarker_knowledge=AsyncMock(return_value=None)),
+        safety_guard=SimpleNamespace(),
+        recommendation_engine=SimpleNamespace(generate_recommendations=AsyncMock(return_value=None)),
+        model_selector=SimpleNamespace(),
+    )
+    obs = Observation(
+        id=str(uuid.uuid4()), profile_id=PROFILE, doc_id="d", analyte_canonical="glucose",
+        analyte_raw="Glucose", value=85.0, unit="mg/dL", ref_low=None, ref_high=None,
+        ref_range_text=None, flag=None, is_abnormal=False, collected_at=WHEN,
+    )
+    text, _ = asyncio.run(module._generate_interpretation(
+        InterpretationContext(observation=obs, biomarker_info=None), AsyncMock()
+    ))
+    return text
+
+
+def test_hc_acf_012b_composed_agent_sentences_are_the_ones_the_set_holds():
+    from modules.agent.nodes.draft import _observation_sentence
+
+    held = {e["draft_sentence"] for e in _entries() if "draft_sentence" in e}
+    row = {
+        "observation_id": "obs-1", "analyte": "glucose", "value": 300.0, "unit": "mg/dL",
+        "collected_at": "2026-01-15", "ref_low": 70.0, "ref_high": 100.0, "flag": None,
+        "has_range_text": False, "range_question": True,
+    }
+    above = _observation_sentence(row, "UTC")
+    assert above == (
+        "Your verified Glucose result was 300.0 mg/dL (collected Jan 15, 2026). "
+        f"{_range_line(70.0, 100.0)} {SENTENCE_ABOVE}"
+    )
+    assert above in held
+    within = _observation_sentence({**row, "value": 85.0}, "UTC")
+    assert SENTENCE_WITHIN in within and within in held
+    for sentence in (above, within):
+        assert classify_advice(sentence).is_advice_seeking is False
+        assert _prohibited(sentence) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("question", ["What was my glucose?", "Is my glucose high?", "Is my glucose in the usual range?"])
+async def test_hc_acf_013_other_questions_get_the_value_sentence_only(make_vault, question):
+    fields = SCENARIOS["above-unflagged-pre-492"][0]
+    body = _chat(await make_vault(**fields), question, agent=True)
+    text = body["full_response"]
+    assert "300.0" in text and _cited_ids(body) == {"obs-1"}, text
+    assert "reference range" not in text.lower(), text
+    for sentence in STATUS_SENTENCES:
+        assert sentence not in text, text
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Is my glucose normal, and should I stop taking my meds?",
+        "Is my glucose normal or should I be worried?",
+        "Is my cough normal?",
+        "Is my blood pressure normal?",
+        "Is my glucose normal for my age?",
+    ],
+)
+def test_hc_acf_014_range_frame_does_not_hide_advice(question):
+    assert classify_advice(question).is_advice_seeking is True
