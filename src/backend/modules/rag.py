@@ -443,7 +443,9 @@ USER QUESTION: {question}"""
                 else:
                     # ADVICE-CLASSIFIER-FIX: an unflagged row is read against its own numeric
                     # range, not by the stored is_abnormal (false on any row imported before #492).
-                    from api.observations import observation_range_status  # lazy: api imports modules
+                    from api.observations import (
+                        observation_range_status,  # lazy: api imports modules
+                    )
 
                     place = observation_range_status(None, latest.value, latest.ref_low, latest.ref_high)
                     flag_str = {"above": "HIGH", "below": "LOW"}.get(place, "")
