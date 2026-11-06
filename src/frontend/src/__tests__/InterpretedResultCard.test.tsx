@@ -51,7 +51,7 @@ function makeInterpretation(
     id: 'interp-1',
     observation_id: 'obs-1',
     interpretation_text: 'Plain text.',
-    severity_level: 'mild',
+    severity_level: 'borderline_high',
     advice_text: null,
     citations: [],
     context: null,
@@ -117,6 +117,23 @@ describe('InterpretedResultCard', () => {
     expect(text).not.toContain('[KB:');
     expect(screen.getByText('Eat more fibre.')).toBeInTheDocument();
     expect(screen.getByText('Walk daily.')).toBeInTheDocument();
+  });
+
+  // The backend sends only these seven severity values (models/interpretation.py, interpret.py _classify_severity).
+  // The badge keeps printing the raw value; only its colour class is pinned here (BADGE-STYLE-MAP).
+  const severityBadgeCases: Array<[string, string, string]> = [
+    ['HC-BSM-001', 'normal', 'bg-status-verified-subtle'],
+    ['HC-BSM-002', 'borderline_low', 'bg-status-caution-subtle'],
+    ['HC-BSM-003', 'borderline_high', 'bg-status-caution-subtle'],
+    ['HC-BSM-004', 'abnormal_low', 'bg-status-attention-subtle'],
+    ['HC-BSM-005', 'abnormal_high', 'bg-status-attention-subtle'],
+    ['HC-BSM-006', 'critical_low', 'bg-status-attention-subtle'],
+    ['HC-BSM-007', 'critical_high', 'bg-status-attention-subtle'],
+  ];
+  it.each(severityBadgeCases)('%s: severity_level %s styles the badge %s', (_id, level, expectedClass) => {
+    render(<InterpretedResultCard interpretation={makeInterpretation({ severity_level: level })} />);
+    const badge = screen.getByText(level);
+    expect(badge).toHaveClass(expectedClass);
   });
 
   // The gauge became a RangeTick (UI-PG-RESULTS, L0 ruling 6600985053 Q3). The tick is a 64 px svg with its own scale

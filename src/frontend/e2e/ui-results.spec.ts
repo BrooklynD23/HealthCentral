@@ -114,7 +114,7 @@ const STORED_INTERPRETATION = {
   id: 'interp-1',
   observation_id: 'g1',
   interpretation_text: 'Your glucose is a little above the range used on the report.',
-  severity_level: 'mild',
+  severity_level: 'borderline_high',
   advice_text: 'Ask whether a repeat test makes sense.',
   citations: [{ type: 'knowledge_base', id: 'kb-glucose', text: 'Fasting glucose is compared with the range printed on the report.' }],
   context: null,

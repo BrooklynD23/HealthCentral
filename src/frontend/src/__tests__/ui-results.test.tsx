@@ -164,7 +164,7 @@ const STORED_CARD = {
   id: 'interp-stored',
   observation_id: 'o-hgb',
   interpretation_text: 'Stored card text.',
-  severity_level: 'mild',
+  severity_level: 'borderline_high',
   advice_text: null,
   citations: [{ type: 'knowledge_base', id: 'kb-hgb', text: 'Hemoglobin carries oxygen in the blood.' }],
   context: null,
