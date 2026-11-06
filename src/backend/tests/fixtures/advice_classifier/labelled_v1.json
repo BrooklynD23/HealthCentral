@@ -1108,6 +1108,150 @@
    "group": "record-frame-stays-advice",
    "source": "review r3: the could-this frame takes only the plan's record nouns; blood only before a record noun",
    "main": "diagnosis"
+  },
+  {
+   "id": "ACF-124",
+   "question": "Can I use the app offline?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-125",
+   "question": "Can I change my profile name?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-126",
+   "question": "Can I start a new import?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-127",
+   "question": "Can I take a photo of my report?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-128",
+   "question": "Can I change the language?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-129",
+   "question": "Could I use dark mode?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-130",
+   "question": "May I stop the download?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-131",
+   "question": "Can I skip this step?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-132",
+   "question": "Can I use this on my phone?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-133",
+   "question": "Can I double check my results?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-134",
+   "question": "Can I take more readings at home?",
+   "expect": "none",
+   "category": null,
+   "group": "app-question-stays-none",
+   "source": "L0 review at 8b50a6e7: a can/could/may-I question with no medication cue is not a medication question",
+   "main": "none"
+  },
+  {
+   "id": "ACF-135",
+   "question": "Can I stop my statin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "L0 review at 8b50a6e7: a medication cue (or a bare take-more ending the question) keeps the medication verdict",
+   "main": "medication"
+  },
+  {
+   "id": "ACF-136",
+   "question": "Can I take more insulin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "L0 review at 8b50a6e7: a medication cue (or a bare take-more ending the question) keeps the medication verdict",
+   "main": "none"
+  },
+  {
+   "id": "ACF-137",
+   "question": "Could I double my dose?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "L0 review at 8b50a6e7: a medication cue (or a bare take-more ending the question) keeps the medication verdict",
+   "main": "none"
+  },
+  {
+   "id": "ACF-138",
+   "question": "May I skip my pills today?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "L0 review at 8b50a6e7: a medication cue (or a bare take-more ending the question) keeps the medication verdict",
+   "main": "none"
+  },
+  {
+   "id": "ACF-139",
+   "question": "Can I take more?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "L0 review at 8b50a6e7: a medication cue (or a bare take-more ending the question) keeps the medication verdict",
+   "main": "none"
   }
  ]
 }

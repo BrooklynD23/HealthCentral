@@ -27,15 +27,25 @@ class AdviceVerdict(BaseModel):
 # Patterns are intentionally small and easy to extend (mirrors the spirit of
 # nodes/plan.py's _ANALYTE_KEYWORDS) — richer NLU is out of scope here; this
 # is a mechanical gate, not a model call (skills/asclexis-guardrails).
+# A medication cue: a medication noun, or a drug name the labelled set holds (no drug-name list
+# exists in product code to reuse; modules/med_reconcile.py and nodes/plan.py hold none).
+_MED_CUE = r"(?:medications?|medicines?|meds|pills?|tablets?|doses?|dosages?|drugs?|statins?|insulin|antibiotics?|prescriptions?|supplements?|inhalers?|metformin|lisinopril)\b"
+
 _MEDICATION_PATTERNS = [
-    r"\b(?:should|can|could|may) i (?:still )?(?:stop|start|begin|quit|change|switch|increase|decrease|adjust|lower|raise|skip|double|take|use|inject)\b",
+    # main's form, unchanged: an object word after the verb.
+    r"\bshould i (?:stop|start|begin|quit|change|switch|increase|decrease|adjust|lower|raise|skip|take)\b.*\b(?:taking|my|the|this)\b",
+    # A first-person verb needs a medication cue within the next six words, so an app question
+    # ("Can I use the app offline?") is not read as a medication question.
+    r"\b(?:should|can|could|may) i (?:still )?(?:stop|start|begin|quit|change|switch|increase|decrease|adjust|lower|raise|skip|double|take|use|inject)\b(?:\s+[\w'-]+){0,5}?\s+" + _MED_CUE,
     r"\b(?:stop|start|quit|change|switch|increase|decrease|adjust)\s+(?:taking\s+)?my\s+\w*\s*(?:statin|medication|medicine|pill|dose|dosage|drug|prescription|insulin|antibiotic)",
     r"\bcan i (?:stop|start|quit|skip)\b.*\b(?:medication|medicine|pill|dose|dosage|drug|statin|insulin|prescription)\b",
     r"\bis it (?:safe|okay|ok) (?:for me )?to (?:stop|start|quit|change|skip|increase|decrease|adjust|lower|raise|double|halve|take|use)\b.*\b(?:medication|medicine|pill|dose|statin|insulin|drug)\b",
     r"\bshould i (?:still )?(?:be )?tak(?:e|ing) my\b",
     r"\bdo i (?:still )?need my\b.*\b(?:medication|medicine|pill|dose|statin|insulin|drug)\b",
     r"\bhow (?:much|many|often)\b(?:\s+[\w'-]+){0,6}?\s+(?:should|do|can|could|may) i (?:take|use|inject)\b",
-    r"\b(?:(?:do|does|should|can|could|may|will|would|must|shall) (?:i|we)(?:\s+[\w'-]+){0,3}?|is it (?:safe|okay|ok)(?: for me)?)\s+(?:to\s+)?(?:take|use|inject)\s+(?:more|less|extra|double|half)\b",
+    r"\b(?:(?:do|does|should|can|could|may|will|would|must|shall) (?:i|we)(?:\s+[\w'-]+){0,3}?|is it (?:safe|okay|ok)(?: for me)?)\s+(?:to\s+)?(?:take|use|inject)\s+(?:more|less|extra|double|half)\b"
+    # ...and the take-more phrase ends the question, or a medication cue follows within six words.
+    r"(?:(?:\s+(?:of\s+)?(?:it|this|that|them))?[\s?.!]*$|(?:\s+[\w'-]+){0,5}?\s+" + _MED_CUE + ")",
 ]
 
 _TREATMENT_PATTERNS = [
