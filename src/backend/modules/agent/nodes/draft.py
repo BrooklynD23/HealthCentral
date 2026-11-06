@@ -34,6 +34,7 @@ says: …", "You have N open follow-up items"), never advice.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date, datetime, time
 
 from pydantic import BaseModel
@@ -125,6 +126,61 @@ async def _profile_tz(ctx: ToolContext) -> str:
         return "UTC"
 
 
+# The sentence InterpretModule writes for a result with no range at all (modules/interpret.py,
+# an inline literal there). Byte-identical by test (HC-ACF-012).
+NO_RANGE_SENTENCE = "This report did not include a reference range, so this result can't be compared to one."
+
+# A range question is one that asks whether a value is "normal" / in the "normal range".
+_RANGE_QUESTION = re.compile(r"\bnormal\b", re.IGNORECASE)
+
+
+def _range_sentences(row: dict, unit: str) -> str:
+    """ADVICE-CLASSIFIER-FIX: the printed range and the sentence ``observation_range_status``
+    picks for this row, from the wording the interpretation card already uses. No new wording.
+
+    above/below/within/disagrees read their sentence; no numeric bound, no range text and no
+    printed flag (or a printed normal word) reads the no-range sentence; any other case ("keep":
+    a range that exists only as text, a flag the helper does not read) writes no status sentence
+    rather than guess. A "keep" under a printed flag writes no range line either, and a one-sided
+    range gets its status sentence without a printed bound (a bound would be new wording).
+    """
+    # Lazy, as InterpretModule does it: api imports modules.
+    from api.observations import observation_range_status
+    from modules.interpret import (
+        SENTENCE_ABOVE,
+        SENTENCE_BELOW,
+        SENTENCE_FLAG_RANGE_DISAGREE,
+        SENTENCE_WITHIN,
+    )
+
+    low, high = row.get("ref_low"), row.get("ref_high")
+    has_text = bool(row.get("has_range_text"))
+    status = observation_range_status(
+        (row.get("flag") or "").strip() or None, row["value"], low, high, has_text
+    )
+    flag_word = str(row.get("flag") or "").strip()
+    parts: list[str] = []
+    # A "keep" under a printed flag the helper does not read (A, ABN, CRIT, H*) prints no range
+    # line either: the range alone would invite a "normal" reading of a value the lab flagged.
+    if low is not None and high is not None and not (status == "keep" and flag_word):
+        parts.append(f"The reference range is {low}-{high}{unit}.")
+    picked = {
+        "above": SENTENCE_ABOVE,
+        "below": SENTENCE_BELOW,
+        "within": SENTENCE_WITHIN,
+        "disagrees": SENTENCE_FLAG_RANGE_DISAGREE,
+    }.get(status)
+    if picked is None and low is None and high is None and not has_text:
+        # "normal_uncompared" (a printed normal word, nothing to compare), or "keep" with no flag
+        # at all. A "keep" under a printed flag the helper does not read (A, ABN, CRIT, H*) writes
+        # nothing: "can't be compared" would hide a flag the report printed.
+        if status == "normal_uncompared" or not flag_word:
+            picked = NO_RANGE_SENTENCE
+    if picked:
+        parts.append(picked)
+    return " ".join(parts)
+
+
 def _observation_sentence(row: dict, tz_name: str = "UTC") -> str:
     """Compose the one grounded sentence for an observation row.
 
@@ -132,14 +188,23 @@ def _observation_sentence(row: dict, tz_name: str = "UTC") -> str:
     that would otherwise reach the user verbatim through the terminal, so
     both are scrubbed of injection markers and PHI patterns first (HC-M05;
     see guardrails/redaction_gate.sanitize_untrusted_field).
+
+    A row marked ``range_question`` (see ``_rows_to_draft``) also carries its printed range
+    and status sentence, in the SAME string: sentences and citations are positional, so this
+    keeps the one citation on the one observation.
     """
     analyte = _display_name(sanitize_untrusted_field(row["analyte"]))
     unit_value = sanitize_untrusted_field(row.get("unit"))
     unit = f" {unit_value}" if unit_value else ""
-    return (
+    sentence = (
         f"Your verified {analyte} result was {row['value']}{unit} "
         f"(collected {_local_date(row['collected_at'], tz_name)})."
     )
+    if row.get("range_question"):
+        extra = _range_sentences(row, unit)
+        if extra:
+            sentence = f"{sentence} {extra}"
+    return sentence
 
 
 def _rows_to_draft(question: str, rows: list[dict]) -> list[dict]:
@@ -147,15 +212,24 @@ def _rows_to_draft(question: str, rows: list[dict]) -> list[dict]:
     analyte, most recent first, capped. A named analyte keeps every row.
 
     The per-analyte dedupe is defence in depth (query_observations already
-    returns the latest row per analyte); the cap is what does the work here."""
-    if _detect_analyte(question) is not None:
-        return rows
+    returns the latest row per analyte); the cap is what does the work here.
+
+    A range question ("Is my glucose normal?") marks the LATEST row per analyte
+    ``range_question`` so ``_observation_sentence`` adds its printed range and status
+    sentence; older rows keep the value sentence only."""
+    ranged = bool(_RANGE_QUESTION.search(question))
     latest: dict[str, dict] = {}
     for row in rows:
         best = latest.get(row["analyte"])
         if best is None or str(row["collected_at"]) > str(best["collected_at"]):
             latest[row["analyte"]] = row
+    if _detect_analyte(question) is not None:
+        if not ranged:
+            return rows
+        return [{**row, "range_question": True} if row is latest[row["analyte"]] else row for row in rows]
     ordered = sorted(latest.values(), key=lambda r: str(r["collected_at"]), reverse=True)
+    if ranged:
+        ordered = [{**row, "range_question": True} for row in ordered]
     return ordered[:_MAX_OPEN_ANALYTES]
 
 
