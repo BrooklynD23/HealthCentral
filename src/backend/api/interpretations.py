@@ -31,6 +31,7 @@ from models import (
 from modules import get_interpret_module
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.interpret import panel_rebuild_at_risk, saved_card_needs_rebuild
+from modules.knowledge_loader import kb_lookup_name
 from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -1012,7 +1013,7 @@ async def get_biomarker_knowledge(
     """
     result = await master_db.execute(
         select(BiomarkerKnowledge).where(
-            BiomarkerKnowledge.analyte_canonical == analyte_canonical.lower()
+            BiomarkerKnowledge.analyte_canonical == kb_lookup_name(analyte_canonical)
         )
     )
     kb = result.scalar_one_or_none()

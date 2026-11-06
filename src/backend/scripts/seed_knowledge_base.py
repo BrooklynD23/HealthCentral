@@ -213,7 +213,7 @@ BIOMARKER_DATA = [
     # DIABETES / GLUCOSE
     # =========================================================================
     {
-        "analyte_canonical": "glucose_fasting",
+        "analyte_canonical": "glucose",
         "display_name": "Fasting Glucose",
         "loinc_codes_json": json.dumps(["1558-6", "2339-0"]),
         "description": "Fasting blood glucose measures the amount of sugar (glucose) in your blood after not eating for at least 8 hours. It's a primary screening test for diabetes.",
@@ -251,7 +251,7 @@ BIOMARKER_DATA = [
         ]),
     },
     {
-        "analyte_canonical": "hemoglobin_a1c",
+        "analyte_canonical": "hba1c",
         "display_name": "Hemoglobin A1c (HbA1c)",
         "loinc_codes_json": json.dumps(["4548-4", "17856-6"]),
         "description": "HbA1c measures your average blood sugar level over the past 2-3 months. It reflects how well blood sugar has been controlled over time.",
@@ -331,7 +331,7 @@ BIOMARKER_DATA = [
         ]),
     },
     {
-        "analyte_canonical": "wbc",
+        "analyte_canonical": "white_blood_cells",
         "display_name": "White Blood Cell Count (WBC)",
         "loinc_codes_json": json.dumps(["6690-2"]),
         "description": "White blood cells (leukocytes) are part of your immune system. They help your body fight infections and other diseases.",
@@ -621,7 +621,7 @@ INTERVENTION_DATA = [
     },
     # HbA1c - High
     {
-        "analyte_canonical": "hemoglobin_a1c",
+        "analyte_canonical": "hba1c",
         "condition_type": "high",
         "category": "diet",
         "intervention_title": "Reduce Refined Carbohydrates",
@@ -639,7 +639,7 @@ INTERVENTION_DATA = [
         ]),
     },
     {
-        "analyte_canonical": "hemoglobin_a1c",
+        "analyte_canonical": "hba1c",
         "condition_type": "high",
         "category": "exercise",
         "intervention_title": "Regular Physical Activity",
@@ -715,7 +715,7 @@ RELATIONSHIP_DATA = [
             "high_risk": [6.0, None]
         }),
         "abnormal_interpretation": "A high Total/HDL ratio suggests increased cardiovascular risk. This may mean total cholesterol is too high, HDL is too low, or both.",
-        "panel_name": "lipid_panel",
+        "panel_name": "lipid",
     },
     {
         "primary_analyte": "ldl_cholesterol",
@@ -731,7 +731,7 @@ RELATIONSHIP_DATA = [
             "high_risk": [4.5, None]
         }),
         "abnormal_interpretation": "A high LDL/HDL ratio indicates increased cardiovascular risk. Ideally, LDL should be low and HDL should be high.",
-        "panel_name": "lipid_panel",
+        "panel_name": "lipid",
     },
     {
         "primary_analyte": "ldl_cholesterol",
@@ -742,7 +742,7 @@ RELATIONSHIP_DATA = [
         "ratio_calculation": None,
         "ratio_target_range_json": None,
         "abnormal_interpretation": None,
-        "panel_name": "lipid_panel",
+        "panel_name": "lipid",
     },
     {
         "primary_analyte": "hdl_cholesterol",
@@ -753,7 +753,7 @@ RELATIONSHIP_DATA = [
         "ratio_calculation": None,
         "ratio_target_range_json": None,
         "abnormal_interpretation": None,
-        "panel_name": "lipid_panel",
+        "panel_name": "lipid",
     },
     {
         "primary_analyte": "triglycerides",
@@ -764,7 +764,7 @@ RELATIONSHIP_DATA = [
         "ratio_calculation": None,
         "ratio_target_range_json": None,
         "abnormal_interpretation": None,
-        "panel_name": "lipid_panel",
+        "panel_name": "lipid",
     },
     {
         "primary_analyte": "tsh",
@@ -778,8 +778,8 @@ RELATIONSHIP_DATA = [
         "panel_name": "thyroid",
     },
     {
-        "primary_analyte": "glucose_fasting",
-        "related_analyte": "hemoglobin_a1c",
+        "primary_analyte": "glucose",
+        "related_analyte": "hba1c",
         "relationship_type": "confirms",
         "description": "Fasting glucose and HbA1c both measure aspects of blood sugar control.",
         "clinical_significance": "Fasting glucose provides a snapshot of current blood sugar, while HbA1c reflects average blood sugar over 2-3 months. Together they provide a complete picture of glucose control.",
@@ -809,7 +809,7 @@ _TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...] = (
         "Your healthcare provider can explain what this result means for you.",
     ),
     (
-        "glucose_fasting",
+        "glucose",
         "high_interpretation",
         "Elevated fasting glucose may indicate prediabetes or diabetes. "
         "Further testing and lifestyle modifications may be recommended.",
@@ -848,7 +848,7 @@ _TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...] = (
         "this result means for you.",
     ),
     (
-        "glucose_fasting",
+        "glucose",
         "high_interpretation",
         "Elevated fasting glucose may indicate prediabetes or diabetes. Your "
         "healthcare provider can explain whether further testing is needed.",
@@ -857,7 +857,7 @@ _TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...] = (
         "testing is needed.",
     ),
     (
-        "glucose_fasting",
+        "glucose",
         "low_interpretation",
         "Low blood glucose (hypoglycemia) can cause symptoms like shakiness, "
         "confusion, and fatigue. Causes include certain medications, missed "
@@ -888,7 +888,7 @@ _TEXT_REVISIONS: tuple[tuple[str, str, str, str], ...] = (
         "diseases.",
     ),
     (
-        "wbc",
+        "white_blood_cells",
         "low_interpretation",
         "Low WBC (leukopenia) can increase infection risk. Causes include "
         "viral infections, bone marrow problems, autoimmune conditions, or "
