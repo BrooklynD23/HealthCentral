@@ -12,6 +12,7 @@ HC-KFD-005  a panel holding a disagreeing member
 HC-KFD-006  a saved template card on today's wording is rebuilt on read (GET and POST)
 HC-KFD-007  a card that holds the sentence, has no readable claim, or is model-written is left alone
 HC-KFD-008  a panel read that rebuilds reaches the disagreeing member's card
+HC-KFD-009  TrendPoint.flag_range_disagree over HTTP, from the row's own range
 
 The new sentence is written out here as a literal, not imported, so each test fails on its
 own id before the constant exists.
@@ -19,6 +20,7 @@ own id before the constant exists.
 
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -27,6 +29,7 @@ from sqlalchemy import select
 
 import api.observations as obs_api
 import modules.interpret as interpret_mod
+from api.observations import router as observations_router
 from models import Observation
 from models.knowledge_base import BiomarkerKnowledge
 from modules.interpret_safety import InterpretationSafetyGuard
@@ -39,6 +42,8 @@ from tests.test_value_range_compare import (
     DAY,
     DISAGREE,
     DISAGREE_PARAMS,
+    HI,
+    LO,
     OUTSIDE,
     PANEL_EVENT,
     READS,
@@ -477,3 +482,74 @@ async def test_hc_kfd_008_a_rebuilding_panel_read_rebuilds_the_disagreeing_membe
     assert len(await _panels(profile_db)) == 1
 
 
+# ── HC-KFD-009: TrendPoint.flag_range_disagree ───────────────────────────────
+
+
+def test_hc_kfd_009_the_field_defaults_to_false():
+    point = obs_api.TrendPoint(date="2026-03-01T09:00:00", value=1.0, unit="", is_abnormal=False,
+                               doc_id="d")
+    assert point.flag_range_disagree is False
+
+
+def _trend(profile_db, master_db, analyte: str):
+    return _call(profile_db, master_db, observations_router, "/observations", "GET",
+                 f"/observations/trends/{analyte}")
+
+
+def _day(n: int) -> datetime:
+    return datetime(2026, 3, n, 9, 0, 0)
+
+
+@pytest.mark.asyncio
+async def test_hc_kfd_009_trend_points_carry_the_disagreement_of_their_own_row(dbs):
+    profile_db, master_db = dbs
+    rows = {
+        1: dict(value=300.0, flag="N", is_abnormal=True),              # disagrees (normal word)
+        2: dict(value=85.0, flag="H", is_abnormal=True),               # disagrees (H inside)
+        3: dict(value=300.0, flag="H", is_abnormal=True),              # agrees
+        4: dict(value=85.0, flag="N", is_abnormal=False),              # agrees
+        5: dict(value=300.0, is_abnormal=True),                        # no flag
+        6: dict(value=40.0, flag="L", ref_low=None, ref_high=None, is_abnormal=True),   # no range
+        7: dict(value=85.0, flag="A", is_abnormal=True),               # other flag
+        8: dict(value=85.0, flag="L", is_abnormal=True),               # disagrees (L inside): latest
+    }
+    want = {1: True, 2: True, 3: False, 4: False, 5: False, 6: False, 7: False, 8: True}
+    for n, kw in rows.items():
+        profile_db.add(_obs(user_verified=True, collected_at=_day(n), **kw))
+    await profile_db.commit()
+    resp = _trend(profile_db, master_db, "glucose")
+    assert resp.status_code == 200, resp.text
+    points = resp.json()["data_points"]
+    assert {p["date"][:10]: p["flag_range_disagree"] for p in points} == {
+        f"2026-03-0{n}": w for n, w in want.items()}
+    assert points[-1]["flag_range_disagree"] is True  # the latest row
+
+
+@pytest.mark.asyncio
+async def test_hc_kfd_009_the_row_range_is_read_raw_not_through_the_chart_band_or_a_conversion(dbs):
+    # A mmol/L row is shown converted to mg/dL; its flag is read against its own printed
+    # range in its own unit, never the converted value, and never the chart's combined band.
+    profile_db, master_db = dbs
+    profile_db.add(_obs(user_verified=True, collected_at=_day(1), value=5.0, unit="mmol/L",
+                        ref_low=3.9, ref_high=5.6, flag="H", is_abnormal=True))  # inside: disagrees
+    profile_db.add(_obs(user_verified=True, collected_at=_day(2), value=300.0, unit="mg/dL",
+                        ref_low=LO, ref_high=HI, flag="H", is_abnormal=True))    # above: agrees
+    profile_db.add(_obs(user_verified=True, collected_at=_day(3), value=9.0, unit="mmol/L",
+                        ref_low=3.9, ref_high=5.6, flag="H", is_abnormal=True))  # above: agrees
+    await profile_db.commit()
+    resp = _trend(profile_db, master_db, "glucose")
+    assert resp.status_code == 200, resp.text
+    points = resp.json()["data_points"]
+    assert [p["flag_range_disagree"] for p in points] == [True, False, False], points
+    assert any(p["original_unit"] for p in points), "the precondition: a point was converted"
+
+
+@pytest.mark.asyncio
+async def test_hc_kfd_009_a_text_only_range_with_a_normal_word_is_not_a_disagreement(dbs):
+    profile_db, master_db = dbs
+    profile_db.add(_obs(user_verified=True, collected_at=_day(1), value=300.0, ref_low=None,
+                        ref_high=None, ref_range_text="70-100", flag="N", is_abnormal=False))
+    await profile_db.commit()
+    resp = _trend(profile_db, master_db, "glucose")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["data_points"][0]["flag_range_disagree"] is False
