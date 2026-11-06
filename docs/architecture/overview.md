@@ -65,7 +65,7 @@ backup schedules and the reference knowledge base.
 
 ```mermaid
 flowchart TD
-    Q["POST /api/v1/assistant/chat<br/>api/assistant.py"] --> SESS["ChatSession / ChatTurn<br/>persisted in the profile vault"]
+    Q["POST /api/v1/assistant/chat<br/>api/assistant.py"] --> SESS["ChatSession resolved in the profile vault<br/>(ChatTurns appended after the answer)"]
     SESS --> SW{"is_agent_enabled?<br/>(default: yes)"}
 
     SW -->|yes| CACHE{"semantic cache hit?<br/>modules/agent/cache.py"}
@@ -121,7 +121,7 @@ sequenceDiagram
     API->>Vault: Document row
     alt PDF or image
         API->>Extract: ExtractModule (text, or OCR when enabled)
-        Note over API,Extract: OCR needed but unavailable: status pending_ocr
+        Note over API,Extract: OCR off or unavailable: status pending_ocr, stop (no observations or chunks)
         Extract->>API: extracted observations
         API->>API: normalize analytes (modules/normalize.py)
         API->>Vault: Observation rows, unverified
@@ -129,7 +129,7 @@ sequenceDiagram
         API->>API: classify document, extract entities
     else lab CSV or FHIR Bundle (HC-M23)
         API->>Extract: parse_lab_csv / parse_fhir_bundle (no OCR, no rule-based classification)
-        Extract->>API: observations, entities, category from the parser
+        Extract->>API: observations and entities (the API sets the document category)
         API->>Vault: Observation rows, always unverified
     end
     API-->>UI: import result + verification payload

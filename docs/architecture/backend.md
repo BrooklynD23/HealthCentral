@@ -10,9 +10,11 @@ Part of the [architecture diagram set](README.md).
 
 ## Request lifecycle
 
-Every request crosses the same middleware chain before it reaches a route. The
-order is defined in `src/backend/main.py` and matters: cheap rejections happen
-before expensive work. Audit **rows** are written by the route handlers (through
+Every request enters the same middleware chain, in the order defined in
+`src/backend/main.py`. The order matters: cheap rejections happen before
+expensive work, so a CORS preflight ends at `CORSMiddleware`, and a rate-limit
+or input-validation rejection (429, 400, 413) never reaches the audit or timing
+layers or a route. Audit **rows** are written by the route handlers (through
 `core.audit`), not by middleware: `SecurityAuditMiddleware` writes an app-log line
 for each POST, PUT, PATCH and DELETE only.
 
@@ -44,8 +46,12 @@ flowchart TD
 
 Two nodes carry invariants rather than just behaviour:
 
-- **`ProfileDbSession`** is the only sanctioned route to patient data. Querying
-  profile data through the master `get_db()` breaks per-profile isolation.
+- **`ProfileDbSession`** is the only sanctioned route for a request handler to
+  query patient data. Querying profile data through the master `get_db()` breaks
+  per-profile isolation. The one other vault reader is the backup engine
+  (`scripts/backup.py::keyed_snapshotter`), which snapshots the open vault
+  through `PerProfileDatabaseManager`'s keyed engine (`VACUUM INTO`), never
+  through the master DB.
 - **`create_audit_log`** is a single choke point on purpose. Every `log_*_event`
   helper and every agent audit event passes through it, so the PHI allowlist
   cannot be bypassed by a new call site.

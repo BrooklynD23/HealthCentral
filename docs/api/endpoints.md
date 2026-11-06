@@ -158,8 +158,9 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 ## Backup and Restore
 
 Backups (BKUP-UX-001) are the full-fidelity, restorable copy of a profile, and
-are the one export-shaped path that is **deliberately not redacted** — a
-redacted backup cannot be restored. Every route below is scoped to the calling
+are **deliberately not redacted** — a redacted backup cannot be restored. The
+only other unredacted export-shaped paths are `GET /export/csv` and
+`GET /export/json`, the patient's own full-fidelity export (owner decision D3). Every route below is scoped to the calling
 session's profile; `backup_id` is treated as hostile and path traversal is
 refused. Backups are stored under `<app_data>/backups/<profile_id>` and are
 deleted along with the profile.

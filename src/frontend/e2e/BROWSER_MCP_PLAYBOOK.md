@@ -40,7 +40,7 @@ For **every** step, record a row in your report (see schema below).
 
 ### Main navigation (Sidebar)
 
-The sidebar renders `navGroups` from [`navConfig.ts`](../src/components/layout/navConfig.ts) (the only place nav names live); on a phone the tab bar shows Overview, Results, Documents, Ask and More:
+The sidebar renders `navGroups` from [`navConfig.ts`](../src/components/layout/navConfig.ts); on a phone the tab bar shows Overview, Results, Documents, Ask and More:
 
 | Label | Path |
 |---|---|

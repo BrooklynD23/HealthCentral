@@ -91,7 +91,9 @@ flowchart LR
     LAYOUT --> PAL["CommandPalette (lazy)"]
 ```
 
-`navConfig.ts` is the single place destination names live (UI-SHELL):
+`navConfig.ts` holds every sidebar, More-sheet and tab-bar destination name
+(UI-SHELL). The Search, Settings and About links are written in `TopBar.tsx`
+and `ProfileMenu.tsx` instead:
 
 | Group (`navGroups`) | Entries (label → path) |
 |---|---|
@@ -115,7 +117,7 @@ flowchart LR
     CLIENT --> BACKEND["FastAPI /api/v1"]
     PAGE -.-> BARREL["services/index.ts<br/>barrel (re-exports most hooks and types)"]
 
-    PAGE --> STORE["Zustand stores/authStore.ts<br/>token · profileId · expiry"]
+    PAGE --> STORE["Zustand stores/authStore.ts<br/>token · profileId · profileName · expiry"]
     STORE --> CLIENT
 
     HOOK --> CACHE["React Query cache<br/>default staleTime 5 min (App.tsx)"]
@@ -134,7 +136,8 @@ Conventions, stated as they are today:
   `components/` and `hooks/` imported a service module by path and 15 imported
   the barrel (`grep -rlE "from '(@/services|\.\./services)/[a-zA-Z]+'"`).
 - **Server state lives in React Query; only session state lives in Zustand.**
-  The auth store holds the token, profile id and expiry. Some hooks override
+  The auth store holds the token, profile id and name, expiry and the
+  authenticated flag (persisted to `localStorage`). Some hooks override
   the 5-minute default (`services/assistant.ts`).
 - **Hooks** (`hooks/`): `useReducedMotion`, `useSafetyMode`. Motion tokens and
   the provider are in `motion/`; theme in `theme/`.

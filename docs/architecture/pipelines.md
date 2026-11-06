@@ -18,11 +18,12 @@ and deterministic parsing for structured imports (CSV / FHIR bundles, HC-M23).
 ```mermaid
 flowchart TD
     UP["POST /documents/import"] --> ING["modules/ingest<br/>validate · hash · detect doc_type<br/>encrypt to vault docs/"]
-    ING --> DUP{"duplicate?<br/>hash, then same-day heuristic"}
+    ING --> DUP{"duplicate?<br/>same content hash"}
     DUP -->|"warn, don't block"| KIND{"doc_type"}
 
     KIND -->|"lab_csv / fhir_bundle"| STRUCT["modules/import_structured<br/>parse_lab_csv · parse_fhir_bundle<br/>no OCR, no classifier"]
-    KIND -->|"lab_pdf / lab_pdf_scanned / lab_image"| LAB["modules/extract ExtractModule<br/>text layer or RapidOCR<br/>OCR unavailable → pending_ocr"]
+    KIND -->|"lab_pdf / lab_pdf_scanned / lab_image"| LAB["modules/extract ExtractModule<br/>text layer or RapidOCR"]
+    LAB -.->|"OCR off or unavailable: stop here,<br/>status pending_ocr, no observations or chunks"| PEND["pending_ocr"]
     KIND -->|"every non-structured document"| CLS["modules/document_classifier<br/>lab · imaging · pathology · visit_notes"]
 
     LAB --> CHUNK["chunking → embeddings<br/>(local MiniLM, for retrieval)"]
@@ -54,6 +55,8 @@ flowchart TD
     style STORE fill:#1b5e20,stroke:#66bb6a,color:#fff
 ```
 
+The same-day duplicate heuristic runs later, once extraction has set the
+collection date (`api/documents.py`, second `_find_duplicate_warning` call).
 Lab extraction runs before classification and is gated by the ingest
 `doc_type`, not by the classifier's category: `_CATEGORY_EXTRACTORS` in
 `api/documents.py` maps only imaging, pathology and visit notes. Lab
@@ -90,7 +93,7 @@ recreate nothing.
 
 ```mermaid
 flowchart TD
-    Q["POST /assistant/chat"] --> SESS["ChatSession / ChatTurn<br/>persisted per profile"]
+    Q["POST /assistant/chat"] --> SESS["ChatSession resolved, history loaded<br/>(turns are appended after the answer)"]
     SESS --> ENABLED{"agent enabled?"}
 
     ENABLED -->|yes| CACHE{"semantic cache hit?<br/>modules/agent/cache.py<br/>keyed on profile version"}
@@ -99,7 +102,8 @@ flowchart TD
     ENABLED -->|no| LGATE
     GRAPH -.->|"any agent exception"| LGATE
     LGATE{"legacy advice gate<br/>classify_advice (LEGACY-ADVICE-GATE)"} -->|"advice-seeking"| ESC
-    LGATE -->|otherwise| RAGONLY["modules/rag RAGModule.query<br/>retrieve → compose → generate<br/>(strict safety mode: 0.75 module)"]
+    LGATE -->|otherwise| RAGONLY["modules/rag RAGModule.query<br/>retrieve → compose → generate<br/>history and memory go here only, not to the agent<br/>(strict safety mode: 0.75 module)"]
+    RAGONLY -.->|"external API opted in:<br/>get_runner_for_request override (D12)"| EXTR["core/external_runner.py<br/>strict redaction"]
 
     subgraph GRAPH["modules/agent/graph.py"]
         direction TB
@@ -135,7 +139,7 @@ flowchart TD
     PROV -->|default| LC["llama.cpp"]
     PROV -->|configured| OL["Ollama, localhost"]
     OL -.->|"daemon unreachable"| LC
-    MR -->|"is_available() false:<br/>modules/rag.py raises ModelUnavailableError"| FB["no-LLM knowledge fallback<br/>api/assistant.py<br/><b>must stay functional</b>"]
+    MR -->|"runner unavailable, or embedding model missing at retrieval:<br/>modules/rag.py raises ModelUnavailableError"| FB["no-LLM knowledge fallback<br/>api/assistant.py<br/><b>must stay functional</b>"]
 
     DRAFT --> GUARD
     subgraph GUARD["guardrails/"]
@@ -189,7 +193,7 @@ flowchart LR
     end
 
     subgraph generate["Generation"]
-        PROMPT["compose_prompt"]
+        PROMPT["compose_prompt (legacy path)"]
         LLM["ModelRunner"]
     end
 

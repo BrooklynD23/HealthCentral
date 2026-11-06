@@ -121,8 +121,9 @@ not. That asymmetry is the single most important fact about this system's
 privacy posture, and it is why
 [AUDIT-PHI-001](../compliance/hipaa-controls.md) minimizes what audit rows may
 contain — the audit log is the main patient-linked dataset living outside the
-encryption boundary (the other is the profile row itself: display name and
-password hash, `models/profile.py`).
+encryption boundary (the others are the profile row itself, with display name
+and password hash in `models/profile.py`, and the id-and-schedule-only
+`backup_schedules` rows).
 
 The dashed Hugging Face edge is a model download the user chooses in Settings.
 Two other outbound paths exist in code, both user-initiated:
