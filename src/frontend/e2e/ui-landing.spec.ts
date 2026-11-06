@@ -281,6 +281,7 @@ async function axeBlocking(page: Page): Promise<string[]> {
 /** The `[data-t0]` nodes the Overview carries with data (plan §2.7 "Overview counts and values"). */
 const EXPECTED_T0 = [
   '[data-testid="overview-waiting-count"]',
+  '[data-testid="overview-waiting-noun"]',
   '[data-testid^="overview-latest-"] span[data-t0]',
   '[data-testid="overview-next-dose"] span[data-t0]',
 ];
@@ -383,6 +384,13 @@ test.describe('HC-UILAND e2e', () => {
   test('G7 and G9: no console error, no outside request, no unmocked call, Safety Rail visible, in both states', async ({ page }) => {
     const first = await openOverview(page, { state: 'first-run' });
     await expectRail(page, 'first run, first paint');
+    // G9 also asks after each interaction: follow one checklist link and come back.
+    await page.getByRole('list', { name: /first steps/i }).getByRole('link', { name: 'Review values' }).click();
+    await expect(page).toHaveURL(/\/verify$/);
+    await expectRail(page, 'first run, after the Review values click');
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
+    await expectRail(page, 'first run, back on Overview');
     await first.guard.assertClean();
     expect(first.mock.unmocked, 'G7 unmocked, first run').toEqual([]);
   });

@@ -262,6 +262,8 @@ describe('HC-UILAND-002 (vitest half): after the first import the page shows the
     expect(count).toHaveTextContent(/^3$/);
     expect(count).toHaveAttribute('data-t0');
     expect(count.parentElement).toHaveTextContent('3 values waiting for review');
+    // Plan :287 names the whole phrase as T0 text, so the noun carries data-t0 too.
+    expect(screen.getByText('values waiting for review')).toHaveAttribute('data-t0');
     const link = screen.getByRole('link', { name: /review values/i });
     expect(link).toHaveAttribute('href', '/verify');
     // The count comes from the same filtered list the Review values page asks for.

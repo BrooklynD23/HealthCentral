@@ -243,7 +243,9 @@ function WithData({ waiting, observations, medications }: DataProps) {
                 <span data-t0="" data-testid="overview-waiting-count" className="font-display text-3xl tabular-nums">
                   {waiting.length}
                 </span>{' '}
-                <span>{waiting.length === 1 ? 'value' : 'values'} waiting for review</span>
+                <span data-t0="" data-testid="overview-waiting-noun">
+                  {waiting.length === 1 ? 'value' : 'values'} waiting for review
+                </span>
               </p>
             ) : (
               <CardError what="The count" />
