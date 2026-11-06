@@ -154,7 +154,7 @@ Lifespan (`src/backend/main.py`): master DB filename migration (`:35-37`) → `v
 
 | Chain | Revisions | Head | When applied | Evidence |
 |---|---|---|---|---|
-| Master | 2 (`001_initial_schema`, `002_backup_schedules`) | `002_backup_schedules` | at startup | `main.py:48`, `core/migrations.py:107-178` |
+| Master | 3 (`001_initial_schema`, `002_backup_schedules`, `003_kb_canonical_names`) | `003_kb_canonical_names` | at startup | `main.py:48`, `core/migrations.py:107-178` |
 | Profile | 12 (`001_initial_schema` … `012_pinboards`), linear | `012_pinboards` | every vault open (login, unlock, create, recover) | `core/profile_database.py:365-367`, `core/migrations.py:194-337` |
 
 Databases that already have tables but no `alembic_version` table are stamped to head rather than migrated (`core/migrations.py:145-150,302-307`). No test enforces a single head per chain.
