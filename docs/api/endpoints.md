@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: safety-mode and gamification-settings routes added)
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -82,6 +82,8 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | DELETE | `/assistant/sessions/{session_id}` | Yes | Delete a chat session |
 | GET | `/assistant/memory-settings` | Yes | Get the per-profile RAG memory toggle |
 | PATCH | `/assistant/memory-settings` | Yes | Update the per-profile RAG memory toggle |
+| GET | `/assistant/safety-mode` | Yes | Get the per-profile strict safety mode flag (audited read) |
+| PATCH | `/assistant/safety-mode` | Yes | Set the per-profile strict safety mode flag (audited) |
 
 ## Feedback
 
@@ -156,8 +158,9 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 ## Backup and Restore
 
 Backups (BKUP-UX-001) are the full-fidelity, restorable copy of a profile, and
-are the one export-shaped path that is **deliberately not redacted** — a
-redacted backup cannot be restored. Every route below is scoped to the calling
+are **deliberately not redacted** — a redacted backup cannot be restored. The
+only other unredacted export-shaped paths are `GET /export/csv` and
+`GET /export/json`, the patient's own full-fidelity export (owner decision D3). Every route below is scoped to the calling
 session's profile; `backup_id` is treated as hostile and path traversal is
 refused. Backups are stored under `<app_data>/backups/<profile_id>` and are
 deleted along with the profile.
@@ -246,6 +249,8 @@ Opt-in consent for donating data (RSI1-DONATE PR-1, `src/backend/api/donation.py
 | PUT | `/settings/model/timezone` | Yes | Set the profile timezone |
 | GET | `/settings/model/voice` | Yes | Get voice logging preferences |
 | PATCH | `/settings/model/voice` | Yes | Update voice logging preferences |
+| GET | `/settings/model/gamification` | Yes | Get gamification display preferences (`streaks_hidden`) |
+| PATCH | `/settings/model/gamification` | Yes | Update gamification display preferences |
 | GET | `/settings/model/diagnostics` | Yes | Get local OCR/model/SQLCipher/GPU diagnostics |
 | POST | `/settings/model/diagnostics/recheck` | Yes | Re-run environment diagnostics |
 | PATCH | `/settings/model/ocr` | Yes | Update per-profile OCR preference |

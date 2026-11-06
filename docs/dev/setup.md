@@ -1,6 +1,6 @@
 # Developer Setup and Commands
 
-**Last Updated:** 2026-10-25
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: unversioned profile vaults are stamped at their matching revision, then upgraded)
 **Owner:** Project Lead
 **Refresh Trigger:** A launcher (`dev.ps1`, `dev.sh`), prerequisite, model tier, migration command, or CI test command changes
 
@@ -102,7 +102,9 @@ databases for development only. **Never use it with real data.**
 Two independent Alembic chains: `migrations/master/` (profiles, audit log,
 knowledge base) and `migrations/profile/` (each SQLCipher vault). Master
 migrations run on startup; profile migrations run when a vault is opened.
-Databases without `alembic_version` are stamped, not migrated. Manual use, from
+A master DB without `alembic_version` is stamped to head; a profile vault without
+it is stamped at the oldest revision its schema matches exactly, then upgraded
+to head (a vault that matches none is refused). Manual use, from
 `src/backend`:
 
 ```bash

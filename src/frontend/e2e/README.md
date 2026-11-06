@@ -96,7 +96,7 @@ The seeded values are glucose 92/104/118/101 against 70-99 mg/dL, LDL 142 and Hb
 
 ### The route element
 
-No row has added `data-route-container` yet. Until one does, `routeOpacitySamples` reads `main > div`, which is the PageTransition `motion.div` that `AppLayout` renders directly inside `<main>`. That element goes 1 → 0 on exit and 0 → 1 on enter, so it is the one that carries the defect. `main` itself never animates, so sampling it would read 1 and hide the defect. Once a row adds `data-route-container`, the helper reads that element first.
+`AppLayout` now renders the route container with `data-route-container={pathname}` (`src/components/layout/AppLayout.tsx`), and `routeOpacitySamples` reads that element first (`ROUTE_CONTAINER_SELECTOR` in `support/gates.ts`). It goes 1 → 0 on exit and 0 → 1 on enter, so it is the one that carries the defect. `main` itself never animates, so sampling it would read 1 and hide the defect. The `main > div` fallback in the helper is kept for an app build without the attribute.
 
 ## Test-fail policy
 

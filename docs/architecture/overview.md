@@ -1,6 +1,6 @@
 # System Overview
 
-**Last Updated:** 2026-10-25
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: 17 pages, semantic cache and legacy advice gate in the chat diagram, strict-mode 0.75, pinboard export, core/ and frontend tree)
 **Owner:** Project Lead
 **Refresh Trigger:** A principle, top-level component, privacy boundary, or stack choice changes
 
@@ -38,7 +38,7 @@ Paths below are relative to `src/backend/` unless they start with `src/`.
 
 ```mermaid
 flowchart LR
-    User[Patient] --> UI["React + Vite frontend<br/>src/frontend/src/pages (16 pages)"]
+    User[Patient] --> UI["React + Vite frontend<br/>src/frontend/src/pages (17 pages)"]
     UI -->|"HTTP on localhost<br/>/api/v1"| MW["FastAPI app (main.py)<br/>CORS, correlation id, security headers,<br/>rate limit, input validation, audit, timing"]
     MW --> API["api/ (19 routers)<br/>documents, observations, assistant, export, ..."]
     API --> MOD["modules/<br/>ingest, extract, normalize, rag, agent,<br/>export, redaction, timeline, ..."]
@@ -47,25 +47,30 @@ flowchart LR
     FAC --> LCPP["LlamaCppProvider<br/>in-process GGUF (default)"]
     FAC -.->|"LLM_PROVIDER=ollama"| OLL["OllamaProvider<br/>localhost:11434 only"]
     API --> PDB[("Per-profile SQLCipher vault<br/>ProfileDbSession (core/auth.py)<br/>observations, documents, chats, ...")]
-    API --> MDB[("Master SQLite DB, not encrypted<br/>get_db(): profile metadata, audit log")]
+    API --> MDB[("Master SQLite DB, not encrypted<br/>get_db(): profile metadata, audit log,<br/>backup schedules, knowledge base")]
     MOD --> DOCS[("AES-GCM document files<br/>per-profile vault dir")]
     MOD -.->|"opt-in, off by default,<br/>strict redaction"| EXT["core/external_runner.py<br/>OpenAI / Anthropic"]
 ```
 
-All feature-code inference goes through `ModelRunner`. The single named
+All reachable feature-code inference goes through `ModelRunner`. The single named
 exception is the opt-in external runner (owner decision D12), which applies
 `strict` redaction on every call; break-glass is the only bypass and writes an
-audit record. Patient data is only read through `ProfileDbSession`; the master
-DB holds profile metadata and the audit log.
+audit record. (A second, route-unreachable path, `ModelSelector.load_model`
+via `InterpretModule.interpret_with_model`, is owner decision D7, work item
+W-7; see [README](README.md#system-context).) Patient data is only read through
+`ProfileDbSession`; the master DB holds profile metadata, the audit log,
+backup schedules and the reference knowledge base.
 
 ### Assistant chat: agent path and legacy RAG path
 
 ```mermaid
 flowchart TD
-    Q["POST /api/v1/assistant/chat<br/>api/assistant.py"] --> SESS["ChatSession / ChatTurn<br/>persisted in the profile vault"]
+    Q["POST /api/v1/assistant/chat<br/>api/assistant.py"] --> SESS["ChatSession resolved in the profile vault<br/>(ChatTurns appended after the answer)"]
     SESS --> SW{"is_agent_enabled?<br/>(default: yes)"}
 
-    SW -->|yes| PRE["pre-model advice check<br/>modules/agent/guardrails/classifier.py"]
+    SW -->|yes| CACHE{"semantic cache hit?<br/>modules/agent/cache.py"}
+    CACHE -->|hit| AANS
+    CACHE -->|miss| PRE["pre-model advice check<br/>classify_advice (modules/agent/guardrails/classifier.py)"]
     PRE -->|"advice bait"| ESC["escalation template"]
     PRE --> PLAN
     subgraph AGENT["modules/agent/graph.py (no LLM call)"]
@@ -82,10 +87,12 @@ flowchart TD
     PLAN -->|"nothing to try"| ABS
     REFL -->|"step budget exhausted"| ABS
 
-    SW -->|"no, or agent error"| RAG["modules/rag.py RAGModule.query<br/>verified observations + references,<br/>prompt-injection neutralized"]
+    SW -->|"no, or agent error"| LGATE{"legacy advice gate<br/>classify_advice"}
+    LGATE -->|"advice bait"| ESC
+    LGATE --> RAG["modules/rag.py RAGModule.query<br/>verified observations + references;<br/>retrieved text injection-neutralized"]
     RAG --> MR["ModelRunner"]
     MR -->|"no model available"| FB["knowledge fallback<br/>(no-LLM path stays functional)"]
-    MR --> VAL["validate_response:<br/>[cite:N] citations, interpret_safety patterns,<br/>verifier_agent, faithfulness >= 0.6"]
+    MR --> VAL["validate_response:<br/>[cite:N] citations, interpret_safety patterns,<br/>verifier_agent, faithfulness >= 0.6<br/>(0.75 in strict safety mode)"]
     VAL --> LANS["cited answer"]
     VAL -->|"prohibited advice"| ESC
     VAL -->|"invalid"| ABS
@@ -114,7 +121,7 @@ sequenceDiagram
     API->>Vault: Document row
     alt PDF or image
         API->>Extract: ExtractModule (text, or OCR when enabled)
-        Note over API,Extract: OCR needed but unavailable: status pending_ocr
+        Note over API,Extract: OCR off or unavailable: status pending_ocr, stop (no observations or chunks)
         Extract->>API: extracted observations
         API->>API: normalize analytes (modules/normalize.py)
         API->>Vault: Observation rows, unverified
@@ -122,7 +129,7 @@ sequenceDiagram
         API->>API: classify document, extract entities
     else lab CSV or FHIR Bundle (HC-M23)
         API->>Extract: parse_lab_csv / parse_fhir_bundle (no OCR, no rule-based classification)
-        Extract->>API: observations, entities, category from the parser
+        Extract->>API: observations and entities (the API sets the document category)
         API->>Vault: Observation rows, always unverified
     end
     API-->>UI: import result + verification payload
@@ -171,8 +178,8 @@ rules and the definition of done are in [`CLAUDE.md`](../../CLAUDE.md) and
 ### Privacy boundaries
 
 - **Exports that leave the app pass through `modules/redaction.py` first:** the
-  doctor summary (strict), FHIR R4 bundle, visit-prep packets, and the RL
-  feedback dataset. `GET /export/csv` and `GET /export/json` are the patient's
+  doctor summary (strict), FHIR R4 bundle, visit-prep packets (including the
+  pinboard export, `POST /pinboards/{id}/export`), and the RL feedback dataset. `GET /export/csv` and `GET /export/json` are the patient's
   own full-fidelity export and are deliberately not redacted (owner decision D3).
 - **Backups are unredacted by design** (a redacted backup cannot be restored)
   and are profile-scoped.
@@ -195,8 +202,8 @@ rules and the definition of done are in [`CLAUDE.md`](../../CLAUDE.md) and
 
 The meaningful scaling axis here is **one person's record growing over years**,
 not concurrent users; this is a local-first desktop application by design.
-Known limits (search rebuilds its FTS index per query, a few generated-export
-stores are in memory without a TTL, LLM inference is in-process and blocking)
+Known limits (search rebuilds its FTS index per query, generated exports are
+held in memory with a 30-minute TTL and no size cap, LLM inference is in-process and blocking)
 and what this system deliberately does *not* need are written up in
 [`docs/architecture/performance-scalability-review.md`](performance-scalability-review.md).
 
@@ -215,7 +222,7 @@ HealthCentral/
     ├── backend/
     │   ├── main.py            # app factory, middleware, router mount
     │   ├── api/               # FastAPI routers
-    │   ├── core/              # config, auth, db, audit, time, ModelRunner, llm/ providers
+    │   ├── core/              # config, auth, security, database, profile_database, migrations, audit, time, ModelRunner, llm/ providers, external_runner
     │   ├── models/            # SQLAlchemy models
     │   ├── modules/           # feature logic (ingest, extract, rag, agent/, redaction, ...)
     │   ├── migrations/        # master/ and profile/ Alembic chains
@@ -224,7 +231,7 @@ HealthCentral/
     │   ├── scripts/           # backup, migrate, download_models, seed knowledge
     │   └── tests/             # pytest suites (incl. agent/ golden evals)
     └── frontend/
-        ├── src/               # pages/, components/, services/, stores/
+        ├── src/               # pages/, components/, services/, stores/, hooks/, motion/, utils/, __tests__/
         └── e2e/               # Playwright specs
 ```
 
