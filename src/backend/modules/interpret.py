@@ -1023,16 +1023,22 @@ class InterpretModule:
         if observation.value is None:
             return
         if info is None:
-            result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=observation.value,
-                critical_low=None,
-                critical_high=None,
+            # CRIT-DEFAULT-TABLE-UNITS: no KB row. Each default row is written in one unit
+            # (DEFAULT_CRITICAL_UNITS), so the value is checked in that unit by the badge's rule
+            # below. Only wbc is mapped (knowledge_loader.py:31): the full alias table would give
+            # glucose_fasting the default glucose limits.
+            name = observation.analyte_canonical.lower()
+            name = {"wbc": "white_blood_cells"}.get(name, name)
+            units = self._safety_guard.DEFAULT_CRITICAL_UNITS.get(name)
+            if units is None:
+                return
+            reported = normalize_unit(observation.unit or "")
+            same_unit = next((u for u in units if normalize_unit(u) == reported), None)
+            info = BiomarkerInfo(
+                id="", analyte_canonical=name, display_name="", description="",
+                clinical_significance="", normal_interpretation="", high_interpretation="",
+                low_interpretation="", standard_unit=same_unit or units[0],
             )
-            if result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = result.physician_review_reason
-            return
         in_kb_unit = value_in_kb_unit(info, observation.value, observation.unit)
         if in_kb_unit is None:
             return
