@@ -218,7 +218,7 @@ describe('HC-UILAND-001: with no documents the checklist has three working links
 
     const marks = within(steps).getAllByText('Next step');
     expect(marks).toHaveLength(1);
-    const card = marks[0].closest('li');
+    const card = marks[0].closest<HTMLElement>('[role="listitem"]');
     if (!card) throw new Error('the next-step mark sits in a checklist item');
     expect(within(card).getByRole('link', { name: /import/i })).toBeInTheDocument();
     expect(card.className).toMatch(/\bborder-accent\b/);
