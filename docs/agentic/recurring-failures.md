@@ -46,6 +46,8 @@ scanners with `|| true`, so a scanner that crashes leaves no exit code and no
 usable report. Every step is green and nothing was scanned. A gate that cannot
 distinguish "clean" from "did not run" is not a gate.
 
+*Superseded 2026-11-06 (BATCH-1106C; the instance above is a dated record and is not rewritten):* fixed on `main`. `scripts/security_gate.py:45-85` now raises `ReportError` on a missing or unparsable report and `main()` returns exit code 2 (`:156-158`); `ci.yml:191-220` is exit-code-aware (bandit exit 2 or more fails the build); the two `|| true` lines at `ci.yml:92,95` are gone (the one remaining `|| true`, at `ci.yml:425`, is inside a `trap` that stops the preview server).
+
 A 2026-09-29 instance in the agent answer cache (S-CACHE). `modules/agent/cache.py`
 keyed `CacheKey` on `(normalized_question, profile_version)` — no profile id — and
 `_cache` was a module-level dict shared by every profile in the process. The
@@ -281,6 +283,8 @@ run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py
 (the Change Scope job's output). `docs_only=false` means a code path mentions one
 of your docs, a docs↔test coupling, and the full suite runs; run it locally too.
 
+A 2026-11-06 instance, a leaked preview server (#514 quiet-box batch; queue candidate PREVIEW-KILL-CHILD). The environment the next run started in was not the one the script thought it had left. The RED batch left a `vite preview` on :4173 (pid 1716032, an orphan whose cwd was the #514 worktree); `quiet_run` then refused to start the GREEN batch for 20 minutes and more, and the agent's own attempt to kill it was denied by the permission classifier, so L0 verified the pid and killed it. The second leak was the script's own: `batch514.sh:28` stopped the preview with `kill $P`, where the preview had been started as `bash -c "cd ... && vite preview &"`. `$P` was the `bash -c` wrapper, so the kill ended the wrapper and left the node child on :4173 (pid 1738555), which stalled the llama-bench prechecks for 1061 s with the pytest slots held. L0 patched the script to `pkill -P $P` first. Nothing in either run's output said a process was still alive: the batch exited, its results printed, and the next run was the one that stalled. An earlier case of the same shape held a pyslot lock for 4 hours (a leaked vite; the model-host notes name it). Recheck: after any batch that starts a server, before reading its results or starting the next run, list what still listens (`ss -ltnp | grep -E ':(4173|5173|3000|8000)\b'`, `pgrep -af 'vite|node'`) and expect nothing from your worktree. Stop a server by its process group or its children (`pkill -P "$P"` first, or `setsid` and `kill -- -"$PGID"`), never by the `$!` of a wrapper, and put the stop in a `trap ... EXIT` so every exit path runs it. It is recorded as an instance of this mode, not a nineteenth mode: the shape is the same (a gate run in an environment other work left dirty) and CLAUDE.md names the count of modes.
+
 ---
 
 ## 6. Documented commands nobody ran
@@ -362,6 +366,8 @@ The owner answered RRSI-OQ-21 on that premise ("Adopt the Trends page's
 latest-vs-prior comparison"), so the answer names two different rules, and the
 CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
 code exists, not that the feature runs it.
+
+*Drifted cite, 2026-11-06 (BATCH-1106C; the instance above is a dated record and is not rewritten):* the `first_val` / `last_val` comparison it cites as `api/observations.py:660-671` is at `api/observations.py:755-760` on `origin/main` `d944b38b`.
 
 A 2026-11-02 instance in VERIFY-KEEPS-FLAG (#463): the comment in
 `modules/fhir_export.py` called `flag` a "short coded flag" while the flag was
@@ -523,6 +529,8 @@ schema. Recheck: before adding a revision that changes no schema, run
 data-only revision in the guard test instead of loosening it, and make the
 matcher take the oldest tied revision so later data steps still run.
 
+*Superseded 2026-11-06 (BATCH-1106C; the instance above is a dated record and is not rewritten):* it was fixed by #512. `_match_unversioned_vault` now takes the oldest tied revision (`core/migrations.py:651`, "oldest first"), so "returns the newest match" no longer holds; the chain has 18 revisions, not 17 (head `018_ocr_opt_in`, `ls src/backend/migrations/profile/versions/`); and `tests/test_migration_heads.py` (HC-MIGHEAD-001…003) enforces one head per chain.
+
 ---
 
 ## 10. A fully unit-tested feature that was never started
@@ -633,3 +641,4 @@ Round 3 (same PR, 2026-11-03) found the class again, with two events that overla
 L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 18 lines run. A `run()` helper assigned the global `L` that the script also used as the log directory, so every later redirect failed before its command started. Those 13 failed to start and left no log, so nothing in the output said they had not run: the exit status and the final line both read as success.
 
 **Recheck:** before reading results, count the logs against the lines the batch was meant to run (`ls <logdir> | wc -l` against the number of lines), and read each log's own exit line. Make a batch exit non-zero when a line could not start (`set -u`, no helper that reuses a global the script also uses, and a check that every line left a log). A batch that prints "done" is evidence about the script, not about the lines.
+

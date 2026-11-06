@@ -22,12 +22,12 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 - Modify only what the task requires. No drive-by reformatting, no touching adjacent comments, no surprise refactors.
 - Never weaken a safety check, lower a test threshold, or relax a validation to make something pass. If a guard blocks you, the guard is probably right — stop and ask.
-- All LLM calls go through the `ModelRunner` facade. Never import `llama_cpp` or call Ollama directly from feature code. One named exception, owner decision D12 (2026-09-27): the opt-in cloud runner in `core/external_runner.py` does not go through `ModelRunner`. It is off by default, its redaction rule is under Hard invariants, and it licenses no other runner outside `ModelRunner`.
+- All LLM calls go through the `ModelRunner` facade. Never import `llama_cpp` or call Ollama directly from feature code. One named exception, owner decision D12 (2026-09-27): the opt-in cloud runner in `core/external_runner.py` does not go through `ModelRunner`. It is off by default, its redaction rule is under Hard invariants, and it licenses no other runner outside `ModelRunner`. `modules/model_selector.py`'s dormant `load_model` still imports `llama_cpp` (line 456 on `main`); B-5 removes it (D7). It licenses nothing.
 
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **4564 backend tests collected.** Since W-8 the embedding model is
+- Baseline: **4610 backend tests collected.** Since W-8 the embedding model is
   a fetched, gitignored bundle. Without it, exactly 5 tests fail:
   `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
   in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
@@ -36,7 +36,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
   **collected** count, which does not vary by environment: if it differs from
-  4564, the line may lag merges: PRs never edit it; the orchestrator updates
+  4610, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
@@ -58,7 +58,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 ## Hard invariants (violations = broken build or broken trust)
 
-- **Target Python 3.11+.** Do not use Python 3.12+ only syntax or APIs unless the project explicitly raises the minimum version. Use `core.time.utcnow` as the single timestamp helper.
+- **Target Python 3.11+.** Do not use Python 3.12+ only syntax or APIs unless the project explicitly raises the minimum version. Use `core.time.utcnow` for stored naive-UTC timestamps; aware `datetime.now(timezone.utc)` is allowed for token and session expiry and for file-name dates.
 - **Per-profile data isolation.** Patient data lives in per-profile SQLCipher DBs via `ProfileDbSession`. Never query profile data through the master `get_db()`.
 - **Local-first.** No network calls in product code paths. Ollama provider is localhost-only by design — keep it that way.
 - **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first. Named exceptions, owner decision D3 (2026-09-27): only `GET /export/csv` and `GET /export/json` are exempt (the patient's own data export, full-fidelity, like backups (BKUP-UX-001)); no other export is exempt. The doctor summary goes to a third party and must be redacted at `strict`. The opt-in external runner must apply `strict` redaction on every call (owner decision D12); break-glass is the only bypass, and only with an audit record and a UI warning (D12: "keep break-glass only with audit + UI warning"). Record: `docs/capstone-report/owner-decisions-2026-09-27.md`. Code conformance is tracked in `docs/capstone-report/specs-compliance-matrix.md` rows PRIV-04 and LOCAL-04.

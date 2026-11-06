@@ -159,6 +159,8 @@ Lifespan (`src/backend/main.py`): master DB filename migration (`:35-37`) → `v
 
 Databases that already have tables but no `alembic_version` table are stamped to head rather than migrated (`core/migrations.py:145-150,302-307`). No test enforces a single head per chain.
 
+*Superseded 2026-11-06 (BATCH-1106C; the dated record is not rewritten):* the profile row above (12 revisions, head `012_pinboards`) and the stamping and "no test" sentences are as of 2026-10-20: the profile chain now has 18 revisions with head `018_ocr_opt_in` (`ls src/backend/migrations/profile/versions/`); `tests/test_migration_heads.py` (HC-MIGHEAD-001…003) enforces one head per chain; and an unversioned profile vault is matched to the oldest tied revision and then upgraded, not stamped to head (`core/migrations.py:651`, R2, #512).
+
 ## 11. CI and test gates
 
 One workflow, `.github/workflows/ci.yml` (push to `main` and `Security-Revamp-*`; PRs to `main`); no `continue-on-error`; every Python job pins 3.11.
