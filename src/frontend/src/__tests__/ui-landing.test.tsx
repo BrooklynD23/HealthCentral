@@ -14,12 +14,13 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentType } from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '@/App';
 import { MotionProvider } from '@/motion/MotionProvider';
 import { useAuthStore } from '@/stores/authStore';
+import { useDeleteDocument, useImportDocument } from '@/services/documents';
 import type { Document, Medication, MedicationSchedule, Observation } from '@/services/types';
 
 // What each endpoint answers. A test sets it; anything not listed answers [] (the shell's own queries).
@@ -464,6 +465,99 @@ describe('HC-UILAND-002 (first run -> import): the first-run Overview leaves no 
     expect(seen).toEqual(['3']);
     expect(screen.queryByText('No values have been read yet.')).toBeNull();
     expect(screen.getByTestId('overview-latest-glucose')).toBeInTheDocument();
+  });
+});
+
+describe('HC-UILAND-002 (second import, delete): Overview never shows the count from before the change', () => {
+  // The app's own query defaults (App.tsx): an answer stays fresh for 5 minutes, so only an invalidation can refresh it.
+  const appLikeClient = () =>
+    new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 1000 * 60 * 5 } } });
+
+  const rows = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      makeObservation({
+        id: `${prefix}${i}`,
+        analyte_canonical: `${prefix}${i}`,
+        analyte_raw: `Analyte ${prefix}${i}`,
+      })
+    );
+
+  const mountOverview = async (client: QueryClient) => {
+    const { OverviewPage } = await import('../pages/OverviewPage');
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/overview']}>
+          <OverviewPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+  };
+
+  /** Overview shows `before` waiting; the reader leaves; `change` runs through the real hook; Overview is opened again. */
+  async function countsAcrossAChange(
+    before: unknown[],
+    after: unknown[],
+    change: (client: QueryClient) => Promise<void>
+  ) {
+    const client = appLikeClient();
+    server.documents = [makeDoc()];
+    server.observations = before;
+
+    const first = await mountOverview(client);
+    expect(await screen.findByTestId('overview-waiting-count')).toHaveTextContent(String(before.length));
+    first.unmount();
+
+    // The API answers differently from now on; the hook's own onSuccess is the only thing that tells the cache.
+    server.observations = after;
+    await change(client);
+
+    // Every text the count node holds from here on.
+    const seen: string[] = [];
+    const record = () => {
+      const node = document.querySelector('[data-testid="overview-waiting-count"]');
+      if (node && node.textContent !== null && seen[seen.length - 1] !== node.textContent) seen.push(node.textContent);
+    };
+    const watcher = new MutationObserver(record);
+    watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    await mountOverview(client);
+    try {
+      await waitFor(() =>
+        expect(screen.getByTestId('overview-waiting-count')).toHaveTextContent(String(after.length))
+      );
+      record();
+    } finally {
+      watcher.disconnect();
+    }
+    return seen;
+  }
+
+  const wrapperFor = (client: QueryClient) =>
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    };
+
+  it('HC-UILAND-002: a second import: Overview showed 3 waiting, the API now answers 7, coming back shows 7 and never the 3', async () => {
+    const seen = await countsAcrossAChange(rows('old', 3), rows('new', 7), async (client) => {
+      server.documents = [makeDoc(), makeDoc({ id: 'doc-b', source: 'b.pdf' })];
+      const { result } = renderHook(() => useImportDocument(), { wrapper: wrapperFor(client) });
+      await act(async () => {
+        await result.current.mutateAsync({ file: new File(['%PDF'], 'b.pdf', { type: 'application/pdf' }) });
+      });
+    });
+
+    expect(seen).toEqual(['7']);
+  });
+
+  it('HC-UILAND-002: a delete: Overview showed 7 waiting, the API now answers 3, coming back shows 3 and never the 7', async () => {
+    const seen = await countsAcrossAChange(rows('old', 7), rows('new', 3), async (client) => {
+      const { result } = renderHook(() => useDeleteDocument(), { wrapper: wrapperFor(client) });
+      await act(async () => {
+        await result.current.mutateAsync('doc-gone');
+      });
+    });
+
+    expect(seen).toEqual(['3']);
   });
 });
 
