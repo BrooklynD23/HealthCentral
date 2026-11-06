@@ -7,8 +7,9 @@ Provides safe migration execution for:
 
 Key features:
 - Baseline detection: an existing master DB without alembic_version is stamped at
-  head (not migrated). A profile vault without it is stamped at the newest revision
-  its schema matches, then upgraded; one that matches none is refused.
+  head (not migrated). A profile vault without it is stamped at the oldest revision
+  its schema matches (on a tie, the oldest tied one), then upgraded; one that
+  matches none is refused.
 - Pre-017 snapshot: a verified encrypted copy before revision 017 runs on a vault
   that already has data (see ``_ensure_pre017_snapshot``).
 - Startup-safe execution: Alembic calls run synchronously at startup/login gates
@@ -679,9 +680,10 @@ def run_profile_migration(
 
     Baseline logic:
     - If any user table exists but there is no revision (no alembic_version, or
-      one with no row) → fingerprint the schema, stamp the newest revision it
-      matches exactly, then upgrade to head. A vault that matches no revision is
-      refused (ProfileMigrationRefused) and left alone. The derived search index
+      one with no row) → fingerprint the schema, stamp the oldest revision it
+      matches exactly (on a tie, the oldest tied revision: a data-only revision
+      fingerprints like its parent), then upgrade to head. A vault that matches
+      no revision is refused (ProfileMigrationRefused) and left alone. The derived search index
       does not count as a user table.
     - If no user tables → upgrade head (create schema)
     - If alembic_version exists → upgrade head (run pending migrations)
@@ -793,7 +795,7 @@ def run_profile_migration(
                 # Existing DB without a revision (no alembic_version table, or one
                 # with no row). Stamping head would hide
                 # every revision the vault does not have (017's FK actions among
-                # them), so stamp the newest revision its schema matches exactly
+                # them), so stamp the oldest revision its schema matches exactly
                 # and upgrade the rest. No match: refuse, nothing is written.
                 matched = _match_unversioned_vault(vault_path, hex_key)
                 logger.info(
