@@ -2,10 +2,10 @@
 
 **Last Updated:** 2026-11-06
 **Owner:** repository owner
-**Status:** measured. The pre-registration (Q1-Q3) was committed and pushed as `e8dc1fce` before any score on any split was seen; the results (Q4-Q9) were added after. No recommendation is made here: JUDGE-SWAP-ADOPT is the owner's.
+**Status:** measured. The pre-registration (Q1-Q3) was committed and pushed as `e8dc1fce` before any score on any split was seen; the results (Q4-Q9) were added after. Q1 gained provenance notes after the results, in `10bdc636` (the tuning-split bullet was reworded and the "Who set the labels" bullet added); Q3 is unchanged since `e8dc1fce`. No recommendation is made here: JUDGE-SWAP-ADOPT is the owner's.
 **Refresh Trigger:** an owner answer to JUDGE-SWAP-ADOPT; PR #264 (B-3 advice judge) changing `FROZEN_PROMPT`, the parser or `InferenceConfig`; a change to `held_out_dev.json`; a new revision of `cross-encoder/nli-deberta-v3-xsmall`; JUDGE-LAYA-FT landing (its calibration split could then be reused by a later row).
 
-> **Point-in-time measurement (2026-11-06, GPU box: RTX 3080 10 GB, WSL, 24 vCPU).** Documentation only: no code under `src/`, no dependency, no model and no data file is committed. The scratch scripts and data live in `~/hc-quiet-logs/judge-nli-tune/` (not committed); their sha256 are listed below so a later reader can tell whether they changed. `interpret_safety.py`, `redaction.py`, `faithfulness.py` and `verifier_agent.py` were not opened.
+> **Point-in-time measurement (2026-11-06, GPU box: RTX 3080 10 GB, WSL, 12 physical cores / 24 SMT threads).** Documentation only: no code under `src/`, no dependency, no model and no data file is committed. The scratch scripts and data live in `~/hc-quiet-logs/judge-nli-tune/` (not committed); their sha256 are listed below so a later reader can tell whether they changed. `interpret_safety.py`, `redaction.py`, `faithfulness.py` and `verifier_agent.py` were not opened.
 
 ## Where this comes from
 
@@ -165,9 +165,11 @@ e2cf73b9d4498f6845c4be6add23b9ba527477e21e1c4bccc83e7bf12256e54e  scripts/smoke.
 
 Naming note: the scratch scripts number hypotheses from 0, so script `H0` is README H1, `H1` is H2, and so on. The table below uses the README numbers.
 
-Run protocol (from `~/hc-quiet-logs/judge-nli-tune/out/driver.log`; the sweep lines that follow `SELECTED` in the log are in Q5). The driver ran under `flock -w 7200 /tmp/claude-1000/quiet-box.lock`; every model command ran as `HOLD_WAIT=3600 /tmp/claude-1000/quiet_run.sh --max-wait 3600 unshare -rn env HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 <venv python> -I <script>` (no network namespace access, offline flags, isolated mode). Box state pasted before the run (the other runs' pastes are in Q6-Q8). The pastes in Q4, Q6 and Q8 are the driver log's lines verbatim, in order, with two reductions: the `nvidia-smi` output is cut to its memory row (the process table said "No running processes found" each time), and the `Fri ...` date line, blank lines and the 18 other `nvidia-smi` table lines are left out; the driver had already filtered the `Loading weights` progress bars and the `torch.jit` FutureWarning out of stderr. The untrimmed log is `~/hc-quiet-logs/judge-nli-tune/out/driver.log`. Timing caveat: `uptime`, `nvidia-smi` and `api/ps` are taken by the driver *before* `quiet_run.sh` starts waiting, and `quiet_run.sh` then waited 0 s (tuning), 148 s (dev), 318 s (CPU latency) and 22 s (GPU latency) until the box was quiet; the "prechecks passed after" lines show it, and the `uptime` line after the run shows the load when the command ended. The pre-run box state is therefore not the state at the moment the model started.
+Run protocol (from `~/hc-quiet-logs/judge-nli-tune/out/driver.log`; the sweep lines and the `TUNING DONE` line that follow `SELECTED` in the log are in Q5, and the last lines (`driver end`, `EXIT=0`) are at the end of Q8). The driver ran under `flock -w 7200 /tmp/claude-1000/quiet-box.lock`; every model command ran as `HOLD_WAIT=3600 /tmp/claude-1000/quiet_run.sh --max-wait 3600 unshare -rn env HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 <venv python> -I <script>` (no network namespace access, offline flags, isolated mode). Box state pasted before the run (the other runs' pastes are in Q6-Q8). The pastes in Q4 to Q8 are the driver log's lines verbatim, in order, with two reductions: the `nvidia-smi` output is cut to its memory row (the process table said "No running processes found" each time), and the `Fri ...` date line, blank lines and the 18 other `nvidia-smi` table lines are left out; the driver had already filtered the `Loading weights` progress bars and the `torch.jit` FutureWarning out of stderr. The untrimmed log is `~/hc-quiet-logs/judge-nli-tune/out/driver.log`. Timing caveat: `nvidia-smi` and `api/ps` are taken by the driver *before* `quiet_run.sh` starts waiting, so they are the box state before the wait and not at model start. `quiet_run.sh` waited 0 s (tuning), 148 s (dev), 318 s (CPU latency) and 22 s (GPU latency) until the box was quiet (the "prechecks passed after" lines). The `uptime` line printed after "prechecks passed after" is printed by `quiet_run.sh` immediately before it starts the model (`uptime >&2` then `"$@"`), so it is the load at model *start*, not at the end: 1.09 / 1.29 / 1.15 / 1.44 for the 1-minute figure of the four runs, all under the 1.5 gate. Its clock agrees: the tuning line reads 03:15:08, the same second as the pre-run line, and the GPU line reads 03:25:15 = 03:24:53 + 22 s wait. The load at the end of a run was not recorded. The load average before the wait (6.12 for dev, 2.91 for CPU latency, 2.01 for GPU latency, 1.09 for tuning) is the state before the wait only.
 
 ```text
+driver start Fri Nov  6 03:15:08 PST 2026 holding /tmp/claude-1000/quiet-box.lock
+
 ##### 03:15:08 tuning-split scoring, CPU
 $ uptime
  03:15:08 up 1 day, 11:02,  1 user,  load average: 1.09, 1.61, 2.26
@@ -228,6 +230,7 @@ sweep (selected hypothesis, tuning split):
   t=0.12   recall 5/169 = 0.030 [0.013, 0.067]  false-block 4/176 = 0.023 [0.009, 0.057]
   t=0.13   recall 4/169 = 0.024 [0.009, 0.059]  false-block 4/176 = 0.023 [0.009, 0.057]
 must_allow entailment scores, top 8: [0.0819, 0.0825, 0.0867, 0.0919, 0.1301, 0.1762, 0.4277, 0.5244]
+TUNING DONE; waiting for /home/danny/hc-quiet-logs/judge-nli-tune/out/GO_DEV (up to 3600 s) before touching dev
 ```
 
 How the selected threshold sits among its neighbours:
@@ -237,6 +240,8 @@ How the selected threshold sits among its neighbours:
 - The 0.5 threshold used zero-shot in #373 lies far above this range; on the tuning split only 2 of 176 allow items score above 0.4 (0.4277, 0.5244).
 
 ## Q6. Dev pass (selected pair only, one deterministic pass)
+
+The dev pass did not start by itself. After the `TUNING DONE` line above, `driver.sh` waits for a file `out/GO_DEV` (up to 3600 s) and stops with exit 3 if it never appears; no script creates that file. It was created by hand by the implementing agent session (file mtime 03:16:21; `selection.json` was written at 03:16:06, 15 s earlier), after the tuning analysis had been written (`analysis_tuning.txt` and `selection.json`, 03:16:06) and with the pre-registration commit `e8dc1fce` already pushed (it is on origin, and `score_dev.py` refuses to run otherwise). The log records no other check made before the file was created.
 
 Produced by `scripts/score_dev.py <pre-registration sha>`, which printed that the commit is on origin before scoring. CPU, batch size 1, deterministic algorithms on. Nothing else was scored on dev: no other hypothesis and no other threshold.
 
@@ -319,16 +324,18 @@ hold_slots: holding pytest slots 1-8, TMPDIR=/dev/shm
 quiet_run: prechecks passed after 22s
  03:25:15 up 1 day, 11:12,  1 user,  load average: 1.44, 1.73, 2.18
 exit 0
+driver end Fri Nov  6 03:25:30 PST 2026
+EXIT=0
 ```
 
 | Device | c1 p50 / p95 | c2 p50 / p95 |
 |---|---|---|
-| CPU (24-vCPU box) | 27 / 34 ms | 129 / 137 ms |
+| CPU (12 physical cores, 24 SMT threads) | 27 / 34 ms | 129 / 137 ms |
 | GPU (RTX 3080) | 23 / 35 ms | 66 / 85 ms |
 
-CPU c2 is 129 ms against 27 ms at c1 (4.8x). That is not a model cost at two requests: each call used 12 intra-op threads, so two concurrent calls on 12 threads each contend for the same cores, and the c2 number mostly measures the harness's thread oversubscription (recurring-failures mode 14). The method is the same as #373's; no rerun with fewer threads per call was made. Treat c2 CPU as an upper bound for this harness, not as a service estimate.
+CPU c2 is 129 ms against 27 ms at c1 (4.8x). That is probably not a model cost at two requests: each call used 12 intra-op threads on a box with 12 physical cores (24 SMT threads), so two concurrent calls with 12 threads each plausibly contend for the same cores, and the c2 number likely mostly measures the harness's thread oversubscription (recurring-failures mode 14). This mechanism is likely, not measured: no run with fewer threads per call was made, so it is not shown that oversubscription explains the 4.8x. The method is the same as #373's; no rerun with fewer threads per call was made. Treat c2 CPU as an upper bound for this harness, not as a service estimate.
 
-All far inside the 2 s p95 bound. The GPU gives no c1 gain for a model this small; at c2 the GPU is faster. The earlier CPU numbers in #373 (42 / 59 ms at c1) were on a different day and load and are not a controlled comparison. Latency does not depend on which of the five hypotheses is used (same model, same input length class); only H1 was timed.
+All far inside the 2 s p95 bound. The GPU gives no c1 gain for a model this small; at c2 the GPU is faster. The earlier CPU numbers in #373 (42 / 59 ms at c1) were on a different day and load and are not a controlled comparison. Latency is expected to be similar for the other four hypotheses (same model; the hypothesis is a short second sequence), but that is not measured: only H1 was timed (recurring-failures mode 3).
 
 ## Q9. Acceptance listings
 
