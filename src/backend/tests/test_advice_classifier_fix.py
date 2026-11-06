@@ -62,6 +62,10 @@ FRAME_PROBES = (
     "Do I have a disease on file?",
     "Could this be from my test results showing cancer?",
     "What treatment was mentioned in my visit notes that I should start?",
+    # Review round 2: severity words BEFORE a record frame are still read.
+    "Is my glucose dangerous and flagged as abnormal?",
+    "Is this dangerous and marked abnormal?",
+    "Is my result serious or flagged abnormal?",
 )
 # Review round 1: "can/should/may I + verb" with any object also reaches app and record
 # questions. The owner decides these under ADVICE-PATTERNS-YES; HC-ACF-003 prints them.
@@ -415,6 +419,20 @@ SCENARIOS = {
     "unrecognised-flag-no-range": (
         dict(value=300.0, ref_low=None, ref_high=None, flag="CRIT", is_abnormal=True),
         [], "CRIT"),
+    # Review round 2: a printed flag the helper does not read, WITH a numeric range. 85 against
+    # 70-100 under a printed CRIT: the range line alone would invite a "normal" reading of a value
+    # the lab flagged, so no range line and no status sentence are written. Owner-listed.
+    "unrecognised-flag-with-range-inside": (
+        dict(value=85.0, ref_low=70.0, ref_high=100.0, flag="CRIT", is_abnormal=True),
+        [], "CRIT"),
+    "unrecognised-flag-with-range-outside": (
+        dict(value=300.0, ref_low=70.0, ref_high=100.0, flag="ABN", is_abnormal=True),
+        [], "ABN"),
+    # A one-sided range: the status sentence is written, the one bound is not printed (printing it
+    # would be new wording). Named for the owner; the legacy context carries no flag here.
+    "one-sided-range": (
+        dict(value=85.0, ref_low=None, ref_high=100.0, flag=None, is_abnormal=False),
+        [SENTENCE_WITHIN], None),
     # The range exists only as text; nothing parses it, so no status sentence is written.
     "range-text-only": (
         dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100", flag=None, is_abnormal=False),
@@ -520,6 +538,8 @@ async def test_hc_acf_010_agent_on_answers_range_question_with_the_helper_senten
     for other in STATUS_SENTENCES:
         if other not in expected:
             assert other not in text, (name, other, text)
+    if not any(sentence.startswith("The reference range is") for sentence in expected):
+        assert "The reference range is" not in text, (name, text)
     assert _cited_ids(body) == {"obs-1"}, body["segments"]
     assert _prohibited(text) == [], text
     assert classify_advice(text).is_advice_seeking is False, text

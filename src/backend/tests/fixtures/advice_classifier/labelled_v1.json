@@ -919,6 +919,96 @@
    "group": "can-should-i-non-medication",
    "source": "review r1: medication pattern with any object also blocks app and record questions; owner decides under ADVICE-PATTERNS-YES",
    "main": "none"
+  },
+  {
+   "id": "ACF-103",
+   "question": "Is my glucose dangerous and flagged as abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r2: severity words before a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-104",
+   "question": "Is this dangerous and marked abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r2: severity words before a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-105",
+   "question": "Is my result serious or flagged abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r2: severity words before a record frame are still read",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-106",
+   "draft_sentence": "The note says: \"Take more fluids and rest.\"",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "review r2: quoted note text in a draft sentence (take more / use less with no first-person frame)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-107",
+   "draft_sentence": "The note says: \"Use less salt.\"",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "review r2: quoted note text in a draft sentence (take more / use less with no first-person frame)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-108",
+   "draft_sentence": "The note says: \"Take extra care with hypoglycemia.\"",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "review r2: quoted note text in a draft sentence (take more / use less with no first-person frame)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-109",
+   "draft_sentence": "The note says: \"Use more olive oil, less butter.\"",
+   "expect": "none",
+   "category": null,
+   "group": "draft-sentence-must-not-catch",
+   "source": "review r2: quoted note text in a draft sentence (take more / use less with no first-person frame)",
+   "main": "none"
+  },
+  {
+   "id": "ACF-110",
+   "question": "Do I need to take more insulin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "review r2: the take-more pattern keeps its question frames",
+   "main": "none"
+  },
+  {
+   "id": "ACF-111",
+   "question": "Is it okay to take more?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "review r2: the take-more pattern keeps its question frames",
+   "main": "none"
+  },
+  {
+   "id": "ACF-112",
+   "question": "Will I have to use less insulin?",
+   "expect": "advice",
+   "category": "medication",
+   "group": "must-catch-medication",
+   "source": "review r2: the take-more pattern keeps its question frames",
+   "main": "none"
   }
  ]
 }
