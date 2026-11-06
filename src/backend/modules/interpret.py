@@ -1017,8 +1017,9 @@ class InterpretModule:
 
         With a KB row the value is checked in the KB's unit (same rule as the badge); a missing
         or unconvertible unit makes no check. The sentence then shows the patient's number and
-        unit first and the converted number beside it. Without a KB row nothing changes: the
-        guard compares the raw value with its default table.
+        unit first and the converted number beside it. Without a KB row the value is checked in
+        the default row's unit (DEFAULT_CRITICAL_UNITS) by the same rule; a missing or
+        unconvertible unit makes no check.
         """
         if observation.value is None:
             return
