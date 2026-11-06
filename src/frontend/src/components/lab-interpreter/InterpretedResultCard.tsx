@@ -40,10 +40,12 @@ interface InterpretedResultCardProps {
 
 const severityVariant: Record<string, 'verified' | 'caution' | 'attention' | 'info' | 'default'> = {
   normal: 'verified',
-  mild: 'caution',
-  moderate: 'attention',
-  severe: 'attention',
-  critical: 'attention',
+  borderline_low: 'caution',
+  borderline_high: 'caution',
+  abnormal_low: 'attention',
+  abnormal_high: 'attention',
+  critical_low: 'attention',
+  critical_high: 'attention',
   informational: 'info',
 };
 
