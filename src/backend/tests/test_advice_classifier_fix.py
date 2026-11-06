@@ -66,6 +66,19 @@ FRAME_PROBES = (
     "Is my glucose dangerous and flagged as abnormal?",
     "Is this dangerous and marked abnormal?",
     "Is my result serious or flagged abnormal?",
+    # Review round 3: a diagnosis word in the marked/flagged filler is still read.
+    "Is this cancer and marked abnormal?",
+    "Is this a tumor marked abnormal?",
+    "Is my mole cancerous and flagged abnormal?",
+    "Is my kidney failing and flagged abnormal?",
+    "Is my liver damaged and flagged as abnormal?",
+    "Is my heart failing and marked abnormal?",
+    # Review round 3: the could-this frame takes only record nouns; blood only before one.
+    "Could this be from my blood?",
+    "Could this be from my last appointment?",
+    "Could this be from my results?",
+    "Could this be from my panel?",
+    "Could this be the same result?",
 )
 # Review round 1: "can/should/may I + verb" with any object also reaches app and record
 # questions. The owner decides these under ADVICE-PATTERNS-YES; HC-ACF-003 prints them.
@@ -400,6 +413,10 @@ SCENARIOS = {
     # A row imported before #492: stored is_abnormal False, no printed flag, 300 against 70-100.
     "above-unflagged-pre-492": (
         dict(value=300.0, ref_low=70.0, ref_high=100.0, flag=None, is_abnormal=False),
+        [_range_line(70.0, 100.0), SENTENCE_ABOVE], "HIGH"),
+    # Review round 3: a blank printed flag is no flag, on both paths (rag.py reads it as falsy).
+    "above-blank-flag": (
+        dict(value=300.0, ref_low=70.0, ref_high=100.0, flag="", is_abnormal=False),
         [_range_line(70.0, 100.0), SENTENCE_ABOVE], "HIGH"),
     "within": (
         dict(value=85.0, ref_low=70.0, ref_high=100.0, flag=None, is_abnormal=False),

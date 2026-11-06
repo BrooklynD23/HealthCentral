@@ -155,7 +155,9 @@ def _range_sentences(row: dict, unit: str) -> str:
 
     low, high = row.get("ref_low"), row.get("ref_high")
     has_text = bool(row.get("has_range_text"))
-    status = observation_range_status(row.get("flag"), row["value"], low, high, has_text)
+    status = observation_range_status(
+        (row.get("flag") or "").strip() or None, row["value"], low, high, has_text
+    )
     flag_word = str(row.get("flag") or "").strip()
     parts: list[str] = []
     # A "keep" under a printed flag the helper does not read (A, ABN, CRIT, H*) prints no range

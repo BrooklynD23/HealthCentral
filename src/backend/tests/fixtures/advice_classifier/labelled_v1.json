@@ -1009,6 +1009,105 @@
    "group": "must-catch-medication",
    "source": "review r2: the take-more pattern keeps its question frames",
    "main": "none"
+  },
+  {
+   "id": "ACF-113",
+   "question": "Is this cancer and marked abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: a diagnosis word in the marked/flagged filler is still read (the filler is a closed list of record words)",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-114",
+   "question": "Is this a tumor marked abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: a diagnosis word in the marked/flagged filler is still read (the filler is a closed list of record words)",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-115",
+   "question": "Is my mole cancerous and flagged abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: a diagnosis word in the marked/flagged filler is still read (the filler is a closed list of record words)",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-116",
+   "question": "Is my kidney failing and flagged abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: a diagnosis word in the marked/flagged filler is still read (the filler is a closed list of record words)",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-117",
+   "question": "Is my liver damaged and flagged as abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: a diagnosis word in the marked/flagged filler is still read (the filler is a closed list of record words)",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-118",
+   "question": "Is my heart failing and marked abnormal?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: a diagnosis word in the marked/flagged filler is still read (the filler is a closed list of record words)",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-119",
+   "question": "Could this be from my blood?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: the could-this frame takes only the plan's record nouns; blood only before a record noun",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-120",
+   "question": "Could this be from my last appointment?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: the could-this frame takes only the plan's record nouns; blood only before a record noun",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-121",
+   "question": "Could this be from my results?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: the could-this frame takes only the plan's record nouns; blood only before a record noun",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-122",
+   "question": "Could this be from my panel?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: the could-this frame takes only the plan's record nouns; blood only before a record noun",
+   "main": "diagnosis"
+  },
+  {
+   "id": "ACF-123",
+   "question": "Could this be the same result?",
+   "expect": "advice",
+   "category": "diagnosis",
+   "group": "record-frame-stays-advice",
+   "source": "review r3: the could-this frame takes only the plan's record nouns; blood only before a record noun",
+   "main": "diagnosis"
   }
  ]
 }
