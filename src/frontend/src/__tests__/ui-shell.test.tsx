@@ -17,13 +17,18 @@ import safetyRailSource from '@/components/layout/SafetyRail.tsx?raw';
 import safetyModeToggleSource from '@/components/layout/SafetyModeToggle.tsx?raw';
 
 describe('UI-SHELL navConfig (HC-UISH-001)', () => {
-  it('HC-UISH-001: destinations are grouped as plan §3.1 with the transition entries and no Overview', () => {
+  it('HC-UISH-001: destinations are grouped as plan §3.1 with Overview first, as the unlabelled group, and the transition entries', () => {
     const groups = navGroups.map((group) => ({
       label: group.label,
       items: group.items.map((item) => [item.label, item.to]),
     }));
 
     expect(groups).toEqual([
+      {
+        // UI-OVERVIEW: Overview is the unlabelled "—" group of plan §3.1 and comes first.
+        label: '',
+        items: [['Overview', '/overview']],
+      },
       {
         label: 'Records',
         items: [
@@ -57,11 +62,11 @@ describe('UI-SHELL navConfig (HC-UISH-001)', () => {
     ]);
   });
 
-  it('HC-UISH-001: the phone tab bar has Documents, Review values, Results, Ask and More, in that order', () => {
+  it('HC-UISH-001: the phone tab bar has Overview, Results, Documents, Ask and More, in that order', () => {
     expect(navTabs.map((tab) => tab.label)).toEqual([
-      'Documents',
-      'Review values',
+      'Overview',
       'Results',
+      'Documents',
       'Ask',
       'More',
     ]);
