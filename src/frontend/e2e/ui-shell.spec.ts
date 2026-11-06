@@ -964,12 +964,13 @@ test.describe('HC-UIOV-010 and HC-UIOV-011 scroll-lock variable and guard', () =
 test.describe('Inherited stillness and focus halves (L0 rulings #363, #364, #365)', () => {
   test.describe.configure({ retries: 0 });
   test('HC-UIOV-007: the still toggle popover holds still from the opening click', async ({ page }) => {
-    test.fixme(true, 'POPOVER-OPEN-COST: open cost is under ui/Popover.tsx (Radix Presence/DismissableLayer, react commit); L0 ruling 2026-10-26');
     await page.setViewportSize(PHONE);
     await openRoute(page, '/inbox');
     await expect(page.locator(RAIL)).toBeVisible({ timeout: 15_000 });
     const info = page.getByRole('button', { name: /stricter safety mode/i });
     await expect(info).toBeVisible();
+    await settleRoute(page);
+    await page.evaluate(() => document.fonts.ready);
     const report = await stillnessProbe(page, {
       kind: 'overlay',
       trigger: () => info.click(),
