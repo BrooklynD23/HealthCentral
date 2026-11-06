@@ -2174,6 +2174,14 @@ Queue row **JUDGE-LAYA-FT**, plan section lane B: JUDGE-LAYA-FT. Source gate, ow
 
 Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
 
+## `docs/research/2026-11-06-judge-nli-tune/00-README.md`
+
+**Judge measurement: tuning the bundled NLI cross-encoder's hypothesis and threshold (2026-11-06)**
+
+Queue row **JUDGE-NLI-TUNE** and its plan section, lane B: JUDGE-NLI-TUNE. The gate: owner JUDGE-SWAP, answered 2026-10-26 by free text, verbatim: "Try both Layla fine tune and NLI judge"…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
+
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
 **(untitled)**
