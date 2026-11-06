@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-28
 **Owner:** repository owner
-**Status:** Partly met. Measured on CPU here: the judge preview, the chat subset and peak RSS. Not met: (1) `llama-bench` pp and tg at 4 and 8 threads for both models. That needs the owner to allow building the vendored llama.cpp, or to supply a prebuilt `llama-bench` binary. (2) A pp512 re-run on a quiet box. The first set was measured on a loaded box, and its pp512 cells are marked not usable for comparison. The original 2026-10-22 40-text judge set is unavailable, so the judge rows here cannot be compared with that run. No product code, test, config, flag or default changed. No pytest run. No queue, count slot or ask-first file edited. No recommendation is made here: CPU-MODEL-FINAL decides which model becomes the long-term CPU default from this table.
+**Status:** Partly met. Measured on CPU here: the judge preview, the chat subset and peak RSS. Not met: (1) `llama-bench` pp and tg at 4 and 8 threads for both models. That needs the owner to allow building the vendored llama.cpp, or to supply a prebuilt `llama-bench` binary. (2) A pp512 re-run on a quiet box. The first set was measured on a loaded box, and its pp512 cells are marked not usable for comparison. The original 2026-10-22 40-text judge set is unavailable, so the judge rows here cannot be compared with that run. No product code, test, config, flag or default changed. No pytest run. No queue, count slot or ask-first file edited. No recommendation is made here: CPU-MODEL-FINAL decides which model becomes the long-term CPU default from this table. **Update 2026-11-06:** item (2), the quiet-box pp512 re-run, is done by L0; see "Quiet-box re-run 2026-11-06 (L0)" below. The 2026-10-28 numbers above are unchanged.
 **Refresh Trigger:** a change to the GGUF files or their pinned commits, to `held_out_dev.json`, to the judge prompt or its parser, to the chat prompts, or to `JUDGE-THINK` (`InferenceConfig.think`).
 
 Plan: [QWEN3-4B-TIER](../../plans/2026-10-22-mvp-rows-plan.md#qwen3-4b-tier--measure-qwen3-4b-on-cpu-as-the-candidate-long-term-default-no-product-code). Queue row: [queue.md](../../plans/2026-10-15-build-program/queue.md) (`QWEN3-4B-TIER`). Judge context: [judge research](../../research/2026-10-22-judge-laya/00-README.md). Baseline for the KV and MM-4 prompts: [kv-prefix-measure.md](../2026-10-22/kv-prefix-measure.md) and [kv-numctx-verify](../2026-10-27/).
@@ -134,6 +134,30 @@ Raw JSON outputs (per-item judge rows, per-case chat text, RSS files) are in `~/
 - On this 40-text dev sample, with thinking off: Qwen3-4B had 0 of 20 must-block items ALLOW and 2 of 20 must-allow blocked. Phi-4-mini had 3 of 20 must-block items ALLOW and 4 of 20 must-allow blocked. The sample is small (wide intervals above), it is not S5, and it is not the 2026-10-22 set. It cannot decide the default.
 - Both models answered all five chat cases as valid JSON with `stop`, with no invalid cites. Phi-4-mini's case d answer is about 40% longer than Qwen3-4B's (2294 characters against 1638), with 5 uncertainty items against 1.
 - Peak RSS is about 0.67 GiB higher for Qwen3-4B (5.67 GiB against 5.00 GiB) at `n_ctx` 8192.
+
+## Quiet-box re-run 2026-11-06 (L0)
+
+Added 2026-11-06 (BATCH-1106B). It answers the open item "pp512 re-run on a quiet box". The 2026-10-28 numbers above are not rewritten, and their pp512 cells stay marked not usable for comparison. The queue row's runtime cell starts with "L0", so build-item refused the row and L0 ran it.
+
+**Method.**
+- Same helper: `~/hc-models-scratch/scripts/qwen_tier.py bench` (sha256 `222ad8ebbd0185ff129608311103b73efa010b3b011b8292816f0cbe95b910df`).
+- Same GGUFs: Qwen3-4B Q4_K_M sha256 `7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5` matches the file table in Model provenance, and both file sizes match.
+- CPU only (`CUDA_VISIBLE_DEVICES=`), 1 warm-up + 3 reps, 4 and 8 threads, llama-cpp-python 0.3.35.
+- Each call ran under `/tmp/claude-1000/quiet_run.sh` (pytest slots 1 to 8 held; prechecks passed after 100 to 260 s; 1-minute load average at start 1.08 to 1.17), inside `quiet-box.lock`.
+- Script: `~/hc-quiet-logs/tools/qwen_pp512_rerun.sh`. Logs: `~/hc-quiet-logs/qwen3-4b-tier/r1106/` (4 lines, all `EXIT=0`; `bench_*.json`, `bench_*.log`, `rss_*.txt`). These are on the model host and not in the repo.
+
+**Results** (maxrss and elapsed from `rss_{phi4,qwen3}_{t4,t8}.txt`; the rss-to-row mapping was checked against those file names).
+
+| Model | Threads | pp512 tok/s mean (reps) | tg128 tok/s mean (reps) | maxrss | elapsed |
+|---|---|---|---|---|---|
+| Qwen3-4B Q4_K_M | 4 | 120.7 (119.24, 121.03, 121.88) | 14.50 (14.53, 14.51, 14.48) | 5528504 kB | 59.98 s |
+| Qwen3-4B Q4_K_M | 8 | 121.7 (120.39, 124.39, 120.35) | 14.34 (14.25, 14.31, 14.48) | 5527912 kB | 57.96 s |
+| Phi-4-mini Q4_K_M | 4 | 127.5 (126.89, 126.91, 128.57) | 15.01 (15.15, 14.79, 15.09) | 4919204 kB | 57.08 s |
+| Phi-4-mini Q4_K_M | 8 | 127.7 (126.54, 126.91, 129.65) | 15.11 (15.17, 15.10, 15.07) | 4918912 kB | 54.76 s |
+
+**Observation, untested.** 4 and 8 threads give the same throughput for both models. That suggests a memory-bandwidth limit, or a llama-cpp-python build that does not use the extra threads. Neither was tested here.
+
+**Status.** The row stays partly met. Still open: `llama-bench` (needs owner permission to build the vendored llama.cpp, or a prebuilt binary) and the 2026-10-22 judge set (unavailable). No recommendation is made here.
 
 ## Appendix: `qwen_tier.py` (scratch, not committed)
 
