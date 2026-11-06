@@ -88,6 +88,20 @@ class InterpretationSafetyGuard:
         "white_blood_cells": {"critical_low": 2.0, "critical_high": 30.0},
     }
 
+    # CRIT-DEFAULT-UNITS: the unit each row above is written in. First entry = the row's unit;
+    # the rest are same-unit spellings. mEq/L equals mmol/L numerically for monovalent K+ and
+    # Na+ only; it is not a conversion factor and is listed for no other analyte (L0 ruling
+    # 6684499411 R-a).
+    DEFAULT_CRITICAL_UNITS = {
+        "glucose": ("mg/dL",),
+        "hemoglobin": ("g/dL",),
+        "potassium": ("mmol/L", "mEq/L"),
+        "sodium": ("mmol/L", "mEq/L"),
+        "platelets": ("10^3/uL",),
+        "wbc": ("10^3/uL",),
+        "white_blood_cells": ("10^3/uL",),
+    }
+
     def __init__(self):
         """Initialize safety guard with compiled patterns."""
         self._compiled_prohibited = [
