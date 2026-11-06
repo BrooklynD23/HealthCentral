@@ -611,7 +611,7 @@ async def test_hc_kcn_004_hba1c_critical_high_flags_physician_review(master, pro
     assert r_high.success and r_below.success, (r_high.error_message, r_below.error_message)
     assert r_high.interpretation.requires_physician_review is True
     assert r_high.interpretation.physician_review_reason == (
-        "Critical high value: 10.5 is above critical threshold of 10.0"
+        "Critical high value: 10.5 % is above the critical threshold of 10 %."
     )
     assert r_high.interpretation.severity_level == "critical_high"
     assert r_below.interpretation.requires_physician_review is False
@@ -1292,7 +1292,7 @@ async def test_hc_kcn_009_hemoglobin_a1c_stored_literally_keeps_its_critical_fla
     assert info is not None, "no knowledge-base row for a result stored as hemoglobin_a1c"
     assert card.requires_physician_review is True
     assert card.severity_level == "critical_high"
-    assert card.physician_review_reason == "Critical high value: 10.5 is above critical threshold of 10.0"
+    assert card.physician_review_reason == "Critical high value: 10.5 % is above the critical threshold of 10 %."
     assert f"{info.high_interpretation} [KB:{info.id}]" in card.interpretation_text
     assert f"{info.description} [KB:{info.id}]" in card.interpretation_text
 
@@ -1405,7 +1405,7 @@ def test_hc_kcn_009_alias_map_equals_the_migration_renames():
 # only when the KB unit is that canonical unit. Unknown or missing unit: never critical.
 # Would not notice (all four): whether a KB limit or a normalize factor is clinically right
 # (owner-approved content, and normalize's own tests), nor unit spellings outside both tables
-# (K/uL for WBC, HbA1c mmol/mol, TSH uIU/mL against a mIU/L limit): those are never critical.
+# (HbA1c mmol/mol, glucose mg%): those are never critical.
 # ---------------------------------------------------------------------------
 
 
@@ -1442,7 +1442,20 @@ UNIT_BADGE_CASES = {
     "missing-unit-blank": ("glucose", 40.0, "   ", 70, 100, "abnormal_low"),
     "hba1c-mmol-mol-normal": ("hba1c", 35.0, "mmol/mol", 20, 42, "normal"),
     "hba1c-mmol-mol-high-never-critical": ("hba1c", 120.0, "mmol/mol", 20, 42, "abnormal_high"),
-    "tsh-other-unit-than-the-limit-never-critical": ("tsh", 12.0, "uIU/mL", 0.4, 4.0, "abnormal_high"),
+    "tsh-same-table-entry-converts-high": ("tsh", 12.0, "µIU/mL", 0.4, 4.0, "critical_high"),
+    "tsh-same-table-entry-converts-low": ("tsh", 0.05, "uIU/mL", 0.4, 4.0, "critical_low"),
+    "tsh-same-table-entry-not-critical": ("tsh", 5.0, "uIU/mL", 0.4, 4.0, "abnormal_high"),
+    "wbc-K/uL-critical-low": ("white_blood_cells", 1.5, "K/uL", 4.0, 11.0, "critical_low"),
+    "wbc-x10E3/uL-critical-high": ("white_blood_cells", 35.0, "x10E3/uL", 4.0, 11.0, "critical_high"),
+    "wbc-10*3/uL-critical-low": ("white_blood_cells", 1.5, "10*3/uL", 4.0, 11.0, "critical_low"),
+    "wbc-10-sup3/uL-critical-low": ("white_blood_cells", 1.5, "10³/µL", 4.0, 11.0, "critical_low"),
+    "wbc-10^9/L-critical-low": ("white_blood_cells", 1.5, "10^9/L", 4.0, 11.0, "critical_low"),
+    "wbc-cells/uL-1500-is-1.5": ("white_blood_cells", 1500.0, "cells/uL", 4.0, 11.0, "critical_low"),
+    "wbc-cells/uL-7000-not-critical": ("white_blood_cells", 7000.0, "cells/uL", 4.0, 11.0, "abnormal_high"),
+    "wbc-other-spelling-never-critical": ("white_blood_cells", 1.5, "thou/uL", 4.0, 11.0, "abnormal_low"),
+    "platelets-x10^3/uL-critical-low": ("platelets", 20.0, "x10^3/uL", 150, 400, "critical_low"),
+    "platelets-K/uL-critical-high": ("platelets", 1200.0, "K/uL", 150, 400, "critical_high"),
+    "platelets-other-spelling-never-critical": ("platelets", 20.0, "per uL", 150, 400, "abnormal_low"),
 }
 
 
@@ -1503,6 +1516,13 @@ async def test_hc_kcn_011_interpret_with_model_passes_the_unit(master, profile_d
     assert spy.call_args.kwargs["unit"] == "mmol/L"
 
 
+BANNER_SENTENCES = {
+    "same-unit": "Critical high value: 450 mg/dL is above the critical threshold of 400 mg/dL.",
+    "converted-critical": (
+        "Critical high value: 25.0 mmol/L (450 mg/dL) is above the critical threshold of 400 mg/dL."
+    ),
+}
+
 # unit, value, severity, does the banner fire
 BANNER_CASES = {
     "same-unit": ("mg/dL", 450.0, "critical_high", True),
@@ -1516,21 +1536,13 @@ BANNER_CASES = {
 @pytest.mark.asyncio
 @pytest.mark.parametrize("case", list(BANNER_CASES), ids=list(BANNER_CASES))
 async def test_hc_kcn_012_banner_follows_the_badge_unit_rule(master, profile_db, case):
-    from modules.normalize import convert_to_canonical
-
     unit, value, severity, fires = BANNER_CASES[case]
     info, card = await _interpret_stored(master, profile_db, "glucose", value, 70.0, 100.0, unit, "H")
     assert card.severity_level == severity
     assert bool(card.requires_physician_review) is fires
     assert (card.severity_level.startswith("critical")) == bool(card.requires_physician_review)
     if fires:
-        in_kb_unit = value if unit == "mg/dL" else convert_to_canonical("glucose", value, unit).canonical_value
-        expected = InterpretationSafetyGuard().check_critical_value(
-            "glucose", in_kb_unit, info.critical_low, info.critical_high
-        ).physician_review_reason
-        assert card.physician_review_reason == expected
-        assert expected.startswith("Critical high value: ")
-        assert expected.endswith(" is above critical threshold of 400.0")
+        assert card.physician_review_reason in BANNER_SENTENCES.values()
     else:
         assert card.physician_review_reason is None
 
@@ -1608,3 +1620,133 @@ async def test_hc_kcn_013_a_missing_unit_card_saved_critical_is_rebuilt(master, 
     assert result.interpretation.id != saved_id
     assert result.interpretation.severity_level == "abnormal_high"
     assert not result.interpretation.requires_physician_review
+
+
+# analyte, value, unit, ref lo, ref hi, flag, the banner sentence (owner: show both units)
+SENTENCES = {
+    "creatinine-umol": (
+        "creatinine", 900.0, "µmol/L", 62.0, 106.0, "H",
+        "Critical high value: 900 µmol/L (10.2 mg/dL) is above the critical threshold of 10 mg/dL.",
+    ),
+    "glucose-2-mmol": (
+        "glucose", 2.0, "mmol/L", 3.9, 5.6, "L",
+        "Critical low value: 2.0 mmol/L (36.0 mg/dL) is below the critical threshold of 50 mg/dL.",
+    ),
+    "glucose-25-mmol": (
+        "glucose", 25.0, "mmol/L", 3.9, 5.6, "H",
+        "Critical high value: 25.0 mmol/L (450 mg/dL) is above the critical threshold of 400 mg/dL.",
+    ),
+    "wbc-K/uL": (
+        "white_blood_cells", 1.5, "K/uL", 4.0, 11.0, "L",
+        "Critical low value: 1.5 K/uL (1.5 10^3/uL) is below the critical threshold of 2 10^3/uL.",
+    ),
+    "tsh-uIU/mL": (
+        "tsh", 12.0, "µIU/mL", 0.4, 4.0, "H",
+        "Critical high value: 12.0 µIU/mL (12.0 mIU/L) is above the critical threshold of 10 mIU/L.",
+    ),
+    "glucose-same-unit": (
+        "glucose", 40.0, "mg/dL", 70.0, 100.0, "L",
+        "Critical low value: 40.0 mg/dL is below the critical threshold of 50 mg/dL.",
+    ),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", list(SENTENCES), ids=list(SENTENCES))
+async def test_hc_kcn_012_banner_sentence_shows_both_units(master, profile_db, case):
+    analyte, value, unit, lo, hi, flag, sentence = SENTENCES[case]
+    _, card = await _interpret_stored(master, profile_db, analyte, value, lo, hi, unit, flag)
+    assert card.requires_physician_review is True
+    assert card.physician_review_reason == sentence
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["glucose-25-mmol", "tsh-uIU/mL", "wbc-K/uL"])
+async def test_hc_kcn_012_model_path_banner_has_the_same_sentence(master, profile_db, case):
+    analyte, value, unit, lo, hi, flag, sentence = SENTENCES[case]
+    obs = _obs(analyte, value, lo, hi, unit, flag=flag)
+    profile_db.add(obs)
+    await profile_db.commit()
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": "Value is outside range."}]})
+    module = InterpretModule(knowledge_loader=KnowledgeLoader(), model_selector=selector)
+    result = await module.interpret_with_model(
+        observation_id=obs.id, profile_id=PROFILE_ID, profile_db=profile_db, master_db=master
+    )
+    holder = result.interpretation if result.success else result.safety_validation
+    assert holder.requires_physician_review is True
+    reason = holder.physician_review_reason
+    assert reason == sentence
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_012_model_path_converted_non_critical_has_no_banner(master, profile_db):
+    obs = _obs("glucose", 7.0, 3.9, 5.6, "mmol/L", flag="H")
+    profile_db.add(obs)
+    await profile_db.commit()
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": "Value is outside range."}]})
+    module = InterpretModule(knowledge_loader=KnowledgeLoader(), model_selector=selector)
+    result = await module.interpret_with_model(
+        observation_id=obs.id, profile_id=PROFILE_ID, profile_db=profile_db, master_db=master
+    )
+    holder = result.interpretation if result.success else result.safety_validation
+    assert not holder.requires_physician_review
+
+
+async def _saved(master, profile_db, analyte, value, unit, lo, hi, flag, **card_fields):
+    """interpret, then overwrite the saved card's fields; returns (card id, observation id)."""
+    _, card = await _interpret_stored(master, profile_db, analyte, value, lo, hi, unit, flag)
+    for name, val in card_fields.items():
+        setattr(card, name, val)
+    await profile_db.commit()
+    return card.id, card.observation_id
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_banner_without_a_critical_badge_is_rebuilt(master, profile_db):
+    """Main's commonest wrong card: 7.0 mmol/L with abnormal_high and a 'Critical low' banner."""
+    saved_id, obs_id = await _saved(
+        master, profile_db, "glucose", 7.0, "mmol/L", 3.9, 5.6, "H",
+        requires_physician_review=True,
+        physician_review_reason="Critical low value: 7.0 is below critical threshold of 50.0",
+    )
+    result = await _module()[0].interpret_observation(obs_id, profile_db, master)
+    assert result.interpretation.id != saved_id
+    assert result.interpretation.severity_level == "abnormal_high"
+    assert not result.interpretation.requires_physician_review
+    assert result.interpretation.physician_review_reason is None
+
+
+CRITICAL_KEEPS = {
+    "wbc-K/uL": ("white_blood_cells", 1.5, "K/uL", 4.0, 11.0, "L"),
+    "platelets-x10^3/uL": ("platelets", 20.0, "x10^3/uL", 150.0, 400.0, "L"),
+    "tsh-uIU/mL": ("tsh", 12.0, "µIU/mL", 0.4, 4.0, "H"),
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", list(CRITICAL_KEEPS), ids=list(CRITICAL_KEEPS))
+async def test_hc_kcn_013_a_saved_correct_critical_stays_critical(master, profile_db, case):
+    analyte, value, unit, lo, hi, flag = CRITICAL_KEEPS[case]
+    saved_id, obs_id = await _saved(master, profile_db, analyte, value, unit, lo, hi, flag)
+    card = (await _module()[0].interpret_observation(obs_id, profile_db, master)).interpretation
+    assert card.id == saved_id
+    assert card.severity_level.startswith("critical")
+    assert card.requires_physician_review is True
+
+
+@pytest.mark.asyncio
+async def test_hc_kcn_013_a_saved_critical_on_an_unconvertible_unit_is_not_downgraded(
+    master, profile_db
+):
+    saved_id, obs_id = await _saved(
+        master, profile_db, "glucose", 450.0, "mg%", 70.0, 100.0, "H",
+        severity_level="critical_high", requires_physician_review=True,
+        physician_review_reason="Critical high value: 450.0 is above critical threshold of 400.0",
+    )
+    result = await _module()[0].interpret_observation(obs_id, profile_db, master)
+    assert result.interpretation.id == saved_id
+    assert result.interpretation.severity_level == "critical_high"

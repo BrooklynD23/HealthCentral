@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import LabInterpretation, Observation, PanelInterpretation
 from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
 from modules.normalize import (
+    UNIT_CONVERSIONS,
     canonical_unit_for,
     convert_to_canonical,
     normalize_unit,
@@ -115,13 +116,31 @@ class PanelInterpretationResult:
     replaced_member_ids: list[str] = field(default_factory=list)
 
 
+# KB-UNIT-BADGE: spellings of the cell-count unit 10^3/uL the extractor writes (extract.py
+# _UNIT_ALT), for white cells and platelets only. The first group is numerically identical
+# (factor 1); cells/uL is divided by 1000. Any other spelling is not converted. normalize_unit
+# folds the superscript in "10³/µL" to "103/ul", so that key is listed as it folds.
+_CELL_COUNT_ANALYTES = {"white_blood_cells", "platelets"}
+_CELL_COUNT_UNIT = normalize_unit("10^3/uL")
+_CELL_COUNT_FACTORS = {
+    normalize_unit(spelling): factor
+    for spelling, factor in (
+        ("x10E3/uL", 1.0), ("x10^3/uL", 1.0), ("10*3/uL", 1.0), ("K/uL", 1.0),
+        ("10^3/µL", 1.0), ("10³/µL", 1.0), ("10^9/L", 1.0), ("x10^9/L", 1.0),
+        ("cells/uL", 0.001),
+    )
+}
+
+
 def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> Optional[float]:
     """KB-UNIT-BADGE (D1): `value`, reported in `unit`, in the unit the KB's critical limits use.
 
-    Same unit after normalising: the value as is. Otherwise the value is converted with
-    normalize.convert_to_canonical (the app's one tested table) and used only when the KB's
-    standard_unit is that canonical unit. None (no critical check) for a missing unit, an
-    unconvertible unit, or a KB unit that is not the canonical one. Never guesses a factor.
+    Same unit after normalising: the value as is. White cells and platelets: the listed
+    spellings above. Otherwise the value is converted with normalize.convert_to_canonical (the
+    app's one tested table); it is used when the canonical unit is the KB's standard_unit, or
+    when the KB unit is another listed variant of the same table entry (converted with that
+    entry's own factor). None (no critical check) for a missing unit, an unconvertible unit,
+    or any other KB unit. Never guesses a factor.
     """
     reported = normalize_unit(unit or "")
     standard = normalize_unit(info.standard_unit or "")
@@ -129,10 +148,33 @@ def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> 
         return None
     if reported == standard:
         return value
+    if info.analyte_canonical in _CELL_COUNT_ANALYTES and standard == _CELL_COUNT_UNIT:
+        factor = _CELL_COUNT_FACTORS.get(reported)
+        return None if factor is None else value * factor
     converted = convert_to_canonical(info.analyte_canonical, value, unit)
-    if converted is None or normalize_unit(converted.canonical_unit) != standard:
+    if converted is None:
         return None
-    return converted.canonical_value
+    if normalize_unit(converted.canonical_unit) == standard:
+        return converted.canonical_value
+    entry = UNIT_CONVERSIONS.get(info.analyte_canonical.lower())
+    kb_factor = entry[1].get(standard) if entry else None
+    if not kb_factor:
+        return None
+    return converted.canonical_value / kb_factor
+
+
+def _fmt_threshold(number: float) -> str:
+    return f"{number:g}"
+
+
+def _fmt_patient_value(number: float) -> str:
+    """The patient's number as stored; a trailing .0 is dropped from 100 up."""
+    text = str(number)
+    return text[:-2] if text.endswith(".0") and abs(number) >= 100 else text
+
+
+def _fmt_converted(number: float) -> str:
+    return f"{number:.0f}" if abs(number) >= 100 else f"{number:.1f}"
 
 
 class InterpretModule:
@@ -265,23 +307,8 @@ class InterpretModule:
 
         # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
         # before the withhold so a withheld card still carries the flag.
-        # KB-UNIT-BADGE (D2): same unit rule as the badge. With a KB row the value is checked in
-        # the KB's unit, and a missing or unconvertible unit makes no critical check.
-        check_value = observation.value
-        if observation.value is not None and context.biomarker_info:
-            check_value = value_in_kb_unit(
-                context.biomarker_info, observation.value, observation.unit
-            )
-        if check_value is not None:
-            critical_result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=check_value,
-                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
-                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
-            )
-            if critical_result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = critical_result.physician_review_reason
+        # KB-UNIT-BADGE (D2): the banner follows the badge's unit rule.
+        self._apply_critical_check(observation, context.biomarker_info, safety_result)
 
         # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
         # Nothing is saved, deleted or committed before this return. The log
@@ -584,8 +611,11 @@ class InterpretModule:
         if card.model_tier != self.MODEL_TIER_TEMPLATE or card.model_id != self.MODEL_ID_TEMPLATE:
             return False
         # KB-UNIT-BADGE (D3): the unit fix changes a result only when the observation's unit is
-        # missing or is not the KB's unit. Then a card is rebuilt when it, or the new rule, says
-        # critical and the two differ. A same-unit difference is a KB revision, which is not stale.
+        # missing or is not the KB's unit. A card counts as critical when its badge says so or it
+        # carries the physician-review flag (template cards get that flag only from the critical
+        # check). It is rebuilt when the unit is missing, or the value converts, and a critical
+        # label is involved and the new result differs. A present unit that cannot be converted
+        # never downgrades a saved critical. A same-unit difference is a KB revision: not stale.
         kb_row = await self._knowledge_loader.get_biomarker_knowledge(
             analyte_canonical=observation.analyte_canonical,
             db=master_db,
@@ -594,17 +624,32 @@ class InterpretModule:
         if kb_row is not None and (
             not reported_unit or reported_unit != normalize_unit(kb_row.standard_unit or "")
         ):
-            new_severity = self._classify_severity(
-                value=observation.value,
-                ref_low=observation.ref_low,
-                ref_high=observation.ref_high,
-                biomarker_info=kb_row,
-                unit=observation.unit,
+            in_kb_unit = (
+                None if observation.value is None
+                else value_in_kb_unit(kb_row, observation.value, observation.unit)
             )
-            if card.severity_level != new_severity and "critical" in (
-                f"{card.severity_level} {new_severity}"
-            ):
-                return True
+            if not reported_unit or in_kb_unit is not None:
+                new_severity = self._classify_severity(
+                    value=observation.value,
+                    ref_low=observation.ref_low,
+                    ref_high=observation.ref_high,
+                    biomarker_info=kb_row,
+                    unit=observation.unit,
+                )
+                # the banner can also come from the guard's default table (no KB limit)
+                new_critical = new_severity.startswith("critical") or (
+                    in_kb_unit is not None
+                    and self._safety_guard.check_critical_value(
+                        observation.analyte_canonical, in_kb_unit,
+                        kb_row.critical_low, kb_row.critical_high,
+                    ).requires_physician_review
+                )
+                saved_flag = bool(card.requires_physician_review)
+                saved_critical = (card.severity_level or "").startswith("critical") or saved_flag
+                if (saved_critical or new_critical) and (
+                    card.severity_level != new_severity or saved_flag != new_critical
+                ):
+                    return True
         from api.observations import observation_range_status  # lazy: api imports modules
 
         status = observation_range_status(
@@ -927,6 +972,61 @@ class InterpretModule:
             )
 
         return interpretation_text, advice_text
+
+    def _apply_critical_check(
+        self,
+        observation: Observation,
+        info: Optional[BiomarkerInfo],
+        safety_result: Any,
+    ) -> None:
+        """Set the physician-review flag and reason from the critical-value check.
+
+        With a KB row the value is checked in the KB's unit (same rule as the badge); a missing
+        or unconvertible unit makes no check. The sentence then shows the patient's number and
+        unit first and the converted number beside it. Without a KB row nothing changes: the
+        guard compares the raw value with its default table.
+        """
+        if observation.value is None:
+            return
+        if info is None:
+            result = self._safety_guard.check_critical_value(
+                analyte_canonical=observation.analyte_canonical,
+                value=observation.value,
+                critical_low=None,
+                critical_high=None,
+            )
+            if result.requires_physician_review:
+                safety_result.requires_physician_review = True
+                safety_result.physician_review_reason = result.physician_review_reason
+            return
+        in_kb_unit = value_in_kb_unit(info, observation.value, observation.unit)
+        if in_kb_unit is None:
+            return
+        result = self._safety_guard.check_critical_value(
+            analyte_canonical=observation.analyte_canonical,
+            value=in_kb_unit,
+            critical_low=info.critical_low,
+            critical_high=info.critical_high,
+        )
+        if not result.requires_physician_review:
+            return
+        defaults = self._safety_guard.DEFAULT_CRITICAL_THRESHOLDS.get(
+            observation.analyte_canonical.lower(), {}
+        )
+        low = "critical_low_value" in result.warnings
+        limit = info.critical_low if low else info.critical_high
+        if limit is None:
+            limit = defaults.get("critical_low" if low else "critical_high")
+        kb_unit = info.standard_unit
+        shown = f"{_fmt_patient_value(observation.value)} {(observation.unit or '').strip()}"
+        if normalize_unit(observation.unit or "") != normalize_unit(kb_unit):
+            shown += f" ({_fmt_converted(in_kb_unit)} {kb_unit})"
+        safety_result.requires_physician_review = True
+        safety_result.physician_review_reason = (
+            f"Critical {'low' if low else 'high'} value: {shown} is "
+            f"{'below' if low else 'above'} the critical threshold of "
+            f"{_fmt_threshold(limit)} {kb_unit}."
+        )
 
     def _classify_severity(
         self,
@@ -1265,23 +1365,8 @@ class InterpretModule:
 
         # Check for critical values. INTERP-WITHHOLD-MSG (OQ-IWM-CRIT): this runs
         # before the withhold so a withheld card still carries the flag.
-        # KB-UNIT-BADGE (D2): same unit rule as the badge. With a KB row the value is checked in
-        # the KB's unit, and a missing or unconvertible unit makes no critical check.
-        check_value = observation.value
-        if observation.value is not None and context.biomarker_info:
-            check_value = value_in_kb_unit(
-                context.biomarker_info, observation.value, observation.unit
-            )
-        if check_value is not None:
-            critical_result = self._safety_guard.check_critical_value(
-                analyte_canonical=observation.analyte_canonical,
-                value=check_value,
-                critical_low=context.biomarker_info.critical_low if context.biomarker_info else None,
-                critical_high=context.biomarker_info.critical_high if context.biomarker_info else None,
-            )
-            if critical_result.requires_physician_review:
-                safety_result.requires_physician_review = True
-                safety_result.physician_review_reason = critical_result.physician_review_reason
+        # KB-UNIT-BADGE (D2): the banner follows the badge's unit rule.
+        self._apply_critical_check(observation, context.biomarker_info, safety_result)
 
         # INTERP-SAFETY-ENFORCE: a card that fails the safety check is withheld.
         # Nothing is saved, deleted or committed before this return. The log
