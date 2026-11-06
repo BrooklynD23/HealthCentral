@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ComponentType } from 'react';
 import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from '@/App';
 import { MotionProvider } from '@/motion/MotionProvider';
 import { useAuthStore } from '@/stores/authStore';
@@ -29,6 +29,8 @@ const server = vi.hoisted(() => ({
   observations: [] as unknown[],
   medications: [] as unknown[],
   calls: [] as Array<{ path: string; params?: Record<string, string> }>,
+  /** How long /observations/ takes to answer, in ms. 0 answers at once. */
+  observationsDelayMs: 0,
 }));
 
 vi.mock('@/services/api', () => ({
@@ -36,6 +38,7 @@ vi.mock('@/services/api', () => ({
     server.calls.push({ path, params });
     if (path === '/documents/') return server.documents;
     if (path === '/observations/') {
+      if (server.observationsDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, server.observationsDelayMs));
       const rows = server.observations as Array<{ user_verified: boolean }>;
       return params?.needs_verification === 'true' ? rows.filter((row) => !row.user_verified) : rows;
     }
@@ -156,6 +159,7 @@ beforeEach(() => {
   server.observations = [];
   server.medications = [];
   server.calls = [];
+  server.observationsDelayMs = 0;
   window.sessionStorage.clear();
   signIn();
 });
@@ -558,6 +562,68 @@ describe('HC-UILAND-002 (second import, delete): Overview never shows the count 
     });
 
     expect(seen).toEqual(['3']);
+  });
+});
+
+describe('HC-UILAND-002 (focus refetch): a refetch that no import or delete asked for leaves the page alone', () => {
+  it('HC-UILAND-002: a window-focus refetch of stale lists keeps the loaded page, the keyboard focus and the count text', async () => {
+    // staleTime 50 ms stands in for the app's 5 minutes: after it, a focus or reconnect refetches without any
+    // invalidation. The observations answer in 60 ms, so a page that swapped to its loading shape would be seen.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 50 } } });
+    server.documents = [makeDoc()];
+    server.observations = [makeObservation({ id: 'a' }), makeObservation({ id: 'b', analyte_canonical: 'ldl' })];
+
+    const { OverviewPage } = await import('../pages/OverviewPage');
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/overview']}>
+          <OverviewPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    expect(await screen.findByTestId('overview-waiting-count')).toHaveTextContent('2');
+
+    const link = screen.getByRole('link', { name: /review values/i });
+    link.focus();
+    expect(document.activeElement).toBe(link);
+
+    // Every text the count node holds, and every moment the loading shape is on screen.
+    const seen: string[] = [];
+    let sawSkeleton = false;
+    const record = () => {
+      const node = document.querySelector('[data-testid="overview-waiting-count"]');
+      if (!node) sawSkeleton = true;
+      else if (seen[seen.length - 1] !== node.textContent) seen.push(node.textContent ?? '');
+    };
+    record();
+    const watcher = new MutationObserver(record);
+    watcher.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    try {
+      server.observationsDelayMs = 60;
+      const callsBefore = server.calls.filter((call) => call.path === '/observations/').length;
+      await new Promise((resolve) => setTimeout(resolve, 80)); // past staleTime
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      // The refetch is in flight (it takes 60 ms): the page must still be the loaded one.
+      await waitFor(() =>
+        expect(server.calls.filter((call) => call.path === '/observations/').length).toBeGreaterThan(callsBefore)
+      );
+      expect(screen.getByTestId('overview-waiting-count')).toHaveTextContent('2');
+      expect(document.activeElement).toBe(link);
+      await new Promise((resolve) => setTimeout(resolve, 120)); // the answer arrives
+      record();
+    } finally {
+      watcher.disconnect();
+      focusManager.setFocused(undefined);
+    }
+
+    expect(sawSkeleton).toBe(false);
+    expect(seen).toEqual(['2']);
+    expect(document.activeElement).toBe(link);
+    expect(screen.getByRole('link', { name: /review values/i })).toBe(link);
   });
 });
 
