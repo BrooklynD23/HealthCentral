@@ -268,6 +268,11 @@ export function ResultsPage() {
     : null;
   const latestPlace = !latestBand || latestBand.side === 'none' ? 'unknown' : latestBand.side === 'within' ? 'inside' : 'outside';
   const latestInsideRange = latestPlace === 'inside' && !latestValue?.is_abnormal;
+  // KEPT-FLAG-DISAGREES: the route says this latest point's own report prints a flag its own range does not bear
+  // out. The sentence is the owner's; the badges above are not changed by it.
+  const latestFlagRangeDisagree = latestValue?.flag_range_disagree === true;
+  const flagRangeDisagreeSentence =
+    'The flag printed on your report and the printed range disagree for this value. Ask your clinician or the lab which applies.';
   const unverifiedPointCount = useMemo(
     () => trendData?.data_points.filter((point) => point.user_verified !== true).length ?? 0,
     [trendData]
@@ -493,6 +498,9 @@ export function ResultsPage() {
                 {latestPlace === 'outside' && <Badge variant="attention">Outside Range</Badge>}
                 {latestPlace !== 'outside' && latestValue?.is_abnormal && latestValue.flag && <Badge variant="attention">Flagged on the report</Badge>}
               </div>
+              {latestFlagRangeDisagree && (
+                <p className="mt-1 text-sm text-ink">{flagRangeDisagreeSentence}</p>
+              )}
               {trendData.summary && (
                 <p data-t0 className="mt-1 text-sm text-ink-secondary">
                   {trendData.summary}

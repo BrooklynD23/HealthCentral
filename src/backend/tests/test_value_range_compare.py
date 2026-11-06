@@ -94,8 +94,13 @@ NO_RANGE = (
     "This report did not include a reference range, "
     "so this result can't be compared to one."
 )
+# KEPT-FLAG-DISAGREES: what a "disagrees" status says, owner's words.
+FLAG_RANGE_DISAGREE = (
+    "The flag printed on your report and the printed range disagree for this value. "
+    "Ask your clinician or the lab which applies."
+)
 # Every status sentence main can produce without a knowledge-base entry.
-CLOSED = [ABOVE, BELOW, WITHIN, OUTSIDE, NO_RANGE]
+CLOSED = [ABOVE, BELOW, WITHIN, OUTSIDE, NO_RANGE, FLAG_RANGE_DISAGREE]
 
 
 # ── the helper, reached lazily ───────────────────────────────────────────────
@@ -469,10 +474,10 @@ async def test_hc_vrc_006_guard_disagreement_sentence_is_main_literal_with_no_ne
 ):
     obs = _obs(flag=flag, value=value, ref_low=lo, ref_high=hi, is_abnormal=stored)
     text = await _text(obs)
-    assert literal in text, text
+    assert FLAG_RANGE_DISAGREE in text, text
     # Closed list: remove everything main can already say; nothing may be left over.
     assert _residue(text, obs) == "", text
-    for other in [s for s in CLOSED if s != literal]:
+    for other in [s for s in CLOSED if s != FLAG_RANGE_DISAGREE]:
         assert other not in text, text
 
 
@@ -481,11 +486,8 @@ async def test_hc_vrc_006_guard_disagreement_sentence_is_main_literal_with_no_ne
 async def test_hc_vrc_006_guard_disagreement_with_kb_uses_todays_kb_text(flag, stored, field):
     obs = _obs(flag=flag, value=300.0 if flag == "N" else 85.0, is_abnormal=stored)
     text = await _text(obs, SYNTHETIC_KB)
-    if field is None:
-        assert OUTSIDE in text, text
-    else:
-        assert f"SENTINEL-HIGH [KB:{SYNTHETIC_KB.id}]" in text, text
-    assert "SENTINEL-NORMAL" not in text and "SENTINEL-LOW" not in text, text
+    assert FLAG_RANGE_DISAGREE in text, text
+    assert "SENTINEL" not in text, text
 
 
 # ── HC-VRC-007: any other flag reads today's sentence ────────────────────────
@@ -1707,9 +1709,6 @@ async def test_hc_vrc_022_a_member_without_a_saved_card_never_causes_a_rewrite(r
 # ── HC-VRC-023: disagreements and uncomparable rows are never rebuilt ────────
 
 NEVER = [
-    pytest.param(dict(value=300.0, flag="N", is_abnormal=True), None, None, id="N-at-300-disagrees"),
-    pytest.param(dict(value=85.0, flag="H", is_abnormal=True), None, None, id="H-at-85-disagrees"),
-    pytest.param(dict(value=85.0, flag="L", is_abnormal=True), ABOVE, BELOW, id="L-at-85-card-says-above"),
     pytest.param(dict(value=None, value_text="pending", flag="N", is_abnormal=True),
                  OUTSIDE, WITHIN, id="N-no-value-old-outside"),
     pytest.param(dict(value=300.0, ref_low=None, ref_high=None, ref_range_text="70-100 mg/dL",
@@ -1722,6 +1721,30 @@ NEVER = [
     pytest.param(dict(value=40.0, flag="Low", is_abnormal=True), OUTSIDE, BELOW, id="outside-on-printed-Low-40"),
     pytest.param(dict(value=85.0, flag="A", is_abnormal=True), None, None, id="other-flag-keep"),
 ]
+
+
+# KEPT-FLAG-DISAGREES (L0 ruling R3): a disagreement now has wording, so a saved template card
+# holding today's old sentence for one is rebuilt to the flag-range sentence. These three left NEVER.
+REBUILT_DISAGREEMENTS = [
+    pytest.param(dict(value=300.0, flag="N", is_abnormal=True), OUTSIDE, id="N-at-300-disagrees"),
+    pytest.param(dict(value=85.0, flag="H", is_abnormal=True), ABOVE, id="H-at-85-disagrees"),
+    pytest.param(dict(value=85.0, flag="L", is_abnormal=True), ABOVE, id="L-at-85-card-says-above"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", READS)
+@pytest.mark.parametrize("kw,old", REBUILT_DISAGREEMENTS)
+async def test_hc_vrc_023_disagreements_are_rebuilt_to_the_flag_range_sentence(rdbs, method, kw, old):
+    profile_db, master_db = rdbs
+    obs, card_id, _ = await _old_card(profile_db, kw, old, FLAG_RANGE_DISAGREE)
+    resp = _read(profile_db, master_db, obs.id, method)
+    assert resp.status_code == _ok(method), resp.text
+    text = resp.json()["interpretation_text"]
+    assert FLAG_RANGE_DISAGREE in text, text
+    assert old not in text, text
+    assert resp.json()["id"] != card_id
+    assert len(await _cards_of(profile_db, obs.id)) == 1
 
 
 @pytest.mark.asyncio

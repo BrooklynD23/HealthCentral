@@ -227,6 +227,10 @@ class TrendPoint(BaseModel):
     # D4 (owner, 2026-09-27): trends may show unverified points but must mark
     # them. Defaults to False so a point is never presented as verified by omission.
     user_verified: bool = False
+    # KEPT-FLAG-DISAGREES: this row's printed flag disagrees with this row's own printed range
+    # (observation_range_status == "disagrees"). Read from the row's raw value and bounds, not
+    # the converted point value or the chart's combined band. Defaults to False.
+    flag_range_disagree: bool = False
 
 
 class TrendResponse(BaseModel):
@@ -708,6 +712,10 @@ async def get_analyte_trend(
                     original_value=original_value,
                     original_unit=original_unit,
                     user_verified=obs.user_verified is True,
+                    flag_range_disagree=observation_range_status(
+                        obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                        bool((obs.ref_range_text or "").strip()),
+                    ) == "disagrees",
                 ))
             elif obs.value is not None:
                 # Has a value but no date — count it so the summary is accurate

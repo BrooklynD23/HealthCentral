@@ -189,7 +189,7 @@ describe('HC-STW-001 the interpreted result card offers "Show source" only for a
   it('HC-STW-001 leaves the interpretation text, advice, badges and citations identical with and without the observation', () => {
     const rich: InterpretationResponse = {
       ...interpretation,
-      severity_level: 'moderate',
+      severity_level: 'abnormal_high',
       advice_text: 'Ask your clinician about a repeat test.',
       requires_physician_review: true,
       physician_review_reason: 'Please review this result with your clinician.',
