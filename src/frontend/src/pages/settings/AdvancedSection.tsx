@@ -230,9 +230,10 @@ function AdvancedPanels({ exportResult, onExportResult }: AdvancedSectionProps) 
     <>
       {/* Three columns from xl (1280 px), two from lg, one below. The tiers sit alone in the first column and nothing
           above or beside them changes height when data arrives (G10); the diagnostics list, whose height does change,
-          sits in the last column. Expanded, the page is 1764 px by default and 1843 px with a download running (the progress
-          bar adds the difference), against the 1800 px bound of HC-UISET-005: the second figure is over the bound and is
-          not ruled yet. */}
+          sits in the last column. Expanded at 1440, the page is 1796 px by default and 1839 px with a download running (the
+          progress block adds the difference, compacted as far as its text, spinner, bar and bytes line allow). Owner answer
+          SETTINGS-HEIGHT-BOUND: 1800 px holds by default (HC-UISET-005); the running state is a recorded known limit, bounded
+          at 1840 px by HC-UISET-024. */}
       {/* The cards arrive in document order, so one that arrives never moves one that is there (each column fills top to
           bottom, and below xl the last column sits under the other two). Hardware and OCR, then the other three: each group's
           style and layout measured 8-12 ms on a production build, about what the tier card alone costs. One card per commit
@@ -414,14 +415,14 @@ function TierCard() {
                 initial={{ opacity: 0, height: 0, marginTop: 0 }}
                 animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                className="rounded-xl bg-surface-muted p-4 border border-black/4 overflow-hidden"
+                className="rounded-xl bg-surface-muted px-3 py-1 border border-black/4 overflow-hidden"
               >
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-bold text-ink capitalize flex items-center gap-2">
+                <div className="flex items-center justify-between mb-0.5">
+                  <p className="text-sm leading-none font-bold text-ink capitalize flex items-center gap-2">
                     <Loader2 className="w-3.5 h-3.5 motion-safe:animate-spin text-accent" />
                     Downloading {progressTier}…
                   </p>
-                  <p className="text-xs font-bold text-accent">{label}</p>
+                  <p className="text-xs leading-none font-bold text-accent">{label}</p>
                 </div>
                 <div className="w-full bg-black/6 rounded-full h-2 overflow-hidden">
                   {isIndeterminate ? (
