@@ -1,6 +1,6 @@
 # API Endpoints
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: safety-mode and gamification-settings routes added)
 **Owner:** Platform maintainers
 **Refresh Trigger:** Mounted backend route added, removed, renamed, or auth requirement changed
 **Status:** Source of truth for the live mounted backend API
@@ -82,6 +82,8 @@ Auth-required endpoints need `Authorization: Bearer <token>`.
 | DELETE | `/assistant/sessions/{session_id}` | Yes | Delete a chat session |
 | GET | `/assistant/memory-settings` | Yes | Get the per-profile RAG memory toggle |
 | PATCH | `/assistant/memory-settings` | Yes | Update the per-profile RAG memory toggle |
+| GET | `/assistant/safety-mode` | Yes | Get the per-profile strict safety mode flag (audited read) |
+| PATCH | `/assistant/safety-mode` | Yes | Set the per-profile strict safety mode flag (audited) |
 
 ## Feedback
 
@@ -246,6 +248,8 @@ Opt-in consent for donating data (RSI1-DONATE PR-1, `src/backend/api/donation.py
 | PUT | `/settings/model/timezone` | Yes | Set the profile timezone |
 | GET | `/settings/model/voice` | Yes | Get voice logging preferences |
 | PATCH | `/settings/model/voice` | Yes | Update voice logging preferences |
+| GET | `/settings/model/gamification` | Yes | Get gamification display preferences (`streaks_hidden`) |
+| PATCH | `/settings/model/gamification` | Yes | Update gamification display preferences |
 | GET | `/settings/model/diagnostics` | Yes | Get local OCR/model/SQLCipher/GPU diagnostics |
 | POST | `/settings/model/diagnostics/recheck` | Yes | Re-run environment diagnostics |
 | PATCH | `/settings/model/ocr` | Yes | Update per-profile OCR preference |

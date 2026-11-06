@@ -40,19 +40,23 @@ For **every** step, record a row in your report (see schema below).
 
 ### Main navigation (Sidebar)
 
-Routes under **Main navigation** (see [`Sidebar.tsx`](../src/components/layout/Sidebar.tsx)):
+The sidebar renders `navGroups` from [`navConfig.ts`](../src/components/layout/navConfig.ts) (the only place nav names live); on a phone the tab bar shows Overview, Results, Documents, Ask and More:
 
-| Label   | Path            |
-|---------|-----------------|
-| Inbox   | `/inbox`        |
-| Verify  | `/verify`       |
-| Trends  | `/trends`       |
-| Interpret | `/interpret`  |
-| Meds    | `/medications`  |
-| Alerts  | `/notifications` |
-| Explain | `/explain`      |
-| Export  | `/export`       |
-| Settings| `/settings`     |
+| Label | Path |
+|---|---|
+| Overview | `/overview` (also where `/` lands) |
+| Documents | `/inbox` |
+| Review values | `/verify` |
+| Timeline | `/timeline` |
+| Pinboards | `/pinboards` |
+| Results | `/results` (`/trends` and `/interpret` redirect here) |
+| Ask | `/explain` |
+| Medications | `/medications` |
+| Reminders | `/notifications` (redirects to `/medications?tab=reminders`) |
+| Follow-ups | `/care-tasks` |
+| Doctor summary | `/export` |
+
+Search is linked from the top bar (`/search`); Settings and About from the profile menu (`/settings`, `/about`).
 
 For each: navigate, confirm the main content loads (no blank error surface), primary controls respond to click/focus.
 
@@ -86,7 +90,7 @@ For each: navigate, confirm the main content loads (no blank error surface), pri
 
 ### Lazy-loaded routes
 
-`/trends`, `/interpret`, `/medications`, `/notifications`, `/export` load chunks on first visit — wait for skeletons to clear and confirm a heading or main landmark.
+Every page route except `/setup` (for example `/overview`, `/results`, `/medications`, `/export`) loads its chunk on first visit — wait for skeletons to clear and confirm a heading or main landmark.
 
 ## Report schema (required fields)
 

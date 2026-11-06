@@ -11,7 +11,7 @@ CLAUDE.md's "Dual migrations" invariant), and per-profile SQLCipher encryption.
 
 ## Start here
 
-- [`../plans/implementation-log/2026-02-04_alembic-dual-migrations.md`](../plans/implementation-log/2026-02-04_alembic-dual-migrations.md) — dual-migration design (historical, but the mechanics still apply)
+- [`../plans/implementation-log/2026-02-04_alembic-dual-migrations.md`](../plans/implementation-log/2026-02-04_alembic-dual-migrations.md) — dual-migration design (historical; the chain split still applies, but its "stamp head" rule for unversioned profile vaults is superseded: see [backend.md data architecture](../architecture/backend.md#data-architecture))
 - [`docs/03_data_confidentiality_pipeline_plan.md`](../03_data_confidentiality_pipeline_plan.md) — data/confidentiality pipeline (shared with security)
 
 ## Related roles

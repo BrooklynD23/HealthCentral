@@ -9,13 +9,13 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
 ## Stack & layout
 
 - **Backend** `src/backend/` — Python 3.11+, FastAPI, SQLAlchemy, Alembic (dual chains), llama-cpp-python (lazy/optional import).
-  - `api/` — routes (registered in `main.py`): documents, observations, assistant, memory, feedback, model_settings, profiles…
+  - `api/` — routes (each router included in `api/__init__.py`; `main.py` mounts that aggregate at `/api/v1`): documents, observations, assistant, memory, feedback, model_settings, profiles…
   - `modules/` — feature logic: `ingest`/`extract*` (document pipeline), `rag` (retrieval + prompt composition), `normalize`/`glossary` (analyte synonyms), `interpret*`/`faithfulness`/`verifier_agent`/`redaction` (safety — do not touch casually), `rl_dataset` (DPO/GRPO export)
-  - `core/` — config, security, db, `time` (use `core.time.utcnow`), `llm/` (provider layer: `LlamaCppProvider` default, `OllamaProvider` localhost-only, `factory.get_provider()`), `model_runner` (stable facade — the only LLM entry point for feature code)
+  - `core/` — config, security, `database` (master) / `profile_database` (vaults) / `migrations` (both Alembic runners), `auth`, `audit`, `time` (use `core.time.utcnow`), `llm/` (provider layer: `LlamaCppProvider` default, `OllamaProvider` localhost-only, `factory.get_provider()`), `model_runner` (stable facade — the only LLM entry point for feature code)
   - `models/` — SQLAlchemy; profile-scoped tables (observations, chat_sessions, chat_turns, response_feedback) live in per-profile DBs
   - `migrations/master/` + `migrations/profile/` — separate Alembic chains (see `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`)
 - **Frontend** `src/frontend/` — React + Vite + TS, Tailwind, React Query, Zustand.
-  - `src/pages/` (TrendsDashboard, ExplainAssistant, VerificationWorkbench, SettingsPage…), `src/services/` (API client + hooks; export everything through `services/index.ts` barrel), `e2e/` Playwright
+  - `src/App.tsx` (every route; `/` redirects to `/overview`), `src/components/layout/navConfig.ts` (every nav name, sidebar groups and the phone tab bar), `src/pages/` (OverviewPage, ResultsPage, ExplainAssistant, VerificationWorkbench, SettingsPage…; `/trends` and `/interpret` redirect to `/results`), `src/services/` (API client + React Query hooks, one file per backend area; export everything through the `services/index.ts` barrel — `backup`, `donation`, `interpretations` and `medications` are not re-exported there today), `e2e/` Playwright. Map: [`docs/architecture/frontend.md`](docs/architecture/frontend.md)
 - **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
 - **Generated repo map** [`openwiki/`](openwiki/README.md) — reserved home for a repo-navigation layer that OpenWiki would generate for coding agents (**not yet generated**; README-only stub). Advisory only once generated: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
 - **Agent model routing** (owner, 2026-10-29): Sonnet 5.5 implements; Haiku 5.5 at effort `medium` runs test scripts only and never edits; Haiku 5.5 at effort `xhigh` does exploration, web search, finding files and symbols, scanning/triage, summarization and other tasks that do not implement or write code; Opus reviews and orchestrates. Workflow scripts in `.claude/workflows/` use `model: 'sonnet', effort: 'high'` for implementers, `model: 'haiku', effort: 'medium'` for test runners and `model: 'haiku', effort: 'xhigh'` for exploration and scans. Full rule in [CLAUDE.md](CLAUDE.md) (Hard invariants).
@@ -73,7 +73,7 @@ see [`.claude/skills/README.md`](.claude/skills/README.md) and
 ## Commands (Windows is the native dev environment)
 
 ```powershell
-.\dev.ps1                                  # full stack, auto-selects free ports
+.\dev.ps1                                  # full stack; if 8000/3000 are busy it first stops the listeners (UAC retry), then falls back to the next free port
 cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (4564 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
@@ -86,15 +86,15 @@ Known env-only failure: since W-8 the embedding model is a fetched, gitignored b
 
 ## Key flows (trace these before changing them)
 
-1. **Document → graph**: upload (`api/documents`) → `modules/ingest` → `modules/extract` (date extraction is format-sensitive; canonical ISO-8601; collection-label priority) → observations stored per-profile → `api/observations` trends → `TrendsDashboard`. Undated observations are listed but excluded from time-series; `POST /{id}/reprocess` re-extracts.
+1. **Document → graph**: upload (`api/documents`) → `modules/ingest` → `modules/extract` (date extraction is format-sensitive; canonical ISO-8601; collection-label priority) → observations stored per-profile → `api/observations` trends → `ResultsPage` (`/results`). Undated observations are listed but excluded from time-series; `POST /{id}/reprocess` re-extracts.
 2. **Assistant chat**: `api/assistant` → ChatSession/ChatTurn persistence → `modules/rag`: retrieves user observations (`[YOUR_RESULTS:N]`), reference knowledge (`[REFERENCE:N]`, auto-seeded at startup from `scripts/seed_knowledge_base.py`), memory items + bounded session history (labeled non-citable) → ModelRunner → `validate_response()` + safety guards. No-LLM fallback must stay functional.
 3. **Feedback → RL datasets**: thumbs/corrections (`api/feedback`, upsert per turn) → `modules/rl_dataset` export (DPO pairs, SFT, GRPO reward JSONL) — redaction mandatory, explicit confirmation required.
-4. **Backup → restore**: `api/backup` (create/verify/download/restore/prune) → `scripts/backup.py` engine → per-profile `backups/{profile_id}/`. Backups are **deliberately unredacted** (a redacted backup cannot be restored) and are the one export-shaped path that is. Restore is profile-scoped: vault and sealed keys verbatim, only this profile's master row re-applied. `modules/backup_scheduler` runs due backups from the lifespan task and records `skipped_locked` honestly when a vault is closed.
+4. **Backup → restore**: `api/backup` (create/verify/download/restore/prune) → `scripts/backup.py` engine → per-profile `backups/{profile_id}/`. Backups are **deliberately unredacted** (a redacted backup cannot be restored); with `GET /export/csv` and `GET /export/json` (owner decision D3) they are the only unredacted export-shaped paths. Restore is profile-scoped: vault and sealed keys verbatim, only this profile's master row re-applied. `modules/backup_scheduler` runs due backups from the lifespan task and records `skipped_locked` honestly when a vault is closed.
 5. **Profile lifecycle**: create (`api/profiles`) issues a one-time recovery code sealing a *second copy of the same DEK* (`SEC-RECOV-001`); `DELETE /profiles/{id}` is an ordered crypto-erase — sealed keys first as the commit point, then the vault sweep, then the backup sweep, then one master transaction that purges audit rows and writes an anonymized tombstone.
 
 ## Configuration
 
-`.env` from `config/.env.example`. Notable: `LLM_PROVIDER` (`llama_cpp`|`ollama`), `LLM_MODEL`, `OLLAMA_BASE_URL` (must stay localhost), `ASSISTANT_MEMORY_ENABLED` (default true; ANDed with per-profile toggle and request flag).
+`.env` from `config/.env.example`. Notable: `LLM_PROVIDER` (`llama_cpp`|`ollama`), `LLM_MODEL`, `OLLAMA_BASE_URL` (must stay localhost; today it is read only by `api/model_settings.py`, for display and the localhost check on a provider switch: `core/llm/factory.py` builds `OllamaProvider` with its built-in `127.0.0.1:11434`), `ASSISTANT_MEMORY_ENABLED` (default true; ANDed with per-profile toggle and request flag).
 
 ## Definition of done
 

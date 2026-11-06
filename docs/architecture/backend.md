@@ -1,6 +1,6 @@
 # Backend Structure
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: profile head `018_ocr_opt_in`, chain counts, vault table list, `model_selector` reachability)
 **Owner:** Project Lead
 **Refresh Trigger:** Middleware order changes, a router is added/removed, or a migration chain gains a head
 
@@ -12,8 +12,9 @@ Part of the [architecture diagram set](README.md).
 
 Every request crosses the same middleware chain before it reaches a route. The
 order is defined in `src/backend/main.py` and matters: cheap rejections happen
-before expensive work, and auditing happens before timing so the audit row
-exists even for a request that later fails.
+before expensive work. Audit **rows** are written by the route handlers (through
+`core.audit`), not by middleware: `SecurityAuditMiddleware` writes an app-log line
+for each POST, PUT, PATCH and DELETE only.
 
 ```mermaid
 flowchart TD
@@ -22,13 +23,13 @@ flowchart TD
     CID --> SEC["SecurityHeadersMiddleware"]
     SEC --> RATE["RateLimitMiddleware<br/>sliding window"]
     RATE --> VAL["InputValidationMiddleware<br/>path/query sanity, body size → 413"]
-    VAL --> AUD["SecurityAuditMiddleware<br/>app log; DB only if audit_security_events_to_db"]
+    VAL --> AUD["SecurityAuditMiddleware<br/>app log only, mutating methods<br/>(audit_security_events_to_db is passed but never read)"]
     AUD --> TIME["TimingMiddleware<br/>p50/p95/p99"]
     TIME --> ROUTE["Route handler"]
 
     ROUTE --> AUTH{"requires auth?"}
     AUTH -->|yes| JWT["require_auth / require_profile_access<br/>JWT + revocation list"]
-    AUTH -->|"no — /health, list profiles,<br/>login, recover"| SKIP[" "]
+    AUTH -->|"no — /health, list and create profiles,<br/>login, unlock, recover"| SKIP[" "]
     JWT --> PDB["ProfileDbSession<br/><b>the only way to profile data</b>"]
 
     PDB --> WORK["modules/ feature logic"]
@@ -68,49 +69,105 @@ flowchart TD
 
     subgraph modules["modules/ — feature logic"]
         direction LR
-        M1["ingest · extract* · import_structured<br/>normalize · glossary"]
-        M2["rag · agent/ · interpret*"]
-        M3["timeline · care_tasks · highlights · search"]
+        M1["ingest · extract* · import_structured · document_classifier<br/>normalize · chunking · embeddings · glossary · test_intent"]
+        M2["rag · agent/ · interpret · knowledge_loader · recommend<br/>model_selector · hardware_detection · model_integrity"]
+        M3["timeline · care_tasks · highlights · search · med_reconcile"]
         M4["export · fhir_export · rl_dataset"]
-        SAFE["<b>safety</b><br/>redaction · faithfulness<br/>verifier_agent · interpret_safety"]
+        M5["backup_scheduler · notification_scheduler · platform_notifications<br/>adherence_patterns · message_generator · streak_engine · badge_evaluator"]
+        SAFE["<b>safety</b><br/>redaction · faithfulness · verifier_agent · interpret_safety<br/>claim_extractor · source_authority"]
     end
 
     subgraph core["core/ — infrastructure"]
         direction LR
-        C1["config · time · security · auth"]
-        C2["database · profile_database · audit"]
+        C1["config · time · security · auth<br/>token_revocation · rate_limiter"]
+        C2["database · profile_database · migrations<br/>sqlcipher_driver · audit · denial_audit"]
         C3["model_runner → llm/factory → providers"]
+        C4["external_runner (D12) · document_crypto"]
     end
 
     api --> modules --> core
+    api --> core
     modules --> SAFE
-    api -.->|"provider switch only, no generation"| C3
+    api -.->|"model_settings: provider switch only, no generation"| C3
+    api -.->|"assistant, interpretations: get_runner_for_request"| C4
 
     style SAFE fill:#4a148c,stroke:#ba68c8,color:#fff
 ```
 
 Rules this diagram encodes:
 
-- Dependencies point **downward** by design: `api/` → `modules/` → `core/`.
+- Dependencies point **downward** by design: `api/` → `modules/` → `core/`,
+  and `api/` also imports `core/` directly (auth dependencies, audit helpers,
+  sessions).
   Six `core/` modules import from `modules/` today, all inside functions:
   `core/auth.py` (`modules.notification_scheduler`), `core/config.py`
-  (`modules.redaction`), `core/external_runner.py` (`modules.redaction`),
+  (`modules.redaction`, `modules.extract`), `core/external_runner.py` (`modules.redaction`),
   `core/model_runner.py` (`modules.model_selector`), `core/document_crypto.py`
   (`modules.ingest`) and `core/llm/llama_cpp_provider.py`
   (`modules.model_integrity`). None imports from `api/`. New `core/` →
   `modules/` imports should not be added.
 - Feature code reaches local inference through `ModelRunner` → `llm/factory`.
   Importing `llama_cpp` or calling Ollama directly from feature code is a
-  violation. Known deviations: the dormant `llama_cpp` import in
-  `modules/model_selector.py` (owner decision D7: route it through
-  `ModelRunner`, work item W-7, not yet implemented) and the opt-in cloud runner
+  violation. Known deviations: the `llama_cpp` import in
+  `ModelSelector.load_model` (`modules/model_selector.py`), reachable only
+  through `InterpretModule.interpret_with_model`, which no route calls at this
+  revision (owner decision D7: route it through `ModelRunner`, work item W-7,
+  not yet implemented) and the opt-in cloud runner
   `core/external_runner.py` (owner decision D12: a documented exception; its
   redaction hardening landed in W-6, and `CLAUDE.md` names it).
   `api/model_settings.py` calls `llm/factory`
-  directly only to inspect and switch the provider; it generates no text. That
-  is the dotted edge.
+  directly only to inspect and switch the provider (and imports
+  `ollama_provider._assert_localhost`); it generates no text. That is the first
+  dotted edge. The second: `api/assistant.py` and `api/interpretations.py` call
+  `core/external_runner.py::get_runner_for_request` and pass its result on as
+  the runner, which is how the opt-in cloud path is reached.
 - The safety modules are called *by* feature code but are not a layer feature
   code may reshape — they are on CLAUDE.md's ask-first list.
+
+## Startup sequence
+
+The `main.py` lifespan, in order: `core/db_migration.py::migrate_master_db_filename`
+(one-time `healthcentral.db` → `asclexis.db` rename), `settings.validate_startup()`,
+`core/database.py::init_database` (refuses to start without SQLCipher when
+`DATABASE_ENCRYPTION_REQUIRED`; creates `data/`, logs and vault directories),
+`run_master_migrations_async()`, the knowledge-base seed
+(`scripts/seed_knowledge_base.py::seed_all`, idempotent), then the background
+schedulers. `create_app()` installs correlation-id logging and the access-log
+query scrub (`core/logging_setup.py`), the middleware chain above, and three
+routers: `api_router` under `/api/v1`, the public `/health` router, and the
+authenticated metrics router under `/api/v1/monitoring`. Profile vaults are not
+opened at startup; each is opened, and migrated, at login or unlock.
+
+## Module inventory: `core/`
+
+| File | What it owns |
+|---|---|
+| `config.py` | `Settings` (pydantic-settings) and the `settings` singleton; `validate_startup` |
+| `database.py` | Master SQLite engine, `Base`, `get_db`, `init_database` |
+| `profile_database.py` | `PerProfileDatabaseManager`: per-profile SQLCipher engines, key unseal, `PRAGMA key`, connection cache; `ProfileDatabaseBase` |
+| `sqlcipher_driver.py` | `sqlcipher3` import with a stdlib `sqlite3` fallback, `is_sqlcipher_available` |
+| `migrations.py` | Both Alembic runners, unversioned-vault matching, the pre-017 snapshot |
+| `db_migration.py` | One-time master DB file rename |
+| `auth.py` | JWT session dependencies (`require_auth`, `require_profile_access`, `RequireAuth`), `ProfileDbSession`, vault open/close on login/logout, scheduler (un)registration |
+| `security.py` | JWT, bcrypt, PBKDF2 (600 000 iterations), recovery codes, DPAPI/password key sealing, Fernet and AES-GCM (`DocumentEncryption`) |
+| `token_revocation.py` | Persistent JWT `jti` revocation list |
+| `rate_limiter.py` | In-process login and recovery throttles (`auth_rate_limiter`, `recovery_rate_limiter`); not the HTTP `RateLimitMiddleware`, which is `security/rate_limit_middleware.py` |
+| `audit.py` | `create_audit_log` (the single choke point), the `log_*_event` helpers, `audit_and_commit`, the PHI allowlists |
+| `denial_audit.py` | Capped `denial.cross_profile` audit rows |
+| `document_crypto.py` | Decrypting stored documents for read paths |
+| `external_runner.py` | Opt-in OpenAI/Anthropic runner, strict redaction, break-glass audit (D12) |
+| `model_runner.py` | `ModelRunner`, the facade feature code calls for local inference |
+| `llm/` | `factory.get_provider` / `reset_provider`, `LlamaCppProvider` (default), `OllamaProvider` (localhost only), `provider.py` (`ProviderProtocol`, `CapabilityFlags`, `ProviderUnavailableError`) |
+| `time.py` | `utcnow` and the other naive-UTC and profile-timezone helpers |
+| `logging_setup.py` | Correlation id on log records; query-string scrub on the access log |
+| `fk_audit.py` | Report-only orphan-row checks used by `scripts/fk_orphan_audit.py` and migration 017 |
+| `feedback_constants.py` | The feedback tag whitelist |
+
+Sibling packages: `security/` (HTTP middleware: headers, rate limit, input
+validation, security audit), `monitoring/` (correlation id, timing, health and
+metrics routers), `models/` (SQLAlchemy models; master tables on `Base`,
+vault tables on `ProfileDatabaseBase`), `scripts/` (backup engine, migrate CLI,
+`download_models.py`, knowledge-base seed).
 
 ## Data architecture
 
@@ -125,7 +182,7 @@ erDiagram
 
     MASTER_DB {
         string engine "SQLite — NOT encrypted"
-        string contents "profile rows, audit rows"
+        string contents "profile rows, audit rows, backup_schedules, knowledge base (6 tables)"
     }
     AUDIT_LOG {
         string action "static template only"
@@ -134,7 +191,7 @@ erDiagram
     }
     VAULT_DB {
         string engine "SQLCipher — encrypted"
-        string contents "observations, documents, entities, medications, chat, memory, tasks, pinboards"
+        string contents "documents, observations, chunks, embeddings, interpretations, entities, medications, chat, feedback, memory, care tasks, pinboards, gamification, donation (25 tables)"
     }
     KEY_FILE {
         string primary "key.bin — sealed by password (or DPAPI)"
@@ -146,8 +203,8 @@ erDiagram
 flowchart LR
     subgraph chains["Two independent Alembic chains"]
         direction TB
-        MM["migrations/master/<br/>head: 003_kb_canonical_names"]
-        PM["migrations/profile/<br/>head: 015_data_donation"]
+        MM["migrations/master/<br/>3 revisions · head: 003_kb_canonical_names"]
+        PM["migrations/profile/<br/>18 revisions · head: 018_ocr_opt_in"]
     end
 
     MM --> MDB[("master DB")]
@@ -160,6 +217,18 @@ The profile chain is applied **once per profile database**, so an N-profile
 install runs the same migration N times against N separate files. New profile
 tables need a new profile migration with a linear `down_revision`; the two
 chains never cross.
+
+Where they run: `run_master_migrations_async()` in the `main.py` lifespan
+(`core/migrations.py::run_master_migrations`), and
+`run_profile_migration_async()` from `PerProfileDatabaseManager.open_profile_database` (`core/profile_database.py`),
+which login, unlock, create and recover all reach. A master DB with tables but
+no `alembic_version` is stamped to head. A profile vault in that state is
+stamped at the **oldest revision its schema matches exactly**
+(`_match_unversioned_vault`) and then upgraded to head; a vault that matches no
+revision is refused. `tests/test_migration_heads.py` asserts one head and no
+merge revisions per chain, and `tests/support/migrations.py::PROFILE_HEAD` is
+the head tests compare against. Manual runs: `python -m scripts.migrate
+master|profile|status` from `src/backend`.
 
 **Backup schedules live in the master DB too, and for a related reason.** A
 background scheduler must know a backup is due while the vault is still

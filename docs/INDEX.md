@@ -12,7 +12,7 @@
 
 Onboarding for any AI agent or new contributor. Behavioral rules are in CLAUDE.md. Treat this file like a new-hire briefing: what the project is, where things live, how to verify your work.
 
-Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/recurring-failures.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
+Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/recurring-failures.md`, `docs/architecture/frontend.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
 
 ## `CLAUDE.md`
 
@@ -28,7 +28,7 @@ Links to: `AGENT.md`, `docs/agentic/recurring-failures.md`
 
 **Local-First Medical Results Companion**
 
-Links to: `.claude/skills/README.md`, `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agentic/rsi-runs/README.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/capstone-report/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/README.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-25-session-handoff.md`, `docs/research`, `docs/roles/00_roles_index.md`, `docs/user/README.md`, `docs/user/getting-started.md`, `skills/README.md`
+Links to: `.claude/skills/README.md`, `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agentic/rsi-runs/README.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/capstone-report/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/README.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-29-session-handoff.md`, `docs/research`, `docs/roles/00_roles_index.md`, `docs/user/README.md`, `docs/user/getting-started.md`, `skills/README.md`
 
 ## `docs/00_architecture_plans_index.md`
 
@@ -36,7 +36,7 @@ Links to: `.claude/skills/README.md`, `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-05-11-dynamic-port-selection.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/2026-07-13-hc-m21-search.md`, `docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`, `docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-25-session-handoff.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-05-11-dynamic-port-selection.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/2026-07-13-hc-m21-search.md`, `docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`, `docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-29-session-handoff.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -234,7 +234,7 @@ cd src/backend python main.py
 
 Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/api/endpoints.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`, `docs/dev/setup.md`
 
 ## `docs/architecture/backend.md`
 
@@ -256,9 +256,9 @@ Links to: `CLAUDE.md`, `docs/architecture/README.md`
 
 **Frontend Architecture**
 
-Part of the architecture diagram set.
+Part of the architecture diagram set. Paths are relative to `src/frontend/src/` unless they start with `src/`.
 
-Links to: `docs/architecture/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/ci-and-quality-gates.md`
 
 ## `docs/architecture/overview.md`
 
@@ -3498,7 +3498,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/architec
 
 The local-first LLM provider layer (`core/llm/`), hardware-tier model selection, RAG/grounding pipeline, the hand-rolled agent state machine (`modules/agent/` — **not** LangGraph), and its…
 
-Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
+Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
 
 ## `docs/roles/backend-api.md`
 
@@ -3514,7 +3514,7 @@ Links to: `docs/01_backend_architecture_plan.md`, `docs/api/authentication.md`, 
 
 SQLAlchemy models, the **dual** Alembic migration environments (`migrations/master/` for profile-metadata/audit, `migrations/profile/` for per-profile encrypted vault schema — see CLAUDE.md's "Dual…
 
-Links to: `docs/03_data_confidentiality_pipeline_plan.md`, `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`, `docs/roles/backend-api.md`, `docs/roles/security-and-compliance.md`
+Links to: `docs/03_data_confidentiality_pipeline_plan.md`, `docs/architecture/backend.md`, `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`, `docs/roles/backend-api.md`, `docs/roles/security-and-compliance.md`
 
 ## `docs/roles/devops-and-ci.md`
 
@@ -3614,6 +3614,6 @@ Links to: `docs/compliance/disaster-recovery.md`
 
 **Asclexis Frontend**
 
-Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
+Web-based UI for Asclexis: a Vite single-page app served on localhost (no desktop shell is in this repository).
 
 Links to: `docs/architecture/frontend.md`

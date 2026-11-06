@@ -1,6 +1,6 @@
 # Pipelines: Documents, Assistant, Safety
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: upload path `POST /documents/import`; `ModelUnavailableError` is raised by `modules/rag.py`, not `ModelRunner`)
 **Owner:** Project Lead
 **Refresh Trigger:** An extractor, agent tool, guardrail, or export surface is added or removed
 
@@ -10,45 +10,55 @@ Part of the [architecture diagram set](README.md).
 
 ## Document → insight
 
-The path a file takes from upload to something the user can act on. Note the
-two entry points: OCR-based extraction for PDFs and images, and deterministic
-parsing for structured imports (CSV / FHIR bundles, HC-M23).
+The path a file takes from upload to something the user can act on
+(`api/documents.py::import_document`). Note the three branches: lab extraction
+for lab PDFs and images, entity extraction for every non-structured document,
+and deterministic parsing for structured imports (CSV / FHIR bundles, HC-M23).
 
 ```mermaid
 flowchart TD
-    UP["POST /documents<br/>upload"] --> DUP{"duplicate?<br/>hash + date heuristic"}
-    DUP -->|warn, don't block| ING["modules/ingest<br/>encrypt to vault docs/"]
+    UP["POST /documents/import"] --> ING["modules/ingest<br/>validate · hash · detect doc_type<br/>encrypt to vault docs/"]
+    ING --> DUP{"duplicate?<br/>hash, then same-day heuristic"}
+    DUP -->|"warn, don't block"| KIND{"doc_type"}
 
-    ING --> KIND{"file kind"}
-    KIND -->|"PDF / image"| CLS["modules/document_classifier<br/>lab · imaging · pathology · visit_notes"]
-    KIND -->|"CSV / FHIR bundle"| STRUCT["modules/import_structured<br/>stdlib json/csv, no new deps"]
+    KIND -->|"lab_csv / fhir_bundle"| STRUCT["modules/import_structured<br/>parse_lab_csv · parse_fhir_bundle<br/>no OCR, no classifier"]
+    KIND -->|"lab_pdf / lab_pdf_scanned / lab_image"| LAB["modules/extract ExtractModule<br/>text layer or RapidOCR<br/>OCR unavailable → pending_ocr"]
+    KIND -->|"every non-structured document"| CLS["modules/document_classifier<br/>lab · imaging · pathology · visit_notes"]
 
-    CLS --> EXT{"per-category extractor"}
-    EXT --> E1["extract.py — labs"]
+    LAB --> CHUNK["chunking → embeddings<br/>(local MiniLM, for retrieval)"]
+    CLS --> EXT{"per-category entity extractor"}
     EXT --> E2["extract_visit_notes.py"]
     EXT --> E3["extract_imaging.py"]
     EXT --> E4["extract_pathology.py"]
-    E1 & E2 & E3 & E4 --> SPANS["extract_spans.py<br/>char offsets + verbatim quote"]
+    E2 & E3 & E4 --> SPANS["extract_spans.with_span<br/>char offsets + verbatim quote"]
 
-    SPANS --> NORM["modules/normalize<br/>analyte mapping + unit conversion"]
+    LAB -->|"observations, page + bbox provenance"| NORM["modules/normalize<br/>analyte mapping + unit conversion"]
     STRUCT --> NORM
 
     NORM --> STORE[("per-profile DB<br/>observations + document_entity<br/><b>all unverified</b>")]
+    SPANS --> STORE
+    CHUNK --> STORE
 
     STORE --> VERIFY["VerificationWorkbench<br/><b>human in the loop</b>"]
     VERIFY --> VERIFIED[("verified data")]
 
     VERIFIED --> VONLY["verified only: FHIR · visit prep · pinboards · medications (default)<br/>agent answers (values from verified rows only;<br/>pending rows reported as a count)"]
-    STORE -.->|"labelled pending"| TL["timeline"]
+    STORE -.->|"labelled unverified / mixed"| TL["timeline"]
     STORE -.->|"unreviewed labelled, rejected dropped"| HL["highlights"]
     STORE -.->|"rejected dropped"| TASKS["care-task candidates"]
     STORE -.->|"rejected dropped"| RECON["medication reconciliation"]
-    STORE -.->|"unverified included, labelled unverified (D4, W-3)"| TRENDS["trends"]
+    STORE -.->|"unverified included, labelled unverified (D4, W-3)"| TRENDS["trends (/results)"]
     STORE -.->|"unverified included (outside D4)"| EXPU["exports: doctor summary · CSV/JSON"]
 
     style VERIFY fill:#e65100,stroke:#ff9800,color:#fff
     style STORE fill:#1b5e20,stroke:#66bb6a,color:#fff
 ```
+
+Lab extraction runs before classification and is gated by the ingest
+`doc_type`, not by the classifier's category: `_CATEGORY_EXTRACTORS` in
+`api/documents.py` maps only imaging, pathology and visit notes. Lab
+observations carry page and bounding-box provenance; character spans are added
+only to the three entity extractors' output.
 
 **Everything lands unverified.** That is the load-bearing property of this
 diagram: extraction is a suggestion, not a fact, until a human confirms it.
@@ -56,19 +66,20 @@ Structured imports are no exception — a FHIR bundle is more accurate than OCR
 but still arrives unverified. Surfaces differ in what they do with unverified
 rows:
 
-- **Verified only:** FHIR export, visit prep, pinboards, and medications
-  (unless the caller passes `verified_only=false`).
+- **Verified only:** FHIR export, visit prep and pinboards always; medications
+  by default (`verified_only=false` is accepted only by the medications
+  correlations route).
 - **Agent answers:** values come from verified rows only; pending rows are
   reported as a count.
-- **Shown with a label:** the timeline (pending) and highlights (unreviewed).
+- **Shown with a label:** the timeline (`unverified` or `mixed`) and highlights (unreviewed).
   Rows the user rejected are dropped from highlights, care-task candidates and
   medication reconciliation.
 - **Trends and legacy RAG (owner decision
   [D4](../capstone-report/owner-decisions-2026-09-27.md), work item W-3):**
   trends show unverified points only marked "unverified"
   (`src/frontend/src/components/TrendVerificationMarkers.tsx`), and the legacy
-  (non-agent) RAG path retrieves verified observation values only
-  (`Observation.user_verified` filter in `modules/rag.py`).
+  (non-agent) RAG path retrieves verified observation values and chunks from
+  verified documents only (`user_verified` filters in `modules/rag.py`).
 - **Included, outside D4:** CSV / JSON exports and the doctor summary.
 
 Reprocessing is rejected for `lab_csv` / `fhir_bundle` documents: there is no
@@ -82,8 +93,13 @@ flowchart TD
     Q["POST /assistant/chat"] --> SESS["ChatSession / ChatTurn<br/>persisted per profile"]
     SESS --> ENABLED{"agent enabled?"}
 
-    ENABLED -->|no| RAGONLY["modules/rag<br/>retrieve → compose → generate"]
-    ENABLED -->|yes| GRAPH
+    ENABLED -->|yes| CACHE{"semantic cache hit?<br/>modules/agent/cache.py<br/>keyed on profile version"}
+    CACHE -->|hit| AOUT
+    CACHE -->|miss| GRAPH
+    ENABLED -->|no| LGATE
+    GRAPH -.->|"any agent exception"| LGATE
+    LGATE{"legacy advice gate<br/>classify_advice (LEGACY-ADVICE-GATE)"} -->|"advice-seeking"| ESC
+    LGATE -->|otherwise| RAGONLY["modules/rag RAGModule.query<br/>retrieve → compose → generate<br/>(strict safety mode: 0.75 module)"]
 
     subgraph GRAPH["modules/agent/graph.py"]
         direction TB
@@ -111,6 +127,7 @@ flowchart TD
         T6["query_care_tasks"]
         T7["query_medication_changes"]
         T8["query_timeline"]
+        RG["redaction_gate.sanitize_untrusted_field<br/>on task, timeline and medication text<br/>(also used by draft)"]
     end
 
     RAGONLY --> MR["ModelRunner"]
@@ -118,14 +135,13 @@ flowchart TD
     PROV -->|default| LC["llama.cpp"]
     PROV -->|configured| OL["Ollama, localhost"]
     OL -.->|"daemon unreachable"| LC
-    MR -->|"ModelUnavailableError"| FB["no-LLM knowledge fallback<br/>api/assistant.py<br/><b>must stay functional</b>"]
+    MR -->|"is_available() false:<br/>modules/rag.py raises ModelUnavailableError"| FB["no-LLM knowledge fallback<br/>api/assistant.py<br/><b>must stay functional</b>"]
 
     DRAFT --> GUARD
     subgraph GUARD["guardrails/"]
-        G1["classifier — is this answerable?"]
-        G2["groundedness — every claim cited?"]
-        G3["redaction_gate — scrub untrusted fields"]
-        G4["guard — abstain / template"]
+        G1["advice check per sentence<br/>(classifier.classify_advice)"]
+        G2["groundedness — every sentence mapped to a source?"]
+        G4["guard — confidence ≥ 0.6, audit, abstain / template"]
     end
 
     GUARD --> AOUT["agent answer<br/>template-composed, every sentence cited"]
@@ -133,7 +149,7 @@ flowchart TD
     MR --> SAFE["legacy-path checks: validate_response ·<br/>verifier_agent · faithfulness · interpret_safety patterns"]
     SAFE --> OUT["cited answer<br/>[cite:N] markers (context labels are not citations)"]
     SAFE -->|"prohibited-advice match"| ESC["escalation template (SAFE-CHAT)"]
-    SAFE -->|"missing citations or faithfulness < 0.6:<br/>is_valid=false, answer withheld"| LABST["abstain template<br/>ABSTAIN_TEMPLATE (same as the agent path)"]
+    SAFE -->|"any is_valid=false (bad or missing citations, unverified claims,<br/>faithfulness < 0.6, or 0.75 in strict safety mode): answer withheld"| LABST["abstain template<br/>ABSTAIN_TEMPLATE (same as the agent path)"]
 
     style GUARD fill:#4a148c,stroke:#ba68c8,color:#fff
     style FB fill:#e65100,stroke:#ff9800,color:#fff
@@ -147,8 +163,8 @@ Four things this diagram is asserting:
 3. **Retrieved text is untrusted input.** Document chunks, entity names and
    memory items are attacker-controlled (a PDF can contain "ignore previous
    instructions"), so they pass through the injection filter before reaching a
-   prompt. That is why `redaction_gate` sits inside the loop rather than at the
-   end.
+   prompt. That is why `redaction_gate` runs inside the tools and the draft
+   node rather than in the guard at the end.
 4. **Only the legacy path calls a model.** The agent's `draft` node composes
    answers from templates over tool output; it makes no LLM call. The legacy
    safety modules (`interpret_safety`, `faithfulness`, `verifier_agent`) run on
@@ -190,13 +206,15 @@ flowchart LR
 
     subgraph files["Anything leaving the app"]
         RED["<b>modules/redaction</b>"]
-        EXP["redacted exports:<br/>RL dataset · FHIR · visit prep · pinboards · doctor summary"]
+        EXP["redacted exports:<br/>RL dataset · FHIR · visit prep · pinboard packets · doctor summary"]
     end
 
     AUDIT["core/audit<br/>allowlist scrub"]
     MASTER[("unencrypted master DB")]
 
-    DOC & MEM & HIST & QUERY --> INJ --> PROMPT --> LLM --> gates --> SCREEN
+    DOC & MEM & HIST --> INJ --> PROMPT
+    QUERY -->|"inserted as is (the user's own input)"| PROMPT
+    PROMPT --> LLM --> gates --> SCREEN
     gates -.->|"fails"| ABST["abstain"]
     SCREEN --> RED --> EXP
     generate -.-> AUDIT --> MASTER
