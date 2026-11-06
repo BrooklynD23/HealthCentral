@@ -504,6 +504,25 @@ lab value, list every call site that compares a number with a limit, name the
 unit each number is in and the unit each limit is in, and run one value in a
 different unit through each site, not only the site you edited.
 
+A 2026-11-06 instance, "the unversioned-vault matcher assumes every revision
+changes the schema", found while planning OCR-OPT-IN-MIGRATION (L0 ruling R2,
+`docs/plans/2026-11-06-owner-answers-rows-plan.md`), before any code was
+written. `_match_unversioned_vault` (`core/migrations.py:631-657`) identifies an
+unversioned vault by a fingerprint of tables, columns and foreign-key actions
+(`_schema_fingerprint`, `:568`) and returns the newest match; HC-FKB-001
+(`test_fk_migration_017.py:2495-2506`) asserts "one fingerprint per revision".
+That rule held for all 17 existing revisions because each one changes the
+schema, and nowhere else. A planner probe added a throwaway data-only `018`
+(one `UPDATE`) to a scratch copy and ran `migrations._reference_fingerprints()`:
+18 revisions, 17 distinct fingerprints, tie `018` / `017`. So HC-FKB-001 would go
+RED, and an unversioned vault with the 017 schema would be stamped `018` and
+skip the `UPDATE` that makes OCR opt-in. Neither the matcher nor its test could
+have noticed: both pass until the first revision that does not touch the
+schema. Recheck: before adding a revision that changes no schema, run
+`_reference_fingerprints()` with it in place and list every tied pair; name each
+data-only revision in the guard test instead of loosening it, and make the
+matcher take the oldest tied revision so later data steps still run.
+
 ---
 
 ## 10. A fully unit-tested feature that was never started

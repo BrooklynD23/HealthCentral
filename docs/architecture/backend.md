@@ -146,7 +146,7 @@ erDiagram
 flowchart LR
     subgraph chains["Two independent Alembic chains"]
         direction TB
-        MM["migrations/master/<br/>head: 002_backup_schedules"]
+        MM["migrations/master/<br/>head: 003_kb_canonical_names"]
         PM["migrations/profile/<br/>head: 015_data_donation"]
     end
 
