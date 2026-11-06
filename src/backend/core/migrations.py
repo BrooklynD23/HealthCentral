@@ -628,9 +628,12 @@ def _reference_fingerprints() -> list[tuple[str, tuple]]:
 
 
 def _match_unversioned_vault(vault_path: Path, hex_key: str) -> str:
-    """The newest revision whose schema the vault matches exactly, or refuse.
+    """The revision whose schema the vault matches exactly, or refuse.
 
-    Nothing is written. No match is not guessed at: the vault is left as it is.
+    On a tie it is the OLDEST tied revision: a data-only revision (one that
+    changes rows, not the schema) fingerprints like its parent, and stamping the
+    newer of the two would skip its data step on this vault. Nothing is written.
+    No match is not guessed at: the vault is left as it is.
     """
     step = "read-vault"
     try:
@@ -644,7 +647,7 @@ def _match_unversioned_vault(vault_path: Path, hex_key: str) -> str:
         references = _reference_fingerprints()
     except Exception as exc:
         raise _refuse("schema match", step, exc) from None
-    for revision, fingerprint in references:  # newest first
+    for revision, fingerprint in reversed(references):  # oldest first
         if fingerprint == actual:
             return revision
     logger.error("Profile migration refused: the schema of an unversioned vault matches no known revision")
