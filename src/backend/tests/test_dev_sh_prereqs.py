@@ -36,6 +36,12 @@ fi
 if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then
   shift 2
   echo "pip $*" >> "$HC_TEST_RECORD"
+  # HC_TEST_WHEEL_FAIL=1: only the prebuilt-wheel call (binary-only, abetlen index) fails.
+  if [ "${HC_TEST_WHEEL_FAIL:-}" = "1" ]; then
+    case "$*" in
+      *--only-binary=llama-cpp-python*|*abetlen.github.io*) exit 1 ;;
+    esac
+  fi
   while [ $# -gt 0 ]; do
     if [ "$1" = "-r" ]; then
       echo "REQ-BEGIN" >> "$HC_TEST_RECORD"
@@ -55,7 +61,7 @@ def _stub(path: Path, body: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _run_dev_sh(tmp_path: Path, *, compiler: bool, provider_env=None, env_file=None):
+def _run_dev_sh(tmp_path: Path, *, compiler: bool, provider_env=None, env_file=None, wheel_ok=True):
     root = tmp_path / "repo"
     (root / "src" / "backend").mkdir(parents=True)
     (root / "config").mkdir()
@@ -89,6 +95,8 @@ def _run_dev_sh(tmp_path: Path, *, compiler: bool, provider_env=None, env_file=N
     }
     if provider_env is not None:
         env["LLM_PROVIDER"] = provider_env
+    if not wheel_ok:
+        env["HC_TEST_WHEEL_FAIL"] = "1"
     proc = subprocess.run(
         [str(bin_dir / "bash"), str(root / "dev.sh")],
         cwd=root, env=env, capture_output=True, text=True, timeout=60,
@@ -102,7 +110,7 @@ def _requirements_installed(record: str) -> list[str]:
 
 
 def test_hc_devsh_001_no_compiler_ollama_skips_llama_cpp(tmp_path):
-    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="Ollama")
+    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="Ollama", wheel_ok=False)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     reqs = _requirements_installed(record)
     assert reqs, record
@@ -112,9 +120,15 @@ def test_hc_devsh_001_no_compiler_ollama_skips_llama_cpp(tmp_path):
 
 
 def test_hc_devsh_002_no_compiler_llama_cpp_dies_before_pip(tmp_path):
-    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="llama_cpp")
+    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="llama_cpp", wheel_ok=False)
     assert proc.returncode == 1, proc.stdout + proc.stderr
-    assert record == ""
+    # The only pip call is the binary-only wheel attempt; no requirements install follows.
+    pip_calls = [line for line in record.splitlines() if line.startswith("pip ")]
+    assert len(pip_calls) == 1, record
+    assert "--only-binary=llama-cpp-python" in pip_calls[0]
+    assert "--no-deps" in pip_calls[0]
+    assert " -r " not in pip_calls[0]
+    assert _requirements_installed(record) == [], record
     assert "build-essential" in proc.stderr
     assert "LLM_PROVIDER=ollama" in proc.stderr
 
@@ -129,9 +143,29 @@ def test_hc_devsh_003_compiler_present_installs_full_requirements(tmp_path):
 
 def test_hc_devsh_004_provider_read_from_backend_env_file(tmp_path):
     proc, record = _run_dev_sh(
-        tmp_path, compiler=False, provider_env=None, env_file='LLM_PROVIDER="Ollama"  # local\n'
+        tmp_path, compiler=False, provider_env=None, env_file='LLM_PROVIDER="Ollama"  # local\n',
+        wheel_ok=False,
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     reqs = _requirements_installed(record)
     assert reqs and all("llama-cpp-python" not in r for r in reqs)
     assert "llama-cpp-python skipped: no C compiler" in proc.stderr
+
+
+def test_hc_devsh_005_no_compiler_prebuilt_wheel_goes_on_to_install(tmp_path):
+    # No compiler, but the binary-only wheel call succeeds: dev.sh reports the wheel,
+    # then installs the full requirements (llama-cpp-python is already satisfied).
+    proc, record = _run_dev_sh(tmp_path, compiler=False, provider_env="llama_cpp")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "llama-cpp-python 0.3.35 is ready (prebuilt wheel)" in proc.stdout
+    assert "No C compiler" not in proc.stdout + proc.stderr
+    wheel_calls = [
+        line for line in record.splitlines()
+        if line.startswith("pip ") and "--only-binary=llama-cpp-python" in line
+    ]
+    assert len(wheel_calls) == 1, record
+    assert "--no-deps" in wheel_calls[0]
+    assert "--index-url https://abetlen.github.io/llama-cpp-python/whl/cpu" in wheel_calls[0]
+    reqs = _requirements_installed(record)
+    assert reqs and "fastapi" in reqs[0] and "llama-cpp-python==0.3.35" in reqs[0]
+    assert record.index(wheel_calls[0]) < record.index("REQ-BEGIN")
