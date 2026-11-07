@@ -1252,7 +1252,9 @@ async def chat(
             )
 
             # G-B5: an invalid legacy answer is replaced by the fixed abstention.
+            served_result = result
             result = _legacy_serve_or_abstain(result)
+            decision = "answer" if result is served_result else "abstain"
 
             # Build full response text
             full_response = "\n\n".join(
@@ -1316,6 +1318,19 @@ async def chat(
                     entity_id=chat_session.id,
                     details={"reason": "prohibited_pattern", "decision": "escalate"},
                 )
+            else:
+                # AUDIT-CHAT-LEGACY: a served or abstained legacy answer leaves one
+                # row. Ids and the decision enum only, no question or answer text.
+                await audit_and_commit(
+                    db,
+                    create_audit_log,
+                    event_type="assistant.chat.legacy",
+                    action="assistant.chat.legacy",
+                    profile_id=session.profile_id,
+                    entity_type="chat_session",
+                    entity_id=chat_session.id,
+                    details={"decision": decision},
+                )
 
         # --- Persist user + assistant turn (identical on both paths) ---
         assistant_turn_id = await _append_turns(
@@ -1353,6 +1368,18 @@ async def chat(
     except ModelUnavailableError:
         fallback = await _build_knowledge_fallback(
             request, session.profile_id, db, profile_db
+        )
+        # AUDIT-CHAT-LEGACY: audit the no-model fallback, fail-closed. This sits
+        # outside the best-effort try below, whose `except Exception` would
+        # swallow a failed audit write. No details: the row is the event.
+        await audit_and_commit(
+            db,
+            create_audit_log,
+            event_type="assistant.chat.fallback",
+            action="assistant.chat.fallback",
+            profile_id=session.profile_id,
+            entity_type="chat_session",
+            entity_id=chat_session.id if chat_session is not None else None,
         )
         # Persist the fallback turn so no-model installs can resume from history
         # and attach feedback (Codex P2). Best-effort: never fail the response.

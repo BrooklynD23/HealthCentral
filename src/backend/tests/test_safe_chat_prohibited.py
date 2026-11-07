@@ -158,7 +158,7 @@ async def test_hc_safechat_001_prohibited_answer_replaced_persisted_and_audited(
 
 
 @pytest.mark.asyncio
-async def test_hc_safechat_002_clean_answer_untouched_and_not_audited():
+async def test_hc_safechat_002_clean_answer_untouched_and_audited_once_as_legacy():
     master = _RecordingMasterDb()
     # G-B5: a failed claim makes the answer invalid and it abstains, so this test needs a verified stub.
     verified = VerificationMetadata(
@@ -171,7 +171,10 @@ async def test_hc_safechat_002_clean_answer_untouched_and_not_audited():
     assert resp.json()["is_valid"] is True
     assert CLEAN_MARKER in resp.json()["full_response"]
     assert any(CLEAN_MARKER in t.content for t in turns if t.role == "assistant")
-    assert _audit_rows(master) == []
+    rows = _audit_rows(master)
+    assert [r.event_type for r in rows] == ["assistant.chat.legacy"]
+    assert json.loads(rows[0].details_json) == {"decision": "answer"}
+    assert not [r for r in rows if r.event_type == "assistant.prohibited_blocked"]
 
 
 @pytest.mark.parametrize("template", [ESCALATE_TEMPLATE, ABSTAIN_TEMPLATE])
