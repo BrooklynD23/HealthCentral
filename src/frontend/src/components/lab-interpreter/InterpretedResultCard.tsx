@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Brain,
   ChevronDown,
@@ -36,6 +36,49 @@ interface InterpretedResultCardProps {
   className?: string;
   /** The value this card interprets. With a doc_id, the card offers "Show source" (SOURCE-TRACE-WIRE). */
   observation?: Observation;
+  /**
+   * Show each citation expanded (as a named source line, never a quotation) instead of as a chip. The caller sets it
+   * from the stricter safety mode (SAFETY-MODE-CITATIONS); the card never reads the mode itself. Absent or false is
+   * today's chips.
+   */
+  alwaysShowSources?: boolean;
+}
+
+/**
+ * One source, expanded. The line "Source: name, page N" is always there. A quotation is drawn only when the
+ * caller has real words from the source: a locator or an id is a place, never a quote (the honesty rule).
+ */
+export function SourceBlock({
+  name,
+  page,
+  quote,
+  marker,
+  children,
+}: {
+  name: string;
+  page: number | null;
+  quote: string | null;
+  /** The citation's number as the answer text and chip show it, e.g. "[1]". Omitted: the line is unchanged. */
+  marker?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="w-full space-y-1">
+      {quote !== null ? (
+        <blockquote
+          data-t0=""
+          className="border-l-2 border-accent pl-3 text-sm italic leading-relaxed text-ink [overflow-wrap:anywhere]"
+        >
+          {quote}
+        </blockquote>
+      ) : null}
+      <p data-t0="" className="text-xs text-ink-secondary [overflow-wrap:anywhere]">
+        {marker ? `${marker} ` : ''}Source: {name}
+        {page !== null ? `, page ${page}` : ''}
+      </p>
+      {children}
+    </div>
+  );
 }
 
 const severityVariant: Record<string, 'verified' | 'caution' | 'attention' | 'info' | 'default'> = {
@@ -60,6 +103,7 @@ export function InterpretedResultCard({
   isRegenerating,
   className,
   observation,
+  alwaysShowSources = false,
 }: InterpretedResultCardProps) {
   const [expanded, setExpanded] = useState(true);
 
@@ -117,13 +161,25 @@ export function InterpretedResultCard({
             </div>
             {(interpretation.citations.length > 0 || observation?.doc_id) && (
               <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                {interpretation.citations.map((citation, i) => (
-                  <CitationTooltip
-                    key={`${citation.type}:${citation.id}:${i}`}
-                    citation={citation}
-                    index={i}
-                  />
-                ))}
+                {interpretation.citations.map((citation, i) =>
+                  alwaysShowSources ? (
+                    <SourceBlock
+                      key={`${citation.type}:${citation.id}:${i}`}
+                      // A card citation's text is a name or a title (modules/interpret.py _generate_citations): a
+                      // knowledge-base label, an organisation, a recommendation. It is shown as the source's name,
+                      // never as a quotation, and the backend sends no page for it.
+                      name={citation.text.trim() || citation.type.replace('_', ' ')}
+                      page={null}
+                      quote={null}
+                    />
+                  ) : (
+                    <CitationTooltip
+                      key={`${citation.type}:${citation.id}:${i}`}
+                      citation={citation}
+                      index={i}
+                    />
+                  )
+                )}
                 {observation?.doc_id ? (
                   <ObservationSourceTrace
                     observation={observation}

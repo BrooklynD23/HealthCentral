@@ -138,6 +138,7 @@ describe('HC-EXT-003e: the Results page shows the status notice when the setting
     vi.mocked(api.apiGet).mockImplementation(async (url) => {
       if (url === '/settings/model/external-api') throw new Error('network down');
       if (url === '/observations/') return [observation];
+      if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
       throw new Error(`unmocked ${url}`);
     });
     const queryClient = new QueryClient({

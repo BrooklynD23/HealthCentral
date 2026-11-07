@@ -45,7 +45,7 @@ export function useSafetyMode() {
     }
     if (loadFailureShown.current) return;
     loadFailureShown.current = true;
-    notify({ message: "Couldn't load the stricter safety mode setting." });
+    notify({ id: 'safety-mode-load-failed', message: "Couldn't load the stricter safety mode setting." });
   }, [loadFailed, value]);
 
   // A ref, not mutation.isPending: a second click before React re-renders must still be ignored.

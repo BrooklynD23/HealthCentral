@@ -46,6 +46,7 @@ import {
 } from '@/services/interpretations';
 import { useExternalApiSettings } from '@/services/modelSettings';
 import { useAuthStore } from '@/stores/authStore';
+import { useSafetyMode } from '@/hooks/useSafetyMode';
 import { findActiveMedications } from '@/utils/correlation';
 import { MedicationOverlay } from '@/components/MedicationOverlay';
 import { UnverifiedTrendNote } from '@/components/TrendVerificationMarkers';
@@ -174,6 +175,7 @@ export function ResultsPage() {
   const { profileId } = useAuthStore();
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
+  const { checked: strictSafetyMode } = useSafetyMode();
   const [activeTab, setActiveTab] = useState(ALL);
   const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
 
@@ -703,6 +705,7 @@ export function ResultsPage() {
                   onRegenerate={handleGenerateInterpretation}
                   isRegenerating={generateInterpretation.isPending}
                   observation={effectiveObservation ?? undefined}
+                  alwaysShowSources={strictSafetyMode}
                 />
               ) : !interpLoading && effectiveObservation ? (
                 <Card>

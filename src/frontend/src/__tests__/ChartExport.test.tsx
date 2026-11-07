@@ -130,6 +130,12 @@ vi.mock('@/services/modelSettings', () => ({
   useExternalApiSettings: () => ({ data: undefined, isError: false }),
 }));
 
+// The Results page reads the stricter safety mode (SAFETY-MODE-CITATIONS); without this stub the test makes a real fetch.
+vi.mock('@/services/assistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/assistant')>()),
+  getSafetyMode: () => Promise.resolve({ strict_safety_mode: false }),
+}));
+
 vi.mock('@/components/MedicationOverlay', () => ({
   MedicationOverlay: () => <div data-testid="medication-overlay" />,
 }));

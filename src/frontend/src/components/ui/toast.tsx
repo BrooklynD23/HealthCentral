@@ -16,6 +16,7 @@ export interface NotifyOptions {
    * no transition and no opacity change (M0).
    */
   still?: boolean;
+  id?: string | number;
 }
 
 // Sonner fades the content wrapper of a non-front toast (`[data-front=false]>*`
@@ -30,12 +31,13 @@ const STILL_CONTENT = 'opacity-100! transition-none!';
 const STILL_TOAST = 'data-[mounted=false]:opacity-100! data-[mounted=false]:transform-none!';
 
 /** Shows a toast. The text sits in an element with role="status". */
-export function notify({ message, action, still = false }: NotifyOptions) {
+export function notify({ message, action, still = false, id }: NotifyOptions) {
   return toast(
     <span role="status" data-t0={still ? '' : undefined}>
       {message}
     </span>,
     {
+      id,
       action,
       style: still ? { transition: 'none' } : undefined,
       classNames: still ? { toast: STILL_TOAST, content: STILL_CONTENT } : undefined,
