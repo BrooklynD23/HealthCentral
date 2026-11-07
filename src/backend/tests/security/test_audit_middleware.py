@@ -147,8 +147,8 @@ async def test_hc_obsv_003_audit_payload_carries_correlation_id(caplog):
     uuid.UUID(payloads[1]["correlation_id"])  # regenerated (monitoring/correlation.py:48-53)
 
 
-def test_hc_adbs_001_log_to_db_param_removed():
-    # AUDIT-DB-SETTING-DEAD: the middleware never read log_to_db; the parameter is gone.
+def test_hc_adbs_001_middleware_db_flag_param_removed():
+    # AUDIT-DB-SETTING-DEAD: the middleware's never-read DB flag parameter is gone.
     with pytest.raises(TypeError):
         SecurityAuditMiddleware(passthrough_app, log_to_db=True)
 
