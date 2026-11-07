@@ -135,6 +135,21 @@ def load_manifest(manifest_path: Optional[Path] = None) -> dict[str, Any]:
         return {"models": {}}
 
 
+def manifest_key_for_file(path: Path, *, manifest_path: Optional[Path] = None) -> Optional[str]:
+    """Manifest key whose ``filename`` equals ``path.name`` (case-folded), else None.
+
+    Names only: no hashing, no ``filename_pattern`` matching (the shared
+    pattern cannot tell tiers apart) and no hash comparison against every pin.
+    Entries with a null ``filename`` are skipped.
+    """
+    wanted = path.name.casefold()
+    for key, entry in load_manifest(manifest_path).get("models", {}).items():
+        name = entry.get("filename") if isinstance(entry, dict) else None
+        if isinstance(name, str) and name.casefold() == wanted:
+            return key
+    return None
+
+
 def verify_model_file(
     path: Path,
     tier: str,

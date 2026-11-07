@@ -158,10 +158,12 @@ class LlamaCppProvider:
             # local-first desktop user with a dead app and no path forward -- but
             # a mismatch is logged loudly, because every guardrail threshold and
             # golden eval in this repo was tuned against the pinned artifact.
+            # The manifest key comes from the loaded file's name (the provider
+            # loads the first GGUF it finds; no setting holds the active tier).
             try:
-                from modules.model_integrity import verify_and_log
+                from modules.model_integrity import manifest_key_for_file, verify_and_log
 
-                verify_and_log(model_path, getattr(self._settings, "llm_model_tier", "low"))
+                verify_and_log(model_path, manifest_key_for_file(model_path) or "unrecognised")
             except Exception:  # pragma: no cover - integrity check must never block loading
                 logger.debug("MODEL-INT-001: integrity check skipped", exc_info=True)
 
