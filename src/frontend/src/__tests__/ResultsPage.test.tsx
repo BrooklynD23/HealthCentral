@@ -504,6 +504,7 @@ function mockExternalApi(external: Record<string, unknown>) {
       return { use_external_api: true, provider: 'openai', model: 'gpt-x', api_key_configured: true, ...external };
     }
     if (url === '/observations/') return [observation];
+    if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
     throw new Error(`unmocked ${url}`);
   });
 }
@@ -580,6 +581,7 @@ describe('HC-LAB-001: grounded explanation panel renders bold runs, not raw mark
       if (String(url).includes('/interpretation')) {
         throw new api.ApiError(404, 'Not Found', 'not found');
       }
+      if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
       throw new Error(`unmocked ${url}`);
     });
     vi.mocked(api.apiPost).mockImplementation(async (url) => {
@@ -706,6 +708,7 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
         if (opts.stored) return storedCard;
         throw new api.ApiError(404, 'Not Found', 'not found');
       }
+      if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
       throw new Error(`unmocked ${url}`);
     });
     vi.mocked(api.apiPost).mockImplementation(async (url) => {

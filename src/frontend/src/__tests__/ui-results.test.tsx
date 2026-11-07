@@ -205,6 +205,7 @@ function setupApi(options: ApiOptions = {}) {
       return PANELS[panel[1]];
     }
     if (url === '/medications/') return [];
+    if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
     if (url === '/settings/model/external-api') {
       if (options.externalFail) throw new Error('network down');
       return { use_external_api: false, provider: '', model: '', api_key_configured: false, ...options.external };

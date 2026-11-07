@@ -682,6 +682,7 @@ describe('HC-UIPAL-004 (L0 ruling 6586583230): /results reads ?analyte=, through
         return { panel_id: 'cbc', panel_name: 'CBC', observations: [], collection_date: null };
       }
       if (path === '/medications/') return [];
+      if (path === '/assistant/safety-mode') return { strict_safety_mode: false };
       throw new Error(`unmocked API call ${path}`);
     }) as never);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
