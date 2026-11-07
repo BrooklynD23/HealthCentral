@@ -287,6 +287,8 @@ A 2026-11-06 instance, a leaked preview server (#514 quiet-box batch; queue cand
 
 A 2026-11-06 instance, a worktree that measured taller than the same code (#523, SETTINGS-EXTAPI-PENDING; queue label WORKTREE-ENV-HEIGHT). The `hc-settings-extapi-pending` worktree measured every Settings section taller than a clean copy of the same code: Advanced 1874 px against 1796, Security 1296 against 1276, Assistant & privacy 1650 against 1573. `src`, `node_modules`, fonts and the lockfile were identical; moving `node_modules/.vite` aside changed nothing. The cause is unknown. The first reading was that the code had grown the page (the row's 1800 px bound), and the build was resumed to shrink it. Recheck: measure acceptance (heights, G10) from a clean copy of the head (for example `/dev/shm/hc523`), and A/B the worktree against that copy before blaming the code; paste both. It is recorded as an instance of this mode, not a nineteenth mode: the shape is the same (a gate run in a tree that is not the one the claim is about) and CLAUDE.md names the count of modes.
 
+A 2026-11-07 instance of the leaked preview, again (#535, UI-PG-SECURITY; RUNBOOK §10.1 preflight item 7). The build agent's frontend build left a `vite preview` on :4173 (PID 2198476). Quiet batch 17 exited 75 PORT-LEAK three times, nothing ran, and the permission classifier refused L0's kill; the owner killed it. The 11-06 fix (the script's own `pkill -P`) covered L0's batches, not a build agent's. Recheck: after any frontend build, before a quiet batch, list the listeners (`ss -ltn | grep -E ':(3000|4173|5173|8000)\b'`) and expect nothing. Same mode, not a nineteenth.
+
 ---
 
 ## 6. Documented commands nobody ran
@@ -390,6 +392,8 @@ planning against it — absence claims age faster than anything else in a tracke
 An agent's report — including a reviewer's — is a lead, not a finding. Before
 applying a defensive transform, check whether the defense already exists
 somewhere better, and ask what the transform destroys when it fires.
+
+A 2026-11-07 instance, a build agent's "all checks pass" (#533, AUDIT-CHAT-LEGACY). The agent reported every check passing and the PR looked ready, but CI Backend Lint was red: I001 (import order) at line 19 of #533's new audit test file, job 128338185595. The report was a statement about what the agent ran, not about what CI ran. A narrow Sonnet agent fixed the imports only (head `9826f92c`). Recheck: before asking the owner to ready a PR, read its CI yourself (`gh pr checks <n>`), and run the CI's own lint command, not a nearby one. It is recorded as an instance of this mode, not a nineteenth mode.
 
 ---
 
