@@ -151,7 +151,7 @@ describe('ProfileSetup', () => {
 
       // Verify navigation to inbox
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/inbox');
+        expect(mockNavigate).toHaveBeenCalledWith('/overview');
       });
     });
   });
@@ -383,7 +383,7 @@ describe('ProfileSetup', () => {
           password: PASSWORD,
         });
       });
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
       expect(useAuthStore.getState().token).toBe('unlocked-token-456');
       // RCC-2: positive control, then the password must leave the cache.
       expect(pw.seen.value).toBe(true);
@@ -474,7 +474,7 @@ describe('ProfileSetup', () => {
 
       await user.type(screen.getByLabelText('Unlock password'), PASSWORD);
       await user.click(screen.getByRole('button', { name: /^unlock$/i }));
-      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
 
       // The mounted profiles-list observer may re-create its own list query
       // after the clear (exactly ['profiles']); everything else must be gone.

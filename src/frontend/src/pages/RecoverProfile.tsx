@@ -71,7 +71,7 @@ export function RecoverProfile() {
             code={rotatedCode}
             title="Your new recovery code"
             acknowledgeLabel="Continue to my records"
-            onAcknowledge={() => navigate('/inbox')}
+            onAcknowledge={() => navigate('/overview')}
           />
         </div>
       </div>
