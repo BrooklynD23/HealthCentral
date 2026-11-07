@@ -13,6 +13,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -26,6 +27,7 @@ import { useProfiles, useRecoverProfile } from '@/services';
 
 export function RecoverProfile() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: profiles, isLoading } = useProfiles();
   const recover = useRecoverProfile();
 
@@ -51,6 +53,9 @@ export function RecoverProfile() {
       recover.reset();
       setCode('');
       setNewPassword('');
+      // Same rule as unlock: nothing cached under a previous session may be
+      // shown to the new profile.
+      queryClient.clear();
       setRotatedCode(result.recovery_code);
     } catch (err) {
       recover.reset();
