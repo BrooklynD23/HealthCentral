@@ -1,11 +1,9 @@
 """
 Alembic environment for per-profile SQLCipher database migrations.
 
-Profile databases contain:
-- documents, observations, chunks, embeddings (RAG pipeline)
-- lab_interpretations, panel_interpretations (AI interpretations)
-- medications, medication_schedules, doses_taken, adherence_patterns, reminder_logs
-- user_model_settings
+Profile databases contain the per-profile vault tables. The table list is
+not repeated here because it goes stale: see the `models` package and
+`ProfileDatabaseBase.metadata` (core/profile_database.py) for the current set.
 
 This env.py requires runtime configuration:
 - vault_path: Path to the SQLCipher database file
