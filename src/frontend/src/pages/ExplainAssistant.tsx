@@ -227,11 +227,12 @@ function AskCitation({
 function AskCitations({
   citations,
   observationsById,
+  strictSafetyMode,
 }: {
   citations: CitationChip[];
   observationsById: Map<string, Observation>;
+  strictSafetyMode: boolean;
 }) {
-  const { checked: strictSafetyMode } = useSafetyMode();
   return (
     <div className="flex flex-wrap gap-2">
       {citations.map((citation, i) => (
@@ -307,6 +308,7 @@ const EASE_OUT: [number, number, number, number] = [...ease.out];
 
 export function ExplainAssistant() {
   const prefersReducedMotion = useReducedMotion();
+  const { checked: strictSafetyMode } = useSafetyMode();
   const navigate = useNavigate();
   const profileId = useAuthStore((state) => state.profileId);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -680,7 +682,11 @@ export function ExplainAssistant() {
         {message.citations && message.citations.length > 0 && (
           <div className="mt-3 pt-3 border-t border-black/8">
             <p className="text-xs text-ink-secondary mb-2">Sources:</p>
-            <AskCitations citations={message.citations} observationsById={observationsById} />
+            <AskCitations
+              citations={message.citations}
+              observationsById={observationsById}
+              strictSafetyMode={strictSafetyMode}
+            />
           </div>
         )}
 
