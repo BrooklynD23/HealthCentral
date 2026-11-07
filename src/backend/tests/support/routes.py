@@ -33,6 +33,7 @@ def route_client(
     raise_server_exceptions: bool = True,
     profile_name: str = "T",
     profile_db: Optional[async_sessionmaker] = None,
+    real_auth: bool = False,
 ) -> Iterator[TestClient]:
     """Yield a TestClient for `router` with auth and the master DB overridden.
 
@@ -43,6 +44,7 @@ def route_client(
     gate on it, such as the synthetic test reset, need a real one).
     `profile_db` is an async_sessionmaker for the per-profile vault; when given,
     `get_profile_db_session` yields a session from it for each request.
+    `real_auth=True` leaves `require_auth` un-overridden, so the real token check runs (401 tests).
     """
     app = FastAPI()
     app.include_router(router, prefix=prefix)
@@ -60,7 +62,8 @@ def route_client(
     async def _override_master_db():
         return db
 
-    app.dependency_overrides[require_auth] = _override_auth
+    if not real_auth:
+        app.dependency_overrides[require_auth] = _override_auth
     app.dependency_overrides[get_db] = _override_master_db
 
     if profile_db is not None:
