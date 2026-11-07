@@ -1,8 +1,7 @@
 """
 Security audit middleware.
 
-Logs structured security events for mutating HTTP requests.
-Optionally persists events to the database via core.audit.
+Logs structured security events for mutating HTTP requests to the app log.
 """
 
 from __future__ import annotations
@@ -28,9 +27,8 @@ class SecurityAuditMiddleware:
     GET/HEAD/OPTIONS are skipped to reduce noise.
     """
 
-    def __init__(self, app: Callable, log_to_db: bool = False) -> None:
+    def __init__(self, app: Callable) -> None:
         self.app = app
-        self.log_to_db = log_to_db
 
     async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
         if scope["type"] != "http":

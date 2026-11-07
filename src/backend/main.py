@@ -128,10 +128,7 @@ def create_app() -> FastAPI:
     # 1. Timing (innermost — measures route handling time)
     app.add_middleware(TimingMiddleware)
     # 2. Security audit logging
-    app.add_middleware(
-        SecurityAuditMiddleware,
-        log_to_db=settings.audit_security_events_to_db,
-    )
+    app.add_middleware(SecurityAuditMiddleware)
     # 3. Input validation
     app.add_middleware(
         InputValidationMiddleware,

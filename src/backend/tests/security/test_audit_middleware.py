@@ -145,3 +145,16 @@ async def test_hc_obsv_003_audit_payload_carries_correlation_id(caplog):
     assert payloads[0]["correlation_id"] == cid
     assert payloads[1]["correlation_id"] != "evil\nSECURITY_AUDIT: forged"
     uuid.UUID(payloads[1]["correlation_id"])  # regenerated (monitoring/correlation.py:48-53)
+
+
+def test_hc_adbs_001_middleware_db_flag_param_removed():
+    # AUDIT-DB-SETTING-DEAD: the middleware's never-read DB flag parameter is gone.
+    with pytest.raises(TypeError):
+        SecurityAuditMiddleware(passthrough_app, log_to_db=True)
+
+
+def test_hc_adbs_002_audit_db_setting_removed():
+    # AUDIT-DB-SETTING-DEAD: the setting had no reader; the field is gone.
+    from core.config import Settings
+
+    assert "audit_security_events_to_db" not in Settings.model_fields
