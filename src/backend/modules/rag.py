@@ -759,6 +759,16 @@ USER QUESTION: {question}"""
                     + "\n"
                 )
 
+        # The question is NOT injection-filtered here. Owner decision
+        # QUESTION-INJECTION (2026-11-06) covers only the typed chat question
+        # on the legacy chat route (api/assistant.py): the user's own text.
+        # Session history (_sanitize_history), retrieved chunks
+        # (_sanitize_chunk_text) and memory (_retrieve_memory_context) are
+        # filtered. Backstops: classify_advice on the chat question before the
+        # model runs (api/assistant.py only), and on the answer
+        # validate_response ([cite:N] and prohibited patterns). Other callers,
+        # e.g. api/interpretations.py, build the question from observation
+        # fields and get no injection filter and no pre-model gate.
         prompt = self.SYSTEM_PROMPT.format(
             context=context,
             question=question,

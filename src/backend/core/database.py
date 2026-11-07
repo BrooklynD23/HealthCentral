@@ -35,8 +35,10 @@ class Base(DeclarativeBase):
     """
     SQLAlchemy declarative base for MASTER database models.
 
-    Only Profile and AuditLog use this base.
-    Document, Observation, Chunk, Embedding use ProfileDatabaseBase.
+    The six master tables use this base: Profile, AuditLog, BackupSchedule,
+    BiomarkerKnowledge, InterventionMapping and BiomarkerRelationship.
+    Per-profile vault tables (Document, Observation, Chunk, Embedding and the
+    rest) use ProfileDatabaseBase.
     """
     pass
 

@@ -72,6 +72,11 @@ class ModelRunner:
 
     Also exposes ensure_model_available() for backward compatibility with
     code that calls it before inference.
+
+    The ``model_path``, ``n_ctx`` and ``n_threads`` constructor args are stored
+    and never read. They are kept so existing callers keep working (for example
+    tests/test_rag_pipeline.py passes ``model_path``); the provider comes from
+    ``get_provider()``, not from these args.
     """
 
     def __init__(

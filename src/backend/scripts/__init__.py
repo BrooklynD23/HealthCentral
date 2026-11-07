@@ -1,6 +1,6 @@
 """
 Scripts for HealthCentral administrative tasks.
 
-Available scripts:
-- seed_knowledge_base: Populate medical knowledge base with reference data
+Each script is a module in this directory; see the directory listing for the
+current set rather than a list here, which goes stale.
 """
