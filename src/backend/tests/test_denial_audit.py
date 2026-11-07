@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 import api.export as export_api
 import api.profiles as profiles_api
 from core import denial_audit
+from core.auth import get_profile_db_session
 from core.database import Base, get_db
 from models.audit import AuditLog
 from tests.support.routes import route_client
@@ -59,7 +60,11 @@ def _client(router, prefix, maker):
             finally:
                 await session.close()
 
+    async def _no_vault():  # the seeded dict entry answers; the vault is never read
+        yield None
+
     client.app.dependency_overrides[get_db] = _real_get_db
+    client.app.dependency_overrides[get_profile_db_session] = _no_vault
     return ctx, client
 
 

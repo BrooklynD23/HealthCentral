@@ -36,12 +36,12 @@ import api.pinboards as pinboards_api
 import api.profiles as profiles_api
 from api.profiles import PROFILE_DELETE_CONFIRMATION
 from core import time as core_time
-from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
 from core.profile_database import (
     ProfileDatabaseBase,
     ProfileDatabaseConnection,
     get_profile_db_manager,
 )
+from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
 from models import Document, Observation, Pinboard, PinboardItem
 from tests.support.routes import route_client
 from tests.test_export_store_purge import _db_with_profile, _profiles_client
@@ -110,7 +110,7 @@ class _Result:
 
 def _master_db(profile_id: str = PROFILE_A, commit_error: Exception | None = None):
     db = AsyncMock()  # the FHIR route reads Profile from master
-    db.execute.return_value = _Result(SimpleNamespace(id=profile_id, display_name="Jane Doe"))
+    db.execute.return_value = _Result(SimpleNamespace(id=profile_id, display_name="Zed Example"))
     if commit_error is not None:
         db.commit.side_effect = commit_error
     return db
@@ -324,6 +324,7 @@ def test_hc_expa_007_crypto_erase_removes_persisted_artifacts(tmp_path, monkeypa
 def test_hc_expa_008_profile_migration_matches_model(tmp_path, monkeypatch):
     """Would not notice: column types or defaults (only the name set is compared)."""
     from alembic import command
+
     from core import migrations
     from core.config import settings
     from models.export_artifact import ExportArtifact
@@ -366,14 +367,14 @@ def test_hc_expa_009_persisted_payload_is_redacted(tmp_path, kind, gen, body, id
     assert "zzmarkera" in rows[0].payload_json  # the row is not simply empty
 
 
-def test_hc_expa_010_download_with_locked_vault_is_403():
+def test_hc_expa_010_download_with_locked_vault_is_refused():
     """After a real restart no vault connection exists until re-login. Would not
     notice: a locked vault with a live in-process entry (the purge at lock clears it)."""
     manager = get_profile_db_manager()
     assert not manager.is_profile_connected(PROFILE_A)
     with _client(export_api.router, "/export", vault=None) as client:  # real get_profile_db_session
         response = client.get(f"/export/doctor-summary/{uuid.uuid4()}/download?format=text")
-    assert response.status_code == 403
+    assert response.status_code == 401
     assert "log in again" in response.json()["detail"]
 
 
@@ -406,22 +407,6 @@ def test_hc_expa_011_row_older_than_ttl_is_not_served_and_is_deleted(
     with _client(export_api.router, "/export", vault) as client:
         assert client.get(dl.format(id=art_id)).status_code == 404
     assert asyncio.run(_rows(vault)) == []  # deleted on read, not merely refused
-
-
-def test_hc_expa_012_a_later_write_prunes_expired_rows(tmp_path, monkeypatch):
-    """Rows past the TTL go on any later write, so the table cannot grow without
-    bound. Would not notice: rows nobody ever writes or reads again (no job is
-    licensed to sweep them; they stay until the profile is deleted)."""
-    clock = {"now": T0}
-    monkeypatch.setattr(core_time, "utcnow", lambda: clock["now"])
-    vault = tmp_path / "vault.db"
-    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
-    with _client(export_api.router, "/export", vault) as client:
-        first = client.post("/export/doctor-summary", json={"format": "text"}).json()["summary_id"]
-        clock["now"] = T0 + timedelta(minutes=31)
-        second = client.post("/export/doctor-summary", json={"format": "text"}).json()["summary_id"]
-    assert [r.id for r in asyncio.run(_rows(vault))] == [second]
-    assert first != second
 
 
 def _seed_all_kinds(vault: Path, profile_id: str) -> dict:

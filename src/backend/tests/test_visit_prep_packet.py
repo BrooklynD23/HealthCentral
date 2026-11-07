@@ -758,6 +758,10 @@ def test_hc_exptz_007_packet_without_generated_on_falls_back_to_generated_at():
     }
     try:
         with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+            async def _no_vault():  # the seeded dict entry answers; the vault is never read
+                yield None
+
+            client.app.dependency_overrides[get_profile_db_session] = _no_vault
             download = client.get(
                 f"/export/visit-prep/{packet_id}/download", params={"format": "html"}
             )

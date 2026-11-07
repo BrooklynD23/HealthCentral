@@ -562,7 +562,7 @@ async def logout(
         await db.commit()
 
     # Phase 3: Close the per-profile encrypted database and clear keys
-    purge_profile_exports(session.profile_id)
+    await purge_profile_exports(session.profile_id)
     await close_profile_database_on_logout(session.profile_id)
 
     logger.info(f"Profile logged out: {session.profile_id}")
@@ -965,7 +965,7 @@ async def delete_profile(
     if session.token_jti:
         revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
 
-    purge_profile_exports(profile_id)
+    await purge_profile_exports(profile_id)
     await close_profile_database_on_logout(profile_id)
 
     from core.profile_database import get_profile_db_manager
@@ -1134,7 +1134,7 @@ async def lock_profile(
     await db.commit()
 
     # Phase 3: Close the per-profile encrypted database and clear keys
-    purge_profile_exports(profile_id)
+    await purge_profile_exports(profile_id)
     await close_profile_database_on_logout(profile_id)
 
     # Revoke the current JWT so the session can't be reused after locking.

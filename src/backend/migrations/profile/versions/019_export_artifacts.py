@@ -14,8 +14,8 @@ Create Date: 2026-11-07
 
 from typing import Sequence, Union
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "019_export_artifacts"
 down_revision: Union[str, None] = "018_ocr_opt_in"
