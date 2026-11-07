@@ -10,7 +10,7 @@
  * - whether the real agent path sends a locator rather than a quote in text_snippet (HC-SMC-002 builds the
  *   shapes by hand from be/api/assistant.py `_to_api_citation`; HC-SMC-005 asks the real backend);
  * - layout: jsdom has no CSS, so a source block that overflows or hides behind another element passes here;
- * - whether ResultsPage hands the mode to the card (the one-line wiring is pinned by ui-results, not here);
+ * - the Results page's other cards (the panel interpretation card is out of scope: SAFETY-MODE-PANEL-CITATIONS);
  * - the stillness of the expanded view (the e2e stillness probe reads data-t0).
  */
 import type { ReactNode } from 'react';
@@ -20,10 +20,11 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { ExplainAssistant } from '@/pages/ExplainAssistant';
+import { ResultsPage } from '@/pages/ResultsPage';
 import { InterpretedResultCard } from '@/components/lab-interpreter/InterpretedResultCard';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
-import type { InterpretationResponse, Observation } from '@/services/types';
+import type { InterpretationResponse, Observation, TrendData } from '@/services/types';
 
 vi.mock('@/services/api', () => ({
   apiGet: vi.fn(),
@@ -316,6 +317,76 @@ describe('SAFETY-MODE-CITATIONS', () => {
       await user.click(screen.getByLabelText(`Citation 1: ${KB_TEXT}`));
       const dialog = await screen.findByRole('dialog', { name: 'Citation 1' });
       expect(within(dialog).getByText(KB_TEXT)).toBeInTheDocument();
+    });
+  });
+  describe('HC-SMC-004: the Results page hands the mode to its card', () => {
+    const KB_TEXT = 'Hemoglobin carries oxygen in the blood.';
+    const stored = {
+      id: 'interp-1',
+      observation_id: 'obs-1',
+      interpretation_text: 'Stored card text.',
+      severity_level: 'normal',
+      advice_text: null,
+      citations: [{ type: 'knowledge_base', id: 'kb-hgb', text: KB_TEXT }],
+      context: null,
+      model_id: 'template-v1',
+      model_tier: 'template',
+      confidence_score: 0.9,
+      requires_physician_review: false,
+      physician_review_reason: null,
+      viewed_at: null,
+      created_at: '2026-01-01T00:00:00Z',
+    };
+    const trend: TrendData = {
+      analyte_canonical: 'hemoglobin',
+      analyte_display_name: 'Hemoglobin',
+      unit: 'g/dL',
+      ref_low: 13.5,
+      ref_high: 17.5,
+      data_points: [
+        { date: '2026-03-14T00:00:00', value: 14.2, unit: 'g/dL', is_abnormal: false, flag: null, doc_id: 'doc-1', extraction_confidence: 0.9, user_verified: true },
+      ],
+      summary: 'One measurement.',
+    };
+
+    function renderResults(mode: boolean | undefined) {
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => {
+        if (url === MODE_PATH) return mode === undefined ? [] : { strict_safety_mode: mode };
+        if (url === '/observations/') return [HEMOGLOBIN];
+        if (url.startsWith('/observations/trends/')) return trend;
+        if (url === '/settings/model/external-api') {
+          return { use_external_api: false, provider: '', model: '', api_key_configured: false };
+        }
+        if (url.includes('/interpretation')) return stored;
+        return [];
+      });
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      return render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={[{ pathname: '/results', state: { explain: true } }]}>
+            <ResultsPage />
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    }
+
+    it('mode on: the Results card shows its source expanded', async () => {
+      renderResults(true);
+      expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+      expect(await screen.findByText(KB_TEXT)).toBeInTheDocument();
+      expect(screen.getByText('Source: knowledge base')).toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Citation 1: /)).toBeNull();
+    });
+
+    it.each([
+      ['off', false],
+      ['unknown', undefined],
+    ])('mode %s: the Results card keeps its chip', async (_label, mode) => {
+      renderResults(mode);
+      expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+      await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith(MODE_PATH));
+      expect(screen.getByLabelText(`Citation 1: ${KB_TEXT}`)).toBeInTheDocument();
+      expect(screen.queryByText(KB_TEXT)).toBeNull();
     });
   });
 });
