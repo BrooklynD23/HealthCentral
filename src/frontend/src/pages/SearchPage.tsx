@@ -32,7 +32,7 @@ const RECORD_META: Record<
 > = {
   document: { label: 'Document', icon: FileText, link: '/inbox', linkLabel: 'Open inbox' },
   entity: { label: 'Extracted detail', icon: Tags, link: '/verify', linkLabel: 'Review extraction' },
-  observation: { label: 'Observation', icon: FlaskConical, link: '/trends', linkLabel: 'View trends' },
+  observation: { label: 'Observation', icon: FlaskConical, link: '/results', linkLabel: 'View trends' },
 };
 
 /**
