@@ -7,12 +7,13 @@ reimplementing it.
 
 Two decisions worth stating up front:
 
-**Backups are not redacted.** Every other export path in this app passes
-through `modules/redaction.py`, and that is correct: those exports go to a
-third party. A backup is the opposite — it is the user's own full-fidelity
+**Backups are not redacted.** The exports that go to a third party (for
+example the doctor summary) pass through `modules/redaction.py`, and that is
+correct. A backup is the opposite — it is the user's own full-fidelity
 record, going to their own machine, and a redacted backup cannot be restored,
-which defeats the entire feature. This is the one export-shaped path that is
-deliberately unredacted. Do not "fix" it to match `export.py`.
+which defeats the entire feature. Backups, `GET /export/csv` and
+`GET /export/json` are the deliberately unredacted paths (the patient's own
+data, owner decision D3). Do not "fix" it to match `export.py`.
 
 **Restore is destructive and gated accordingly.** It overwrites live vaults, so
 it requires password re-auth plus a confirmation phrase, closes the profile
