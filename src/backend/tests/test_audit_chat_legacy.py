@@ -34,9 +34,8 @@ from core.profile_database import ProfileDatabaseBase
 from models import chat_session, document, model_settings, observation  # noqa: F401
 from models.chat_session import ChatTurn
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE
-from modules.rag import ModelUnavailableError
+from modules.rag import ModelUnavailableError, ValidatedResponse, VerificationMetadata
 from modules.rag import ResponseSegment as RagSegment
-from modules.rag import ValidatedResponse, VerificationMetadata
 from tests.support.routes import route_client
 
 QUESTION = "What was my LDL result?"
