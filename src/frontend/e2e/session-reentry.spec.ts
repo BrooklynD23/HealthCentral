@@ -77,8 +77,8 @@ test.describe('SESSION-REENTRY unlock', () => {
     await loginResponse;
     await documentsResponse;
 
-    await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
-    await expect(page.getByRole('heading', { name: 'Document Inbox' })).toBeVisible();
+    await expect(page).toHaveURL(/\/overview/, { timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1, exact: true })).toBeVisible();
     await expect(page.getByText('Your session has ended')).toHaveCount(0);
     await expect(page.getByText('Access denied')).toHaveCount(0);
     expect(new URL(page.url()).pathname).not.toMatch(/recover/i);

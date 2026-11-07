@@ -59,7 +59,7 @@ test.describe('Authentication Flow', () => {
     await continueButton.click();
 
     // Wait for navigation to inbox
-    await expect(page).toHaveURL(/\/inbox/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/overview/, { timeout: 10000 });
 
     // Inbox should load
     await expect(page.getByText(/documents|inbox/i).first()).toBeVisible();
