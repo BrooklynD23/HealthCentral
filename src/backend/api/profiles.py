@@ -904,7 +904,9 @@ async def delete_profile(
     ``export_acknowledged``. The RL dataset export (POST /feedback/export) is
     the exception: it writes per-profile JSONL server-side under
     ``rl_exports/profile_{id}/``, so this route removes that directory as a
-    step after the backups sweep.
+    step after the backups sweep. Downloadable summary/packet/FHIR artifacts
+    are the exception: they are rows in the profile vault and are erased by
+    step 4.
     """
     profile = await _load_profile_for_delete(profile_id, db)
     if profile is None:
