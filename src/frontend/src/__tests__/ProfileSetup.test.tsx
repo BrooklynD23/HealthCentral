@@ -361,7 +361,7 @@ describe('ProfileSetup', () => {
       expect(screen.getByRole('link', { name: /use your recovery code/i })).toBeInTheDocument();
     });
 
-    it('HC-SRE-002: unlocking posts {profile_id, password}, stores the token and goes to /inbox', async () => {
+    it('HC-SRE-002: unlocking posts {profile_id, password}, stores the token and goes to /overview', async () => {
       const user = userEvent.setup();
       mockOneProfile();
       vi.mocked(api.apiPost).mockResolvedValueOnce({
