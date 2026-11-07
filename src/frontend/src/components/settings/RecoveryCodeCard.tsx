@@ -15,10 +15,11 @@
  * the TanStack mutation cache does not keep the code or the password either.
  *
  * The code and its warnings are T0 content (`data-t0`, plan 2.7): nothing here animates, and
- * the code is never faded or moved in.
+ * the code is never faded or moved in. Groups of the code never split across lines (a line breaks
+ * only between groups, as in components/profile/RecoveryCodeCard.tsx); textContent stays the code.
  */
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import {
   Button,
   Card,
@@ -81,7 +82,7 @@ export function RecoveryCodeCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-ink-secondary">
+        <p className="text-sm text-ink-secondary" data-t0="">
           A recovery code unlocks this profile if you forget your password.
           Without one, a forgotten password means the health record in this
           profile cannot be recovered by anyone — including us.
@@ -102,11 +103,18 @@ export function RecoveryCodeCard() {
         {code ? (
           <div className="space-y-3">
             <p
-              className="rounded-xl bg-surface-muted px-4 py-3 font-mono text-lg tracking-wide select-all break-all"
+              className="rounded-xl bg-surface-muted px-4 py-3 font-mono text-lg tracking-wide select-all"
               data-testid="recovery-code-value"
               data-t0=""
             >
-              {code}
+              {code.split('-').map((group, index) => (
+                <Fragment key={index}>
+                  {index > 0 && '-'}
+                  <span data-code-group="" className="inline-block whitespace-nowrap">
+                    {group}
+                  </span>
+                </Fragment>
+              ))}
             </p>
             <p
               className="rounded-xl bg-status-attention-subtle px-3 py-2 text-sm text-status-attention"

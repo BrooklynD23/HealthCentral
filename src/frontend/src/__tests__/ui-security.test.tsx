@@ -250,4 +250,65 @@ describe('HC-UISEC-003 T0 marking (plan 2.7): warnings and errors carry data-t0'
     expect(await screen.findByTestId('recovery-code-value')).toHaveAttribute('data-t0');
     expect(screen.getByTestId('recovery-code-once-warning')).toHaveAttribute('data-t0');
   });
+
+  it('marks the intro warnings of the recovery code and backup cards', async () => {
+    renderSection();
+    expect(
+      (await screen.findByText(/a forgotten password means the health record in this profile cannot be recovered/i)).closest(
+        '[data-t0]'
+      )
+    ).not.toBeNull();
+    expect(
+      (await screen.findByText(/it is the only thing that survives losing this machine/i)).closest('[data-t0]')
+    ).not.toBeNull();
+  });
+
+  it('marks the "backup is damaged" warning (it is a backup warning, plan 2.7)', async () => {
+    // Would not notice: the intact-backup message. This is the one that tells the patient a backup cannot be trusted.
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockResolvedValueOnce({ valid: false, files_checked: 3, errors: ['a.db', 'b.db'] });
+    renderSection();
+    await user.click((await screen.findAllByRole('button', { name: 'Check' }))[0]);
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent('This backup is damaged: 2 problem(s) found.');
+    expect(status).toHaveAttribute('data-t0');
+  });
+});
+
+describe('HC-UISEC-003 the recovery code keeps its groups whole', () => {
+  it('renders each group in its own non-breaking span and keeps the code as textContent', async () => {
+    // Would not notice: a long code at 320 px. jsdom has no layout, so this checks the markup that keeps a group
+    // on one line (as components/profile/RecoveryCodeCard.tsx does), and the textContent that recovery-code.spec.ts reads.
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockResolvedValueOnce({ recovery_code: 'ABCD-EFGH-JKLM-NPQR' });
+    renderSection();
+    await user.type(await screen.findByLabelText(/confirm your password/i), 'Whatever123');
+    await user.click(screen.getByRole('button', { name: /create recovery code/i }));
+    const value = await screen.findByTestId('recovery-code-value');
+    expect(value.textContent).toBe('ABCD-EFGH-JKLM-NPQR');
+    const groups = value.querySelectorAll('[data-code-group]');
+    expect(Array.from(groups).map((node) => node.textContent)).toEqual(['ABCD', 'EFGH', 'JKLM', 'NPQR']);
+    groups.forEach((node) => expect(node).toHaveClass('whitespace-nowrap'));
+    expect(value).not.toHaveClass('break-all');
+  });
+});
+
+describe('HC-UISEC-003 closing the restore dialog drops its error', () => {
+  it('does not leave "Incorrect password" in the card after Escape', async () => {
+    // Would not notice: an error that mounts again in the card, out of context, once the dialog that raised it is gone.
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Incorrect password'));
+    renderSection();
+    await user.click((await screen.findAllByRole('button', { name: /restore…/i }))[0]);
+    const dialog = await screen.findByRole('alertdialog');
+    await user.type(within(dialog).getByLabelText(/confirm your password/i), 'WrongHorse1');
+    await user.type(within(dialog).getByPlaceholderText(BACKUP_RESTORE_CONFIRMATION), BACKUP_RESTORE_CONFIRMATION);
+    await user.click(within(dialog).getByRole('button', { name: /restore this backup/i }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/incorrect password/i);
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(), { timeout: 2000 });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/incorrect password/i)).not.toBeInTheDocument();
+  });
 });

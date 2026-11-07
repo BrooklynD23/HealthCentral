@@ -153,6 +153,7 @@ export function BackupCard() {
     setRestoringId(null);
     setPassword('');
     setPhrase('');
+    setError(null);
   };
 
   const handleScheduleChange = (frequency: BackupFrequency) => {
@@ -225,7 +226,7 @@ export function BackupCard() {
         </div>
 
         {message && (
-          <p role="status" className="text-sm text-ink-secondary">
+          <p role="status" className="text-sm text-ink-secondary" data-t0="">
             {message}
           </p>
         )}

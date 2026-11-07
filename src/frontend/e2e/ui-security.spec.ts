@@ -18,7 +18,8 @@
  *
  * The first two pins select the password and phrase fields by id (#danger-password, #restore-password-*) and the
  * other controls by role and name, so the same file runs on the inline forms of main and on the dialogs of this row.
- * G2, G3, G5 and G10 are timing measurements: run them on a quiet box (select them with -g "GATE G").
+ * G2, G3, G5 and G10 are timing measurements: run them on a quiet box (select them with -g "GATE G"). G3 is mocked
+ * (it needs no backend, so CI's production-build G3 job can run it); everything else here needs the backend.
  */
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -36,6 +37,7 @@ import {
   stillnessProbe,
   type Theme,
 } from './support/gates';
+import { FIXTURE_PERSON, installMockApi, seedMockSession } from './support/mockApi';
 import {
   E2E_API_URL,
   E2E_PROFILE_PASSWORD,
@@ -218,10 +220,19 @@ test.describe('HC-UISEC-001 delete with a wrong password', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'Incorrect password' })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe('/settings');
     expect(await storedAuth(page)).toEqual(before);
-    // Still signed in: the Safety Rail and the page are still there, and a reload still lands on /settings.
+    // Still signed in: a reload still lands on /settings with the page's own data loaded, and the stored session is the
+    // same one. A data query that answered 401 a moment after first paint would clear it, so wait for the network to
+    // go idle before reading it, and ask the backend that the token still opens a protected route.
     await page.reload();
-    await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible({ timeout: 15_000 });
+    await expectSettingsLoaded(page);
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
     expect(new URL(page.url()).pathname).toBe('/settings');
+    expect(await storedAuth(page)).toEqual(before);
+    const stillValid = await request.get(`${E2E_API_URL}/backup/`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    expect(stillValid.status(), 'the token still opens a protected route').toBe(200);
   });
 });
 
@@ -483,24 +494,59 @@ test('UI-PG-SECURITY GATE G6 on /settings: no horizontal scroll at 390 and 320',
   }
 });
 
-test('UI-PG-SECURITY GATE G2, G3, G5 on /settings (quiet box only)', async ({ page, request }) => {
+/** The two dialogs opened and closed the way a patient would, with something typed into the delete form. */
+async function dialogInteractions(page: Page): Promise<void> {
+  await restoreButton(page).click();
+  await expect(restoreDialog(page)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await deleteButton(page).click();
+  await expect(deleteDialog(page)).toBeVisible();
+  await page.getByLabel(/i confirm i have a copy/i).click();
+  await page.locator('#danger-password').fill('typed-but-not-sent');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+}
+
+// The G3 title is its own test on purpose. CI's "G3 on Production Build" job selects titles by --grep '\bG3\b' and runs
+// no backend (ci.yml), so the G3 measurement here is MOCKED (installMockApi, the shared fixtures; the same convention as
+// ui-settings.spec.ts) and no real-backend test below carries "G3" in its title. G3 reads timing, not auth or a status
+// code, so the mock does not stand in for anything the backend decides. Run it on a production build, quiet box:
+//   npm run build; npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+//   HC_E2E_BASE_URL=http://127.0.0.1:4173 PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 npx playwright test e2e/ui-security.spec.ts --project=chromium -g "G3"
+test('UI-PG-SECURITY GATE G3 on /settings: the dialogs open and close under 200 ms with CPU throttled x4 (mocked, quiet box only)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize(DESKTOP);
+  await installMockApi(page);
+  // Registered after installMockApi, so it wins: one backup, so that the restore dialog has something to open on.
+  await page.route(/\/api\/v1\/backup\/?$/, (route, request) => {
+    if (request.method() !== 'GET') return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        backups: [{ backup_id: 'backup_fixture_1', created_at: '2026-10-20T08:00:00Z', file_count: 3, size_bytes: 2048 }],
+        backup_directory: '/fixture/backups',
+        last_backup_at: '2026-10-20T08:00:00Z',
+      }),
+    });
+  });
+  await seedMockSession(page, FIXTURE_PERSON);
+  await page.goto('/settings');
+  await expectSettingsLoaded(page);
+  await expect(restoreButton(page)).toBeVisible({ timeout: 15_000 });
+  await settle(page);
+  // Returns 0 when no event reaches 16 ms, so a dead observer also passes; the bound is the gate's, unchanged.
+  const inp = await maxEventDuration(page, () => dialogInteractions(page), { cpuRate: 4 });
+  console.log(`UI-PG-SECURITY G3 /settings (${process.env.HC_E2E_BASE_URL ? 'production build' : 'dev server'}): ${inp} ms`);
+  expect(inp, 'G3 /settings').toBeLessThan(200);
+});
+
+test('UI-PG-SECURITY GATE G2 and G5 on /settings (real backend, quiet box only)', async ({ page, request }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(DESKTOP);
   const session = await seedAuthenticatedSession(page, request);
   await ensureBackup(request, session.access_token);
-
-  const interactions = async () => {
-    await restoreButton(page).click();
-    await expect(restoreDialog(page)).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('alertdialog')).toHaveCount(0);
-    await deleteButton(page).click();
-    await expect(deleteDialog(page)).toBeVisible();
-    await page.getByLabel(/i confirm i have a copy/i).click();
-    await page.locator('#danger-password').fill('typed-but-not-sent');
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  };
 
   // G2: layout shift over the load and the interactions.
   const cls = await measureCls(page, async () => {
@@ -508,16 +554,9 @@ test('UI-PG-SECURITY GATE G2, G3, G5 on /settings (quiet box only)', async ({ pa
     await expectSettingsLoaded(page);
     await expect(restoreButton(page)).toBeVisible({ timeout: 15_000 });
     await settle(page);
-    await interactions();
+    await dialogInteractions(page);
   });
   expect(cls, 'G2 /settings').toBeLessThan(0.1);
-
-  // G3: the worst Event Timing duration of the same interactions, CPU throttled x4.
-  await page.goto('/settings');
-  await expect(restoreButton(page)).toBeVisible({ timeout: 15_000 });
-  await settle(page);
-  const inp = await maxEventDuration(page, interactions, { cpuRate: 4 });
-  expect(inp, 'G3 /settings').toBeLessThan(200);
 
   // G5: reduced motion, one snapshot 50 ms after each interaction, so a transform one step leaves behind is not cleared by the next.
   await page.emulateMedia({ reducedMotion: 'reduce' });
