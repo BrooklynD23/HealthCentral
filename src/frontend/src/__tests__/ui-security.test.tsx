@@ -4,7 +4,9 @@
  * Each dialog must close on Escape, hold focus inside while open, hand focus back to the
  * button that opened it, and open with Cancel focused (AlertDialog moves focus to the
  * element marked `data-alert-cancel`). Before this row both confirmations were inline forms:
- * there was no dialog to find, so every check below fails on main at `findByRole('alertdialog')`.
+ * there was no dialog to find, so the dialog cases fail on main at `findByRole('alertdialog')`.
+ * The T0 cases that never open a dialog fail on main on the missing `data-t0` attribute, and
+ * the code-groups case on the missing `data-code-group` attribute.
  *
  * Would not notice: jsdom has no layout, so Tab order is the DOM order user-event computes
  * (see ui-overlays.test.tsx HC-UIOV-002). The `outside.focus()` assertion is what catches a
