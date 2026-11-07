@@ -25,6 +25,9 @@ import {
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, IconButton } from '@/components/ui';
 import { Pending } from '@/components/ui/Pending';
 import { CitationTooltip } from '@/components/lab-interpreter/CitationTooltip';
+import { SourceBlock } from '@/components/lab-interpreter/InterpretedResultCard';
+import { ObservationSourceTrace } from '@/components/results/SourceTrace';
+import { useSafetyMode } from '@/hooks/useSafetyMode';
 import { duration, ease } from '@/motion/tokens';
 import { cn } from '@/utils/cn';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -115,10 +118,13 @@ function AskCitation({
   citation,
   index,
   observation,
+  expanded = false,
 }: {
   citation: CitationChip;
   index: number;
   observation: Observation | undefined;
+  /** Stricter safety mode: the source is on screen without a click (SAFETY-MODE-CITATIONS). */
+  expanded?: boolean;
 }) {
   const navigate = useNavigate();
   const target = citationTarget(citation);
@@ -127,6 +133,41 @@ function AskCitation({
   const title = observation || citation.page == null ? citation.source : `${citation.source} \u00b7 page ${citation.page}`;
   const tone =
     citation.source === 'Your Results' ? 'bg-accent-subtle text-accent font-medium' : 'bg-surface-muted text-ink-secondary';
+
+  if (expanded) {
+    // The honesty rule: a quotation only for real words (quoteOf). A locator or row id is a place, and is never shown.
+    return (
+      <SourceBlock name={citation.source} page={citation.page} quote={quote}>
+        {observation ? (
+          // What the record itself says, as the chip's popover shows it; plain text, not a quotation.
+          <p data-t0="" className="text-xs text-ink-secondary [overflow-wrap:anywhere]">
+            {recordText(observation)}
+          </p>
+        ) : null}
+        {observation?.doc_id ? (
+          <ObservationSourceTrace
+            observation={observation}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex min-h-target items-center text-sm font-medium text-accent underline underline-offset-4"
+              >
+                Open source
+              </button>
+            }
+          />
+        ) : !observation && target ? (
+          <button
+            type="button"
+            onClick={() => navigate(target)}
+            className="inline-flex min-h-target items-center text-sm font-medium text-accent underline underline-offset-4"
+          >
+            Show this result in the source document
+          </button>
+        ) : null}
+      </SourceBlock>
+    );
+  }
 
   if (observation || (!target && quote)) {
     return (
@@ -176,6 +217,33 @@ function AskCitation({
     >
       <FileText className="w-3 h-3 shrink-0" aria-hidden="true" />[{index + 1}] {label}
     </span>
+  );
+}
+
+/**
+ * The citations under one answer. Under the stricter safety mode each source shows expanded (SAFETY-MODE-CITATIONS);
+ * otherwise these are today's chips. The mode is unknown (false) until its GET answers, which is today's view.
+ */
+function AskCitations({
+  citations,
+  observationsById,
+}: {
+  citations: CitationChip[];
+  observationsById: Map<string, Observation>;
+}) {
+  const { checked: strictSafetyMode } = useSafetyMode();
+  return (
+    <div className="flex flex-wrap gap-2">
+      {citations.map((citation, i) => (
+        <AskCitation
+          key={i}
+          citation={citation}
+          index={i}
+          observation={citation.observationId ? observationsById.get(citation.observationId) : undefined}
+          expanded={strictSafetyMode}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -612,16 +680,7 @@ export function ExplainAssistant() {
         {message.citations && message.citations.length > 0 && (
           <div className="mt-3 pt-3 border-t border-black/8">
             <p className="text-xs text-ink-secondary mb-2">Sources:</p>
-            <div className="flex flex-wrap gap-2">
-              {message.citations.map((citation, i) => (
-                <AskCitation
-                  key={i}
-                  citation={citation}
-                  index={i}
-                  observation={citation.observationId ? observationsById.get(citation.observationId) : undefined}
-                />
-              ))}
-            </div>
+            <AskCitations citations={message.citations} observationsById={observationsById} />
           </div>
         )}
 

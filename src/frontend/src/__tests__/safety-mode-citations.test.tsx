@@ -228,7 +228,7 @@ describe('SAFETY-MODE-CITATIONS', () => {
     const user = await askAndWaitForAnswer(answerWithTwoQuotes, /Your hemoglobin level is 14\.2/);
     // The page must have read the mode: an off that was never read proves nothing.
     await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith(MODE_PATH));
-    await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/observations/'));
+    await waitFor(() => expect(vi.mocked(api.apiGet).mock.calls.map(([url]) => url)).toContain('/observations/'));
 
     const sources = sourcesOf();
     // The role tree of the sources block: two named chips, two labels, no quotation, no open popover.
