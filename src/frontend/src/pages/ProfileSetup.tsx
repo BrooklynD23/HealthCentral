@@ -216,7 +216,7 @@ export function ProfileSetup() {
       // this one.
       queryClient.clear();
       beginLift();
-      navigate('/inbox');
+      navigate('/overview');
     } catch (err) {
       login.reset();
       setUnlockPassword('');
@@ -307,7 +307,7 @@ export function ProfileSetup() {
           <RecoveryCodeCard
             code={recoveryCode}
             acknowledgeLabel="Continue to my records"
-            onAcknowledge={() => navigate('/inbox')}
+            onAcknowledge={() => navigate('/overview')}
           />
         </div>
       </div>

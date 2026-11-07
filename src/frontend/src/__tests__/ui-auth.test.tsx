@@ -411,7 +411,7 @@ describe('HC-UIAUTH-003: the Lift on unlock holds no secret', () => {
     const view = renderPage(<ProfileSetup />);
     await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
     await user.click(screen.getByRole('button', { name: /^unlock$/i }));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/inbox'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
     return view;
   }
 
