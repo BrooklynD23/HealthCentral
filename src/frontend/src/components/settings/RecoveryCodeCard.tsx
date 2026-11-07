@@ -13,6 +13,9 @@
  * attacker with the same access could too, which would defeat sealing it.
  * The mutation that fetched it is reset once it settles and has gcTime 0, so
  * the TanStack mutation cache does not keep the code or the password either.
+ *
+ * The code and its warnings are T0 content (`data-t0`, plan 2.7): nothing here animates, and
+ * the code is never faded or moved in.
  */
 
 import { useState } from 'react';
@@ -23,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
   Badge,
+  Input,
 } from '@/components/ui';
 import { useProfiles, useIssueRecoveryCode } from '@/services/profiles';
 import { useAuthStore } from '@/stores/authStore';
@@ -85,8 +89,9 @@ export function RecoveryCodeCard() {
 
         {hasCode && (
           <p
-            className="text-sm text-status-attention"
+            className="rounded-xl bg-status-attention-subtle px-3 py-2 text-sm text-status-attention"
             data-testid="recovery-code-replace-warning"
+            data-t0=""
           >
             This profile already has a recovery code. Creating a new one
             immediately invalidates the old one, so any copy you have written
@@ -95,16 +100,18 @@ export function RecoveryCodeCard() {
         )}
 
         {code ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <p
-              className="font-mono text-lg tracking-wide select-all"
+              className="rounded-xl bg-surface-muted px-4 py-3 font-mono text-lg tracking-wide select-all break-all"
               data-testid="recovery-code-value"
+              data-t0=""
             >
               {code}
             </p>
             <p
-              className="text-sm text-status-attention"
+              className="rounded-xl bg-status-attention-subtle px-3 py-2 text-sm text-status-attention"
               data-testid="recovery-code-once-warning"
+              data-t0=""
             >
               Write this down and store it somewhere safe. It will not be shown
               again — we cannot display it a second time, only replace it.
@@ -115,22 +122,14 @@ export function RecoveryCodeCard() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div>
-              <label
-                htmlFor="recovery-code-password"
-                className="text-sm font-medium block mb-1"
-              >
-                Confirm your password
-              </label>
-              <input
-                id="recovery-code-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              />
-            </div>
+            <Input
+              id="recovery-code-password"
+              label="Confirm your password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
             <Button
               onClick={handleIssue}
               disabled={!password || issueRecoveryCode.isPending}
@@ -141,7 +140,7 @@ export function RecoveryCodeCard() {
         )}
 
         {error && (
-          <p role="alert" className="text-sm text-status-attention">
+          <p role="alert" className="text-sm text-status-attention" data-t0="">
             {error}
           </p>
         )}

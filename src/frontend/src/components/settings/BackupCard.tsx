@@ -7,6 +7,10 @@
  *
  * Restore is destructive and treated like it: password re-auth, an exact typed
  * phrase, and honest copy about what changes afterwards.
+ *
+ * UI-PG-SECURITY: the restore confirmation is an AlertDialog. The dialog and the
+ * warnings in it are `still` and carry `data-t0` (plan 2.7): no entrance motion
+ * on T0 text. The requests, the copy and the order of the steps are unchanged.
  */
 
 import { useEffect, useState } from 'react';
@@ -17,7 +21,9 @@ import {
   CardHeader,
   CardTitle,
   Badge,
+  Input,
 } from '@/components/ui';
+import { AlertDialog } from '@/components/ui/AlertDialog';
 import {
   useBackups,
   useCreateBackup,
@@ -137,6 +143,18 @@ export function BackupCard() {
     }
   };
 
+  const openRestore = (backupId: string) => {
+    setRestoringId(backupId);
+    setMessage(null);
+    setError(null);
+  };
+
+  const closeRestore = () => {
+    setRestoringId(null);
+    setPassword('');
+    setPhrase('');
+  };
+
   const handleScheduleChange = (frequency: BackupFrequency) => {
     saveSchedule.mutate({
       enabled: frequency !== 'off',
@@ -151,7 +169,7 @@ export function BackupCard() {
         <CardTitle>Backup &amp; restore</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <p className="text-sm text-ink-secondary">
+        <p className="text-sm text-ink-secondary" data-t0="">
           A backup is a complete, restorable copy of this profile — your
           documents, results, medications and the encryption key that opens
           them. Everything stays on this device unless you download it. Keep a
@@ -182,7 +200,7 @@ export function BackupCard() {
             {schedule?.last_result === 'skipped_locked' && (
               <>
                 {' — '}
-                <span className="text-status-caution">
+                <span className="text-status-caution" data-t0="">
                   a backup was due while this profile was locked. Automatic
                   backups only run while you are signed in.
                 </span>
@@ -191,7 +209,9 @@ export function BackupCard() {
             {schedule?.last_result === 'failed' && (
               <>
                 {' — '}
-                <span className="text-status-attention">the last attempt failed.</span>
+                <span className="text-status-attention" data-t0="">
+                  the last attempt failed.
+                </span>
               </>
             )}
           </p>
@@ -209,8 +229,8 @@ export function BackupCard() {
             {message}
           </p>
         )}
-        {error && (
-          <p role="alert" className="text-sm text-status-attention">
+        {error && restoringId === null && (
+          <p role="alert" className="text-sm text-status-attention" data-t0="">
             {error}
           </p>
         )}
@@ -227,125 +247,124 @@ export function BackupCard() {
           ) : (
             <ul className="space-y-2">
               {backups.map((backup) => (
-                <li
-                  key={backup.backup_id}
-                  className="rounded-md border border-black/8 p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-medium">
-                        {formatWhen(backup.created_at)}
-                      </p>
-                      <p className="text-xs text-ink-secondary">
-                        {backup.file_count} file(s) · {formatBytes(backup.size_bytes)}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleDownload(backup.backup_id)}
-                      >
-                        Download
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleVerify(backup.backup_id)}
-                        disabled={verifyBackup.isPending}
-                      >
-                        Check
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setRestoringId(backup.backup_id);
-                          setMessage(null);
-                          setError(null);
-                        }}
-                      >
-                        Restore…
-                      </Button>
-                    </div>
-                  </div>
-
-                  {restoringId === backup.backup_id && (
-                    <div className="mt-3 space-y-3 rounded-md border border-status-attention/40 p-3">
+                <li key={backup.backup_id}>
+                  <Card variant="inset" className="p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <Badge className="mb-2">This replaces your current data</Badge>
+                        <p className="text-sm font-medium">
+                          {formatWhen(backup.created_at)}
+                        </p>
                         <p className="text-xs text-ink-secondary">
-                          Restoring rolls this profile back to how it was at{' '}
-                          {formatWhen(backup.created_at)}. Anything added since
-                          then is replaced. Your password and recovery code also
-                          revert to the ones that were in use when this backup
-                          was made — if you have changed either since, the old
-                          ones are what will work afterwards. You will be
-                          signed out when it finishes, because the keys this
-                          session is holding are replaced too.
+                          {backup.file_count} file(s) · {formatBytes(backup.size_bytes)}
                         </p>
                       </div>
-
-                      <div>
-                        <label
-                          htmlFor={`restore-password-${backup.backup_id}`}
-                          className="text-sm font-medium block mb-1"
-                        >
-                          Confirm your password
-                        </label>
-                        <input
-                          id={`restore-password-${backup.backup_id}`}
-                          type="password"
-                          autoComplete="current-password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          className="w-full rounded-md border px-3 py-2 text-sm"
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor={`restore-phrase-${backup.backup_id}`}
-                          className="text-sm font-medium block mb-1"
-                        >
-                          Type{' '}
-                          <code className="font-mono">
-                            {BACKUP_RESTORE_CONFIRMATION}
-                          </code>
-                        </label>
-                        <input
-                          id={`restore-phrase-${backup.backup_id}`}
-                          type="text"
-                          value={phrase}
-                          onChange={(e) => setPhrase(e.target.value)}
-                          placeholder={BACKUP_RESTORE_CONFIRMATION}
-                          className="w-full rounded-md border px-3 py-2 text-sm font-mono"
-                        />
-                      </div>
-
                       <div className="flex gap-2">
                         <Button
-                          variant="ghost"
                           size="sm"
-                          onClick={() => {
-                            setRestoringId(null);
-                            setPassword('');
-                            setPhrase('');
-                          }}
+                          variant="secondary"
+                          onClick={() => handleDownload(backup.backup_id)}
                         >
-                          Cancel
+                          Download
                         </Button>
                         <Button
-                          variant="danger"
                           size="sm"
-                          onClick={handleRestore}
-                          disabled={!canRestore || restoreBackup.isPending}
+                          variant="ghost"
+                          onClick={() => handleVerify(backup.backup_id)}
+                          disabled={verifyBackup.isPending}
                         >
-                          {restoreBackup.isPending ? 'Restoring…' : 'Restore this backup'}
+                          Check
                         </Button>
+                        <AlertDialog
+                          open={restoringId === backup.backup_id}
+                          onOpenChange={(next) =>
+                            next ? openRestore(backup.backup_id) : closeRestore()
+                          }
+                          still
+                          className="top-8 max-h-[calc(100dvh-4rem)] max-w-lg translate-y-0"
+                          title="Restore this backup?"
+                          description={
+                            <span data-t0="">
+                              Restoring rolls this profile back to how it was at{' '}
+                              {formatWhen(backup.created_at)}. Anything added since
+                              then is replaced. Your password and recovery code also
+                              revert to the ones that were in use when this backup
+                              was made — if you have changed either since, the old
+                              ones are what will work afterwards. You will be
+                              signed out when it finishes, because the keys this
+                              session is holding are replaced too.
+                            </span>
+                          }
+                          trigger={
+                            <Button size="sm" variant="ghost">
+                              Restore…
+                            </Button>
+                          }
+                        >
+                          <div className="space-y-4">
+                            <Badge variant="attention" data-t0="">
+                              This replaces your current data
+                            </Badge>
+
+                            <Input
+                              id={`restore-password-${backup.backup_id}`}
+                              label="Confirm your password"
+                              type="password"
+                              autoComplete="current-password"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                            />
+
+                            <div>
+                              <label
+                                htmlFor={`restore-phrase-${backup.backup_id}`}
+                                className="block text-sm font-medium text-ink mb-1.5"
+                              >
+                                Type{' '}
+                                <code className="font-mono">
+                                  {BACKUP_RESTORE_CONFIRMATION}
+                                </code>
+                              </label>
+                              <Input
+                                id={`restore-phrase-${backup.backup_id}`}
+                                type="text"
+                                value={phrase}
+                                onChange={(e) => setPhrase(e.target.value)}
+                                placeholder={BACKUP_RESTORE_CONFIRMATION}
+                                className="font-mono"
+                              />
+                            </div>
+
+                            {error && (
+                              <p
+                                role="alert"
+                                className="text-sm text-status-attention"
+                                data-t0=""
+                              >
+                                {error}
+                              </p>
+                            )}
+
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                data-alert-cancel=""
+                                onClick={closeRestore}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="danger"
+                                onClick={handleRestore}
+                                disabled={!canRestore || restoreBackup.isPending}
+                              >
+                                {restoreBackup.isPending ? 'Restoring…' : 'Restore this backup'}
+                              </Button>
+                            </div>
+                          </div>
+                        </AlertDialog>
                       </div>
                     </div>
-                  )}
+                  </Card>
                 </li>
               ))}
             </ul>
