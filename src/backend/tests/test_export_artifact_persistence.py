@@ -36,6 +36,7 @@ import api.pinboards as pinboards_api
 import api.profiles as profiles_api
 from api.profiles import PROFILE_DELETE_CONFIRMATION
 from core import time as core_time
+from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
 from core.profile_database import (
     ProfileDatabaseBase,
     ProfileDatabaseConnection,
@@ -123,6 +124,16 @@ def _client(router, prefix: str, vault: Path | None, profile_id: str = PROFILE_A
     with route_client(router, prefix, profile_id=profile_id,
                       master_db=master_db or _master_db(profile_id), profile_db=maker) as client:
         yield client
+
+
+def _raw_connect(vault: Path, key: bytes):
+    """Raw DBAPI connection the way the repo's migration tests open a vault."""
+    from core import migrations
+    if is_sqlcipher_available():
+        conn = get_sqlcipher_module().connect(str(vault))
+        conn.execute(f"PRAGMA key = \"x'{migrations._key_to_hex(key)}'\"")
+        return conn
+    return sqlite3.connect(vault)
 
 
 def _simulate_restart() -> None:
@@ -320,14 +331,14 @@ def test_hc_expa_008_profile_migration_matches_model(tmp_path, monkeypatch):
     vault, key = tmp_path / "vault.db", b"0" * 32
     migrations.run_profile_migration(vault, key)
     assert migrations.get_profile_current_revision(vault, key) == NEW_HEAD
-    with closing(sqlite3.connect(vault)) as conn:
+    with closing(_raw_connect(vault, key)) as conn:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(export_artifact)")}
     assert cols == set(ExportArtifact.__table__.columns.keys())
     config = migrations._get_alembic_config("profile")
     config.attributes["vault_path"] = vault
     config.attributes["encryption_key"] = key
     command.downgrade(config, PREV_HEAD)
-    with closing(sqlite3.connect(vault)) as conn:
+    with closing(_raw_connect(vault, key)) as conn:
         assert conn.execute("SELECT name FROM sqlite_master WHERE name='export_artifact'").fetchall() == []
     command.upgrade(config, "head")
     assert migrations.get_profile_current_revision(vault, key) == NEW_HEAD
