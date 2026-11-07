@@ -759,6 +759,12 @@ USER QUESTION: {question}"""
                     + "\n"
                 )
 
+        # The user's own question is NOT injection-filtered here, on purpose
+        # (owner decision QUESTION-INJECTION, 2026-11-06): it is the local
+        # user's own text, not untrusted third-party text. Session history
+        # (_sanitize_history) and retrieved chunks (_sanitize_chunk_text) are
+        # filtered. The backstop is the output side: the pre-model advice
+        # gate, [cite:N] citation validation and the prohibited-pattern check.
         prompt = self.SYSTEM_PROMPT.format(
             context=context,
             question=question,
