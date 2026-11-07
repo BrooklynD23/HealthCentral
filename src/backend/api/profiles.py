@@ -49,7 +49,7 @@ from core.auth import (
     close_profile_database_on_logout,
     ProfileDbSession,
 )
-from core.audit import audit_intent, create_audit_log, log_profile_event
+from core.audit import audit_and_commit, audit_intent, create_audit_log, log_profile_event
 from models import (
     AdherencePattern,
     AuditLog,
@@ -326,7 +326,14 @@ async def list_profiles(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Profile).order_by(Profile.created_at.desc()))
     profiles = result.scalars().all()
 
-    return [ProfileListResponse.from_model(p) for p in profiles]
+    response = [ProfileListResponse.from_model(p) for p in profiles]
+    # AUD-02: unauthenticated entry point, so there is no actor to record.
+    # profile_id stays NULL; only the count is kept (display names are PHI).
+    await audit_and_commit(
+        db, create_audit_log, event_type="profile.list", action="profile.list",
+        entity_type="profile", details={"count": len(response)},
+    )
+    return response
 
 
 @router.post("/", response_model=ProfileCreateResponse, status_code=status.HTTP_201_CREATED)
@@ -511,7 +518,14 @@ async def get_current_profile(
             detail="Profile not found",
         )
 
-    return ProfileResponse.from_model(profile)
+    response = ProfileResponse.from_model(profile)
+    # AUD-02 / C-AUDIT-1: a profile read is audited. audit_and_commit is
+    # fail-closed: if the row cannot be written, the profile is not served.
+    await audit_and_commit(
+        db, log_profile_event, event="view",
+        profile_id=profile.id, profile_name=profile.display_name,
+    )
+    return response
 
 
 @router.post("/logout")
@@ -558,6 +572,7 @@ async def logout(
 async def reset_synthetic_test_profile(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Reset data for the authenticated Playwright synthetic profile.
@@ -604,6 +619,14 @@ async def reset_synthetic_test_profile(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Synthetic profile reset failed: {exc}",
         ) from exc
+    # AUD-02: written only after the vault commit, so a failed reset leaves no
+    # row claiming it happened (HC-PAUD-004). Outside the try: an audit failure
+    # must not be reported as "Synthetic profile reset failed".
+    await audit_and_commit(
+        db, log_profile_event, event="test_reset",
+        profile_id=session.profile_id, profile_name=session.profile_name,
+        details={"count": len(_SYNTHETIC_RESET_MODELS)},
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -1066,7 +1089,14 @@ async def get_profile(
             detail="Profile not found",
         )
 
-    return ProfileResponse.from_model(profile)
+    response = ProfileResponse.from_model(profile)
+    # AUD-02 / C-AUDIT-1: a profile read is audited. audit_and_commit is
+    # fail-closed: if the row cannot be written, the profile is not served.
+    await audit_and_commit(
+        db, log_profile_event, event="view",
+        profile_id=profile.id, profile_name=profile.display_name,
+    )
+    return response
 
 
 @router.post("/{profile_id}/lock", response_model=ProfileResponse)

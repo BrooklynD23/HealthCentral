@@ -426,11 +426,6 @@ UNAUDITED_ROUTES: dict[str, str] = {
         "no profile data: an OS toast with the request text, nothing read",
     "api/notifications.py::get_scheduler_status":
         "no profile data: process-wide scheduler state and counts",
-    # E-2 owns api/profiles.py; its stale-entry failure makes E-2 delete these.
-    "api/profiles.py::list_profiles": "E-2 owns it (OG-1, Q-AUD-LIST)",
-    "api/profiles.py::get_current_profile": "E-2 owns it (OG-1, Q-AUD-LIST)",
-    "api/profiles.py::reset_synthetic_test_profile": "E-2 owns it (OG-1, Q-AUD-LIST)",
-    "api/profiles.py::get_profile": "E-2 owns it (OG-1, Q-AUD-LIST)",
     # Task 3 waits on the open L0 ruling PROVIDER-AUDIT.
     "api/model_settings.py::set_llm_provider":
         "process-wide runtime switch, no profile data; pending L0 ruling PROVIDER-AUDIT",
