@@ -36,6 +36,7 @@ from .memory_item import MemoryItem
 from .model_settings import UserModelSettings
 from .observation import Observation
 from .pinboard import Pinboard, PinboardItem
+from .export_artifact import ExportArtifact
 from .profile import Profile
 from .response_feedback import ResponseFeedback
 
@@ -83,6 +84,7 @@ __all__ = [
     # Pinboards (per-profile, HC-M20)
     "Pinboard",
     "PinboardItem",
+    "ExportArtifact",
     # Response feedback (per-profile)
     "ResponseFeedback",
 ]

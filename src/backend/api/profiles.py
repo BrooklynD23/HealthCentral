@@ -66,6 +66,7 @@ from models import (
     DoseTaken,
     EarnedBadge,
     Embedding,
+    ExportArtifact,
     LabInterpretation,
     Medication,
     MedicationSchedule,
@@ -152,6 +153,7 @@ _SYNTHETIC_RESET_MODELS = (
     EarnedBadge,  # FK -> badge_definition (the parent is kept)
     DonatedRecord,
     DonationConsent,
+    ExportArtifact,  # no FK; transient export downloads (C-GC1)
 )
 
 # Runtime tables from modules/search.py. They are not ORM models and exist only

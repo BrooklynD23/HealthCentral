@@ -6,4 +6,4 @@ assertion is weakened. A later profile migration edits this one line instead of
 every test that names the head (C-PMIG carrier, lane C section 3.0).
 """
 
-PROFILE_HEAD: str = "018_ocr_opt_in"
+PROFILE_HEAD: str = "019_export_artifacts"
