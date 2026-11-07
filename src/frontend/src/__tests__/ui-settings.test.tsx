@@ -28,6 +28,7 @@
  *   HC-UISET-021  those two reads start when the section mounts: a press after they settle renders no skeleton, a press before them does, and a failed read is asked again on the press
  *   HC-UISET-022  Current Status shows the break-glass warning by the External API row (D12), on the same conditions as Assistant & privacy
  *   HC-UISET-023  the press renders the button at once and the panels after it, the tier card alone, then the other cards in two commits, in document order
+ *   HC-UISET-025  Current Status shows Checking… while the External API read is pending, never Off, and the badge keeps its box across the words
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -1326,10 +1327,15 @@ describe('HC-UISET-013: Current Status does not call an unread External API sett
     expect(within(row).queryByText('Off')).not.toBeInTheDocument();
   });
 
-  it('shows Off and Enabled when it is read', async () => {
+  // Off is what the row said before the reply (and what the unread default still reads), so a wait for Off proves nothing.
+  // An Enabled reply can only be read from the reply: wait for it, then Off must be gone.
+  it('shows Enabled, and not Off, once the reply has landed', async () => {
+    externalApi = { ...externalApi, use_external_api: true };
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
-    await waitFor(() => expect(within(screen.getByText('External API').closest('div')!).getByText('Off')).toBeInTheDocument());
+    const row = screen.getByText('External API').closest('div')!;
+    await waitFor(() => expect(within(row).getByText('Enabled')).toBeInTheDocument());
+    expect(within(row).queryByText('Off')).not.toBeInTheDocument();
   });
 });
 
@@ -1408,6 +1414,72 @@ describe('HC-UISET-022: Current Status shows the break-glass warning by the Exte
     expect(screen.queryByText(anyWarningText)).not.toBeInTheDocument();
     await openAdvanced(user);
     expect((await findWarning('alert')).textContent).toBe(WARNING_ACTIVE);
+  });
+});
+
+describe('HC-UISET-025: Current Status shows Checking… while the External API read is pending', () => {
+  const externalRow = () => screen.getByText('External API').closest('div')!;
+  const widthClasses = (el: HTMLElement) => el.className.split(/\s+/).filter((c) => /^min-w-|^w-|^text-center$/.test(c)).sort();
+  // While the read is pending the setting is unknown, so the badge is the neutral one: not green (Enabled), not amber (Unknown).
+  const expectNeutralVariant = (el: HTMLElement) => {
+    expect(el.className).toContain('bg-surface-muted');
+    expect(el.className).toContain('text-ink-secondary');
+    expect(el.className).not.toMatch(/status-verified|status-caution/);
+  };
+
+  // The read is held by hand, so the row is looked at while the request is on its way.
+  const holdExternalApiRead = () => {
+    const answer = vi.mocked(api.apiGet).getMockImplementation()!;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    vi.mocked(api.apiGet).mockImplementation(async (path: string, params?: Record<string, string>) => {
+      if (path === '/settings/model/external-api') await gate;
+      return answer(path, params);
+    });
+    return release;
+  };
+
+  it.each([
+    [true, 'Enabled'],
+    [false, 'Off'],
+  ])('use_external_api %s: Checking… while pending, then %s, in the same box', async (value, word) => {
+    externalApi = { ...externalApi, use_external_api: value };
+    const release = holdExternalApiRead();
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/external-api'));
+
+    const pending = within(externalRow()).getByText('Checking…');
+    for (const other of ['Off', 'Enabled', 'Unknown']) {
+      expect(within(externalRow()).queryByText(other), `${other} while the read is pending`).not.toBeInTheDocument();
+    }
+    // jsdom has no layout, so the box is the class string: a minimum width and centred text, the same after the reply.
+    expectNeutralVariant(pending);
+    const pendingBox = widthClasses(pending);
+    expect(pendingBox.some((c) => c.startsWith('min-w-') || c.startsWith('w-'))).toBe(true);
+    expect(pendingBox).toContain('text-center');
+
+    await act(async () => { release(); });
+    const settled = await within(externalRow()).findByText(word);
+    expect(within(externalRow()).queryByText('Checking…')).not.toBeInTheDocument();
+    expect(widthClasses(settled)).toEqual(pendingBox);
+  });
+
+  it('a failed read: Checking… gives way to Unknown, in the same box', async () => {
+    externalApiFails = true;
+    const release = holdExternalApiRead();
+    const { user } = renderSettings('/settings?section=advanced');
+    await openAdvanced(user);
+    await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/external-api'));
+    const pendingBadge = within(externalRow()).getByText('Checking…');
+    expectNeutralVariant(pendingBadge);
+    const pendingBox = widthClasses(pendingBadge);
+    expect(within(externalRow()).queryByText('Off')).not.toBeInTheDocument();
+
+    await act(async () => { release(); });
+    const settled = await within(externalRow()).findByText('Unknown');
+    expect(within(externalRow()).queryByText('Checking…')).not.toBeInTheDocument();
+    expect(widthClasses(settled)).toEqual(pendingBox);
   });
 });
 
