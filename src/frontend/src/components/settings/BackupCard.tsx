@@ -153,7 +153,7 @@ export function BackupCard() {
     setRestoringId(null);
     setPassword('');
     setPhrase('');
-    setError(null);
+    // The error stays: after a partial restore it is the patient's only notice, and it moves to the card (main's behaviour).
   };
 
   const handleScheduleChange = (frequency: BackupFrequency) => {

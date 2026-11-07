@@ -293,9 +293,34 @@ describe('HC-UISEC-003 the recovery code keeps its groups whole', () => {
   });
 });
 
-describe('HC-UISEC-003 closing the restore dialog drops its error', () => {
-  it('does not leave "Incorrect password" in the card after Escape', async () => {
-    // Would not notice: an error that mounts again in the card, out of context, once the dialog that raised it is gone.
+describe('HC-UISEC-003 closing the restore dialog keeps its error', () => {
+  const PARTIAL =
+    'Your data was replaced from the backup, but the profile record could not be updated. Sign in with the password ' +
+    'that was in use when this backup was made. 2 safety copy/copies of the replaced files were kept alongside them.';
+
+  it.each([['Escape'], ['Cancel']])('keeps the partial-restore warning in the card as role=alert after %s', async (how) => {
+    // Would not notice: a close handler that clears the error. After a partial restore (api/backup.py 500) the session
+    // stays open and this message is the patient's only notice that their data was replaced.
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockRejectedValueOnce(new Error(PARTIAL));
+    renderSection();
+    await user.click((await screen.findAllByRole('button', { name: /restore…/i }))[0]);
+    const dialog = await screen.findByRole('alertdialog');
+    await user.type(within(dialog).getByLabelText(/confirm your password/i), 'WrongHorse1');
+    await user.type(within(dialog).getByPlaceholderText(BACKUP_RESTORE_CONFIRMATION), BACKUP_RESTORE_CONFIRMATION);
+    await user.click(within(dialog).getByRole('button', { name: /restore this backup/i }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(PARTIAL);
+
+    if (how === 'Escape') await user.keyboard('{Escape}');
+    else await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(), { timeout: 2000 });
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(PARTIAL);
+    expect(alert).toHaveAttribute('data-t0');
+  });
+
+  it('clears the error when the next restore is opened', async () => {
+    // Would not notice: a stale message from the previous attempt shown inside the next dialog.
     const user = userEvent.setup();
     vi.mocked(api.apiPost).mockRejectedValueOnce(new Error('Incorrect password'));
     renderSection();
@@ -305,10 +330,12 @@ describe('HC-UISEC-003 closing the restore dialog drops its error', () => {
     await user.type(within(dialog).getByPlaceholderText(BACKUP_RESTORE_CONFIRMATION), BACKUP_RESTORE_CONFIRMATION);
     await user.click(within(dialog).getByRole('button', { name: /restore this backup/i }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(/incorrect password/i);
-
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(), { timeout: 2000 });
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await user.click((await screen.findAllByRole('button', { name: /restore…/i }))[0]);
+    const next = await screen.findByRole('alertdialog');
+    expect(within(next).queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByText(/incorrect password/i)).not.toBeInTheDocument();
   });
 });

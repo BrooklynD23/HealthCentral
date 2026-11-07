@@ -9,7 +9,7 @@
  *  - Gate G        G1, G2, G3, G5, G6, G7, G9 and G10 on the security section and its two dialogs.
  *
  * Everything here goes through HTTP to the real backend (e2e/support/start-backend.mjs); there is no page.route and no
- * mock of auth or of a status code. Run it as recipe 1 in e2e/README.md:
+ * mock of auth or of a status code, except the G3 test, which is mocked (see the comment above it). Run it as recipe 1 in e2e/README.md:
  *   HC_E2E_BACKEND_PYTHON=<python with the backend requirements> TMPDIR=/dev/shm npx playwright test e2e/ui-security.spec.ts --project=chromium
  *
  * SAFETY: no test deletes or restores over the shared E2E profile (E2E_PROFILE_NAME). A success-path delete or
@@ -454,10 +454,9 @@ for (const theme of THEMES) {
     // G7: the two wrong passwords above answer 401, which the browser logs as a failed resource load. That is the
     // behaviour under test, so only a console error that is not one of those fails the gate.
     const report = guard.report();
-    expect(
-      report.consoleErrors.filter((text) => !/status of 401/.test(text)),
-      'G7 console errors'
-    ).toEqual([]);
+    const is401 = (text: string) => /status of 401/.test(text);
+    expect(report.consoleErrors.filter(is401), 'G7: exactly the two wrong-password 401s').toHaveLength(2);
+    expect(report.consoleErrors.filter((text) => !is401(text)), 'G7 console errors').toEqual([]);
     expect(report.externalRequests, 'G7 non-localhost requests').toEqual([]);
   });
 }
