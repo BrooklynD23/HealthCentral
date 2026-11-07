@@ -15,9 +15,9 @@
  * What remains here is the *inverse* projection — "which medications were
  * active when this result was collected" — which ResultsPage needs (it imports
  * `findActiveMedications`) and which no endpoint serves. It filters
- * medications, not observations, so the verified-only rule has nothing to apply to. If a
- * `GET /observations/{id}/medications` endpoint ever exists, this should go the
- * same way `findObservationsDuringMedication` did.
+ * medications, not observations, so the verified-only rule has nothing to
+ * apply to. If a `GET /observations/{id}/medications` endpoint ever exists,
+ * this should go the same way `findObservationsDuringMedication` did.
  */
 
 import type {
