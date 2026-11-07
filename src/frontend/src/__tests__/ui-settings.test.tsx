@@ -1420,6 +1420,12 @@ describe('HC-UISET-022: Current Status shows the break-glass warning by the Exte
 describe('HC-UISET-025: Current Status shows Checking… while the External API read is pending', () => {
   const externalRow = () => screen.getByText('External API').closest('div')!;
   const widthClasses = (el: HTMLElement) => el.className.split(/\s+/).filter((c) => /^min-w-|^w-|^text-center$/.test(c)).sort();
+  // While the read is pending the setting is unknown, so the badge is the neutral one: not green (Enabled), not amber (Unknown).
+  const expectNeutralVariant = (el: HTMLElement) => {
+    expect(el.className).toContain('bg-surface-muted');
+    expect(el.className).toContain('text-ink-secondary');
+    expect(el.className).not.toMatch(/status-verified|status-caution/);
+  };
 
   // The read is held by hand, so the row is looked at while the request is on its way.
   const holdExternalApiRead = () => {
@@ -1448,6 +1454,7 @@ describe('HC-UISET-025: Current Status shows Checking… while the External API 
       expect(within(externalRow()).queryByText(other), `${other} while the read is pending`).not.toBeInTheDocument();
     }
     // jsdom has no layout, so the box is the class string: a minimum width and centred text, the same after the reply.
+    expectNeutralVariant(pending);
     const pendingBox = widthClasses(pending);
     expect(pendingBox.some((c) => c.startsWith('min-w-') || c.startsWith('w-'))).toBe(true);
     expect(pendingBox).toContain('text-center');
@@ -1464,7 +1471,9 @@ describe('HC-UISET-025: Current Status shows Checking… while the External API 
     const { user } = renderSettings('/settings?section=advanced');
     await openAdvanced(user);
     await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith('/settings/model/external-api'));
-    const pendingBox = widthClasses(within(externalRow()).getByText('Checking…'));
+    const pendingBadge = within(externalRow()).getByText('Checking…');
+    expectNeutralVariant(pendingBadge);
+    const pendingBox = widthClasses(pendingBadge);
     expect(within(externalRow()).queryByText('Off')).not.toBeInTheDocument();
 
     await act(async () => { release(); });
