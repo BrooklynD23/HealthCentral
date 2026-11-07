@@ -48,7 +48,7 @@ const EVENT_META: Record<
   TimelineEventType,
   { label: string; icon: LucideIcon; link: string; linkLabel: string }
 > = {
-  lab_results: { label: 'Lab results', icon: FlaskConical, link: '/trends', linkLabel: 'View trends' },
+  lab_results: { label: 'Lab results', icon: FlaskConical, link: '/results', linkLabel: 'View trends' },
   imaging: { label: 'Imaging', icon: ScanLine, link: '/inbox', linkLabel: 'Open in inbox' },
   pathology: { label: 'Pathology', icon: Microscope, link: '/inbox', linkLabel: 'Open in inbox' },
   visit_notes: { label: 'Visit note', icon: FileText, link: '/inbox', linkLabel: 'Open in inbox' },

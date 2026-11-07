@@ -369,7 +369,7 @@ export function MedicationDetail() {
               {relatedObservations.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-4 text-center" data-testid="related-labs-empty">
                   <p className="text-sm text-ink-tertiary">No lab results collected during this medication period.</p>
-                  <Button variant="secondary" size="sm" onClick={() => navigate('/trends')}>
+                  <Button variant="secondary" size="sm" onClick={() => navigate('/results')}>
                     View results
                   </Button>
                 </div>
@@ -378,7 +378,7 @@ export function MedicationDetail() {
                   {relatedObservations.slice(0, 8).map((obs) => (
                     <Link
                       key={obs.id}
-                      to={`/trends?analyte=${obs.analyte_canonical}`}
+                      to={`/results?analyte=${obs.analyte_canonical}`}
                       className="flex items-center justify-between py-2.5 hover:bg-surface-muted/50 -mx-2 px-2 rounded-lg transition-colors"
                       aria-label={`View ${obs.analyte_canonical} trend`}
                     >
