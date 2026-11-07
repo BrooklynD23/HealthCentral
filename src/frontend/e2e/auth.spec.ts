@@ -58,11 +58,11 @@ test.describe('Authentication Flow', () => {
     await page.getByLabel(/saved this recovery code/i).check();
     await continueButton.click();
 
-    // Wait for navigation to inbox
-    await expect(page).toHaveURL(/\/inbox/, { timeout: 10000 });
+    // Wait for navigation to overview
+    await expect(page).toHaveURL(/\/overview/, { timeout: 10000 });
 
     // Inbox should load
-    await expect(page.getByText(/documents|inbox/i).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1, exact: true })).toBeVisible();
   });
 
   test('E2E-AUTH-002: Missing password blocks submit', async ({ page }) => {

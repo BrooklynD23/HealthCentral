@@ -105,7 +105,7 @@ test.describe('SESSION-REENTRY Lock now', () => {
     await loginResponse;
     await documentsResponse;
 
-    await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
+    await expect(page).toHaveURL(/\/overview/, { timeout: 15000 });
     await expect(page.getByText('Your session has ended')).toHaveCount(0);
   });
 });

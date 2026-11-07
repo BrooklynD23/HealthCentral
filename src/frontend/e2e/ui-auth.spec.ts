@@ -123,11 +123,11 @@ async function fillUnlockForm(page: Page): Promise<void> {
   await page.getByLabel('Unlock password').fill(E2E_PROFILE_PASSWORD);
 }
 
-/** Submits the unlock card and waits for the real login to land on /inbox. */
+/** Submits the unlock card and waits for the real login to land on /overview. */
 async function submitUnlock(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Unlock', exact: true }).click();
-  await expect(page).toHaveURL(/\/inbox/, { timeout: 30000 });
-  await expect(page.getByRole('heading', { name: 'Document Inbox' })).toBeVisible({ timeout: 30000 });
+  await expect(page).toHaveURL(/\/overview/, { timeout: 30000 });
+  await expect(page.getByRole('heading', { name: 'Overview', level: 1, exact: true })).toBeVisible({ timeout: 30000 });
 }
 
 /** Lowest opacity on the name field and its ancestors: below 1 while S1 is still running. -1 if there is no field. */
@@ -435,7 +435,7 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     expect(inp, 'G3 unlock submit').toBeLessThan(200);
   });
 
-  test('G5 reduced motion: no transform 50 ms after the unlock submit lands on /inbox (timing)', async ({
+  test('G5 reduced motion: no transform 50 ms after the unlock submit lands on /overview (timing)', async ({
     page,
     request,
   }) => {
@@ -617,8 +617,8 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     await page.getByLabel('Unlock password').fill(E2E_PROFILE_PASSWORD);
     await watchLift(page);
     await page.getByRole('button', { name: 'Unlock', exact: true }).click();
-    await expect(page).toHaveURL(/\/inbox/, { timeout: 15000 });
-    await expect(page.getByRole('heading', { name: 'Document Inbox' })).toBeVisible();
+    await expect(page).toHaveURL(/\/overview/, { timeout: 15000 });
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1, exact: true })).toBeVisible();
   }
 
   async function documentHoldsPassword(page: Page): Promise<string[]> {
@@ -635,7 +635,7 @@ test.describe('HC-UIAUTH-003: the Lift on unlock', () => {
     }, E2E_PROFILE_PASSWORD);
   }
 
-  test('unlock lands on /inbox, the Lift ghost holds no form control or password, and it removes itself', async ({
+  test('unlock lands on /overview, the Lift ghost holds no form control or password, and it removes itself', async ({
     page,
     request,
   }) => {
