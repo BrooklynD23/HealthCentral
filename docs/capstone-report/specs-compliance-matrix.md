@@ -132,6 +132,8 @@ A document statement, owner preference, proposal, code comment, or legal conclus
 | MIG-03 | Declared FK actions are enforced | `TASK_LIST.md` SQL-FK-001; `recurring-failures.md:144` | `PRAGMA foreign_keys` set nowhere (comment `api/profiles.py:914`) | — | — | **gap** | owner-approved sequence and blast radius (branch record `fe31e78`); delete semantics **D5 decided 2026-09-27** (`owner-decisions-2026-09-27.md:14`; orphan report still reviewed before migration) | — |
 | MIG-04 | Test reset wipes every profile table | `api/profiles.py:477-531` docstring | deletes 16 models; omits ChatSession, ChatTurn, CarePlanTask, Pinboard, PinboardItem, ResponseFeedback and the FTS `search_records*` tables; production 404; name-prefix 403 | none (only caller: `src/frontend/e2e/support/auth.ts:51`) | none | **partial** | — (plan 07) | — |
 
+*Superseded 2026-11-06 (BATCH-1106C; the dated record is not rewritten):* row MIG-01 (profile 12, head `012_pinboards`, "parent checks only") is as of 2026-10-09 and row MIG-02 (the `tests/test_care_tasks.py:809,825` hard-codes of `012_pinboards`) is as of its audit date: the profile chain now has 18 revisions with head `018_ocr_opt_in` (`ls src/backend/migrations/profile/versions/`); `tests/test_migration_heads.py` (HC-MIGHEAD-001…003) enforces one head per chain; and an unversioned profile vault is matched to the oldest tied revision and then upgraded, not stamped to head (`core/migrations.py:651`, R2, #512). `tests/test_care_tasks.py` no longer contains `012_pinboards`.
+
 ## 9. Product claims
 
 | ID | Requirement | Source | Implementation | Tests | Gate | Status | Owner gate | Planned by |

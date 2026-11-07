@@ -1,8 +1,8 @@
 # QWEN3-4B-TIER: Qwen3-4B vs Phi-4-mini on CPU (measurement only)
 
-**Last Updated:** 2026-10-28
+**Last Updated:** 2026-11-06 (BATCH-1106C: llama-bench section and the batch-thread correction; the 2026-10-28 and 2026-11-06 re-run numbers are not rewritten); 2026-10-28
 **Owner:** repository owner
-**Status:** Partly met. Measured on CPU here: the judge preview, the chat subset and peak RSS. Not met: (1) `llama-bench` pp and tg at 4 and 8 threads for both models. That needs the owner to allow building the vendored llama.cpp, or to supply a prebuilt `llama-bench` binary. (2) A pp512 re-run on a quiet box. The first set was measured on a loaded box, and its pp512 cells are marked not usable for comparison. The original 2026-10-22 40-text judge set is unavailable, so the judge rows here cannot be compared with that run. No product code, test, config, flag or default changed. No pytest run. No queue, count slot or ask-first file edited. No recommendation is made here: CPU-MODEL-FINAL decides which model becomes the long-term CPU default from this table. **Update 2026-11-06:** item (2), the quiet-box pp512 re-run, is done by L0; see "Quiet-box re-run 2026-11-06 (L0)" below. The 2026-10-28 numbers above are unchanged.
+**Status:** Partly met. Measured on CPU here: the judge preview, the chat subset and peak RSS. Not met: (1) `llama-bench` pp and tg at 4 and 8 threads for both models. That needs the owner to allow building the vendored llama.cpp, or to supply a prebuilt `llama-bench` binary. (2) A pp512 re-run on a quiet box. The first set was measured on a loaded box, and its pp512 cells are marked not usable for comparison. The original 2026-10-22 40-text judge set is unavailable, so the judge rows here cannot be compared with that run. No product code, test, config, flag or default changed. No pytest run. No queue, count slot or ask-first file edited. No recommendation is made here: CPU-MODEL-FINAL decides which model becomes the long-term CPU default from this table. **Update 2026-11-06:** item (2), the quiet-box pp512 re-run, is done by L0; see "Quiet-box re-run 2026-11-06 (L0)" below. The 2026-10-28 numbers above are unchanged. **Update 2026-11-06 (BATCH-1106C):** `llama-bench` is now done (section "llama-bench b10453, 2026-11-06" below); the pp512 numbers of both `qwen_tier.py` runs ran prompt processing at 24 batch threads (see the correction note in that section); the follow-up `llama-bench` at 12 and 24 threads is done (same section); `llama-bench` is done as measured and the row stays partly met (the 2026-10-22 judge set is unavailable).
 **Refresh Trigger:** a change to the GGUF files or their pinned commits, to `held_out_dev.json`, to the judge prompt or its parser, to the chat prompts, or to `JUDGE-THINK` (`InferenceConfig.think`).
 
 Plan: [QWEN3-4B-TIER](../../plans/2026-10-22-mvp-rows-plan.md#qwen3-4b-tier--measure-qwen3-4b-on-cpu-as-the-candidate-long-term-default-no-product-code). Queue row: [queue.md](../../plans/2026-10-15-build-program/queue.md) (`QWEN3-4B-TIER`). Judge context: [judge research](../../research/2026-10-22-judge-laya/00-README.md). Baseline for the KV and MM-4 prompts: [kv-prefix-measure.md](../2026-10-22/kv-prefix-measure.md) and [kv-numctx-verify](../2026-10-27/).
@@ -158,6 +158,52 @@ Added 2026-11-06 (BATCH-1106B). It answers the open item "pp512 re-run on a quie
 **Observation, untested.** 4 and 8 threads give the same throughput for both models. That suggests a memory-bandwidth limit, or a llama-cpp-python build that does not use the extra threads. Neither was tested here.
 
 **Status.** The row stays partly met. Still open: `llama-bench` (needs owner permission to build the vendored llama.cpp, or a prebuilt binary) and the 2026-10-22 judge set (unavailable). No recommendation is made here.
+
+## llama-bench b10453, 2026-11-06 (L0)
+
+Added 2026-11-06 (BATCH-1106C). It answers the open item "`llama-bench`". The earlier numbers in this file are not rewritten.
+
+**Permission and provenance.**
+- Owner, in chat, 2026-11-06 (verbatim as L0 relayed it): "Run Haiku 5.5 research on prebuilt?". A Haiku 5.5 xhigh research agent ran read-only, with no download.
+- Owner answer LLAMA-BENCH-DL (gate name assigned by L0), AskUserQuestion, 2026-11-06, verbatim label "Yes, download and run it (Recommended)" ([owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md) row LLAMA-BENCH-DL).
+- Prebuilt release b10453 = llama.cpp commit `3cb7ffb1`. The vendored llama-cpp-python 0.3.35 pins `4df29be4`; b10453 is that plus one CI-only commit (Haiku research, as L0 recorded it).
+- The downloaded asset's sha256 (`550eb155...59fb4`, truncated as L0 recorded it) was verified OK on download. `llama-bench` sha256 `17691de9...` (truncated as L0 recorded it).
+- Script: `~/hc-quiet-logs/tools/llama_bench_b10453.sh`. Logs: `~/hc-quiet-logs/qwen3-4b-tier/llama-bench-r1106`. Both are on the model host and not in the repo.
+
+**Method.** CPU only, `-ngl 0 -fa off`, `-r 3`, pp512 and tg128, at 4 and 8 threads. The CPU backend selected at runtime was `libggml-cpu-haswell.so`. The prechecks passed and the 1-minute load average was 1.41 at the start. Same two GGUFs as above.
+
+**Results** (tok/s, mean ± stddev over 3 reps).
+
+| Model | Threads | pp512 | tg128 |
+|---|---|---|---|
+| Qwen3-4B Q4_K_M | 4 | 33.80 ± 0.81 | 7.29 ± 0.30 |
+| Qwen3-4B Q4_K_M | 8 | 58.08 ± 1.92 | 8.29 ± 0.50 |
+| Phi-4-mini Q4_K_M | 4 | 38.70 ± 1.50 | 8.10 ± 0.52 |
+| Phi-4-mini Q4_K_M | 8 | 58.87 ± 1.13 | 8.82 ± 0.08 |
+
+**Not comparable with the llama-cpp-python runs for pp.** `qwen_tier.py` sets `n_threads` only, so llama-cpp-python's `n_threads_batch` defaulted to `cpu_count`, which is 24 on this host. `llama-bench -t` sets both. That would explain why the 4 and 8 thread rows of the quiet-box re-run are flat for pp (about 121 and 128): both ran prompt processing at 24 threads.
+
+**Correction to the earlier sections (2026-11-06, BATCH-1106C).** The `qwen_tier.py` pp512 figures, in the 2026-10-28 run and in the 2026-11-06 quiet-box re-run, ran prompt processing at `n_threads_batch` = 24 (llama-cpp-python's default, `cpu_count`). Their "threads" column applies to generation (tg) only. The "Observation, untested" paragraph of the re-run (a memory-bandwidth limit, or a build that does not use the extra threads) is therefore partly explained for pp. The 2026-10-28 and 2026-11-06 tables are left as recorded.
+
+**Not explained.** The tg128 gap at 8 threads is 8.3 (llama-bench, Qwen3-4B) against 14.3 (llama-cpp-python re-run); for Phi-4-mini 8.8 against 15.1. Candidates, untested: the prebuilt `haswell` kernel against the local build, or the load at the time. No cause is claimed.
+
+**Follow-up at 12 and 24 threads (done 2026-11-06, BATCH-1106C).** Script `~/hc-quiet-logs/tools/llama_bench_t24.sh`; logs `~/hc-quiet-logs/qwen3-4b-tier/llama-bench-r1106/{qwen3,phi4}_t24.log`, both `EXIT=0`, "lines expected=2 bad=0". Same flags as the 4 and 8 thread run (`-ngl 0 -fa off -r 3`, CPU, b10453). `quiet_run` prechecks passed after 21 s and 204 s, with the 1-minute load at 1.42 and 1.45 at the start; the 5-minute load was 9.59 just before the Phi-4-mini line.
+
+| Model | Threads | pp512 | tg128 |
+|---|---|---|---|
+| Qwen3-4B Q4_K_M | 12 | 79.60 ± 5.52 | 6.97 ± 0.24 |
+| Qwen3-4B Q4_K_M | 24 | 53.82 ± 4.03 | 1.57 ± 0.29 |
+| Phi-4-mini Q4_K_M | 12 | 70.07 ± 2.04 | 9.30 ± 0.07 |
+| Phi-4-mini Q4_K_M | 24 | 61.96 ± 5.17 | 2.32 ± 0.08 |
+
+Reading, untested:
+- At matched threads the release `llama-bench` is slower than the local llama-cpp-python build (pp512 70 to 80 against 121 to 128). The likely cause is the release's runtime-selected generic `libggml-cpu-haswell.so` kernels against the local build's native tuning (`GGML_NATIVE` default) on the Ryzen 9 5900X. This was not tested.
+- At 24 threads (SMT) tg collapses, consistent with oversubscription.
+- Background agent load on the box may also have lowered the numbers.
+
+The `llama-bench` numbers are not comparable one-for-one with the `qwen_tier.py` figures. Under `llama-bench` the model ranking is close: Phi-4-mini is slightly faster at tg, and Qwen3-4B slightly faster at pp at 12 threads. No further runs are planned.
+
+**Status.** `llama-bench` is done as measured. The row stays partly met: the 2026-10-22 judge set is unavailable.
 
 ## Appendix: `qwen_tier.py` (scratch, not committed)
 

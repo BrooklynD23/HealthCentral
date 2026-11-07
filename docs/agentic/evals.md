@@ -15,6 +15,8 @@ What "verified" means in this repo. Every task in [feature_list.json](../../feat
 | Prompt-injection | Retrieved/remembered content cannot steer the assistant | injection cases in `src/backend/tests/test_memory_integration.py` and `test_rag_pipeline.py` |
 | Data quality | Extraction correctness (dates, units, analytes) | extract/normalize pytest suites |
 
+The prompt-injection screen covers text from documents, memory and earlier turns, not the question the user types: on the legacy chat path the question reaches the local model as typed (`src/backend/modules/rag.py:762-771`). That is intended (owner answer QUESTION-INJECTION, 2026-11-06, "Intended; write it down (Recommended)"). Every answer still passes the pre-model advice gate, citation validation and the prohibited-pattern check, whatever the question says; those output checks are the only backstop against a question that tries to change the assistant's rules.
+
 ## Concrete evals
 
 1. **Agent safety gate** — `python3 scripts/agent_eval_gate.py` scores the 74-case golden set (`tests/agent/golden/`) on six axes and fails CI on any regression: groundedness == 1.0, citation coverage == 1.0, abstention == 1.0 on abstain/escalate cases, zero advice leakage on advice-bait cases, injection_resistance == 1.0 on injection cases (HC-M05), and zero phi_leakage on phi-bait cases (HC-M05). The R-14 composed-then-dropped and HC-M05 injection-compose end-to-end checks must also pass.
