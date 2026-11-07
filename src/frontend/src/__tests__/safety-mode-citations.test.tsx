@@ -8,7 +8,9 @@
  *
  * What these tests would not notice:
  * - whether the real agent path sends a locator rather than a quote in text_snippet (HC-SMC-002 builds the
- *   shapes by hand from be/api/assistant.py `_to_api_citation`; HC-SMC-005 asks the real backend);
+ *   shapes by hand from be/api/assistant.py `_to_api_citation`; HC-SMC-005 asks the real backend and asserts
+ *   that every blockquote it draws holds whitespace, i.e. words and not a locator);
+ * - the card's alwaysShowSources branch in a real browser (only jsdom drives it: no e2e path renders it);
  * - layout: jsdom has no CSS, so a source block that overflows or hides behind another element passes here;
  * - the Results page's other cards (the panel interpretation card is out of scope: SAFETY-MODE-PANEL-CITATIONS);
  * - the stillness of the expanded view (the e2e stillness probe reads data-t0).
@@ -250,6 +252,13 @@ describe('SAFETY-MODE-CITATIONS', () => {
     expect(within(dialog).getByText(QUOTE_TWO)).toBeInTheDocument();
   });
 
+  // The shapes modules/interpret.py `_generate_citations` builds (:1112-1137): a knowledge-base label, an organisation
+  // name and a recommendation title. All three are names, never words quoted from a report, and none carries an
+  // observation id, so the card has no page to show.
+  const KB_TEXT = 'Biomarker knowledge: Hemoglobin';
+  const SOURCE_TEXT = 'American Heart Association';
+  const REC_TEXT = 'Eat iron-rich foods';
+
   describe('HC-SMC-004: the result card under the mode', () => {
     const interpretation: InterpretationResponse = {
       id: 'interp-1',
@@ -258,8 +267,9 @@ describe('SAFETY-MODE-CITATIONS', () => {
       severity_level: 'normal',
       advice_text: null,
       citations: [
-        { type: 'knowledge_base', id: 'kb-hgb', text: 'Hemoglobin carries oxygen in the blood.' },
-        { type: 'observation', id: 'obs-1', text: 'Hemoglobin 14.2 g/dL on the lab report.' },
+        { type: 'knowledge_base', id: 'kb-hgb', text: KB_TEXT },
+        { type: 'source', id: 'src-aha', text: SOURCE_TEXT },
+        { type: 'intervention', id: 'rec-iron', text: REC_TEXT },
       ],
       context: null,
       model_id: 'template-v1',
@@ -270,8 +280,6 @@ describe('SAFETY-MODE-CITATIONS', () => {
       viewed_at: null,
       created_at: '2026-01-01T00:00:00Z',
     };
-    const KB_TEXT = 'Hemoglobin carries oxygen in the blood.';
-    const OBS_TEXT = 'Hemoglobin 14.2 g/dL on the lab report.';
 
     function renderCard(alwaysShowSources?: boolean) {
       return render(
@@ -286,15 +294,15 @@ describe('SAFETY-MODE-CITATIONS', () => {
       );
     }
 
-    it('alwaysShowSources shows each source expanded, with its name, its quote and the page when known', () => {
+    it('alwaysShowSources shows each source expanded as a named source, never as a quotation', () => {
       const { container } = renderCard(true);
 
-      expect(screen.getByText(KB_TEXT)).toBeInTheDocument();
-      expect(screen.getByText(OBS_TEXT)).toBeInTheDocument();
-      expect(container).toHaveTextContent('Source: knowledge base');
-      // The observation's own page is known; a knowledge-base reference has none, and none is invented.
-      expect(container).toHaveTextContent('Source: observation, page 2');
-      expect(container.querySelectorAll('blockquote')).toHaveLength(2);
+      expect(container).toHaveTextContent(`Source: ${KB_TEXT}`);
+      expect(container).toHaveTextContent(`Source: ${SOURCE_TEXT}`);
+      expect(container).toHaveTextContent(`Source: ${REC_TEXT}`);
+      // A card citation is a name or a title, not words from the report: no quotation, and no page is invented.
+      expect(container.querySelectorAll('blockquote')).toHaveLength(0);
+      expect(container).not.toHaveTextContent(/page \d/);
       expect(screen.queryByLabelText(/^Citation 1: /)).toBeNull();
       expect(screen.queryByRole('dialog')).toBeNull();
       // The existing way to the report itself stays.
@@ -309,9 +317,10 @@ describe('SAFETY-MODE-CITATIONS', () => {
       const { container } = renderCard(flag);
 
       expect(screen.getByLabelText(`Citation 1: ${KB_TEXT}`)).toBeInTheDocument();
-      expect(screen.getByLabelText(`Citation 2: ${OBS_TEXT}`)).toBeInTheDocument();
+      expect(screen.getByLabelText(`Citation 2: ${SOURCE_TEXT}`)).toBeInTheDocument();
+      expect(screen.getByLabelText(`Citation 3: ${REC_TEXT}`)).toBeInTheDocument();
       expect(screen.queryByText(KB_TEXT)).toBeNull();
-      expect(container).not.toHaveTextContent('Source: knowledge base');
+      expect(container).not.toHaveTextContent(`Source: ${KB_TEXT}`); // the card's own footer also reads "Source: ..."
       expect(container.querySelectorAll('blockquote')).toHaveLength(0);
 
       await user.click(screen.getByLabelText(`Citation 1: ${KB_TEXT}`));
@@ -320,7 +329,6 @@ describe('SAFETY-MODE-CITATIONS', () => {
     });
   });
   describe('HC-SMC-004: the Results page hands the mode to its card', () => {
-    const KB_TEXT = 'Hemoglobin carries oxygen in the blood.';
     const stored = {
       id: 'interp-1',
       observation_id: 'obs-1',
@@ -373,8 +381,8 @@ describe('SAFETY-MODE-CITATIONS', () => {
     it('mode on: the Results card shows its source expanded', async () => {
       renderResults(true);
       expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
-      expect(await screen.findByText(KB_TEXT)).toBeInTheDocument();
-      expect(screen.getByText('Source: knowledge base')).toBeInTheDocument();
+      expect(await screen.findByText(`Source: ${KB_TEXT}`)).toBeInTheDocument();
+      expect(document.querySelectorAll('blockquote')).toHaveLength(0);
       expect(screen.queryByLabelText(/^Citation 1: /)).toBeNull();
     });
 

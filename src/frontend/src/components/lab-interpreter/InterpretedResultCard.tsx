@@ -37,7 +37,7 @@ interface InterpretedResultCardProps {
   /** The value this card interprets. With a doc_id, the card offers "Show source" (SOURCE-TRACE-WIRE). */
   observation?: Observation;
   /**
-   * Show each citation expanded (its name, its quote, the page when known) instead of as a chip. The caller sets it
+   * Show each citation expanded (as a named source line, never a quotation) instead of as a chip. The caller sets it
    * from the stricter safety mode (SAFETY-MODE-CITATIONS); the card never reads the mode itself. Absent or false is
    * today's chips.
    */
@@ -162,10 +162,12 @@ export function InterpretedResultCard({
                   alwaysShowSources ? (
                     <SourceBlock
                       key={`${citation.type}:${citation.id}:${i}`}
-                      name={citation.type.replace('_', ' ')}
-                      // The page belongs to the observation, so only a citation of that observation carries it.
-                      page={observation && citation.id === observation.id ? observation.source_page : null}
-                      quote={citation.text.trim() ? citation.text : null}
+                      // A card citation's text is a name or a title (modules/interpret.py _generate_citations): a
+                      // knowledge-base label, an organisation, a recommendation. It is shown as the source's name,
+                      // never as a quotation, and the backend sends no page for it.
+                      name={citation.text.trim() || citation.type.replace('_', ' ')}
+                      page={null}
+                      quote={null}
                     />
                   ) : (
                     <CitationTooltip
