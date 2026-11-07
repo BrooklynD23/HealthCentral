@@ -163,9 +163,9 @@ test.describe('SAFETY-MODE-CITATIONS sources without a click', () => {
     await expect(answer).toHaveCount(1, { timeout: 180_000 });
     await expect(page.locator('[data-testid="chat-message"][data-role="user"]')).toHaveCount(1);
 
-    // No click: the sources block and its "Source: name" line are on screen, and no popover is open.
+    // No click: the sources block and its "[N] Source: name" line are on screen, and no popover is open.
     await expect(answer.getByText('Sources:')).toBeVisible();
-    await expect(answer.getByText(/^Source: /).first()).toBeVisible();
+    await expect(answer.getByText(/^\[\d+\] Source: /).first()).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
     // The honesty rule on the real agent path: text_snippet is a locator or a row id there, so any quotation that is
