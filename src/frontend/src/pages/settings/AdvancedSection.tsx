@@ -576,7 +576,7 @@ function OcrCard() {
 
 function StatusCard() {
   const { data: settings } = useModelSettings();
-  const { data: externalApiData, isError: externalApiError } = useExternalApiSettings();
+  const { data: externalApiData, isError: externalApiError, isPending: externalApiPending } = useExternalApiSettings();
   const externalEnabled = externalApiData?.use_external_api ?? false;
 
   return (
@@ -599,9 +599,13 @@ function StatusCard() {
         </div>
         <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
           <span className="text-sm text-ink-secondary">External API</span>
-          {/* A failed read is not "Off": the setting is unknown, and the patient has to be told so. */}
-          <Badge variant={externalApiError ? 'caution' : externalEnabled ? 'verified' : 'default'} className="font-bold">
-            {externalApiError ? 'Unknown' : externalEnabled ? 'Enabled' : 'Off'}
+          {/* A failed read is not "Off": the setting is unknown, and the patient has to be told so. Nor is a read still on its way:
+              it says Checking… (the error is tested first). The fixed min-width keeps the box the same across the four words (G10). */}
+          <Badge
+            variant={externalApiError ? 'caution' : externalEnabled ? 'verified' : 'default'}
+            className="font-bold min-w-[5.5rem] justify-center text-center"
+          >
+            {externalApiError ? 'Unknown' : externalApiPending ? 'Checking…' : externalEnabled ? 'Enabled' : 'Off'}
           </Badge>
         </div>
         {/* D12: this row can read Enabled, so the warning is here as well as in Assistant & privacy, on the same conditions. */}
