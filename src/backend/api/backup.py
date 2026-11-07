@@ -13,7 +13,8 @@ correct. A backup is the opposite — it is the user's own full-fidelity
 record, going to their own machine, and a redacted backup cannot be restored,
 which defeats the entire feature. Backups, `GET /export/csv` and
 `GET /export/json` are the deliberately unredacted paths (the patient's own
-data, owner decision D3). Do not "fix" it to match `export.py`.
+data, owner decision D3). Do not "fix" the backup to match the redacted
+exports in `export.py`.
 
 **Restore is destructive and gated accordingly.** It overwrites live vaults, so
 it requires password re-auth plus a confirmation phrase, closes the profile
