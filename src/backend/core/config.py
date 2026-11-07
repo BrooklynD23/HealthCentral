@@ -80,7 +80,6 @@ class Settings(BaseSettings):
 
     # Security headers (OPS-003)
     security_headers_enabled: bool = True
-    audit_security_events_to_db: bool = False
 
     # Monitoring (OPS-001)
     metrics_enabled: bool = True

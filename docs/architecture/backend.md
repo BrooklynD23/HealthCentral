@@ -1,6 +1,6 @@
 # Backend Structure
 
-**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: profile head `018_ocr_opt_in`, chain counts, vault table list, `model_selector` reachability)
+**Last Updated:** 2026-11-06 (AUDIT-DB-SETTING-DEAD: removed the dead `audit_security_events_to_db` setting and `log_to_db` param; DOCS-AUDIT-1106: profile head `018_ocr_opt_in`, chain counts, vault table list, `model_selector` reachability)
 **Owner:** Project Lead
 **Refresh Trigger:** Middleware order changes, a router is added/removed, or a migration chain gains a head
 
@@ -25,7 +25,7 @@ flowchart TD
     CID --> SEC["SecurityHeadersMiddleware"]
     SEC --> RATE["RateLimitMiddleware<br/>sliding window"]
     RATE --> VAL["InputValidationMiddleware<br/>path/query sanity, body size → 413"]
-    VAL --> AUD["SecurityAuditMiddleware<br/>app log only, mutating methods<br/>(audit_security_events_to_db is passed but never read)"]
+    VAL --> AUD["SecurityAuditMiddleware<br/>app log only, mutating methods"]
     AUD --> TIME["TimingMiddleware<br/>p50/p95/p99"]
     TIME --> ROUTE["Route handler"]
 
