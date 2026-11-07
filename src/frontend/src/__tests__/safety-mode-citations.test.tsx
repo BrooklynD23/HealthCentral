@@ -17,13 +17,16 @@
  */
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { ExplainAssistant } from '@/pages/ExplainAssistant';
 import { ResultsPage } from '@/pages/ResultsPage';
 import { InterpretedResultCard } from '@/components/lab-interpreter/InterpretedResultCard';
+import { SafetyModeToggle } from '@/components/layout/SafetyModeToggle';
+import { AppToaster } from '@/components/ui/toast';
+import { toast } from 'sonner';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import type { InterpretationResponse, Observation, TrendData } from '@/services/types';
@@ -395,6 +398,131 @@ describe('SAFETY-MODE-CITATIONS', () => {
       await waitFor(() => expect(vi.mocked(api.apiGet)).toHaveBeenCalledWith(MODE_PATH));
       expect(screen.getByLabelText(`Citation 1: ${KB_TEXT}`)).toBeInTheDocument();
       expect(screen.queryByText(KB_TEXT)).toBeNull();
+    });
+  });
+
+  // HC-SMC-006: the failed load of the mode shows one toast, however many screens read it. The top bar's switch,
+  // the Ask page (one read for all its answers) and the Results page each call useSafetyMode(). A fixed toast id
+  // joins the calls that mount together; the Ask page's single read stops a new answer from reading again.
+  describe('HC-SMC-006: a failed load of the mode shows one toast', () => {
+    const LOAD_TOAST = "Couldn't load the stricter safety mode setting.";
+    const stored = {
+      id: 'interp-1',
+      observation_id: 'obs-1',
+      interpretation_text: 'Stored card text.',
+      severity_level: 'normal',
+      advice_text: null,
+      citations: [{ type: 'knowledge_base', id: 'kb-hgb', text: 'Biomarker knowledge: Hemoglobin' }],
+      context: null,
+      model_id: 'template-v1',
+      model_tier: 'template',
+      confidence_score: 0.9,
+      requires_physician_review: false,
+      physician_review_reason: null,
+      viewed_at: null,
+      created_at: '2026-01-01T00:00:00Z',
+    };
+    const trend: TrendData = {
+      analyte_canonical: 'hemoglobin',
+      analyte_display_name: 'Hemoglobin',
+      unit: 'g/dL',
+      ref_low: 13.5,
+      ref_high: 17.5,
+      data_points: [
+        { date: '2026-03-14T00:00:00', value: 14.2, unit: 'g/dL', is_abnormal: false, flag: null, doc_id: 'doc-1', extraction_confidence: 0.9, user_verified: true },
+      ],
+      summary: 'One measurement.',
+    };
+    const restoredTurns = [
+      { role: 'user', content: 'First question', turn_id: 't1' },
+      { role: 'assistant', content: 'First restored answer', turn_id: 't2' },
+      { role: 'user', content: 'Second question', turn_id: 't3' },
+      { role: 'assistant', content: 'Second restored answer', turn_id: 't4' },
+    ];
+
+    /** Every GET of the mode fails; everything else answers as the happy path does. */
+    function failModeLoad(options: { restored?: boolean } = {}) {
+      vi.mocked(api.apiGet).mockImplementation(async (url: string) => {
+        if (url === MODE_PATH) throw new Error('500');
+        if (url === '/observations/') return [HEMOGLOBIN];
+        if (url === '/assistant/sessions') {
+          return { sessions: options.restored ? [{ session_id: 'session-1' }] : [] };
+        }
+        if (url === '/assistant/sessions/session-1') {
+          return { session_id: 'session-1', title: null, turns: restoredTurns };
+        }
+        if (url.startsWith('/observations/trends/')) return trend;
+        if (url === '/settings/model/external-api') {
+          return { use_external_api: false, provider: '', model: '', api_key_configured: false };
+        }
+        if (url.includes('/interpretation')) return stored;
+        return [];
+      });
+    }
+
+    /** The top bar's switch beside a page, in one QueryClient, with the app's real toaster. */
+    function mountWithTopBar(page: ReactNode, route: string | { pathname: string; state: unknown }) {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+      return render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={[route]}>
+            <AppToaster />
+            <SafetyModeToggle />
+            {page}
+          </MemoryRouter>
+        </QueryClientProvider>
+      );
+    }
+
+    const modeGets = () => vi.mocked(api.apiGet).mock.calls.filter(([url]) => url === MODE_PATH).length;
+    /** Lets a late toast or a late GET land: a duplicate is something that happens after the first toast. */
+    const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 100)); });
+
+    beforeEach(() => {
+      toast.dismiss();
+    });
+
+    it('Ask: the top bar and two answers show one toast, and a new answer reads the mode no more', async () => {
+      failModeLoad();
+      const user = userEvent.setup();
+      mountWithTopBar(<ExplainAssistant />, '/explain');
+      await screen.findByText(LOAD_TOAST);
+      await settle();
+      const getsAfterFailedLoad = modeGets();
+
+      for (const question of ['First question', 'Second question']) {
+        vi.mocked(api.apiPost).mockResolvedValueOnce(answerWithTwoQuotes);
+        await user.type(screen.getByPlaceholderText('Ask about your results...'), question);
+        await user.click(screen.getByRole('button', { name: 'Send question' }));
+        await waitFor(() => expect(screen.getAllByText('Sources:').length).toBe(question === 'First question' ? 1 : 2));
+      }
+      await settle();
+
+      expect(screen.getAllByText('Sources:')).toHaveLength(2);
+      expect(screen.queryAllByText(LOAD_TOAST)).toHaveLength(1);
+      // The toast id alone would pass the line above: an answer must not read the mode itself.
+      expect(modeGets()).toBe(getsAfterFailedLoad);
+    });
+
+    it('Ask: a restored history of two answers shows one toast', async () => {
+      failModeLoad({ restored: true });
+      mountWithTopBar(<ExplainAssistant />, '/explain');
+      await screen.findByText('Second restored answer');
+      await screen.findByText(LOAD_TOAST);
+      await settle();
+
+      expect(screen.getAllByTestId('chat-message').filter((el) => el.getAttribute('data-role') === 'assistant')).toHaveLength(2);
+      expect(screen.queryAllByText(LOAD_TOAST)).toHaveLength(1);
+    });
+
+    it('Results: the top bar and the page show one toast', async () => {
+      failModeLoad();
+      mountWithTopBar(<ResultsPage />, { pathname: '/results', state: { explain: true } });
+      expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+      await screen.findByText(LOAD_TOAST);
+      await settle();
+
+      expect(screen.queryAllByText(LOAD_TOAST)).toHaveLength(1);
     });
   });
 });
