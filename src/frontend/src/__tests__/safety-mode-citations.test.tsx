@@ -207,8 +207,9 @@ describe('SAFETY-MODE-CITATIONS', () => {
     const sources = sourcesOf();
     await waitFor(() => expect(within(sources).getByText(QUOTE_ONE)).toBeInTheDocument());
     expect(within(sources).getByText(QUOTE_TWO)).toBeInTheDocument();
-    expect(sources).toHaveTextContent('Source: Quest Lab Report, page 2');
-    expect(sources).toHaveTextContent('Source: Medical Reference, page 5');
+    // Each expanded line keeps the [N] of its chip and of the answer text (index + 1).
+    expect(sources).toHaveTextContent('[1] Source: Quest Lab Report, page 2');
+    expect(sources).toHaveTextContent('[2] Source: Medical Reference, page 5');
     // Nothing is waiting behind a click: no popover is open and none is needed.
     expect(screen.queryByRole('dialog')).toBeNull();
     // The two real quotes are quotations.
