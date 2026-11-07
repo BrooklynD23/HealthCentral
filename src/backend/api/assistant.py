@@ -433,6 +433,7 @@ async def _effective_use_memory(
 async def list_sessions(
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List all chat sessions for the authenticated profile, newest first."""
     profile_id = session.profile_id
@@ -458,6 +459,16 @@ async def list_sessions(
             updated_at=s.updated_at.isoformat(),
         ))
 
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="assistant.session.list",
+        action="assistant.session.list",
+        profile_id=profile_id,
+        entity_type="chat_session",
+        entity_id="all",
+        details={"count": len(summaries)},
+    )
     return SessionListResponse(sessions=summaries)
 
 
@@ -511,6 +522,7 @@ async def get_session_history(
     session_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Return all turns for a session (for client-side reload)."""
     profile_id = session.profile_id
@@ -526,6 +538,16 @@ async def get_session_history(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
     turns = await _load_session_history(chat_session, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="assistant.session.view",
+        action="assistant.session.view",
+        profile_id=profile_id,
+        entity_type="chat_session",
+        entity_id=chat_session.id,
+        details={"count": len(turns)},
+    )
     return SessionHistoryResponse(
         session_id=chat_session.id,
         title=chat_session.title,
@@ -581,6 +603,7 @@ class MemorySettingsUpdate(BaseModel):
 async def get_memory_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Return per-profile memory injection toggle + global default."""
     from core.config import settings as app_settings
@@ -593,6 +616,15 @@ async def get_memory_settings(
     )
     row = result.scalar_one_or_none()
     per_profile = getattr(row, "assistant_memory_enabled", app_settings.assistant_memory_enabled) if row else app_settings.assistant_memory_enabled
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.assistant_memory.view",
+        action="settings.assistant_memory.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="assistant_memory",
+    )
     return MemorySettingsResponse(
         assistant_memory_enabled=bool(per_profile),
         global_default=bool(app_settings.assistant_memory_enabled),

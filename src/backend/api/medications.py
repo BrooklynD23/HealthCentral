@@ -367,6 +367,7 @@ async def list_medications(
     session: RequireAuth,
     active_only: bool = Query(True, description="Only show active medications"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     List medications for the authenticated profile.
@@ -385,6 +386,14 @@ async def list_medications(
     result = await profile_db.execute(query)
     medications = result.scalars().unique().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id="all",
+        details={"entity_type": "medication_list", "count": len(medications)},
+    )
     return [MedicationResponse.from_model(m) for m in medications]
 
 
@@ -396,6 +405,7 @@ async def get_medication(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get a single medication by ID."""
     validate_uuid(medication_id, "medication_id")
@@ -414,6 +424,14 @@ async def get_medication(
         )
 
     verify_medication_access(medication, session)
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication"},
+    )
     return MedicationResponse.from_model(medication)
 
 
@@ -789,6 +807,7 @@ async def list_schedules(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List all schedules for a medication."""
     validate_uuid(medication_id, "medication_id")
@@ -814,6 +833,14 @@ async def list_schedules(
     )
     schedules = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication_schedules", "count": len(schedules)},
+    )
     return [ScheduleResponse.from_model(s) for s in schedules]
 
 
@@ -1122,6 +1149,7 @@ async def list_doses(
     to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     limit: int = Query(30, ge=1, le=100),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List dose records for a medication."""
     validate_uuid(medication_id, "medication_id")
@@ -1153,6 +1181,18 @@ async def list_doses(
     result = await profile_db.execute(query)
     doses = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={
+            "entity_type": "medication_doses",
+            "count": len(doses),
+            "date_filter": bool(from_date or to_date),
+        },
+    )
     return [DoseResponse.from_model(d) for d in doses]
 
 

@@ -271,7 +271,9 @@ class TestFeedbackStats:
         mock_session = MagicMock()
         mock_session.profile_id = "prof-1"
 
-        stats = await get_feedback_stats(session=mock_session, profile_db=db)
+        stats = await get_feedback_stats(
+            session=mock_session, profile_db=db, master_db=MagicMock(commit=AsyncMock())
+        )
 
         assert stats.total_feedback == 3
         assert stats.positive_count == 2
@@ -290,7 +292,9 @@ class TestFeedbackStats:
         mock_session = MagicMock()
         mock_session.profile_id = "prof-1"
 
-        stats = await get_feedback_stats(session=mock_session, profile_db=db)
+        stats = await get_feedback_stats(
+            session=mock_session, profile_db=db, master_db=MagicMock(commit=AsyncMock())
+        )
         assert stats.total_feedback == 0
 
 

@@ -23,12 +23,12 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import create_audit_log
+from core.audit import audit_and_commit, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.feedback_constants import VALID_TAGS
@@ -299,6 +299,7 @@ async def upsert_feedback(
 async def get_feedback_stats(
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Return counts and distributions for this profile's feedback."""
     profile_id = session.profile_id
@@ -326,6 +327,16 @@ async def get_feedback_stats(
         model_dist[m] = model_dist.get(m, 0) + 1
         provider_dist[p] = provider_dist.get(p, 0) + 1
 
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="feedback.stats.view",
+        action="feedback.stats.view",
+        profile_id=profile_id,
+        entity_type="response_feedback",
+        entity_id="all",
+        details={"count": len(rows)},
+    )
     return FeedbackStatsResponse(
         total_feedback=len(rows),
         positive_count=positive_count,
