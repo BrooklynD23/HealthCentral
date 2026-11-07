@@ -137,7 +137,7 @@ function AskCitation({
   if (expanded) {
     // The honesty rule: a quotation only for real words (quoteOf). A locator or row id is a place, and is never shown.
     return (
-      <SourceBlock name={citation.source} page={citation.page} quote={quote}>
+      <SourceBlock name={citation.source} page={citation.page} quote={quote} marker={`[${index + 1}]`}>
         {observation ? (
           // What the record itself says, as the chip's popover shows it; plain text, not a quotation.
           <p data-t0="" className="text-xs text-ink-secondary [overflow-wrap:anywhere]">

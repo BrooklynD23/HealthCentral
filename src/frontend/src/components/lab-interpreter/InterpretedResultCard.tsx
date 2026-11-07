@@ -52,11 +52,14 @@ export function SourceBlock({
   name,
   page,
   quote,
+  marker,
   children,
 }: {
   name: string;
   page: number | null;
   quote: string | null;
+  /** The citation's number as the answer text and chip show it, e.g. "[1]". Omitted: the line is unchanged. */
+  marker?: string;
   children?: ReactNode;
 }) {
   return (
@@ -70,7 +73,7 @@ export function SourceBlock({
         </blockquote>
       ) : null}
       <p data-t0="" className="text-xs text-ink-secondary [overflow-wrap:anywhere]">
-        Source: {name}
+        {marker ? `${marker} ` : ''}Source: {name}
         {page !== null ? `, page ${page}` : ''}
       </p>
       {children}
