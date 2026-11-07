@@ -13,9 +13,9 @@
  * verified observations only, and the removed frontend copy did not.
  *
  * What remains here is the *inverse* projection — "which medications were
- * active when this result was collected" — which TrendsDashboard needs for the
- * chart overlay and which no endpoint serves. It filters medications, not
- * observations, so the verified-only rule has nothing to apply to. If a
+ * active when this result was collected" — which ResultsPage needs (it imports
+ * `findActiveMedications`) and which no endpoint serves. It filters
+ * medications, not observations, so the verified-only rule has nothing to apply to. If a
  * `GET /observations/{id}/medications` endpoint ever exists, this should go the
  * same way `findObservationsDuringMedication` did.
  */
