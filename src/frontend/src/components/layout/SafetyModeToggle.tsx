@@ -6,10 +6,10 @@ import { Switch } from '@/components/ui/Switch';
 import { useSafetyMode } from '@/hooks/useSafetyMode';
 import { cn } from '@/utils/cn';
 
-// Stage 1 of the note (SAFETY-NOTE-WORDING, "Specific, staged"): the owner's words. One constant feeds the
-// desktop note and the phone popover. Later rows add one sentence each, before the last one.
+// Stage 2 of the note (SAFETY-NOTE-WORDING, "Specific, staged"): the owner's words plus the SAFETY-MODE-CITATIONS
+// clause. One constant feeds the desktop note and the phone popover. Later rows add one sentence each, before the last one.
 const SAFETY_MODE_NOTE =
-  "On: AI explanations of a single result need more verified support, and values you haven't checked get no explanation. The standard safety checks always run.";
+  "On: AI explanations of a single result need more verified support, and values you haven't checked get no explanation. Chat answers always show their sources. The standard safety checks always run.";
 
 /**
  * The stricter safety mode switch (plan §3.6, wired by SAFETY-MODE-TOGGLE). It shows the per-profile
