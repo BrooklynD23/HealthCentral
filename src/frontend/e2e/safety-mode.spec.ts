@@ -167,5 +167,11 @@ test.describe('SAFETY-MODE-CITATIONS sources without a click', () => {
     await expect(answer.getByText('Sources:')).toBeVisible();
     await expect(answer.getByText(/^Source: /).first()).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    // The honesty rule on the real agent path: text_snippet is a locator or a row id there, so any quotation that is
+    // drawn must hold real words (whitespace), never "docId:page" or a bare id.
+    for (const quote of await answer.locator('blockquote').allInnerTexts()) {
+      expect(quote.trim(), 'a blockquote must hold words, not a locator').toMatch(/\s/);
+    }
   });
 });

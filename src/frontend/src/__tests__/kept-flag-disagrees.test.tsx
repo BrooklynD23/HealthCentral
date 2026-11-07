@@ -100,6 +100,7 @@ async function open(data: TrendData) {
       return { use_external_api: false, provider: '', model: '', api_key_configured: false };
     }
     if (url.includes('/interpretation')) throw new api.ApiError(404, 'Not Found', 'not found');
+    if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
     throw new Error(`unmocked ${url}`);
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });

@@ -175,7 +175,6 @@ export function ResultsPage() {
   const { profileId } = useAuthStore();
   const navigate = useNavigate();
   const isDesktop = useIsDesktop();
-  // The result card shows its sources expanded under the stricter mode (SAFETY-MODE-CITATIONS). `checked` is false while the mode is unknown.
   const { checked: strictSafetyMode } = useSafetyMode();
   const [activeTab, setActiveTab] = useState(ALL);
   const [selectedAnalyte, setSelectedAnalyte] = useState<string | null>(null);
