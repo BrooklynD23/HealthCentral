@@ -159,4 +159,29 @@ describe('RCC-2: RecoverProfile secret retention', () => {
     expect(call[2]).toMatchObject({ reauth: true });
     expect((call[2] as { signal?: unknown }).signal).toBeInstanceOf(AbortSignal);
   });
+
+  it('HC-OLO-003: recovering, then acknowledging the new code, navigates to /overview', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.apiPost).mockResolvedValueOnce({
+      access_token: 'tok',
+      token_type: 'bearer',
+      expires_in: 3600,
+      profile_id: 'profile-1',
+      profile_name: 'Test',
+      recovery_code: ROTATED,
+    });
+    renderPage();
+
+    await fill(user);
+    await user.click(screen.getByRole('button', { name: /unlock my records/i }));
+    expect(await screen.findByTestId('recovery-code')).toHaveTextContent(ROTATED);
+    // Not navigated before the new recovery code is acknowledged.
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByLabelText(/saved this recovery code/i));
+    await user.click(screen.getByRole('button', { name: /continue to my records/i }));
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
+    expect(mockNavigate).not.toHaveBeenCalledWith('/inbox');
+  });
 });
