@@ -1,7 +1,9 @@
 /**
  * Profile & security section (UI-PG-SETTINGS): the landing section of /settings.
  *
- * It renders the three cards as they are. Their restyle belongs to UI-PG-SECURITY.
+ * UI-PG-SECURITY: the three cards sit on the ui primitives, and the restore and delete
+ * confirmations are AlertDialogs (BackupCard, DangerZone). The warnings, the recovery code and the
+ * error texts carry `data-t0`; none of them animates.
  */
 
 import { RecoveryCodeCard } from '@/components/settings/RecoveryCodeCard';

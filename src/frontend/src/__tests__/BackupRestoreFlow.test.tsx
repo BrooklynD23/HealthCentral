@@ -107,6 +107,9 @@ describe('FE-BKUP: restore flow', () => {
     await user.type(firstPassword, 'PasswordForA1');
     expect(firstPassword).toHaveValue('PasswordForA1');
 
+    // UI-PG-SECURITY: the restore form is an AlertDialog now and holds the page, so the first
+    // one is cancelled before the second backup's opens. Same assertions below.
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await openRestore(1);
 
     // A destructive form pre-filled with a password meant for a different
