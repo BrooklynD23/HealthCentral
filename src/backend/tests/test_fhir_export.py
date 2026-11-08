@@ -468,6 +468,9 @@ class _Result:
     def scalars(self):
         return _Scalars(self.items)
 
+    def all(self):  # the export_artifact prune select (EXPORT-LIVE-LOGIN)
+        return self.items
+
 
 def _fake_profile(profile_id: str, display_name: str = "Jane Doe"):
     return type("Profile", (), {"id": profile_id, "display_name": display_name})()
@@ -500,6 +503,7 @@ class TestFhirExportApi:
             _Result(items=[]),  # (documents categories, none needed)
             _Result(items=[]),  # entities
             _Result(items=[]),  # care tasks
+            _Result(items=[]),  # export_artifact prune (no rows)
         ]
         master_db = AsyncMock()
         master_db.execute.return_value = _Result(one=profile)
@@ -569,7 +573,10 @@ class TestFhirExportApi:
         profile = _fake_profile("test-profile")
         profile_db = AsyncMock()
         # Only care_tasks fetch expected, since every other include_* is False.
-        profile_db.execute.side_effect = [_Result(items=[])]
+        profile_db.execute.side_effect = [
+            _Result(items=[]),  # care tasks
+            _Result(items=[]),  # export_artifact prune (no rows)
+        ]
         master_db = AsyncMock()
         master_db.execute.return_value = _Result(one=profile)
         audit = AsyncMock()

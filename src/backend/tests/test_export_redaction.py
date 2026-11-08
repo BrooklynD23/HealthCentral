@@ -111,6 +111,9 @@ class _Result:
     def scalar_one_or_none(self) -> None:
         return None  # no persisted export_artifact row (G-C1)
 
+    def all(self) -> list:
+        return []  # no persisted export_artifact rows to prune (EXPORT-LIVE-LOGIN)
+
 
 class _FakeProfileDb:
     """Returns the fixture rows for any query (pattern: test_observations_audit.py)."""

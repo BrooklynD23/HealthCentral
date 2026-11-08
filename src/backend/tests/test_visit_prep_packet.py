@@ -20,7 +20,7 @@ import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -267,6 +267,13 @@ from api.export import (  # noqa: E402
 )
 
 
+def _vault() -> AsyncMock:
+    """A profile-vault double whose `execute` finds no persisted export rows to prune."""
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(all=MagicMock(return_value=[]))
+    return db
+
+
 def _patch_fetchers(monkeypatch, observations=None, meds=None, mentions=None,
                     tasks=None, entities=None, docs=None):
     monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
@@ -328,7 +335,7 @@ class TestVisitPrepRoute:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
 
         assert response.packet_id
@@ -354,7 +361,7 @@ class TestVisitPrepRoute:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
         assert "Current Medications" not in response.section_titles
         assert "Recent Abnormal Lab Results (verified)" in response.section_titles
@@ -366,7 +373,7 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", audit_mock)
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
 
         download = await download_visit_prep(
@@ -393,7 +400,7 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", AsyncMock())
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
         download = await download_visit_prep(
             packet_id=response.packet_id,
@@ -413,7 +420,7 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", AsyncMock())
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
         with pytest.raises(HTTPException) as exc_info:
             await download_visit_prep(
@@ -448,7 +455,7 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", AsyncMock())
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
         download = await download_visit_prep(
             packet_id=response.packet_id,
@@ -493,7 +500,7 @@ class TestQuestionsSectionExclusion:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
         assert "Questions for Your Provider" in response.section_titles
         assert "Repeat CBC" not in response.markdown
@@ -515,7 +522,7 @@ class TestQuestionsSectionExclusion:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
         assert "Questions for Your Provider" in response.section_titles
         assert "Recent Abnormal Lab Results" not in response.markdown
@@ -546,7 +553,7 @@ class TestQuestionsSectionExclusion:
                 confirm=True,
             ),
             _make_session(),
-            AsyncMock(),
+            _vault(),
             AsyncMock(),
         )
 
