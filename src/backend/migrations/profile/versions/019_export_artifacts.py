@@ -4,8 +4,8 @@ Adds ``export_artifact``: one row per generated doctor summary, visit-prep or
 pinboard packet, or FHIR bundle, so a download still works after a backend
 restart. No foreign key. Rows are served for 30 minutes at most and are purged
 at logout, lock and profile delete (EXPORT-ARTIFACT-RETENTION). ``session_jti``
-binds a row to the session that generated it (EXPORT-SESSION-BIND); NULL is
-never served.
+records the generating login (EXPORT-LIVE-LOGIN): the row is served while that jti is
+unrevoked, to any live login of the profile; NULL is never served.
 
 ``downgrade()`` drops the table and the artifacts in it; they are transient.
 

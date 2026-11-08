@@ -839,14 +839,20 @@ def _login_client(master_db, profile):
 def test_hc_expa_027_real_restart_then_new_login_serves_and_old_logout_ends_it(
     tmp_path, monkeypatch, case
 ):
-    """The feature itself, over HTTP with real tokens. Export under login 1, restart
+    """The feature itself, over HTTP. Export under login 1, restart
     (nothing open in the manager, dicts cleared), log in again through /profiles/login:
     a NEW jti. Within 30 minutes the download is 200. Then the OLD token logs out
     (real bearer through the real `require_auth`): its jti is revoked, the row is not yet
     gone, and the next download is 404 and deletes the row. Under the retired equality
     rule the first download was already 404 here, which is the bug. Would not notice: the
     vault being reopened with the SQLCipher key (the suite runs unencrypted), or a
-    clock that moves past 30 minutes (HC-EXPA-011 owns that)."""
+    clock that moves past 30 minutes (HC-EXPA-011 owns that). Also not noticed: the export
+    and both downloads use route_client's `require_auth` override with the jti injected
+    (`_set_session_jti`), so the real bearer-to-`token_jti` mapping on the second login is
+    only exercised by the logins and the final logout; `open_profile_database_on_login`
+    is stubbed, so the real `get_profile_db_session` after re-login is not exercised;
+    and the revocation list dropping an entry once its token's `exp` passes (open
+    finding, needs an L0 ruling)."""
     _kind, _gen, _body, _idkey, dl, _t = case
     monkeypatch.setattr(core_security, "_jwt_secret_cache", "test-secret-" + "x" * 32)
     vault = tmp_path / "vault.db"

@@ -40,7 +40,7 @@ def _make_session(profile_id: str = "test-profile") -> Session:
         profile_id=profile_id,
         profile_name="Test Profile",
         expires_at=utcnow() + timedelta(hours=1),
-        token_jti="jti-test",  # C-GC1: exports are served to the generating session only
+        token_jti="jti-test",  # C-GC1: route_client's constant jti; any live login of the profile is served (EXPORT-LIVE-LOGIN)
     )
 
 
