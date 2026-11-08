@@ -16,7 +16,7 @@
  * - the real 409 body or the real refusal screen: the reader in HC-SMT-002 is a stand-in that shows
  *   its data or its error, so a screen that ignores the error (the bug this test pins) is only
  *   caught for a screen that reads the cache the way the stand-in does;
- * - header geometry (no clipping, the fixed four lines): jsdom has no layout, and HC-SMT-005 and
+ * - header geometry (no clipping, the fixed 66 px note box: four lines plus the descent): jsdom has no layout, and HC-SMT-005 and
  *   HC-UISH-006 measure it in a browser;
  * - the 599 mock answer for a PATCH sent on page load: only the e2e GATE G tests see it.
  */
