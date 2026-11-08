@@ -675,7 +675,8 @@ async def _unbind_vault_row(path: Path, session_jti: str | None) -> None:
     async with maker() as s:
         old = (await s.execute(select(ExportArtifact))).scalar_one()
         fields = dict(id=old.id, kind=old.kind, profile_id=old.profile_id,
-                      payload_json=old.payload_json, created_at=old.created_at)
+                      payload_json=old.payload_json, created_at=old.created_at,
+                      session_exp=old.session_exp)
         if session_jti is not None:
             fields["session_jti"] = session_jti
         await s.execute(delete(ExportArtifact))
@@ -926,7 +927,8 @@ def test_hc_expa_028_saving_prunes_this_profiles_dead_rows_only(tmp_path, monkey
     fresh, stale = T0 - timedelta(minutes=5), T0 - timedelta(minutes=31)
 
     def row(id_, profile_id, jti, created):
-        return dict(id=id_, profile_id=profile_id, session_jti=jti, created_at=created)
+        return dict(id=id_, profile_id=profile_id, session_jti=jti, created_at=created,
+                    session_exp=T0 + timedelta(hours=1))
 
     asyncio.run(_insert_rows(vault, [
         row("a-expired", PROFILE_A, "jti-other-live", stale),

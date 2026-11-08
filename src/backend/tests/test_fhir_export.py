@@ -526,6 +526,7 @@ class TestFhirExportApi:
         _fhir_store[export_id] = {
             "profile_id": "test-profile",
             "session_jti": "jti-test",  # C-GC1
+            "session_exp": utcnow() + timedelta(hours=1),
             "bundle": {"resourceType": "Bundle", "type": "collection", "entry": []},
         }
         master_db = AsyncMock()
