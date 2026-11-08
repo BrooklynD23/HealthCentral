@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.documents import validate_uuid, verify_document_access
-from api.export import _compute_trends, _packet_store, _save_artifact
+from api.export import _compute_trends, _packet_store, _save_artifact, _session_exp
 from core.audit import audit_and_commit, audit_intent, log_pinboard_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
@@ -514,9 +514,11 @@ async def export_pinboard_packet(
     await _save_artifact(
         profile_db, artifact_id=packet["packet_id"], kind="visit_prep",
         profile_id=session.profile_id, payload=packet, session_jti=session.token_jti,
+        session_exp=_session_exp(session),
     )
     packet["created_at"] = utcnow()  # EXPORT-STORE-PURGE: TTL stamp
     packet["session_jti"] = session.token_jti
+    packet["session_exp"] = _session_exp(session)
     _packet_store[packet["packet_id"]] = packet
     await audit_and_commit(
         master_db, log_pinboard_event, event="export", profile_id=session.profile_id,

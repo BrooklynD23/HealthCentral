@@ -105,17 +105,31 @@ async def purge_profile_exports(profile_id: str) -> int:
     return removed + (result.rowcount or 0)
 
 
+def _session_exp(session) -> datetime:
+    """The session's expiry as naive UTC, the form the column and `core_time.utcnow()` use.
+
+    `Session.expires_at` is tz-aware UTC; comparing it with a naive value raises, so every
+    stored or compared expiry goes through here.
+    """
+    return session.expires_at.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 async def _prune_dead_rows(profile_db: AsyncSession, profile_id: str) -> None:
     """Delete `profile_id`'s rows that can never be served again (EXPORT-LIVE-LOGIN).
 
-    Dead means expired, a NULL or empty `session_jti`, or a revoked one. Runs in the
-    caller's transaction (no commit), so the route's stage, audit commit, vault commit
-    order is unchanged and another profile's rows are never touched.
+    Dead means expired, a NULL or empty `session_jti`, a revoked one, or a NULL
+    `session_exp` or one that has passed. Runs in the caller's transaction (no commit), so
+    the route's stage, audit commit, vault commit order is unchanged and another profile's
+    rows are never touched.
     """
     rows = (
         await profile_db.execute(
-            select(ExportArtifact.id, ExportArtifact.created_at, ExportArtifact.session_jti)
-            .where(ExportArtifact.profile_id == profile_id)
+            select(
+                ExportArtifact.id,
+                ExportArtifact.created_at,
+                ExportArtifact.session_jti,
+                ExportArtifact.session_exp,
+            ).where(ExportArtifact.profile_id == profile_id)
         )
     ).all()
     now = core_time.utcnow()
@@ -124,6 +138,8 @@ async def _prune_dead_rows(profile_db: AsyncSession, profile_id: str) -> None:
         for row in rows
         if now - row.created_at > _EXPORT_TTL
         or not row.session_jti
+        or row.session_exp is None
+        or now >= row.session_exp
         or is_jwt_token_revoked(row.session_jti)
     ]
     if dead:
@@ -142,6 +158,7 @@ async def _save_artifact(
     profile_id: str,
     payload: dict,
     session_jti: Optional[str],
+    session_exp: datetime,
 ) -> None:
     """Stage a downloadable artifact in the caller's profile vault (G-C1).
 
@@ -152,6 +169,8 @@ async def _save_artifact(
     goes at logout, lock and profile delete (`purge_profile_exports`).
     `session_jti` records the generating login (EXPORT-LIVE-LOGIN): any live login of the
     profile may be served the row, and each save prunes this profile's dead rows.
+    `session_exp` is that login's expiry as naive UTC (`_session_exp`): the revocation list
+    forgets the jti at that moment, so the row is not served from then on.
     """
     if kind not in EXPORT_ARTIFACT_KINDS:
         raise ValueError(f"unknown export artifact kind: {kind}")
@@ -164,6 +183,7 @@ async def _save_artifact(
             payload_json=json.dumps(payload),
             created_at=core_time.utcnow(),
             session_jti=session_jti,
+            session_exp=session_exp,
         )
     )
     await profile_db.flush()
@@ -171,8 +191,8 @@ async def _save_artifact(
 
 async def _load_artifact(
     profile_db: Optional[AsyncSession], *, artifact_id: str, kind: str
-) -> Optional[tuple[str, dict, Optional[str]]]:
-    """Return `(owner profile_id, payload, session_jti)` for a live persisted artifact, else None.
+) -> Optional[tuple[str, dict, Optional[str], Optional[datetime]]]:
+    """Return `(owner profile_id, payload, session_jti, session_exp)` for a live persisted artifact, else None.
 
     None covers: no vault session, no such row, a row of another kind, and a row
     older than `_EXPORT_TTL` (deleted here, on read). The caller keeps the
@@ -192,7 +212,7 @@ async def _load_artifact(
         await profile_db.execute(delete(ExportArtifact).where(ExportArtifact.id == artifact_id))
         await profile_db.commit()
         return None
-    return row.profile_id, json.loads(row.payload_json), row.session_jti
+    return row.profile_id, json.loads(row.payload_json), row.session_jti, row.session_exp
 
 
 async def _bound_to_session(
@@ -200,15 +220,24 @@ async def _bound_to_session(
 ) -> bool:
     """EXPORT-LIVE-LOGIN: serve to any live login of the owning profile.
 
-    Runs after the ownership check. True when the entry's `session_jti` is non-empty and
+    Runs after the ownership check and the 30-minute TTL check. True when the entry's
+    `session_exp` is set and still ahead (the revocation list forgets a jti at its token's
+    exp, so a logout is only remembered until then) and its `session_jti` is non-empty and
     not revoked (a revoked jti means that login ended). The caller's jti is not compared
     to the stored one, because every login mints a new jti, so equality could never serve
-    a row after a restart. A caller with no jti stays refused. Otherwise the in-process
-    entry and the vault row are deleted and the caller answers the same 404 as for an
-    expired export.
+    a row after a restart. A caller with no jti stays refused. A NULL jti or `session_exp`
+    fails closed. Otherwise the in-process entry and the vault row are deleted and the
+    caller answers the same 404 as for an expired export.
     """
     jti = entry.get("session_jti")
-    if jti and session.token_jti and not is_jwt_token_revoked(jti):
+    exp = entry.get("session_exp")
+    if (
+        jti
+        and exp is not None
+        and core_time.utcnow() < exp
+        and session.token_jti
+        and not is_jwt_token_revoked(jti)
+    ):
         return True
     store.pop(artifact_id, None)
     if profile_db is not None:
@@ -628,9 +657,11 @@ async def generate_doctor_summary(
         profile_id=profile_id,
         payload=summary_data,  # the redacted copy; created_at below is not persisted
         session_jti=session.token_jti,
+        session_exp=_session_exp(session),
     )
     summary_data["created_at"] = core_time.utcnow()
     summary_data["session_jti"] = session.token_jti
+    summary_data["session_exp"] = _session_exp(session)
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -692,7 +723,10 @@ async def download_summary(
     if not summary_data:  # backend restarted, or never in this process: read the vault
         loaded = await _load_artifact(profile_db, artifact_id=summary_id, kind="doctor_summary")
         if loaded:
-            summary_data = {**loaded[1], "profile_id": loaded[0], "session_jti": loaded[2]}
+            summary_data = {
+                **loaded[1], "profile_id": loaded[0],
+                "session_jti": loaded[2], "session_exp": loaded[3],
+            }
 
     if not summary_data:
         raise HTTPException(
@@ -1015,9 +1049,11 @@ async def generate_visit_prep(
         profile_id=profile_id,
         payload=packet,
         session_jti=session.token_jti,
+        session_exp=_session_exp(session),
     )
     packet["created_at"] = core_time.utcnow()
     packet["session_jti"] = session.token_jti
+    packet["session_exp"] = _session_exp(session)
     _packet_store[packet["packet_id"]] = packet
 
     await audit_and_commit(
@@ -1067,7 +1103,10 @@ async def download_visit_prep(
     if not packet:
         loaded = await _load_artifact(profile_db, artifact_id=packet_id, kind="visit_prep")
         if loaded:
-            packet = {**loaded[1], "profile_id": loaded[0], "session_jti": loaded[2]}
+            packet = {
+                **loaded[1], "profile_id": loaded[0],
+                "session_jti": loaded[2], "session_exp": loaded[3],
+            }
     if not packet:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1474,12 +1513,14 @@ async def generate_fhir_export(
         profile_id=profile_id,
         payload=result["bundle"],
         session_jti=session.token_jti,
+        session_exp=_session_exp(session),
     )
     _fhir_store[export_id] = {
         "profile_id": profile_id,
         "bundle": result["bundle"],
         "created_at": core_time.utcnow(),
         "session_jti": session.token_jti,
+        "session_exp": _session_exp(session),
     }
 
     await audit_and_commit(
@@ -1525,7 +1566,10 @@ async def download_fhir_export(
     if not stored:
         loaded = await _load_artifact(profile_db, artifact_id=export_id, kind="fhir_r4")
         if loaded:
-            stored = {"profile_id": loaded[0], "bundle": loaded[1], "session_jti": loaded[2]}
+            stored = {
+                "profile_id": loaded[0], "bundle": loaded[1],
+                "session_jti": loaded[2], "session_exp": loaded[3],
+            }
     if not stored:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

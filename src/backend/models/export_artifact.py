@@ -13,6 +13,10 @@ Live-login rule (EXPORT-LIVE-LOGIN, 2026-11-07): `session_jti` is the JWT `jti` 
 login that generated the row. The row is served to any live login of the profile while
 that jti is unrevoked (every login mints a new jti, so equality is not compared). NULL
 (or empty) is never served: it fails closed. Each save prunes the profile's dead rows.
+
+`session_exp` (naive UTC) is that login's own expiry: the revocation list forgets a jti at
+its token's exp, so the row refuses itself from `session_exp` on; code always writes it, and
+it is nullable only so a NULL row can fail closed.
 """
 
 from datetime import datetime
@@ -36,3 +40,4 @@ class ExportArtifact(ProfileDatabaseBase):
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     session_jti: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    session_exp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
