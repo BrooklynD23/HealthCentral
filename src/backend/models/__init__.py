@@ -18,6 +18,7 @@ from .data_donation import DonatedRecord, DonationConsent
 from .document import Document
 from .document_category import DocumentCategory, DocumentEntity
 from .embedding import Embedding
+from .export_artifact import ExportArtifact
 from .gamification import BadgeDefinition, EarnedBadge
 from .interpretation import LabInterpretation, PanelInterpretation
 from .knowledge_base import (
@@ -36,7 +37,6 @@ from .memory_item import MemoryItem
 from .model_settings import UserModelSettings
 from .observation import Observation
 from .pinboard import Pinboard, PinboardItem
-from .export_artifact import ExportArtifact
 from .profile import Profile
 from .response_feedback import ResponseFeedback
 
