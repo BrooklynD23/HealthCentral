@@ -26,6 +26,10 @@
  * - viewHeight (optional, default 160) sets the drawing's height in user units; the width stays 320. The page
  *   passes a taller one on a phone, where the width is the limit and a 2:1 drawing would be too short to read.
  *   The plot, the cursor line and the export all follow it.
+ * - hideUnverified (optional, default false; SAFETY-MODE-VERIFIED-FE): points whose user_verified is not true are
+ *   dropped before the layout, so they are not drawn and count toward neither the scale nor the band. The table and
+ *   the exported svg follow the drawing. With nothing left, a plain sentence replaces the chart. The caller lists
+ *   the dropped values itself. Without the prop nothing here changes.
  * - Per point, when the report gave them: "Reported: X unit" (the value as printed, before a unit conversion) and
  *   "Read confidence: High/Medium/Low" (the extraction's confidence, in the bands SourceTrace uses). Both show in
  *   the readout and in the Result cell, for every point, not only the latest.
@@ -101,6 +105,12 @@ function parseDate(raw: string): DateParts | null {
 
 function formatDate(parts: DateParts): string {
   return `${MONTHS[parts.month - 1]} ${parts.day}, ${parts.year}`;
+}
+
+/** A trend point's date as the ribbon prints it ("Apr 10, 2026"); the raw text when it is not an ISO date. */
+export function pointDateLabel(raw: string): string {
+  const parts = parseDate(raw);
+  return parts ? formatDate(parts) : raw;
 }
 
 interface LayoutPoint {
@@ -204,13 +214,14 @@ function reportedWords(value: number | null | undefined, unit: string | null | u
   return `Reported: ${[cleanNumber(value), unit].filter((part) => part !== '').join(' ')}`;
 }
 
-function buildLayout(trend: TrendData, requestedHeight?: number): Layout {
+function buildLayout(trend: TrendData, requestedHeight?: number, hideUnverified = false): Layout {
   const viewHeight = viewHeightOf(requestedHeight);
   const plotBottom = viewHeight - PLOT_FOOT;
   const low = finiteOrNull(trend.ref_low);
   const high = finiteOrNull(trend.ref_high);
 
   const parsed = trend.data_points.flatMap((raw: TrendPoint, index) => {
+    if (hideUnverified && raw.user_verified !== true) return [];
     const parts = parseDate(raw.date);
     if (!parts || !Number.isFinite(raw.value)) return [];
     return [
@@ -328,15 +339,23 @@ interface RangeRibbonProps {
   trend: TrendData;
   /** The drawing's height in user units (the width is 320). Default 160. */
   viewHeight?: number;
+  /** Leave out the points whose user_verified is not true (the stricter safety mode). Default false. */
+  hideUnverified?: boolean;
 }
 
-export function RangeRibbon({ trend, viewHeight }: RangeRibbonProps): ReactElement {
-  const layout = useMemo(() => buildLayout(trend, viewHeight), [trend, viewHeight]);
+export function RangeRibbon({ trend, viewHeight, hideUnverified = false }: RangeRibbonProps): ReactElement {
+  const layout = useMemo(() => buildLayout(trend, viewHeight, hideUnverified), [trend, viewHeight, hideUnverified]);
   if (layout.points.length === 0) {
+    // Unchecked values exist and are the only reason for the empty chart: say that, not "no values".
+    if (hideUnverified && trend.data_points.some((point) => point.user_verified !== true)) {
+      return <p className="text-sm text-ink-secondary">None of these values has been checked yet, so there is nothing to plot.</p>;
+    }
     return <p className="text-sm text-ink-secondary">No values to chart yet.</p>;
   }
-  // Keyed by analyte: a different analyte gets fresh selection and reveal state.
-  return <RangeChart key={trend.analyte_canonical} trend={trend} layout={layout} />;
+  // Keyed by analyte: a different analyte gets fresh selection and reveal state. Hiding changes the points, so it
+  // starts fresh too (the selection would otherwise point at a point that is gone).
+  const key = hideUnverified ? `${trend.analyte_canonical}:checked-only` : trend.analyte_canonical;
+  return <RangeChart key={key} trend={trend} layout={layout} />;
 }
 
 interface RangeChartProps {

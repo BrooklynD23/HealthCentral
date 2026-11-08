@@ -17,6 +17,9 @@
  * - The ribbon replaces Recharts. Below lg it is drawn taller (PHONE_VIEW_HEIGHT), so the drawn plot is at least
  *   200 px on a 390 px phone (DF-4). The height is read from matchMedia in the first render, not in an effect, so
  *   the chart never draws once at one height and then again at another.
+ * - Stricter safety mode on (SAFETY-MODE-VERIFIED-FE): the ribbon leaves out the values the patient has not checked, and
+ *   they are listed under it with a one-line note and a link to Review values. Off, or not yet known, the hollow markers
+ *   and UnverifiedTrendNote stay (I-13); the server enforces the mode either way.
  * - Nothing here moves: no motion elements, no stagger, no transform. A spinner turns only where motion is allowed.
  *
  * The lab-interpreter components are imported by path, never through their barrel: the barrel re-exports the Recharts
@@ -51,7 +54,7 @@ import { findActiveMedications } from '@/utils/correlation';
 import { MedicationOverlay } from '@/components/MedicationOverlay';
 import { UnverifiedTrendNote } from '@/components/TrendVerificationMarkers';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
-import { RangeRibbon, bandOfValue, serializeRangeRibbonSvg } from '@/components/results/RangeRibbon';
+import { RangeRibbon, bandOfValue, pointDateLabel, serializeRangeRibbonSvg } from '@/components/results/RangeRibbon';
 import { DisclaimerBanner } from '@/components/lab-interpreter/DisclaimerBanner';
 import { InterpretedResultCard } from '@/components/lab-interpreter/InterpretedResultCard';
 import { PanelInterpretationDashboard } from '@/components/lab-interpreter/PanelInterpretationDashboard';
@@ -275,10 +278,11 @@ export function ResultsPage() {
   const latestFlagRangeDisagree = latestValue?.flag_range_disagree === true;
   const flagRangeDisagreeSentence =
     'The flag printed on your report and the printed range disagree for this value. Ask your clinician or the lab which applies.';
-  const unverifiedPointCount = useMemo(
-    () => trendData?.data_points.filter((point) => point.user_verified !== true).length ?? 0,
+  const uncheckedPoints = useMemo(
+    () => trendData?.data_points.filter((point) => point.user_verified !== true) ?? [],
     [trendData]
   );
+  const unverifiedPointCount = uncheckedPoints.length;
   const activeMedsForSelected = useMemo(() => {
     if (!effectiveObservation || !medications) return [];
     return findActiveMedications(effectiveObservation, medications);
@@ -369,8 +373,9 @@ export function ResultsPage() {
   const panelPending = generatePanelInterp.isPending && askedPanel === activeTab;
   const panelFailed = generatePanelInterp.isError && askedPanel === activeTab;
   // The ribbon is on the page: nothing to download before it is, and nothing is selected on an empty or loading panel.
-  const chartReady =
-    effectiveAnalyte !== undefined && !trendLoading && !trendError && (trendData?.data_points.length ?? 0) > 0;
+  // With the mode on, the unchecked values are not drawn, so a chart with only those has nothing to download.
+  const plottedCount = (trendData?.data_points.length ?? 0) - (strictSafetyMode ? unverifiedPointCount : 0);
+  const chartReady = effectiveAnalyte !== undefined && !trendLoading && !trendError && plottedCount > 0;
   const groundedShown = grounded && grounded.observationId === effectiveObservation?.id ? grounded : null;
 
   const shell = (
@@ -482,8 +487,32 @@ export function ResultsPage() {
     return (
       <>
         <div ref={chartRef} className="mx-auto max-w-lg lg:max-w-none">
-          <RangeRibbon trend={trendData} viewHeight={viewHeight} />
+          <RangeRibbon trend={trendData} viewHeight={viewHeight} hideUnverified={strictSafetyMode} />
         </div>
+
+        {strictSafetyMode && unverifiedPointCount > 0 && (
+          <div className="mt-3 space-y-1">
+            <p data-testid="unchecked-values-note" className="text-sm text-ink-secondary">
+              {unverifiedPointCount === 1
+                ? '1 unchecked value is not plotted. Check it in '
+                : `${unverifiedPointCount} unchecked values are not plotted. Check them in `}
+              <Link to="/verify" className="text-ink underline underline-offset-2 hover:no-underline">
+                Review values
+              </Link>
+              .
+            </p>
+            <ul data-testid="unchecked-values" className="text-sm text-ink-secondary">
+              {uncheckedPoints.map((point, index) => (
+                <li key={index}>
+                  {pointDateLabel(point.date)}:{' '}
+                  {[bandOfValue(point.value, null, null)?.value ?? point.value, point.unit]
+                    .filter((part) => part !== '')
+                    .join(' ')}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-4 rounded-xl bg-surface-muted p-3 sm:p-4">
           <div className="flex items-start gap-3">
@@ -508,7 +537,9 @@ export function ResultsPage() {
                   {trendData.summary}
                 </p>
               )}
-              <UnverifiedTrendNote unverified={unverifiedPointCount} total={trendData.data_points.length} />
+              {!strictSafetyMode && (
+                <UnverifiedTrendNote unverified={unverifiedPointCount} total={trendData.data_points.length} />
+              )}
               {(trendData.excluded_count ?? 0) > 0 && (
                 <p className="mt-1 text-sm text-ink-secondary">
                   {trendData.excluded_count} point(s) hidden — unrecognized unit
