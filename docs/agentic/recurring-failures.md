@@ -650,3 +650,11 @@ L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 
 
 **Recheck:** before reading results, count the logs against the lines the batch was meant to run (`ls <logdir> | wc -l` against the number of lines), and read each log's own exit line. Make a batch exit non-zero when a line could not start (`set -u`, no helper that reuses a global the script also uses, and a check that every line left a log). A batch that prints "done" is evidence about the script, not about the lines.
 
+
+---
+
+## 19. Acceptance scoped to the row's own spec misses the spec that shares the component
+
+UI-PG-SECURITY (#535, 2026-11-07): the quiet batch ran only the row's own spec. CI's run of another spec — one that renders the same settings components — failed on a regression the batch never exercised. The owner's same-day analysis counted the class four ways: status cells that lag merges (UISET-013-TEST already done inside #523, STILLNESS-NAV-LATE Task 3 already merged, each wrong start a burned run), plans older than the code (C-GC1's 2026-10-06 plan never learned #334's 2026-10-24 expiry and logout purges), file lists that name no test that breaks (a migration guard compares every table at the newest migration), and the narrow acceptance above.
+
+**Recheck:** the planner greps `e2e/` for every spec that renders a changed component (selectors and testids, not only file names) and lists them all in the row's acceptance; the gate re-runs the grep on the final head. Before a build, `git log --since=<plan date> --oneline origin/main -- <files>`: any commit means re-plan. Before starting a row, check `gh pr view` and `git log origin/main` for the merge itself, not the status cell. The four fixes are RUNBOOK §10.1 planner checklist items 4-7.
