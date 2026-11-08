@@ -31,6 +31,7 @@ def _session(profile_id: str = "test-profile") -> Session:
         profile_id=profile_id,
         profile_name="Jane Doe",
         expires_at=utcnow() + timedelta(hours=1),
+        token_jti="jti-test",  # C-GC1: exports are served to the generating session only
     )
 
 
@@ -520,6 +521,7 @@ class TestFhirExportApi:
         export_id = str(uuid.uuid4())
         _fhir_store[export_id] = {
             "profile_id": "test-profile",
+            "session_jti": "jti-test",  # C-GC1
             "bundle": {"resourceType": "Bundle", "type": "collection", "entry": []},
         }
         master_db = AsyncMock()

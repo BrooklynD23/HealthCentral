@@ -40,6 +40,7 @@ def _make_session(profile_id: str = "test-profile") -> Session:
         profile_id=profile_id,
         profile_name="Test Profile",
         expires_at=utcnow() + timedelta(hours=1),
+        token_jti="jti-test",  # C-GC1: exports are served to the generating session only
     )
 
 
@@ -750,6 +751,7 @@ def test_hc_exptz_007_packet_without_generated_on_falls_back_to_generated_at():
     _packet_store[packet_id] = {
         "packet_id": packet_id,
         "profile_id": "profile-a",
+        "session_jti": "jti-test",  # route_client's session jti (C-GC1)
         "generated_at": "2026-01-16T01:00:00",
         "sections": [{"title": "S", "content": "c"}],
         "questions": [],
