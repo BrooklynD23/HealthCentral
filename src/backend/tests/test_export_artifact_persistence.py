@@ -19,15 +19,16 @@ from __future__ import annotations
 import asyncio
 import json
 import sqlite3
+import time
 import uuid
 from contextlib import closing, contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -35,13 +36,16 @@ import api.export as export_api
 import api.pinboards as pinboards_api
 import api.profiles as profiles_api
 from api.profiles import PROFILE_DELETE_CONFIRMATION
+from core import security as core_security
 from core import time as core_time
+from core.auth import Session, require_auth
 from core.profile_database import (
     ProfileDatabaseBase,
     ProfileDatabaseConnection,
     get_profile_db_manager,
 )
 from core.sqlcipher_driver import get_sqlcipher_module, is_sqlcipher_available
+from core.token_revocation import TokenRevocationList
 from models import Document, Observation, Pinboard, PinboardItem
 from tests.support.routes import route_client
 from tests.test_export_store_purge import _db_with_profile, _profiles_client
@@ -116,13 +120,30 @@ def _master_db(profile_id: str = PROFILE_A, commit_error: Exception | None = Non
     return db
 
 
+ROUTE_CLIENT_JTI = "jti-test"  # the constant session jti route_client hands out
+
+
+def _set_session_jti(client, profile_id: str, jti: str | None) -> None:
+    """Swap the authenticated session for one with another jti (a new login), without
+    touching route_client: a second override of the same `require_auth` dependency."""
+    async def _auth() -> Session:
+        return Session(profile_id=profile_id, profile_name="T",
+                       expires_at=datetime.now(timezone.utc) + timedelta(hours=1), token_jti=jti)
+
+    client.app.dependency_overrides[require_auth] = _auth
+
+
 @contextmanager
-def _client(router, prefix: str, vault: Path | None, profile_id: str = PROFILE_A, master_db=None):
+def _client(router, prefix: str, vault: Path | None, profile_id: str = PROFILE_A, master_db=None,
+            jti: str | None = ROUTE_CLIENT_JTI):
     """route_client over a real vault file. `vault=None` leaves the real
-    `get_profile_db_session` in place (no connection open = locked vault)."""
+    `get_profile_db_session` in place (no connection open = locked vault). `jti` is
+    the session's token jti (route_client's own constant unless a test names one)."""
     maker = async_sessionmaker(_engine(vault), expire_on_commit=False) if vault else None
     with route_client(router, prefix, profile_id=profile_id,
                       master_db=master_db or _master_db(profile_id), profile_db=maker) as client:
+        if jti != ROUTE_CLIENT_JTI:
+            _set_session_jti(client, profile_id, jti)
         yield client
 
 
@@ -162,6 +183,16 @@ def _register_open_vault(monkeypatch, profile_id: str, path: Path) -> None:
         _encryption_key=b"0" * 32,
     )
     monkeypatch.setitem(get_profile_db_manager()._connections, profile_id, connection)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_revocations(tmp_path, monkeypatch):
+    """`core.security._jwt_revocation_list` is a cached module global that persists to
+    `settings.app_data_path/.jwt_revoked_tokens.json`. Logout and lock revoke the session
+    jti, and route_client's jti is the constant "jti-test", so without this a revoked
+    "jti-test" would leak to every later test and onto disk. Test-side only."""
+    monkeypatch.setattr(core_security, "_jwt_revocation_list",
+                        TokenRevocationList(tmp_path / "revocations" / ".jwt_revoked_tokens.json"))
 
 
 @pytest.fixture(autouse=True)
@@ -492,3 +523,211 @@ def test_hc_expa_016_a_purge_that_cannot_delete_fails_loudly(two_open_vaults):
         with pytest.raises(Exception, match="export_artifact"):
             prof.post("/profiles/logout")
     close.assert_not_awaited()  # the failed purge stopped the logout before the close
+
+
+# ---------------------------------------------------------------------------
+# EXPORT-SESSION-BIND (L0 ruling, #537 comment 6714721685) - HC-EXPA-017..
+#
+# An export is served only to the session that generated it: unexpired, same profile,
+# stored session_jti non-empty and equal to the caller's token jti, and that jti not
+# revoked. Anything else is the same 404 as an expired export, and the row is deleted.
+# ---------------------------------------------------------------------------
+
+
+def _end_session_client(profile_id: str, master_db, jti: str):
+    """The profiles router with the REAL `revoke_jwt_token` (the suite's
+    `_profiles_client` mocks it), so a logout or lock revokes `jti` in the isolated list.
+    Only the vault close and the profile audit are stubbed."""
+    @contextmanager
+    def _cm():
+        with patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()), \
+             patch.object(profiles_api, "log_profile_event", AsyncMock()), \
+             route_client(profiles_api.router, "/profiles", profile_id=profile_id,
+                          master_db=master_db) as client:
+            _set_session_jti(client, profile_id, jti)
+            yield client
+    return _cm()
+
+
+def _export_as(vault: Path, jti: str, case) -> str:
+    """Generate one artifact as the session `jti`; returns its id."""
+    _kind, gen, body, idkey, _dl, _t = case
+    with _client(export_api.router, "/export", vault, jti=jti) as client:
+        created = client.post(gen, json=body)
+        assert created.status_code == 200, created.text
+        return created.json()[idkey]
+
+
+def _download_as(vault: Path, jti: str | None, url: str):
+    with _client(export_api.router, "/export", vault, jti=jti) as client:
+        return client.get(url)
+
+
+def _revoke(jti: str) -> None:
+    core_security.revoke_jwt_token(jti, int(time.time()) + 3600)
+    assert core_security.is_jwt_token_revoked(jti)  # it really is in the (isolated) list
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_017_relogin_after_logout_is_not_served_and_row_is_deleted(tmp_path, case):
+    """(a) The S1-S4 hole: after a backend restart the vault is not open at logout, so
+    the purge cannot reach the row. Logout revokes the old jti and a re-login mints a new
+    one; the new session must get 404 and the read deletes the row. Would not notice: a
+    re-login that happens to reuse the same jti (HC-EXPA-018 owns the revocation check on
+    its own), or a purge that does reach the vault (HC-EXPA-013)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-login-1", case)
+    assert _download_as(vault, "jti-login-1", dl.format(id=art_id)).status_code == 200
+    _simulate_restart()  # no vault is open in the manager: logout cannot purge the row
+    with _end_session_client(PROFILE_A, _db_with_profile(None), "jti-login-1") as prof:
+        assert prof.post("/profiles/logout").status_code == 200
+    assert core_security.is_jwt_token_revoked("jti-login-1")
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]  # the hole: row survived logout
+    relogin = _download_as(vault, "jti-login-2", dl.format(id=art_id))
+    assert relogin.status_code == 404, relogin.text
+    assert "zzmarkera" not in relogin.text
+    assert asyncio.run(_rows(vault)) == []  # deleted on that read
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_018_revoked_row_jti_is_not_served_even_to_the_same_jti(tmp_path, case, restart):
+    """(a) revocation path on its own. The caller presents the row's OWN jti, so the
+    equality check passes; only `is_jwt_token_revoked` can refuse it. A new login has a
+    new jti, so HC-EXPA-017 alone would pass an implementation that ignores revocation.
+    Would not notice: a revocation that happens between the check and the response."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-revoked", case)
+    assert _download_as(vault, "jti-revoked", dl.format(id=art_id)).status_code == 200
+    if restart:
+        _simulate_restart()
+    _revoke("jti-revoked")
+    response = _download_as(vault, "jti-revoked", dl.format(id=art_id))
+    assert response.status_code == 404, response.text
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_019_relogin_after_lock_is_not_served_and_row_is_deleted(tmp_path, case):
+    """(b) HC-EXPA-017 with lock instead of logout. Would not notice: the same blind spots
+    as HC-EXPA-017."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-lock-1", case)
+    _simulate_restart()
+    profile = SimpleNamespace(id=PROFILE_A, display_name="T", is_locked=False, password_hash="x",
+                              created_at=T0, last_accessed_at=None)
+    with _end_session_client(PROFILE_A, _db_with_profile(profile), "jti-lock-1") as prof:
+        assert prof.post(f"/profiles/{PROFILE_A}/lock").status_code == 200
+    assert core_security.is_jwt_token_revoked("jti-lock-1")
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]
+    relogin = _download_as(vault, "jti-lock-2", dl.format(id=art_id))
+    assert relogin.status_code == 404, relogin.text
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_020_restart_with_the_same_unrevoked_token_still_serves(tmp_path, case):
+    """(c) The feature itself: a restart (dicts cleared, vault reopened through a fresh
+    engine) with the same, unrevoked session token downloads inside 30 minutes. Would not
+    notice: a real JWT round trip (route_client hands a constant jti, so a token whose jti
+    changes across a restart is invisible here)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-restart", case)
+    before = _download_as(vault, "jti-restart", dl.format(id=art_id))
+    assert before.status_code == 200, before.text
+    _simulate_restart()
+    assert not core_security.is_jwt_token_revoked("jti-restart")
+    after = _download_as(vault, "jti-restart", dl.format(id=art_id))
+    assert after.status_code == 200, after.text
+    assert after.content == before.content
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]  # a served row is kept
+
+
+async def _unbind_vault_row(path: Path, session_jti: str | None) -> None:
+    """Re-insert the single row with the same payload and `session_jti` as given (None
+    leaves the column out, so it is NULL), as a row written before this binding existed."""
+    from models.export_artifact import ExportArtifact
+    engine = _engine(path)
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+    async with maker() as s:
+        old = (await s.execute(select(ExportArtifact))).scalar_one()
+        fields = dict(id=old.id, kind=old.kind, profile_id=old.profile_id,
+                      payload_json=old.payload_json, created_at=old.created_at)
+        if session_jti is not None:
+            fields["session_jti"] = session_jti
+        await s.execute(delete(ExportArtifact))
+        s.add(ExportArtifact(**fields))
+        await s.commit()
+    await engine.dispose()
+
+
+@pytest.mark.parametrize("bad", [None, ""], ids=["null", "empty"])
+@pytest.mark.parametrize("layer", ["vault", "memory"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_021_artifact_without_a_session_jti_is_never_served(tmp_path, case, layer, bad):
+    """(d) Fail closed: a NULL or empty `session_jti` (a row from before the binding, or
+    a login that carried no jti) is never served. 404, and the row is deleted on read. The
+    caller has a perfectly valid jti, so the missing binding is the only reason. Would not
+    notice: a caller with no jti either (HC-EXPA-023)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, ROUTE_CLIENT_JTI, case)
+    assert _download_as(vault, ROUTE_CLIENT_JTI, dl.format(id=art_id)).status_code == 200
+    if layer == "vault":
+        _simulate_restart()
+        asyncio.run(_unbind_vault_row(vault, bad))
+    else:
+        for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+            for entry in store.values():
+                entry["session_jti"] = bad
+    response = _download_as(vault, ROUTE_CLIENT_JTI, dl.format(id=art_id))
+    assert response.status_code == 404, response.text
+    assert asyncio.run(_rows(vault)) == []
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store  # the in-process entry went too
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_022_another_session_of_the_same_profile_is_not_served(tmp_path, case, restart):
+    """(e) Session A's export is not served to session B of the SAME profile (the owner
+    check passes, so only the jti binding refuses it). Neither session is revoked. Per the
+    serving rule the refused read deletes the row. Would not notice: two sessions that
+    are both live at once in a real deployment (here B never re-logs-in through /unlock)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-session-a", case)
+    if restart:
+        _simulate_restart()
+    response = _download_as(vault, "jti-session-b", dl.format(id=art_id))
+    assert response.status_code == 404, response.text
+    assert "zzmarkera" not in response.text
+    assert not core_security.is_jwt_token_revoked("jti-session-a")
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("stored", ["jti-session-a", None], ids=["bound_row", "null_row"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_023_caller_without_a_jti_is_never_served(tmp_path, case, stored):
+    """A caller whose session carries no jti is refused, even against a NULL-bound row
+    (None == None must not count as a match). Would not notice: an empty-string jti
+    (HC-EXPA-021 covers the empty stored value)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-session-a", case)
+    _simulate_restart()
+    asyncio.run(_unbind_vault_row(vault, stored))
+    response = _download_as(vault, None, dl.format(id=art_id))
+    assert response.status_code == 404, response.text
+    assert asyncio.run(_rows(vault)) == []
