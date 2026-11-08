@@ -19,7 +19,9 @@
  *   the chart never draws once at one height and then again at another.
  * - Stricter safety mode on (SAFETY-MODE-VERIFIED-FE): the ribbon leaves out the values the patient has not checked, and
  *   they are listed under it with a one-line note and a link to Review values. Off, or not yet known, the hollow markers
- *   and UnverifiedTrendNote stay (I-13); the server enforces the mode either way.
+ *   and UnverifiedTrendNote stay (I-13); the server enforces the mode either way. An interpretation refused with the
+ *   409 `observation_unverified` (grounded POST, stored GET or panel POST) shows "Verify this result first" with the same
+ *   link, whatever the mode reads here. Any other error keeps its old path.
  * - Nothing here moves: no motion elements, no stagger, no transform. A spinner turns only where motion is allowed.
  *
  * The lab-interpreter components are imported by path, never through their barrel: the barrel re-exports the Recharts
@@ -48,6 +50,7 @@ import {
   useInterpretation,
 } from '@/services/interpretations';
 import { useExternalApiSettings } from '@/services/modelSettings';
+import { ApiError } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import { useSafetyMode } from '@/hooks/useSafetyMode';
 import { findActiveMedications } from '@/utils/correlation';
@@ -167,6 +170,29 @@ async function renderSvgToCanvas(svgElement: SVGSVGElement) {
   }
 }
 
+// The one 409 the interpretation routes raise (api/interpretations.py, detail code "observation_unverified"). The status
+// alone is tested: ApiError.message is "[object Object]" for a dict detail (services/api.ts).
+function isVerifyFirst(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 409;
+}
+
+function VerifyFirst() {
+  return (
+    <Card role="status" data-testid="verify-first">
+      <CardContent className="space-y-3 py-6 text-center">
+        <Info className="mx-auto h-8 w-8 text-ink-tertiary" />
+        <div>
+          <p className="text-sm font-medium text-ink">Verify this result first</p>
+          <p className="mt-1 text-xs text-ink-secondary">An explanation needs a value you have checked against your report.</p>
+        </div>
+        <Button asChild variant="secondary">
+          <Link to="/verify">Review values</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 const chipBase = [
   'flex w-full min-h-11 shrink-0 items-center justify-between gap-2 text-left transition-colors',
   'rounded-full border border-[var(--line)] bg-surface-elevated px-3.5 py-1',
@@ -253,7 +279,11 @@ export function ResultsPage() {
   const { data: trendData, isLoading: trendLoading, isError: trendError } = useTrend(effectiveAnalyte, profileId || '');
   const { data: medications } = useMedications();
   const { data: externalApi, isError: externalApiError } = useExternalApiSettings();
-  const { data: interpretation, isLoading: interpLoading } = useInterpretation(
+  const {
+    data: interpretation,
+    isLoading: interpLoading,
+    error: interpError,
+  } = useInterpretation(
     explainOpen ? effectiveObservation?.id : undefined
   );
   const generateInterpretation = useGenerateGroundedInterpretation();
@@ -377,6 +407,12 @@ export function ResultsPage() {
   const plottedCount = (trendData?.data_points.length ?? 0) - (strictSafetyMode ? unverifiedPointCount : 0);
   const chartReady = effectiveAnalyte !== undefined && !trendLoading && !trendError && plottedCount > 0;
   const groundedShown = grounded && grounded.observationId === effectiveObservation?.id ? grounded : null;
+  // The 409 for the result on screen: from its stored GET, or from the grounded POST asked for it.
+  const verifyFirstShown =
+    isVerifyFirst(interpError) ||
+    (isVerifyFirst(generateInterpretation.error) &&
+      generateInterpretation.variables?.observationId === effectiveObservation?.id);
+  const panelVerifyFirst = panelFailed && isVerifyFirst(generatePanelInterp.error);
 
   const shell = (
     <>
@@ -602,13 +638,16 @@ export function ResultsPage() {
             </div>
           )}
 
-          {(panelShown || panelPending || panelFailed) && (
-            <PanelInterpretationDashboard
-              interpretation={panelShown?.data}
-              isLoading={panelPending}
-              isError={panelFailed}
-            />
-          )}
+          {(panelShown || panelPending || panelFailed) &&
+            (panelVerifyFirst ? (
+              <VerifyFirst />
+            ) : (
+              <PanelInterpretationDashboard
+                interpretation={panelShown?.data}
+                isLoading={panelPending}
+                isError={panelFailed}
+              />
+            ))}
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-6">
             <div className="min-w-0 lg:col-start-3 lg:row-start-1">
@@ -725,6 +764,8 @@ export function ResultsPage() {
                     </CardContent>
                   </Card>
                 )
+              ) : verifyFirstShown ? (
+                <VerifyFirst />
               ) : interpretation ? (
                 <InterpretedResultCard
                   interpretation={interpretation}

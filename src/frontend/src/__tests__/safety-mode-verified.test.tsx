@@ -310,3 +310,107 @@ describe('SAFETY-MODE-VERIFIED-FE: RangeRibbon hideUnverified', () => {
     expect(b.container).toHaveTextContent('No values to chart yet.');
   });
 });
+
+describe('SAFETY-MODE-VERIFIED-FE: verify-first', () => {
+  async function askGrounded(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: /Generate Interpretation/ }));
+  }
+
+  it.each([
+    ['on', true],
+    ['off', false],
+  ])('HC-SMV-003: mode %s, a 409 on the grounded POST shows the verify-first state with the Review link', async (_label, mode) => {
+    setApi(mode, MIXED, { post: () => apiError(409) });
+    const user = userEvent.setup();
+    renderResults(<ResultsPage />, true);
+
+    await askGrounded(user);
+
+    const state = await screen.findByTestId('verify-first');
+    expect(state).toHaveTextContent(VERIFY_FIRST);
+    expect(within(state).getByRole('link', { name: 'Review values' })).toHaveAttribute('href', '/verify');
+    expect(vi.mocked(api.apiPost).mock.calls[0][0]).toContain('/interpret-grounded');
+    // The "no interpretation yet" prompt gave way to it, and nothing says "error" or "failed".
+    expect(screen.queryByText('No interpretation yet')).toBeNull();
+    expect(document.body).not.toHaveTextContent(/failed|error|\[object Object\]/i);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('HC-SMV-003: a 409 on the stored-interpretation GET shows the verify-first state', async () => {
+    setApi(true, MIXED, { get: () => apiError(409) });
+    renderResults(<ResultsPage />, true);
+
+    const state = await screen.findByTestId('verify-first');
+    expect(state).toHaveTextContent(VERIFY_FIRST);
+    expect(within(state).getByRole('link', { name: 'Review values' })).toHaveAttribute('href', '/verify');
+    expect(screen.queryByText('No interpretation yet')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Generate Interpretation/ })).toBeNull();
+  });
+
+  it('HC-SMV-003: a 409 on the panel POST shows the verify-first state, not the panel error card', async () => {
+    setApi(true, MIXED, { post: () => apiError(409) });
+    const user = userEvent.setup();
+    renderResults();
+
+    await user.click(await screen.findByRole('tab', { name: 'CBC' }));
+    const button = await screen.findByRole('button', { name: 'Interpret CBC Panel' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+
+    const state = await screen.findByTestId('verify-first');
+    expect(state).toHaveTextContent(VERIFY_FIRST);
+    expect(within(state).getByRole('link', { name: 'Review values' })).toHaveAttribute('href', '/verify');
+    expect(vi.mocked(api.apiPost).mock.calls[0][0]).toContain('/panels/cbc/interpret');
+    expect(screen.queryByText('Failed to load interpretation')).toBeNull();
+  });
+
+  it('HC-SMV-004: a 500 on the grounded POST keeps today\'s path, with no verify-first text', async () => {
+    setApi(true, MIXED, { post: () => apiError(500) });
+    const user = userEvent.setup();
+    renderResults(<ResultsPage />, true);
+
+    await askGrounded(user);
+    await waitFor(() => expect(vi.mocked(api.apiPost)).toHaveBeenCalled());
+    // Today: the prompt stays and the button comes back (the mutation settled).
+    await waitFor(() => expect(screen.getByRole('button', { name: /Generate Interpretation/ })).toBeEnabled());
+    expect(screen.getByText('No interpretation yet')).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-first')).toBeNull();
+    expect(document.body).not.toHaveTextContent(VERIFY_FIRST);
+  });
+
+  it('HC-SMV-004: a network failure on the grounded POST keeps today\'s path', async () => {
+    setApi(true, MIXED, { post: () => new Error('Failed to fetch.') });
+    const user = userEvent.setup();
+    renderResults(<ResultsPage />, true);
+
+    await askGrounded(user);
+    await waitFor(() => expect(vi.mocked(api.apiPost)).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByRole('button', { name: /Generate Interpretation/ })).toBeEnabled());
+    expect(screen.getByText('No interpretation yet')).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(VERIFY_FIRST);
+  });
+
+  it('HC-SMV-004: a 500 on the stored-interpretation GET keeps today\'s path', async () => {
+    setApi(true, MIXED, { get: () => apiError(500) });
+    renderResults(<ResultsPage />, true);
+
+    expect(await screen.findByText('No interpretation yet')).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-first')).toBeNull();
+    expect(document.body).not.toHaveTextContent(VERIFY_FIRST);
+  });
+
+  it('HC-SMV-004: a 500 on the panel POST keeps today\'s error card', async () => {
+    setApi(true, MIXED, { post: () => apiError(500) });
+    const user = userEvent.setup();
+    renderResults();
+
+    await user.click(await screen.findByRole('tab', { name: 'CBC' }));
+    const button = await screen.findByRole('button', { name: 'Interpret CBC Panel' });
+    await waitFor(() => expect(button).toBeEnabled());
+    await user.click(button);
+
+    expect(await screen.findByText('Failed to load interpretation')).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-first')).toBeNull();
+    expect(document.body).not.toHaveTextContent(VERIFY_FIRST);
+  });
+});
