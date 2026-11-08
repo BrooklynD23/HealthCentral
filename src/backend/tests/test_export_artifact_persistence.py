@@ -506,44 +506,54 @@ def test_hc_expa_015_delete_removes_the_profiles_rows_only(two_open_vaults):
     _assert_a_gone_b_intact(two_open_vaults.vaults, two_open_vaults.ids[PROFILE_B])
 
 
-def test_hc_expa_016_a_purge_that_cannot_delete_fails_loudly(two_open_vaults):
-    """A vault delete that errors must surface (500), never be swallowed, and it must run
-    before the close. Would not notice: a purge that fails only on some rows."""
+async def _break_export_table(vault: Path) -> None:
+    """Make every purge delete on `vault` raise (`no such table: export_artifact`)."""
     from sqlalchemy import text
+    engine = _engine(vault)
+    async with engine.begin() as conn:
+        await conn.execute(text("ALTER TABLE export_artifact RENAME TO export_artifact_gone"))
+    await engine.dispose()
 
-    async def _break_table():
-        engine = _engine(two_open_vaults.vaults[PROFILE_A])
-        async with engine.begin() as conn:
-            await conn.execute(text("ALTER TABLE export_artifact RENAME TO export_artifact_gone"))
-        await engine.dispose()
 
-    asyncio.run(_break_table())
+def test_hc_expa_016_a_purge_that_cannot_delete_fails_loudly(two_open_vaults):
+    """EXPORT-LIVE-LOGIN point 3, logout. A vault delete that errors must surface as a
+    500, never be swallowed, and the cleanup must still run: the vault is closed and the
+    session jti is revoked. Would not notice: a purge that fails only on some rows, or a
+    close that is awaited on a different profile (the mock records the argument)."""
+    asyncio.run(_break_export_table(two_open_vaults.vaults[PROFILE_A]))
     close = AsyncMock()
-    with _profiles_client(PROFILE_A, _db_with_profile(None), close=close) as prof:
-        with pytest.raises(Exception, match="export_artifact"):
-            prof.post("/profiles/logout")
-    close.assert_not_awaited()  # the failed purge stopped the logout before the close
+    with _end_session_client(PROFILE_A, _db_with_profile(None), "jti-logout-fail",
+                             close=close, raise_server_exceptions=False) as prof:
+        response = prof.post("/profiles/logout")
+    assert response.status_code == 500, response.text
+    close.assert_awaited_once_with(PROFILE_A)  # the failed purge no longer skips the close
+    assert core_security.is_jwt_token_revoked("jti-logout-fail")
 
 
 # ---------------------------------------------------------------------------
 # EXPORT-SESSION-BIND (L0 ruling, #537 comment 6714721685) - HC-EXPA-017..
 #
-# An export is served only to the session that generated it: unexpired, same profile,
-# stored session_jti non-empty and equal to the caller's token jti, and that jti not
-# revoked. Anything else is the same 404 as an expired export, and the row is deleted.
+# An export is served to any live login of the owning profile (EXPORT-LIVE-LOGIN, #537
+# comment 6717788852, which replaced the jti-equality rule): unexpired, same profile,
+# stored session_jti non-empty and not revoked. A caller with no jti stays refused.
+# Anything else is the same 404 as an expired export, and the row is deleted.
 # ---------------------------------------------------------------------------
 
 
-def _end_session_client(profile_id: str, master_db, jti: str):
+def _end_session_client(profile_id: str, master_db, jti: str, close=None,
+                        raise_server_exceptions: bool = True):
     """The profiles router with the REAL `revoke_jwt_token` (the suite's
     `_profiles_client` mocks it), so a logout or lock revokes `jti` in the isolated list.
-    Only the vault close and the profile audit are stubbed."""
+    Only the vault close and the profile audit are stubbed. `close` is that stub (pass
+    one to assert on it); `raise_server_exceptions=False` turns a handler error into a 500."""
     @contextmanager
     def _cm():
-        with patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()), \
+        with patch.object(profiles_api, "close_profile_database_on_logout",
+                          close if close is not None else AsyncMock()), \
              patch.object(profiles_api, "log_profile_event", AsyncMock()), \
              route_client(profiles_api.router, "/profiles", profile_id=profile_id,
-                          master_db=master_db) as client:
+                          master_db=master_db,
+                          raise_server_exceptions=raise_server_exceptions) as client:
             _set_session_jti(client, profile_id, jti)
             yield client
     return _cm()
@@ -696,24 +706,46 @@ def test_hc_expa_021_artifact_without_a_session_jti_is_never_served(tmp_path, ca
         assert art_id not in store  # the in-process entry went too
 
 
-@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
 @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
-def test_hc_expa_022_another_session_of_the_same_profile_is_not_served(tmp_path, case, restart):
-    """(e) Session A's export is not served to session B of the SAME profile (the owner
-    check passes, so only the jti binding refuses it). Neither session is revoked. Per the
-    serving rule the refused read deletes the row. Would not notice: two sessions that
-    are both live at once in a real deployment (here B never re-logs-in through /unlock)."""
+def test_hc_expa_022_after_a_logs_out_session_b_is_not_served_and_row_is_deleted(tmp_path, case):
+    """EXPORT-LIVE-LOGIN (e), first half. Session A exports and logs out (its jti is
+    revoked). Session B of the SAME profile, with a different live jti, gets 404 and the
+    read deletes the row. The vault is not open in the manager, so logout's purge cannot
+    reach the row (the dicts go, the row stays): only the revoked row jti refuses B. Would
+    not notice: a logout whose vault IS open (HC-EXPA-013 deletes the rows itself)."""
     _kind, _gen, _body, _idkey, dl, _t = case
     vault = tmp_path / "vault.db"
     asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
     art_id = _export_as(vault, "jti-session-a", case)
-    if restart:
-        _simulate_restart()
+    with _end_session_client(PROFILE_A, _db_with_profile(None), "jti-session-a") as prof:
+        assert prof.post("/profiles/logout").status_code == 200
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]  # the purge did not reach it
     response = _download_as(vault, "jti-session-b", dl.format(id=art_id))
     assert response.status_code == 404, response.text
     assert "zzmarkera" not in response.text
-    assert not core_security.is_jwt_token_revoked("jti-session-a")
+    assert not core_security.is_jwt_token_revoked("jti-session-b")
     assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_026_a_live_export_is_served_to_another_live_login(tmp_path, case, restart):
+    """EXPORT-LIVE-LOGIN (e), second half. A's export is served to B while A is still
+    live (neither jti revoked), from the dict and from the vault row, and the row is kept.
+    Would not notice: B being a different PROFILE (HC-EXPA-003 and -004 own that 403)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-session-a", case)
+    before = _download_as(vault, "jti-session-a", dl.format(id=art_id))
+    assert before.status_code == 200, before.text
+    if restart:
+        _simulate_restart()
+    response = _download_as(vault, "jti-session-b", dl.format(id=art_id))
+    assert response.status_code == 200, response.text
+    assert response.content == before.content
+    assert not core_security.is_jwt_token_revoked("jti-session-a")
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]
 
 
 @pytest.mark.parametrize("stored", ["jti-session-a", None], ids=["bound_row", "null_row"])
@@ -731,3 +763,172 @@ def test_hc_expa_023_caller_without_a_jti_is_never_served(tmp_path, case, stored
     response = _download_as(vault, None, dl.format(id=art_id))
     assert response.status_code == 404, response.text
     assert asyncio.run(_rows(vault)) == []
+
+
+# ---------------------------------------------------------------------------
+# EXPORT-LIVE-LOGIN (L0 ruling, #537 comment 6717788852) - HC-EXPA-024..
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("route", ["lock", "delete"])
+def test_hc_expa_024_failed_purge_still_closes_the_vault_and_revokes(two_open_vaults, route):
+    """Point 3 for lock and delete: when the export purge raises, the response is a 500,
+    the vault is still closed, and the session jti is still revoked (a lock whose purge
+    failed used to leave the vault open and the token alive). Would not notice: a close
+    that runs but for the wrong profile (the mock is asserted with the profile id), or a
+    purge that fails on a vault other than the open one."""
+    jti = f"jti-{route}-fail"
+    asyncio.run(_break_export_table(two_open_vaults.vaults[PROFILE_A]))
+    close = AsyncMock()
+    if route == "lock":
+        profile = SimpleNamespace(id=PROFILE_A, display_name="T", is_locked=False,
+                                  password_hash="x", created_at=T0, last_accessed_at=None)
+        with _end_session_client(PROFILE_A, _db_with_profile(profile), jti, close=close,
+                                 raise_server_exceptions=False) as prof:
+            response = prof.post(f"/profiles/{PROFILE_A}/lock")
+    else:
+        _make_vault(two_open_vaults.root, PROFILE_A)
+        profile = SimpleNamespace(id=PROFILE_A, display_name="T")
+        with patch.object(profiles_api, "_load_profile_for_delete", AsyncMock(return_value=profile)), \
+             patch.object(profiles_api, "authenticate_profile", AsyncMock(return_value=profile)), \
+             _end_session_client(PROFILE_A, _FakeMasterDb(), jti, close=close,
+                                 raise_server_exceptions=False) as prof:
+            response = prof.request(
+                "DELETE", f"/profiles/{PROFILE_A}",
+                json={"password": "CorrectHorse1", "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+                      "export_acknowledged": True},
+            )
+    assert response.status_code == 500, response.text
+    close.assert_awaited_once_with(PROFILE_A)
+    assert core_security.is_jwt_token_revoked(jti)
+
+
+def test_hc_expa_025_lock_revokes_even_when_the_close_raises(two_open_vaults):
+    """Point 3, nested finally at lock: the purge works, the close raises, and the jti is
+    still revoked; the error propagates as a 500. Would not notice: a close that raises
+    after partly clearing keys (the close is a mock here, HC-PDB owns the real one)."""
+    profile = SimpleNamespace(id=PROFILE_A, display_name="T", is_locked=False,
+                              password_hash="x", created_at=T0, last_accessed_at=None)
+    close = AsyncMock(side_effect=RuntimeError("close failed"))
+    with _end_session_client(PROFILE_A, _db_with_profile(profile), "jti-close-fail", close=close,
+                             raise_server_exceptions=False) as prof:
+        response = prof.post(f"/profiles/{PROFILE_A}/lock")
+    assert response.status_code == 500, response.text
+    close.assert_awaited_once_with(PROFILE_A)
+    assert core_security.is_jwt_token_revoked("jti-close-fail")
+    assert asyncio.run(_rows(two_open_vaults.vaults[PROFILE_A])) == []  # the purge itself ran
+
+
+def _login_client(master_db, profile):
+    """The profiles router with the REAL login route and the REAL `create_session_token`,
+    so every call mints a token with a fresh `jti`. Only password check, vault open and
+    the profile audit are stubbed."""
+    @contextmanager
+    def _cm():
+        with patch.object(profiles_api, "authenticate_profile", AsyncMock(return_value=profile)), \
+             patch.object(profiles_api, "open_profile_database_on_login", AsyncMock()), \
+             patch.object(profiles_api, "_audit_fk_orphan_cleanup", AsyncMock()), \
+             patch.object(profiles_api, "log_profile_event", AsyncMock()), \
+             route_client(profiles_api.router, "/profiles", profile_id=PROFILE_A,
+                          master_db=master_db) as client:
+            yield client
+    return _cm()
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_027_real_restart_then_new_login_serves_and_old_logout_ends_it(
+    tmp_path, monkeypatch, case
+):
+    """The feature itself, over HTTP with real tokens. Export under login 1, restart
+    (nothing open in the manager, dicts cleared), log in again through /profiles/login:
+    a NEW jti. Within 30 minutes the download is 200. Then the OLD token logs out
+    (real bearer through the real `require_auth`): its jti is revoked, the row is not yet
+    gone, and the next download is 404 and deletes the row. Under the retired equality
+    rule the first download was already 404 here, which is the bug. Would not notice: the
+    vault being reopened with the SQLCipher key (the suite runs unencrypted), or a
+    clock that moves past 30 minutes (HC-EXPA-011 owns that)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    monkeypatch.setattr(core_security, "_jwt_secret_cache", "test-secret-" + "x" * 32)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    profile = SimpleNamespace(id=PROFILE_A, display_name="T", is_locked=False,
+                              password_hash="x", created_at=T0, last_accessed_at=None)
+    master = _db_with_profile(profile)
+    login = {"profile_id": PROFILE_A, "password": "CorrectHorse1"}
+
+    with _login_client(master, profile) as client:
+        token1 = client.post("/profiles/login", json=login).json()["access_token"]
+    jti1 = core_security.verify_token(token1)["jti"]
+    art_id = _export_as(vault, jti1, case)
+    first = _download_as(vault, jti1, dl.format(id=art_id))
+    assert first.status_code == 200, first.text
+
+    _simulate_restart()  # backend restart: dicts gone, no vault connection open
+    assert not get_profile_db_manager().is_profile_connected(PROFILE_A)
+    with _login_client(master, profile) as client:
+        response = client.post("/profiles/login", json=login)
+        assert response.status_code == 200, response.text
+        token2 = response.json()["access_token"]
+    jti2 = core_security.verify_token(token2)["jti"]
+    assert jti2 != jti1  # every login mints a new jti
+
+    after = _download_as(vault, jti2, dl.format(id=art_id))
+    assert after.status_code == 200, after.text
+    assert after.content == first.content
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]
+
+    with _end_session_client(PROFILE_A, master, jti1, close=AsyncMock()) as prof:
+        prof.app.dependency_overrides.pop(require_auth)  # the REAL bearer check
+        out = prof.post("/profiles/logout", headers={"Authorization": f"Bearer {token1}"})
+    assert out.status_code == 200, out.text
+    assert core_security.is_jwt_token_revoked(jti1)
+    assert not core_security.is_jwt_token_revoked(jti2)
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]  # logout did not reach it
+    gone = _download_as(vault, jti2, dl.format(id=art_id))
+    assert gone.status_code == 404, gone.text
+    assert asyncio.run(_rows(vault)) == []
+
+
+async def _insert_rows(path: Path, rows: list[dict]) -> None:
+    from models.export_artifact import ExportArtifact
+    engine = _engine(path)
+    async with async_sessionmaker(engine)() as s:
+        for row in rows:
+            s.add(ExportArtifact(kind="doctor_summary", payload_json="{}", **row))
+        await s.commit()
+    await engine.dispose()
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_028_saving_prunes_this_profiles_dead_rows_only(tmp_path, monkeypatch, case):
+    """Each save deletes the saving profile's rows that are expired, have a NULL or empty
+    jti, or have a revoked jti. A live row of another login of the same profile stays, the
+    new row is there, and every row of ANOTHER profile in the same vault file stays (the
+    file is shared on purpose: the prune must filter by profile_id). Asserted by querying
+    the table. Would not notice: the pinboard export route (it shares `_save_artifact`;
+    HC-PIN-* cover its call), or a row that is dead for two reasons at once."""
+    clock = {"now": T0}
+    monkeypatch.setattr(core_time, "utcnow", lambda: clock["now"])
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    _revoke("jti-dead")
+    fresh, stale = T0 - timedelta(minutes=5), T0 - timedelta(minutes=31)
+
+    def row(id_, profile_id, jti, created):
+        return dict(id=id_, profile_id=profile_id, session_jti=jti, created_at=created)
+
+    asyncio.run(_insert_rows(vault, [
+        row("a-expired", PROFILE_A, "jti-other-live", stale),
+        row("a-null", PROFILE_A, None, fresh),
+        row("a-empty", PROFILE_A, "", fresh),
+        row("a-revoked", PROFILE_A, "jti-dead", fresh),
+        row("a-live", PROFILE_A, "jti-other-live", fresh),
+        row("b-expired", PROFILE_B, "jti-other-live", stale),
+        row("b-null", PROFILE_B, None, fresh),
+        row("b-revoked", PROFILE_B, "jti-dead", fresh),
+        row("b-live", PROFILE_B, "jti-other-live", fresh),
+    ]))
+    new_id = _export_as(vault, "jti-prune-live", case)
+    assert {r.id for r in asyncio.run(_rows(vault))} == {
+        new_id, "a-live", "b-expired", "b-null", "b-revoked", "b-live"
+    }
