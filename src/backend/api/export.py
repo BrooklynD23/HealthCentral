@@ -105,6 +105,35 @@ async def purge_profile_exports(profile_id: str) -> int:
     return removed + (result.rowcount or 0)
 
 
+async def _prune_dead_rows(profile_db: AsyncSession, profile_id: str) -> None:
+    """Delete `profile_id`'s rows that can never be served again (EXPORT-LIVE-LOGIN).
+
+    Dead means expired, a NULL or empty `session_jti`, or a revoked one. Runs in the
+    caller's transaction (no commit), so the route's stage, audit commit, vault commit
+    order is unchanged and another profile's rows are never touched.
+    """
+    rows = (
+        await profile_db.execute(
+            select(ExportArtifact.id, ExportArtifact.created_at, ExportArtifact.session_jti)
+            .where(ExportArtifact.profile_id == profile_id)
+        )
+    ).all()
+    now = core_time.utcnow()
+    dead = [
+        row.id
+        for row in rows
+        if now - row.created_at > _EXPORT_TTL
+        or not row.session_jti
+        or is_jwt_token_revoked(row.session_jti)
+    ]
+    if dead:
+        await profile_db.execute(
+            delete(ExportArtifact).where(
+                ExportArtifact.profile_id == profile_id, ExportArtifact.id.in_(dead)
+            )
+        )
+
+
 async def _save_artifact(
     profile_db: AsyncSession,
     *,
@@ -121,10 +150,12 @@ async def _save_artifact(
     strict (no `default=`): a value that is not JSON fails here, loudly, and is
     never silently stringified. Expired rows are deleted on read, and every row
     goes at logout, lock and profile delete (`purge_profile_exports`).
-    `session_jti` binds the row to the generating session (EXPORT-SESSION-BIND).
+    `session_jti` records the generating login (EXPORT-LIVE-LOGIN): any live login of the
+    profile may be served the row, and each save prunes this profile's dead rows.
     """
     if kind not in EXPORT_ARTIFACT_KINDS:
         raise ValueError(f"unknown export artifact kind: {kind}")
+    await _prune_dead_rows(profile_db, profile_id)
     profile_db.add(
         ExportArtifact(
             id=artifact_id,
@@ -167,15 +198,17 @@ async def _load_artifact(
 async def _bound_to_session(
     profile_db: Optional[AsyncSession], entry: dict, session, *, artifact_id: str, store: dict
 ) -> bool:
-    """EXPORT-SESSION-BIND: serve only to the session that generated the artifact.
+    """EXPORT-LIVE-LOGIN: serve to any live login of the owning profile.
 
-    Runs after the ownership check. True when the entry's `session_jti` is non-empty,
-    equals the caller's `token_jti` and is not revoked. Otherwise (a missing jti and a
-    caller with no jti both fail closed) the in-process entry and the vault row are
-    deleted and the caller answers the same 404 as for an expired export.
+    Runs after the ownership check. True when the entry's `session_jti` is non-empty and
+    not revoked (a revoked jti means that login ended). The caller's jti is not compared
+    to the stored one, because every login mints a new jti, so equality could never serve
+    a row after a restart. A caller with no jti stays refused. Otherwise the in-process
+    entry and the vault row are deleted and the caller answers the same 404 as for an
+    expired export.
     """
     jti = entry.get("session_jti")
-    if jti and jti == session.token_jti and not is_jwt_token_revoked(jti):
+    if jti and session.token_jti and not is_jwt_token_revoked(jti):
         return True
     store.pop(artifact_id, None)
     if profile_db is not None:

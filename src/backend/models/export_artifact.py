@@ -9,9 +9,10 @@ Retention (owner answer EXPORT-ARTIFACT-RETENTION, 2026-11-07): a row is served
 for at most `api.export._EXPORT_TTL` after `created_at`, and is removed at
 logout, lock and profile delete. No foreign key: a row is self-contained.
 
-Session binding (EXPORT-SESSION-BIND, 2026-11-07): `session_jti` is the JWT `jti` of
-the session that generated the row. It is served only to that session while the jti
-is unrevoked. NULL (or empty) is never served: it fails closed.
+Live-login rule (EXPORT-LIVE-LOGIN, 2026-11-07): `session_jti` is the JWT `jti` of the
+login that generated the row. The row is served to any live login of the profile while
+that jti is unrevoked (every login mints a new jti, so equality is not compared). NULL
+(or empty) is never served: it fails closed. Each save prunes the profile's dead rows.
 """
 
 from datetime import datetime
