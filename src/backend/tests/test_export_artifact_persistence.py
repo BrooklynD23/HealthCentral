@@ -123,27 +123,30 @@ def _master_db(profile_id: str = PROFILE_A, commit_error: Exception | None = Non
 ROUTE_CLIENT_JTI = "jti-test"  # the constant session jti route_client hands out
 
 
-def _set_session_jti(client, profile_id: str, jti: str | None) -> None:
+def _set_session_jti(client, profile_id: str, jti: str | None,
+                     expires_at: datetime | None = None) -> None:
     """Swap the authenticated session for one with another jti (a new login), without
-    touching route_client: a second override of the same `require_auth` dependency."""
+    touching route_client: a second override of the same `require_auth` dependency.
+    `expires_at` (tz-aware UTC, like the real `Session`) defaults to an hour from now."""
     async def _auth() -> Session:
         return Session(profile_id=profile_id, profile_name="T",
-                       expires_at=datetime.now(timezone.utc) + timedelta(hours=1), token_jti=jti)
+                       expires_at=expires_at or datetime.now(timezone.utc) + timedelta(hours=1),
+                       token_jti=jti)
 
     client.app.dependency_overrides[require_auth] = _auth
 
 
 @contextmanager
 def _client(router, prefix: str, vault: Path | None, profile_id: str = PROFILE_A, master_db=None,
-            jti: str | None = ROUTE_CLIENT_JTI):
+            jti: str | None = ROUTE_CLIENT_JTI, expires_at: datetime | None = None):
     """route_client over a real vault file. `vault=None` leaves the real
     `get_profile_db_session` in place (no connection open = locked vault). `jti` is
     the session's token jti (route_client's own constant unless a test names one)."""
     maker = async_sessionmaker(_engine(vault), expire_on_commit=False) if vault else None
     with route_client(router, prefix, profile_id=profile_id,
                       master_db=master_db or _master_db(profile_id), profile_db=maker) as client:
-        if jti != ROUTE_CLIENT_JTI:
-            _set_session_jti(client, profile_id, jti)
+        if jti != ROUTE_CLIENT_JTI or expires_at is not None:
+            _set_session_jti(client, profile_id, jti, expires_at)
         yield client
 
 
@@ -541,7 +544,7 @@ def test_hc_expa_016_a_purge_that_cannot_delete_fails_loudly(two_open_vaults):
 
 
 def _end_session_client(profile_id: str, master_db, jti: str, close=None,
-                        raise_server_exceptions: bool = True):
+                        raise_server_exceptions: bool = True, expires_at: datetime | None = None):
     """The profiles router with the REAL `revoke_jwt_token` (the suite's
     `_profiles_client` mocks it), so a logout or lock revokes `jti` in the isolated list.
     Only the vault close and the profile audit are stubbed. `close` is that stub (pass
@@ -554,22 +557,24 @@ def _end_session_client(profile_id: str, master_db, jti: str, close=None,
              route_client(profiles_api.router, "/profiles", profile_id=profile_id,
                           master_db=master_db,
                           raise_server_exceptions=raise_server_exceptions) as client:
-            _set_session_jti(client, profile_id, jti)
+            _set_session_jti(client, profile_id, jti, expires_at)
             yield client
     return _cm()
 
 
-def _export_as(vault: Path, jti: str, case) -> str:
+def _export_as(vault: Path, jti: str, case, profile_id: str = PROFILE_A,
+               expires_at: datetime | None = None) -> str:
     """Generate one artifact as the session `jti`; returns its id."""
     _kind, gen, body, idkey, _dl, _t = case
-    with _client(export_api.router, "/export", vault, jti=jti) as client:
+    with _client(export_api.router, "/export", vault, profile_id=profile_id, jti=jti,
+                 expires_at=expires_at) as client:
         created = client.post(gen, json=body)
         assert created.status_code == 200, created.text
         return created.json()[idkey]
 
 
-def _download_as(vault: Path, jti: str | None, url: str):
-    with _client(export_api.router, "/export", vault, jti=jti) as client:
+def _download_as(vault: Path, jti: str | None, url: str, expires_at: datetime | None = None):
+    with _client(export_api.router, "/export", vault, jti=jti, expires_at=expires_at) as client:
         return client.get(url)
 
 
@@ -938,3 +943,165 @@ def test_hc_expa_028_saving_prunes_this_profiles_dead_rows_only(tmp_path, monkey
     assert {r.id for r in asyncio.run(_rows(vault))} == {
         new_id, "a-live", "b-expired", "b-null", "b-revoked", "b-live"
     }
+
+
+# ---------------------------------------------------------------------------
+# SESSION-EXP (L0 ruling, #537 comment 6719248844, option (a)) - HC-EXPA-029..032
+#
+# The revocation list keeps a jti only until the token's `exp`. Once `exp` passes, a
+# logged-out jti reads as "not revoked", so the row must carry the creating login's own
+# expiry (`session_exp`, naive UTC) and refuse itself after it. NULL fails closed.
+# ---------------------------------------------------------------------------
+
+
+def _frozen_clock(monkeypatch) -> dict:
+    """One movable clock for everything the rule reads: the `core.time` clock that
+    `api.export` uses, and the revocation list's own `_now_ts` (it prunes entries whose
+    exp has passed). Moving it is how a test makes a revocation entry really disappear."""
+    clock = {"now": T0}
+    monkeypatch.setattr(core_time, "utcnow", lambda: clock["now"])
+    monkeypatch.setattr(
+        TokenRevocationList, "_now_ts",
+        lambda self: int(clock["now"].replace(tzinfo=timezone.utc).timestamp()),
+    )
+    return clock
+
+
+def _aware(naive_utc: datetime) -> datetime:
+    return naive_utc.replace(tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_029_logout_then_clock_past_exp_does_not_serve_and_row_is_deleted(
+    tmp_path, monkeypatch, case
+):
+    """The gap in the revocation list. Export 5 minutes before the creating token's exp,
+    log out (the jti is revoked only until that exp), move the clock past exp: the
+    revocation entry is really gone (asserted, so the test proves the gap), the row is
+    still inside its 30 minutes, and a NEW login of the same profile must still get 404
+    and the read deletes the row. Would not notice: a clock that moves past the 30-minute
+    TTL (HC-EXPA-011 owns that, here the TTL is not the reason), a logout whose vault is
+    open and purges the row itself (HC-EXPA-013), or the real bearer-to-expiry mapping
+    (route_client injects the session)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    clock = _frozen_clock(monkeypatch)
+    exp = T0 + timedelta(minutes=5)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-exp-1", case, expires_at=_aware(exp))
+    assert _download_as(vault, "jti-exp-1", dl.format(id=art_id),
+                        expires_at=_aware(exp)).status_code == 200
+    _simulate_restart()  # nothing open in the manager: logout cannot purge the row
+    with _end_session_client(PROFILE_A, _db_with_profile(None), "jti-exp-1",
+                             expires_at=_aware(exp)) as prof:
+        assert prof.post("/profiles/logout").status_code == 200
+    assert core_security.is_jwt_token_revoked("jti-exp-1")
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]
+
+    clock["now"] = exp + timedelta(minutes=1)  # past exp, 6 minutes after creation
+    assert not core_security.is_jwt_token_revoked("jti-exp-1")  # the gap: revocation forgot it
+    relogin = _download_as(vault, "jti-exp-2", dl.format(id=art_id),
+                           expires_at=_aware(clock["now"] + timedelta(hours=1)))
+    assert relogin.status_code == 404, relogin.text
+    assert "zzmarkera" not in relogin.text
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_030_clock_past_exp_without_logout_does_not_serve_and_row_is_deleted(
+    tmp_path, monkeypatch, case, restart
+):
+    """No logout at all: the creating token simply expires 5 minutes after the export
+    (its jti was never revoked). A new login of the profile, 6 minutes after creation,
+    gets 404 and the read deletes the row, from the in-process entry or the vault row.
+    Would not notice: a revoked jti (HC-EXPA-029 and -018), the 30-minute TTL
+    (HC-EXPA-011), or a caller whose own token is expired (route_client never serves an
+    expired session, so only the stored expiry can refuse here)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    clock = _frozen_clock(monkeypatch)
+    exp = T0 + timedelta(minutes=5)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-exp-1", case, expires_at=_aware(exp))
+    if restart:
+        _simulate_restart()
+    clock["now"] = exp + timedelta(minutes=1)
+    assert not core_security.is_jwt_token_revoked("jti-exp-1")
+    response = _download_as(vault, "jti-exp-2", dl.format(id=art_id),
+                            expires_at=_aware(clock["now"] + timedelta(hours=1)))
+    assert response.status_code == 404, response.text
+    assert asyncio.run(_rows(vault)) == []
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store
+
+
+async def _reinsert_without_session_exp(path: Path) -> None:
+    """Re-insert the single row with its payload and its (valid) `session_jti` but no
+    `session_exp`, so the column is NULL, as a row written before the column existed."""
+    from models.export_artifact import ExportArtifact
+    engine = _engine(path)
+    maker = async_sessionmaker(engine, expire_on_commit=False)
+    async with maker() as s:
+        old = (await s.execute(select(ExportArtifact))).scalar_one()
+        fields = dict(id=old.id, kind=old.kind, profile_id=old.profile_id,
+                      payload_json=old.payload_json, created_at=old.created_at,
+                      session_jti=old.session_jti)
+        await s.execute(delete(ExportArtifact))
+        s.add(ExportArtifact(**fields))
+        await s.commit()
+    await engine.dispose()
+
+
+@pytest.mark.parametrize("layer", ["vault", "memory"])
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_031_artifact_without_a_session_exp_is_never_served(tmp_path, case, layer):
+    """Fail closed: a NULL `session_exp` (a row from before the column, or an entry that
+    lost it) is never served, though the jti is valid, unrevoked and the row fresh. 404,
+    the row and the in-process entry are deleted on read. Would not notice: a NULL or
+    empty jti (HC-EXPA-021), or an expiry that is in the past (HC-EXPA-030)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, ROUTE_CLIENT_JTI, case)
+    assert _download_as(vault, ROUTE_CLIENT_JTI, dl.format(id=art_id)).status_code == 200
+    if layer == "vault":
+        _simulate_restart()
+        asyncio.run(_reinsert_without_session_exp(vault))
+    else:
+        for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+            for entry in store.values():
+                entry["session_exp"] = None
+    response = _download_as(vault, ROUTE_CLIENT_JTI, dl.format(id=art_id))
+    assert response.status_code == 404, response.text
+    assert asyncio.run(_rows(vault)) == []
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store
+
+
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_032_saving_prunes_this_profiles_rows_past_session_exp(tmp_path, monkeypatch, case):
+    """Each save also deletes the saving profile's rows whose `session_exp` has passed or
+    is NULL, though their jti is unrevoked and their age is inside 30 minutes. The rows
+    come from the generate routes (the expired ones from a session that expired at +5
+    minutes), so the stored expiry is the route's, not a hand-made value. A row of ANOTHER
+    profile in the same file stays even when its expiry has passed or is NULL. Asserted
+    by querying the table. Would not notice: the TTL, revoked and NULL-jti reasons
+    (HC-EXPA-028), or the serve-time refusal (HC-EXPA-029..031)."""
+    clock = _frozen_clock(monkeypatch)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    asyncio.run(_create_vault(vault, PROFILE_B, "zzmarkerb"))
+    exp = _aware(T0 + timedelta(minutes=5))
+    a_expired = _export_as(vault, "jti-exp-a", case, expires_at=exp)
+    b_expired = _export_as(vault, "jti-exp-b", case, profile_id=PROFILE_B, expires_at=exp)
+    asyncio.run(_insert_rows(vault, [  # no session_exp given: NULL, fresh, unrevoked jti
+        dict(id="a-null-exp", profile_id=PROFILE_A, session_jti="jti-live", created_at=T0),
+        dict(id="b-null-exp", profile_id=PROFILE_B, session_jti="jti-live", created_at=T0),
+    ]))
+    clock["now"] = T0 + timedelta(minutes=6)
+    new_id = _export_as(vault, "jti-exp-new", case,
+                        expires_at=_aware(clock["now"] + timedelta(hours=1)))
+    ids = {r.id for r in asyncio.run(_rows(vault))}
+    assert ids == {new_id, b_expired, "b-null-exp"}, ids
+    assert a_expired not in ids
