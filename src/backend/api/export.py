@@ -26,6 +26,7 @@ from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.denial_audit import audit_denial
 from core.profile_database import get_profile_db_manager
+from core.security import is_jwt_token_revoked
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
 from models import CarePlanTask, Document, Medication, Observation, Profile
 from models.document_category import DocumentCategory, DocumentEntity
@@ -105,7 +106,13 @@ async def purge_profile_exports(profile_id: str) -> int:
 
 
 async def _save_artifact(
-    profile_db: AsyncSession, *, artifact_id: str, kind: str, profile_id: str, payload: dict
+    profile_db: AsyncSession,
+    *,
+    artifact_id: str,
+    kind: str,
+    profile_id: str,
+    payload: dict,
+    session_jti: Optional[str],
 ) -> None:
     """Stage a downloadable artifact in the caller's profile vault (G-C1).
 
@@ -114,6 +121,7 @@ async def _save_artifact(
     strict (no `default=`): a value that is not JSON fails here, loudly, and is
     never silently stringified. Expired rows are deleted on read, and every row
     goes at logout, lock and profile delete (`purge_profile_exports`).
+    `session_jti` binds the row to the generating session (EXPORT-SESSION-BIND).
     """
     if kind not in EXPORT_ARTIFACT_KINDS:
         raise ValueError(f"unknown export artifact kind: {kind}")
@@ -124,6 +132,7 @@ async def _save_artifact(
             profile_id=profile_id,
             payload_json=json.dumps(payload),
             created_at=core_time.utcnow(),
+            session_jti=session_jti,
         )
     )
     await profile_db.flush()
@@ -131,8 +140,8 @@ async def _save_artifact(
 
 async def _load_artifact(
     profile_db: Optional[AsyncSession], *, artifact_id: str, kind: str
-) -> Optional[tuple[str, dict]]:
-    """Return `(owner profile_id, payload)` for a live persisted artifact, else None.
+) -> Optional[tuple[str, dict, Optional[str]]]:
+    """Return `(owner profile_id, payload, session_jti)` for a live persisted artifact, else None.
 
     None covers: no vault session, no such row, a row of another kind, and a row
     older than `_EXPORT_TTL` (deleted here, on read). The caller keeps the
@@ -152,7 +161,27 @@ async def _load_artifact(
         await profile_db.execute(delete(ExportArtifact).where(ExportArtifact.id == artifact_id))
         await profile_db.commit()
         return None
-    return row.profile_id, json.loads(row.payload_json)
+    return row.profile_id, json.loads(row.payload_json), row.session_jti
+
+
+async def _bound_to_session(
+    profile_db: Optional[AsyncSession], entry: dict, session, *, artifact_id: str, store: dict
+) -> bool:
+    """EXPORT-SESSION-BIND: serve only to the session that generated the artifact.
+
+    Runs after the ownership check. True when the entry's `session_jti` is non-empty,
+    equals the caller's `token_jti` and is not revoked. Otherwise (a missing jti and a
+    caller with no jti both fail closed) the in-process entry and the vault row are
+    deleted and the caller answers the same 404 as for an expired export.
+    """
+    jti = entry.get("session_jti")
+    if jti and jti == session.token_jti and not is_jwt_token_revoked(jti):
+        return True
+    store.pop(artifact_id, None)
+    if profile_db is not None:
+        await profile_db.execute(delete(ExportArtifact).where(ExportArtifact.id == artifact_id))
+        await profile_db.commit()
+    return False
 
 # Verified entity types that feed the FHIR export (Condition, Encounter,
 # DiagnosticReport). Only verified_by_user is True rows are ever fetched.
@@ -565,8 +594,10 @@ async def generate_doctor_summary(
         kind="doctor_summary",
         profile_id=profile_id,
         payload=summary_data,  # the redacted copy; created_at below is not persisted
+        session_jti=session.token_jti,
     )
     summary_data["created_at"] = core_time.utcnow()
+    summary_data["session_jti"] = session.token_jti
     _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
@@ -628,7 +659,7 @@ async def download_summary(
     if not summary_data:  # backend restarted, or never in this process: read the vault
         loaded = await _load_artifact(profile_db, artifact_id=summary_id, kind="doctor_summary")
         if loaded:
-            summary_data = {**loaded[1], "profile_id": loaded[0]}
+            summary_data = {**loaded[1], "profile_id": loaded[0], "session_jti": loaded[2]}
 
     if not summary_data:
         raise HTTPException(
@@ -643,6 +674,10 @@ async def download_summary(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this summary"
         )
+    if not await _bound_to_session(
+        profile_db, summary_data, session, artifact_id=summary_id, store=_summary_store
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Summary not found")
 
     # Log download
     await audit_and_commit(
@@ -946,8 +981,10 @@ async def generate_visit_prep(
         kind="visit_prep",
         profile_id=profile_id,
         payload=packet,
+        session_jti=session.token_jti,
     )
     packet["created_at"] = core_time.utcnow()
+    packet["session_jti"] = session.token_jti
     _packet_store[packet["packet_id"]] = packet
 
     await audit_and_commit(
@@ -997,7 +1034,7 @@ async def download_visit_prep(
     if not packet:
         loaded = await _load_artifact(profile_db, artifact_id=packet_id, kind="visit_prep")
         if loaded:
-            packet = {**loaded[1], "profile_id": loaded[0]}
+            packet = {**loaded[1], "profile_id": loaded[0], "session_jti": loaded[2]}
     if not packet:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1009,6 +1046,13 @@ async def download_visit_prep(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this packet",
+        )
+    if not await _bound_to_session(
+        profile_db, packet, session, artifact_id=packet_id, store=_packet_store
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Visit-prep packet not found",
         )
 
     await audit_and_commit(
@@ -1396,11 +1440,13 @@ async def generate_fhir_export(
         kind="fhir_r4",
         profile_id=profile_id,
         payload=result["bundle"],
+        session_jti=session.token_jti,
     )
     _fhir_store[export_id] = {
         "profile_id": profile_id,
         "bundle": result["bundle"],
         "created_at": core_time.utcnow(),
+        "session_jti": session.token_jti,
     }
 
     await audit_and_commit(
@@ -1446,7 +1492,7 @@ async def download_fhir_export(
     if not stored:
         loaded = await _load_artifact(profile_db, artifact_id=export_id, kind="fhir_r4")
         if loaded:
-            stored = {"profile_id": loaded[0], "bundle": loaded[1]}
+            stored = {"profile_id": loaded[0], "bundle": loaded[1], "session_jti": loaded[2]}
     if not stored:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1458,6 +1504,13 @@ async def download_fhir_export(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied to this export",
+        )
+    if not await _bound_to_session(
+        profile_db, stored, session, artifact_id=export_id, store=_fhir_store
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="FHIR export not found",
         )
 
     await audit_and_commit(

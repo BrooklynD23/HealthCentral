@@ -513,9 +513,10 @@ async def export_pinboard_packet(
     )
     await _save_artifact(
         profile_db, artifact_id=packet["packet_id"], kind="visit_prep",
-        profile_id=session.profile_id, payload=packet,
+        profile_id=session.profile_id, payload=packet, session_jti=session.token_jti,
     )
     packet["created_at"] = utcnow()  # EXPORT-STORE-PURGE: TTL stamp
+    packet["session_jti"] = session.token_jti
     _packet_store[packet["packet_id"]] = packet
     await audit_and_commit(
         master_db, log_pinboard_event, event="export", profile_id=session.profile_id,

@@ -3,7 +3,9 @@
 Adds ``export_artifact``: one row per generated doctor summary, visit-prep or
 pinboard packet, or FHIR bundle, so a download still works after a backend
 restart. No foreign key. Rows are served for 30 minutes at most and are purged
-at logout, lock and profile delete (EXPORT-ARTIFACT-RETENTION).
+at logout, lock and profile delete (EXPORT-ARTIFACT-RETENTION). ``session_jti``
+binds a row to the session that generated it (EXPORT-SESSION-BIND); NULL is
+never served.
 
 ``downgrade()`` drops the table and the artifacts in it; they are transient.
 
@@ -31,6 +33,7 @@ def upgrade() -> None:
         sa.Column("profile_id", sa.Text(), nullable=False),
         sa.Column("payload_json", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.current_timestamp()),
+        sa.Column("session_jti", sa.Text(), nullable=True),
     )
 
 
