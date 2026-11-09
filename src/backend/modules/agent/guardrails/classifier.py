@@ -9,6 +9,7 @@ front-door check is insufficient: bait can enter mid-conversation
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
@@ -27,9 +28,29 @@ class AdviceVerdict(BaseModel):
 # Patterns are intentionally small and easy to extend (mirrors the spirit of
 # nodes/plan.py's _ANALYTE_KEYWORDS) — richer NLU is out of scope here; this
 # is a mechanical gate, not a model call (skills/asclexis-guardrails).
-# A medication cue: a medication noun, or a drug name the labelled set holds (no drug-name list
-# exists in product code to reuse; modules/med_reconcile.py and nodes/plan.py hold none).
-_MED_CUE = r"(?:medications?|medicines?|meds|pills?|tablets?|doses?|dosages?|drugs?|statins?|insulin|antibiotics?|prescriptions?|supplements?|inhalers?|metformin|lisinopril)\b"
+# A medication cue: a medication noun, or a drug name from the curated list in
+# data/rxnorm_names.txt (public-domain RxNorm subset). The list is read once at import; a
+# missing or empty file raises, because a silent-empty list would quietly un-gate named drugs.
+_GENERIC_MED_CUE = r"(?:medications?|medicines?|meds|pills?|tablets?|doses?|dosages?|drugs?|statins?|insulin|antibiotics?|prescriptions?|supplements?|inhalers?|metformin|lisinopril)"
+
+
+def _load_drug_names_pattern() -> str:
+    path = Path(__file__).parent / "data" / "rxnorm_names.txt"
+    names = {
+        line.strip().lower()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    if not names:
+        raise RuntimeError(f"drug-name list {path} is empty")
+    # Longest first so a multi-word name wins over its prefix; spaces match any whitespace run.
+    ordered = sorted(names, key=lambda n: (-len(n), n))
+    return "(?:" + "|".join(r"\s+".join(re.escape(w) for w in n.split()) for n in ordered) + ")"
+
+
+_DRUG_NAMES_PATTERN = _load_drug_names_pattern()
+# The group keeps ``|`` from escaping into the patterns that embed the cue; ``\b`` closes it.
+_MED_CUE = "(?:" + _GENERIC_MED_CUE + "|" + _DRUG_NAMES_PATTERN + r")\b"
 
 _MEDICATION_PATTERNS = [
     # main's form, unchanged: an object word after the verb.
