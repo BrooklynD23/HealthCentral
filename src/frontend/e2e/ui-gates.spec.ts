@@ -1,5 +1,5 @@
 /**
- * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008 .. HC-UIG-011).
+ * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008 .. HC-UIG-012).
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
  * fail, or passes on the page it is given. HC-UIG-002 (/inbox colour contrast)
@@ -28,6 +28,7 @@ import {
   consoleAndNetworkGuard,
   maxEventDuration,
   noHorizontalScroll,
+  reducedMotionSnapshot,
   routeOpacitySamples,
   stillnessProbe,
   type StillnessOptions,
@@ -1122,4 +1123,60 @@ test('HC-UIG-011 a wrapped probe on a known-good PASS fixture runs once (no doub
     return runPassFixture(page, fixture);
   });
   expect(calls, 'a good fixture passes on the first attempt').toBe(1);
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIG-012: reducedMotionSnapshot tells a static positioning transform from motion (GATES-POPPER-TRANSFORM).
+// ---------------------------------------------------------------------------
+const noAction = async () => undefined;
+
+test('HC-UIG-012 (a) a static popper-style translate wrapper is not an offender', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml('<div id="popper" style="position:absolute;transform:translate(223px,447px)"><p>Menu</p></div>', '')
+  );
+  const offenders = await reducedMotionSnapshot(page, noAction);
+  console.log(`HC-UIG-012 (a) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a never-animated positioning translate is not motion').toEqual([]);
+});
+
+test('HC-UIG-012 (b) a transform rewritten through the window is reported as moving', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<div id="mover" style="width:40px;height:40px">x</div>',
+      "var n = 0; setInterval(function () { n += 7; document.getElementById('mover').style.transform = 'translateX(' + n + 'px)'; }, 20);"
+    )
+  );
+  const offenders = await reducedMotionSnapshot(page, noAction);
+  console.log(`HC-UIG-012 (b) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'running motion is one offender').toHaveLength(1);
+  expect(offenders[0], 'tagged moving').toMatch(/#mover.* moving/);
+});
+
+test('HC-UIG-012 (c) a static rotate is still an offender', async ({ page }) => {
+  await serveFixture(page, fixtureHtml('<div id="tilt" style="transform:rotate(2deg)">x</div>', ''));
+  const offenders = await reducedMotionSnapshot(page, noAction);
+  console.log(`HC-UIG-012 (c) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a residual rotate has no positioning justification').toHaveLength(1);
+  expect(offenders[0]).toMatch(/#tilt transform=matrix/);
+  expect(offenders[0], 'not tagged moving').not.toMatch(/moving/);
+});
+
+test('HC-UIG-012 (d) a translation that settles before the first read reads as static (accepted blind spot)', async ({
+  page,
+}) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<div id="settled" style="width:40px;height:40px">x</div>',
+      "document.getElementById('settled').animate([{transform:'translateX(0px)'},{transform:'translateX(30px)'}], {duration:20, fill:'forwards'});"
+    )
+  );
+  // Design statement, not a silence: this is what the two-read rule cannot see (README, reducedMotionSnapshot docstring).
+  const offenders = await reducedMotionSnapshot(page, async () => {
+    await page.waitForTimeout(100);
+  });
+  console.log(`HC-UIG-012 (d) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a finished pure translation is indistinguishable from positioning').toEqual([]);
 });

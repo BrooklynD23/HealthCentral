@@ -208,25 +208,68 @@ export async function maxEventDuration(
 
 /**
  * Emulates reduced motion, runs `action`, waits 50 ms, and returns the
- * elements whose computed transform is not the identity. An empty array passes.
+ * elements still transformed. An empty array passes.
+ *
+ * Two reads, 150 ms apart (GATES-POPPER-TRANSFORM). An element is an offender when
+ *  - its computed transform differs between the reads (running motion; tagged `moving`), or
+ *  - it holds the same non-identity transform in both reads and that transform is not a pure translation
+ *    (a residual rotate/scale/skew/perspective has no positioning justification).
+ * A transform that is identical in both reads and a pure translation is a static positioning offset
+ * (a Radix/floating-ui popper wrapper). It is left out of the return and logged, so it shows in the run output.
+ *
+ * Would not notice: a translation that completed inside the first 50 ms and then holds still reads as static,
+ * which is indistinguishable from positioning. HC-UIG-012 (d) pins that trade-off.
  */
 export async function reducedMotionSnapshot(page: Page, action: () => Promise<void>): Promise<string[]> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await action();
   await page.waitForTimeout(50);
-  return page.evaluate((identitySource) => {
-    const identity = new RegExp(identitySource);
-    const offenders: string[] = [];
-    for (const el of Array.from(document.querySelectorAll('body *'))) {
-      const transform = getComputedStyle(el).transform;
-      if (!identity.test(transform)) {
+  const result = await page.evaluate(
+    async ({ identitySource, secondReadDelayMs }) => {
+      const identity = new RegExp(identitySource);
+      const pureTranslation = (transform: string): boolean => {
+        const nums = (body: string) => body.split(',').map((part) => Number(part.trim()));
+        const m2 = /^matrix\(([^)]*)\)$/.exec(transform);
+        if (m2) {
+          const [a, b, c, d] = nums(m2[1]);
+          return a === 1 && b === 0 && c === 0 && d === 1;
+        }
+        const m3 = /^matrix3d\(([^)]*)\)$/.exec(transform);
+        if (m3) {
+          const n = nums(m3[1]);
+          const wanted = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+          return wanted.every((value, index) => n[index] === value) && n[15] === 1 && n[3] === 0 && n[7] === 0 && n[11] === 0;
+        }
+        return false;
+      };
+      const label = (el: Element) => {
         const id = el.id ? `#${el.id}` : '';
         const cls = (el.getAttribute('class') ?? '').trim().replace(/\s+/g, '.').slice(0, 60);
-        offenders.push(`${el.tagName.toLowerCase()}${id}${cls ? `.${cls}` : ''} transform=${transform}`);
-      }
-    }
-    return offenders;
-  }, IDENTITY_TRANSFORM.source);
+        return `${el.tagName.toLowerCase()}${id}${cls ? `.${cls}` : ''}`;
+      };
+      const elements = Array.from(document.querySelectorAll('body *'));
+      const first = elements.map((el) => getComputedStyle(el).transform);
+      await new Promise((resolve) => setTimeout(resolve, secondReadDelayMs));
+      const offenders: string[] = [];
+      const statics: string[] = [];
+      elements.forEach((el, index) => {
+        const before = first[index];
+        const after = getComputedStyle(el).transform;
+        if (before !== after) {
+          offenders.push(`${label(el)} transform=${after} moving (was ${before})`);
+        } else if (!identity.test(after)) {
+          if (pureTranslation(after)) statics.push(`${label(el)} transform=${after}`);
+          else offenders.push(`${label(el)} transform=${after}`);
+        }
+      });
+      return { offenders, statics };
+    },
+    { identitySource: IDENTITY_TRANSFORM.source, secondReadDelayMs: 150 }
+  );
+  if (result.statics.length > 0) {
+    console.log(`reducedMotionSnapshot: ${result.statics.length} static positioning transform(s) ignored: ${result.statics.join('; ')}`);
+  }
+  return result.offenders;
 }
 
 // ---------------------------------------------------------------------------
