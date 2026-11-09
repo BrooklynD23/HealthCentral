@@ -39,6 +39,7 @@ HC-VRC-029  the A2 pair on every rebuilding route: fail closed, order, no rows o
 HC-VRC-030  a withheld member of a stale panel fails the read closed; the saved panel stays
 HC-VRC-031  a withheld member with a saved card fails closed whatever the saved panel is
 HC-VRC-032  a withheld batch card writes the interpretation.withheld row
+HC-VRC-033  a withheld first-generation member is counted, never named, audited
 
 The helper is reached through a function (not a module-level import), so before
 the fix each test fails on its own id instead of the whole file failing to collect.
@@ -2481,9 +2482,11 @@ async def test_hc_vrc_029_panel_saved_stale_panel_with_no_stale_card_writes_the_
 # escalation message, and writes one `interpretation.withheld` row per withheld member. The
 # read is bracketed by `panel_generate` started and completed (the route is A2); a sibling
 # rebuilt before the withheld member stays rebuilt and its id is in both rows. A withheld
-# member WITH a saved card fails closed whatever the saved panel is (HC-VRC-031). Report
-# only, as on main (HC-VRC-027): a first-generation member with NO saved card, withheld, is
-# dropped and the panel is created.
+# member WITH a saved card fails closed whatever the saved panel is (HC-VRC-031). A
+# first-generation member with NO saved card, withheld, is still left out of the summary
+# and the status, but the panel is created and discloses it by count — never by analyte —
+# and the route writes its withheld row (HC-VRC-033, PANEL-WITHHELD-FIRSTGEN "Keep Count
+# only").
 
 SODIUM_HIGH = {**SODIUM_ROW, "value": 160.0}
 
@@ -2907,3 +2910,154 @@ async def test_hc_vrc_032_a_failed_withheld_audit_write_raises_instead_of_an_int
     assert "Internal error" not in resp.text
     assert await _snapshot(profile_db, obs.id) == before
     assert await _audit_pairs(master_db) == [(BATCH_EVENT, "started")]  # the pair stays open
+
+
+# ── HC-VRC-033: a withheld first-generation member is counted, never named ──
+# PANEL-WITHHELD-FIRSTGEN, owner answer "Keep Count only" (2026-11-07): a member the
+# safety check withholds on a first-generation read (no saved panel, no saved card) is
+# still left out of the summary and the status — but the panel is created, discloses it
+# by count (never by analyte), and the route writes one interpretation.withheld row for
+# it, same shape as a kept member's. The member's own physician-review flag survives.
+
+NOTICE_ONE = (
+    "One result in this panel could not be checked and is not counted in this summary. "
+    "Please review it with your healthcare provider."
+)
+
+
+def _notice(n: int) -> str:
+    """The approved count-only sentence for n > 1 withheld first-generation members."""
+    return (
+        f"{n} results in this panel could not be checked and are not counted in this "
+        "summary. Please review them with your healthcare provider."
+    )
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_033_a_dropped_member_is_counted_never_named(rdbs):
+    profile_db, master_db = rdbs
+    glucose_id = await _seed(profile_db, value=300.0, is_abnormal=False)
+    sodium_id = await _seed(profile_db, **SODIUM_ROW)
+    with _withhold_for("glucose"):
+        resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert NOTICE_ONE in body["summary_text"], body["summary_text"]
+    assert "1 of 1 values are within normal range." in body["summary_text"]
+    assert "glucose" not in body["summary_text"].lower()
+    assert set(body["observation_ids"]) == {glucose_id, sodium_id}
+    assert body["overall_status"] == "normal"
+    assert body["requires_physician_review"] is False
+    # one withheld row for the dropped member: entity id and check names only
+    (row,) = await _rows_of(master_db, "interpretation.withheld")
+    assert (row.entity_type, row.entity_id) == ("observation", glucose_id)
+    assert _det(row)["reason"] == "safety_check_failed"
+    assert _det(row)["decision"] == "escalate"
+    assert _det(row)["checks_failed"]
+    assert "glucose" not in json.dumps(_det(row)).lower()
+    assert "300.0" not in json.dumps(_det(row))
+    assert await _audit_pairs(master_db) == [
+        ("interpretation.withheld", None), (PANEL_EVENT, None)]
+    assert await _cards_of(profile_db, glucose_id) == []
+    assert len(await _cards_of(profile_db, sodium_id)) == 1
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_033_b_second_read_serves_the_saved_panel(rdbs):
+    profile_db, master_db = rdbs
+    glucose_id = await _seed(profile_db, value=300.0, is_abnormal=False)
+    await _seed(profile_db, **SODIUM_ROW)
+    with _withhold_for("glucose"):
+        first = _read_panel(profile_db, master_db)
+    assert first.status_code == 201, first.text
+    assert NOTICE_ONE in first.json()["summary_text"]
+    spy = _WriteSpy(profile_db)
+    second = _read_panel(profile_db, master_db)
+    assert second.status_code == 201, second.text
+    assert second.json()["id"] == first.json()["id"]  # the saved row, not a rebuild
+    assert second.json()["summary_text"] == first.json()["summary_text"]  # the notice persists
+    assert spy.writes == (0, 0), "the second read wrote to the profile"
+    spy.close()
+    rows = await _rows_of(master_db, "interpretation.withheld")
+    assert [r.entity_id for r in rows] == [glucose_id]  # no second withheld row
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_033_c_forced_read_rebuilds_and_writes_another_withheld_row(rdbs):
+    profile_db, master_db = rdbs
+    glucose_id = await _seed(profile_db, value=300.0, is_abnormal=False)
+    await _seed(profile_db, **SODIUM_ROW)
+    with _withhold_for("glucose"):
+        first = _read_panel(profile_db, master_db)
+        assert first.status_code == 201, first.text
+        forced = _read_panel(profile_db, master_db, force=True)
+    assert forced.status_code == 201, forced.text
+    assert NOTICE_ONE in forced.json()["summary_text"], forced.json()["summary_text"]
+    assert forced.json()["id"] != first.json()["id"]  # a forced read rebuilds
+    rows = await _rows_of(master_db, "interpretation.withheld")
+    assert [r.entity_id for r in rows] == [glucose_id, glucose_id]
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_033_d_both_members_withheld_prints_the_plural_notice(rdbs):
+    profile_db, master_db = rdbs
+    glucose_id = await _seed(profile_db, value=300.0, is_abnormal=False)
+    sodium_id = await _seed(profile_db, **SODIUM_ROW)
+    with _withhold_for("glucose", "sodium"):
+        resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert _notice(2) in body["summary_text"], body["summary_text"]
+    assert "0 of 0" not in body["summary_text"]
+    assert "values are within normal range" not in body["summary_text"]
+    assert "glucose" not in body["summary_text"].lower()
+    assert "sodium" not in body["summary_text"].lower()
+    assert body["overall_status"] == "normal"  # the status counts checked members only
+    rows = await _rows_of(master_db, "interpretation.withheld")
+    assert {r.entity_id for r in rows} == {glucose_id, sodium_id}
+    _no_phi(await _audit_blob(master_db))
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_033_e_dropped_members_physician_review_flag_is_kept(rdbs):
+    # Glucose 500 mg/dL is above the critical threshold (400), so the withheld member's
+    # own check set the flag before the withhold; the panel must not lose it.
+    profile_db, master_db = rdbs
+    glucose_id = await _seed(profile_db, value=500.0, is_abnormal=True)
+    await _seed(profile_db, **SODIUM_ROW)
+    with _withhold_for("glucose"):
+        resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["requires_physician_review"] is True
+    assert body["overall_status"] == "normal"  # the one checked member is in range
+    assert NOTICE_ONE in body["summary_text"]
+    (row,) = await _rows_of(master_db, "interpretation.withheld")
+    assert row.entity_id == glucose_id
+
+
+@pytest.mark.asyncio
+async def test_hc_vrc_033_f_no_withheld_member_keeps_todays_shape(rdbs):
+    # Pin (already green on main): nothing withheld, so nothing is disclosed and the
+    # summary is byte-for-byte today's.
+    profile_db, master_db = rdbs
+    for kw in PANEL_ROWS:
+        profile_db.add(_obs(user_verified=True, collected_at=DAY, **kw))
+    await profile_db.commit()
+    resp = _read_panel(profile_db, master_db)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["summary_text"] == (
+        "Your Comprehensive Metabolic Panel results:\n\n"
+        "**Items requiring attention:**\n"
+        "- GLUCOSE: 300.0 mg/dL (above normal)\n\n"
+        "1 of 2 values are within normal range.\n\n"
+        "This summary is for educational purposes only. "
+        "Please consult your healthcare provider for personalized interpretation."
+    )
+    assert "could not be checked" not in body["summary_text"]
+    assert body["overall_status"] == "borderline"
+    assert body["requires_physician_review"] is False
+    assert await _rows_of(master_db, "interpretation.withheld") == []
+    assert await _audit_pairs(master_db) == [(PANEL_EVENT, None)]
