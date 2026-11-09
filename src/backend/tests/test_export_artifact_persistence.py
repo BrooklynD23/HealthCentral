@@ -1137,7 +1137,7 @@ def test_hc_expa_032_saving_prunes_this_profiles_rows_past_session_exp(tmp_path,
 
 
 # ---------------------------------------------------------------------------
-# REVIEW ROUND (L0 ruling, #537 comment 6732000906) - HC-EXPA-033..039
+# REVIEW ROUND (L0 ruling, #537 comment 6732000906) - HC-EXPA-033..038
 # ---------------------------------------------------------------------------
 
 
