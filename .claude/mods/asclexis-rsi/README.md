@@ -3,7 +3,7 @@
 Repo-shipped Claude Code mod: observe, report, guard. Built with the `plugin-authoring` skill.
 
 ## What it does
-- **Observe:** one `tool.call` hook records one metadata-only row per tool call (and session start/end rows) to `.claude/logs/rsi/<YYYY-MM-DD>.jsonl` (git-ignored). Row: `v, ts, session, kind, tool, ok, duration_ms, denied, guard, hint, error_class, retry, edit_test_fail`.
+- **Observe:** one `tool.call` hook records one metadata-only row per tool call (and session start/end rows) to `.claude/logs/rsi/<YYYY-MM-DD>.jsonl` (git-ignored). Row: `v, ts, session, kind, tool, ok, duration_ms, denied, guard, hint, error_class, retry, edit_test_fail, cmd_sig` (Bash rows only, when a command is present).
   - `retry`: same tool + same input fingerprint within the last 5 calls after a failure (non-reversible hash, memory only).
   - `edit_test_fail`: a `pytest|vitest|playwright test|npm test` Bash call failed after an Edit/Write since the last test run.
 - **Report:** status line `rsi: N calls · F fail · G guard`, and `/rsi` (this session + last 7 days: per-tool calls/failures/rate, retries, denials, hints by id, edit-to-test-fail cycles).
@@ -14,7 +14,7 @@ Repo-shipped Claude Code mod: observe, report, guard. Built with the `plugin-aut
 - Logging and hints (after `next`) **fail open**: they run in their own try/catch, writes are fire-and-forget, so telemetry can never block, fail, or alter a call.
 
 ## Privacy
-Metadata only. Rows never contain command text, file contents, tool output, prompts, or paths. `error_class` is a fixed category from the rule table (or, for non-Bash tool errors, `input-validation`, `no-such-tool`, `edit-not-read`, `read-not-found`, `read-too-large`, `schema-mismatch`, `user-rejected`, `workflow-not-found`, `workflow-bad-script`, `skill-disabled`, `task-not-found`, `task-not-running`, `subagent-limit`, `grep-pattern-rejected`, `permission-denied-auto`; or `exit-144-self-kill`, `timeout`, `edit-no-match`, `permission-denied`, `module-not-found`, `command-not-found`, `no-such-file`, `tests-failed`, `git-fatal`, `syntax-error`, `exit-<n>` (1-255), `other`), never raw text. Logs stay local in the git-ignored `.claude/logs/`. Nothing leaves the machine.
+Metadata only. Rows never contain command text, file contents, tool output, prompts, or paths. `cmd_sig` (Bash rows only) is a redacted signature, not text: `shape` is the argv skeleton (a plain program word, flags, `key=` and shell operators kept; `PATH`, `STR`, `HOST`, `ARG` classes for everything else) and `args_hash` is 12 hex of sha256 over the class-normalized arguments — no paths, no argument values, no patient text. `error_class` is a fixed category from the rule table (or, for non-Bash tool errors, `input-validation`, `no-such-tool`, `edit-not-read`, `read-not-found`, `read-too-large`, `schema-mismatch`, `user-rejected`, `workflow-not-found`, `workflow-bad-script`, `skill-disabled`, `task-not-found`, `task-not-running`, `subagent-limit`, `grep-pattern-rejected`, `permission-denied-auto`; or `exit-144-self-kill`, `timeout`, `edit-no-match`, `permission-denied`, `module-not-found`, `command-not-found`, `no-such-file`, `tests-failed`, `git-fatal`, `syntax-error`, `exit-<n>` (1-255), `other`), never raw text. Logs stay local in the git-ignored `.claude/logs/`. Nothing leaves the machine.
 
 ## Load it
 ```
