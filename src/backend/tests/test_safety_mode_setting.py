@@ -180,13 +180,17 @@ async def test_hc_sms_004_profile_isolation(vault):
         await vault_b.close()
         await engine_b.dispose()
 
-    # One shared DB on purpose: a dropped profile_id filter would leak A's row
-    # to B at the route. Stricter than production, which never shares a vault.
+    # One shared DB on purpose: enforcement's EXISTS is unfiltered, so under
+    # SAFETY-MODE-DUPROW (owner answer option 1, any-ON authoritative) B's GET
+    # in a shared vault converges on the same any-ON value — there is no
+    # per-profile route read left to leak or drop. Stricter than production,
+    # which never shares a vault.
     resp, _ = _call("GET", vault, PROFILE_A)
     assert resp.json() == {"strict_safety_mode": True}
     resp, _ = _call("GET", vault, PROFILE_B)
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"strict_safety_mode": False}
+    assert resp.json() == {"strict_safety_mode": True}
+    assert await assistant_api.is_strict_safety_mode(vault) is True
 
 
 @pytest.mark.asyncio
