@@ -1,6 +1,6 @@
 # Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine
 
-> **Superseded** by [the 2026-10-21b handoff](2026-10-21b-session-handoff.md) and its successors (newest: [the 2026-10-24 handoff](../../plans/2026-10-24-session-handoff.md)); retained for history, not an active tracker.
+> **Historical Reference** — superseded by [the 2026-10-21b handoff](2026-10-21b-session-handoff.md) and its successors (newest: `docs/plans/2026-10-29-session-handoff.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-21-session-handoff.md` on 2026-11-09.
 
 **Last Updated:** 2026-10-21
 **Owner:** repository owner

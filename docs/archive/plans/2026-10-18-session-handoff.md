@@ -1,5 +1,7 @@
 # Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)
 
+> **Historical Reference** — superseded by [the 2026-10-19 handoff](2026-10-19-session-handoff.md) and its successors (newest: `docs/plans/2026-10-29-session-handoff.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-18-session-handoff.md` on 2026-11-09.
+
 **Last Updated:** 2026-10-18
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works the "Not started / next" list, and replaces this file with its own handoff.

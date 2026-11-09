@@ -1,5 +1,7 @@
 # Session handoff: 2026-10-20 local session → GPU machine (L0)
 
+> **Historical Reference** — superseded by [the 2026-10-21 handoff](2026-10-21-session-handoff.md) and its successors (newest: `docs/plans/2026-10-29-session-handoff.md`); retained for history, not an active tracker. Moved from `docs/plans/2026-10-20c-session-handoff.md` on 2026-11-09.
+
 **Last Updated:** 2026-10-20
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
