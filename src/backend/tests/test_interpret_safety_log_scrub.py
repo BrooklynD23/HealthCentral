@@ -26,51 +26,41 @@ def _assert_values_absent(caplog, forbidden):
             assert needle not in args, f"{needle} leaked into log args: {args!r}"
 
 
-# Attributes logging.LogRecord.__init__ sets on Python 3.11+ (taskName is 3.12+,
-# harmless to whitelist here). Anything else in vars(record) arrived via extra=
-# or was injected by a Formatter.
-_STANDARD_LOG_RECORD_ATTRS = frozenset(
-    {
-        "name",
-        "msg",
-        "args",
-        "levelname",
-        "levelno",
-        "pathname",
-        "filename",
-        "module",
-        "exc_info",
-        "exc_text",
-        "stack_info",
-        "lineno",
-        "funcName",
-        "created",
-        "msecs",
-        "relativeCreated",
-        "thread",
-        "threadName",
-        "processName",
-        "process",
-        "taskName",
-    }
-)
-
-# Formatter.format() sets record.message (always) and record.asctime (when the
-# fmt string uses %(asctime)s) after the record is emitted, so caplog records
-# carry them. extra= can never write either name: Logger.makeRecord raises
-# KeyError("Attempt to overwrite ...") for both, so whitelisting them keeps the
-# extra= check lossless.
-_FORMATTER_INJECTED_ATTRS = frozenset({"message", "asctime"})
+_CONTROL_MESSAGE = "hc-cls control record (no patient data)"
 
 
-def _assert_critical_record_clean(record, analyte, direction):
-    """Pin the critical-value log record to analyte + direction, nothing more."""
+def _control_record(caplog):
+    """Emit a plain record through the same logger and return it.
+
+    A record carries more than the call site put there: caplog's handler
+    formats every record at emit (``message``/``asctime``), and
+    ``install_correlation_logging()`` (core/logging_setup.py, run by
+    main.create_app) stamps ``correlation_id`` on every record process-wide —
+    so any earlier test that built the app leaves it set for the rest of the
+    suite. A static attribute whitelist pins the environment, not the call
+    site; diffing against a control isolates what this call site added.
+    """
+    logging.getLogger(LOGGER_NAME).warning(_CONTROL_MESSAGE)
+    controls = [
+        r
+        for r in caplog.records
+        if r.name == LOGGER_NAME and r.getMessage() == _CONTROL_MESSAGE
+    ]
+    assert len(controls) == 1, f"control record not captured: {caplog.records!r}"
+    return controls[0]
+
+
+def _assert_critical_record_clean(caplog, record, analyte, direction):
+    """Pin the critical-value log record to analyte + direction, nothing more.
+
+    ``record.args == (analyte,)`` fails on any added arg (rounded float,
+    threshold); the attrs diff fails on any ``extra=`` payload, which lands on
+    this record but not on the control.
+    """
     expected = f"Critical value detected: {analyte} {direction} critical threshold"
     assert record.getMessage() == expected
     assert record.args == (analyte,)
-    leaked = (
-        set(vars(record)) - _STANDARD_LOG_RECORD_ATTRS - _FORMATTER_INJECTED_ATTRS
-    )
+    leaked = set(vars(record)) - set(vars(_control_record(caplog)))
     assert leaked == set(), f"unexpected record attributes (extra= payload?): {leaked}"
 
 
@@ -139,7 +129,7 @@ def test_hc_cls_004_critical_low_record_is_analyte_only(caplog):
         and "below critical threshold" in r.getMessage()
     ]
     assert len(hits) == 1
-    _assert_critical_record_clean(hits[0], "potassium", "below")
+    _assert_critical_record_clean(caplog, hits[0], "potassium", "below")
     assert result.requires_physician_review is True
     assert (
         result.physician_review_reason
@@ -160,7 +150,7 @@ def test_hc_cls_005_critical_high_record_is_analyte_only(caplog):
         and "above critical threshold" in r.getMessage()
     ]
     assert len(hits) == 1
-    _assert_critical_record_clean(hits[0], "potassium", "above")
+    _assert_critical_record_clean(caplog, hits[0], "potassium", "above")
     assert result.requires_physician_review is True
     assert (
         result.physician_review_reason
