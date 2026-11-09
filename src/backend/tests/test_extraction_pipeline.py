@@ -110,15 +110,70 @@ class TestExtractionPipeline:
         assert glucose_obs.unit == "mg/dL"
 
     @pytest.mark.asyncio
-    async def test_api_import_003_document_status_set_to_parsed(self, extract_module):
+    async def test_api_import_003_document_status_set_to_parsed(self, monkeypatch):
         """
         API-IMPORT-003: Document status set to 'parsed' on success.
 
         After successful extraction, the document status should be updated.
         """
-        # This will be tested in integration - for now verify extraction succeeds
-        # The API endpoint should update status after extraction completes
-        pass  # Integration test will cover this
+        import io
+        from unittest.mock import AsyncMock
+
+        import api.documents as documents_api
+        from models import Document
+
+        document = Document(
+            id=str(uuid.uuid4()),
+            profile_id="profile-a",
+            path_hash="p" * 64,
+            content_hash="c" * 64,
+            doc_type="lab_pdf",
+            status="imported",
+            imported_at=documents_api.utcnow(),
+        )
+        stubbed_observations = [
+            ExtractedObservation(
+                analyte_raw="Glucose",
+                value=95.0,
+                unit="mg/dL",
+                ref_low=70.0,
+                ref_high=100.0,
+                flag=None,
+                confidence=0.9,
+                provenance=Provenance(page=1, text_snippet="Glucose: 95 mg/dL (70-100)"),
+            ),
+        ]
+
+        class _StubExtract:
+            async def extract_from_pdf(self, _source, document_id, ocr_pages=True):
+                return ExtractionResult(
+                    document_id=document_id,
+                    observations=stubbed_observations,
+                    extracted_text="t",
+                )
+
+        monkeypatch.setattr(documents_api, "ExtractModule", _StubExtract)
+        monkeypatch.setattr(
+            documents_api, "get_decrypted_document", lambda *_a: io.BytesIO(b"%PDF")
+        )
+        monkeypatch.setattr(
+            documents_api, "_create_chunks_and_embeddings", AsyncMock(return_value=0)
+        )
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value.scalar_one_or_none.return_value = None
+
+        out = await documents_api._run_extraction_pipeline(
+            profile_db, "profile-a", document, refresh_existing=False
+        )
+
+        assert document.status == "parsed"
+        assert document.parsed_at is not None
+        assert document.verified_at is None
+        assert out["observations_extracted"] == 1
+        assert out["needs_verification"] == documents_api._compute_needs_verification(
+            stubbed_observations
+        )
 
     @pytest.mark.asyncio
     async def test_api_import_004_needs_verification_computed(self, sample_observations):
