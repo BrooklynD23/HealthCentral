@@ -636,14 +636,17 @@ test.describe('UI-PALETTE', () => {
     expect(rail).toEqual({ found: true, inViewport: true, effectiveOpacity: 1 });
   });
 
-  test('G2 and G3 (quiet box): CLS from load through an open, and the open and a keystroke stay under the event bound', async ({ page }) => {
+  test('G2 (quiet box): CLS from load through an open', async ({ page }) => {
     const cls = await measureCls(page, async () => {
       await openApp(page);
       await openWithKeys(page);
       await input(page).pressSequentially('chol');
     });
     expect(cls).toBeLessThan(0.1);
+  });
 
+  test('G3 (quiet box): the open and a keystroke stay under the event bound', async ({ page }) => {
+    await openApp(page);
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toHaveCount(0);
     const inp = await maxEventDuration(page, async () => {
@@ -652,6 +655,7 @@ test.describe('UI-PALETTE', () => {
       await input(page).pressSequentially('lipid');
     });
     expect(inp).toBeLessThan(200);
+    console.log(`GATE G3 palette: INP proxy ${inp} ms (bound 200)`);
   });
 
   test('G5 (quiet box): with reduced motion no element has a transform after the palette opens, after typing and after moving', async ({ page }, testInfo) => {

@@ -1093,7 +1093,7 @@ test('UI-PG-ASK GATE G6 on /explain: no horizontal scroll at 390 and 320', async
   expect((await noHorizontalScroll(page)).ok, 'G6 320 conversation').toBe(true);
 });
 
-test('UI-PG-ASK GATE G2, G3, G5 on /explain (quiet box only)', async ({ page }) => {
+test('UI-PG-ASK GATE G2 on /explain (quiet box only)', async ({ page }) => {
   await openAsk(page);
 
   // G2: layout shift over the load and a send.
@@ -1104,11 +1104,23 @@ test('UI-PG-ASK GATE G2, G3, G5 on /explain (quiet box only)', async ({ page }) 
     await ask(page, 'What is my LDL?', 1);
   });
   expect(cls, 'G2 /explain').toBeLessThan(0.1);
+});
+
+test('UI-PG-ASK GATE G3 on /explain (quiet box only)', async ({ page }) => {
+  await openAsk(page);
+  await ask(page, 'What is my LDL?', 1);
 
   // G3: the worst Event Timing duration of a send, with CPU throttled x4.
   await settle(page);
   const inp = await maxEventDuration(page, () => ask(page, 'Is my LDL high?', 2), { cpuRate: 4 });
   expect(inp, 'G3 /explain').toBeLessThan(200);
+  console.log(`GATE G3 /explain: INP proxy ${inp} ms (bound 200, CPU x4)`);
+});
+
+test('UI-PG-ASK GATE G5 on /explain (quiet box only)', async ({ page }) => {
+  await openAsk(page);
+  await ask(page, 'What is my LDL?', 1);
+  await ask(page, 'Is my LDL high?', 2);
 
   // G5: reduced motion, no element with a transform 50 ms after a send.
   await page.emulateMedia({ reducedMotion: 'reduce' });
