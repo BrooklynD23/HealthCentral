@@ -1,6 +1,6 @@
 # Capstone Report Outline — Evidence-Mapped
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-11-08
 
 Working outline. Each section names the artifacts that back it — the report is an assembly of verifiable evidence, not narrative invention. Item status: ✅ ready · 🔶 needs work · ⬜ pending.
 
