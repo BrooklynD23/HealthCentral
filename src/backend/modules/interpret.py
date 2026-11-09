@@ -117,6 +117,11 @@ class PanelInterpretationResult:
     # (observation_id, result). Set only on the fail-closed return, which happens when the
     # read replaces a saved panel or the withheld member has a saved card.
     withheld_members: list[tuple[str, InterpretationResult]] = field(default_factory=list)
+    # PANEL-WITHHELD-FIRSTGEN: withheld members dropped from a first-generation read (no
+    # saved panel, no saved card), as (observation_id, result). Set on the success and the
+    # fail-closed return: the summary discloses them by count and the route writes one
+    # interpretation.withheld row each — ids only, never the analyte or the value.
+    withheld_dropped: list[tuple[str, InterpretationResult]] = field(default_factory=list)
     # VALUE-RANGE-COMPARE: ids of the member cards this read deleted and rebuilt, set on the
     # success and the fail-closed return (a sibling rebuilt before a withheld member stays).
     replaced_member_ids: list[str] = field(default_factory=list)
@@ -471,7 +476,9 @@ class InterpretModule:
         abnormal_count = 0
         observation_ids = []
         withheld_members: list[tuple[str, InterpretationResult]] = []
+        withheld_dropped: list[tuple[str, InterpretationResult]] = []
         replaced_member_ids: list[str] = []
+        member_physician_review = False
         # VALUE-RANGE-COMPARE: members that have a saved card before this read starts.
         saved_card_ids = set((await profile_db.execute(
             select(LabInterpretation.observation_id).where(
@@ -493,6 +500,12 @@ class InterpretModule:
             )
             if interp_result.replaced is True:
                 replaced_member_ids.append(obs.id)
+            # PANEL-WITHHELD-FIRSTGEN: keep each member's own flag — a dropped card's
+            # physician-review bit must not be lost with the card.
+            if interp_result.safety_validation is not None and (
+                interp_result.safety_validation.requires_physician_review
+            ):
+                member_physician_review = True
             if interp_result.withheld is True and (
                 stale_panel is not None or obs.id in saved_card_ids
             ):
@@ -502,6 +515,13 @@ class InterpretModule:
                 # and every withheld one is named. A first-generation member with no saved
                 # card is still dropped (report only, HC-VRC-027).
                 withheld_members.append((obs.id, interp_result))
+                continue
+            if interp_result.withheld is True:
+                # PANEL-WITHHELD-FIRSTGEN (owner: "Keep Count only"): a first-generation
+                # member with no saved card still drops out of the summary and the status,
+                # but the panel is created and counts it — never names it — and the route
+                # writes its interpretation.withheld row.
+                withheld_dropped.append((obs.id, interp_result))
                 continue
             if interp_result.interpretation:
                 # VALUE-RANGE-COMPARE: the same status the sentence uses; "disagrees" and
@@ -533,6 +553,7 @@ class InterpretModule:
                 success=False,
                 error_message=ESCALATE_TEMPLATE,
                 withheld_members=withheld_members,
+                withheld_dropped=withheld_dropped,
                 replaced_member_ids=replaced_member_ids,
             )
 
@@ -541,6 +562,7 @@ class InterpretModule:
             panel_name=panel_name,
             panel_display_name=panel_def["name"],
             observation_summaries=observation_summaries,
+            withheld_count=len(withheld_dropped),
         )
 
         # Determine overall status
@@ -593,7 +615,7 @@ class InterpretModule:
             citations_json=json.dumps(citations),
             model_id=self.MODEL_ID_TEMPLATE,
             confidence_score=0.80,
-            requires_physician_review=overall_status == "concerning",
+            requires_physician_review=overall_status == "concerning" or member_physician_review,
         )
 
         if stale_panel is not None:
@@ -613,6 +635,7 @@ class InterpretModule:
         return PanelInterpretationResult(
             success=True,
             interpretation=panel_interpretation,
+            withheld_dropped=withheld_dropped,
             replaced_member_ids=replaced_member_ids,
         )
 
@@ -1497,6 +1520,7 @@ class InterpretModule:
         panel_name: str,
         panel_display_name: str,
         observation_summaries: list[dict],
+        withheld_count: int = 0,
     ) -> str:
         """Generate a summary text for a panel interpretation."""
         parts = [f"Your {panel_display_name} results:"]
@@ -1537,6 +1561,21 @@ class InterpretModule:
             "This summary is for educational purposes only. "
             "Please consult your healthcare provider for personalized interpretation."
         )
+
+        # PANEL-WITHHELD-FIRSTGEN (owner: "Keep Count only"): withheld members dropped
+        # from a first-generation read are disclosed by count, never by analyte.
+        if withheld_count == 1:
+            parts.append("")
+            parts.append(
+                "One result in this panel could not be checked and is not counted "
+                "in this summary. Please review it with your healthcare provider."
+            )
+        elif withheld_count > 1:
+            parts.append("")
+            parts.append(
+                f"{withheld_count} results in this panel could not be checked and are "
+                "not counted in this summary. Please review them with your healthcare provider."
+            )
 
         return "\n".join(parts)
 
