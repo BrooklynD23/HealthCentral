@@ -10,7 +10,7 @@ import shutil
 import sys
 from typing import Any, Literal
 
-from core.config import settings
+from core.config import _rapidocr_installed, settings
 from core.sqlcipher_driver import is_sqlcipher_available
 from modules.hardware_detection import detect_hardware
 from modules.model_selector import get_model_selector
@@ -38,9 +38,22 @@ def build_environment_diagnostics() -> list[dict[str, Any]]:
         components.append(
             {
                 "id": "tesseract",
-                "label": "Tesseract OCR",
+                "label": "Tesseract OCR (fallback)",
                 "status": "ok",
                 "detail": f"Found at {tess}",
+                "fix_actions": [],
+            }
+        )
+    elif _rapidocr_installed():
+        components.append(
+            {
+                "id": "tesseract",
+                "label": "Tesseract OCR (fallback)",
+                "status": "ok",
+                "detail": (
+                    "Not installed. Not needed: the bundled OCR reader handles scans "
+                    "and images; Tesseract is only a fallback."
+                ),
                 "fix_actions": [],
             }
         )
@@ -48,9 +61,12 @@ def build_environment_diagnostics() -> list[dict[str, Any]]:
         components.append(
             {
                 "id": "tesseract",
-                "label": "Tesseract OCR",
+                "label": "Tesseract OCR (fallback)",
                 "status": "error",
-                "detail": "Not on PATH — required for OCR of scans and images.",
+                "detail": (
+                    "Not on PATH, and the built-in OCR reader did not load. "
+                    "One of the two is needed to read scans and images."
+                ),
                 "fix_actions": [
                     _action(
                         action_type="copy_command",
@@ -123,7 +139,10 @@ def build_environment_diagnostics() -> list[dict[str, Any]]:
                 "id": "poppler",
                 "label": "Poppler (pdftoppm)",
                 "status": "warn",
-                "detail": "Not on PATH — scanned PDF → image conversion may fail on some systems.",
+                "detail": (
+                    "Not on PATH. Only the Tesseract fallback needs it; "
+                    "the bundled OCR reader renders PDF pages itself."
+                ),
                 "fix_actions": [
                     _action(
                         action_type="copy_command",

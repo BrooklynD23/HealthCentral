@@ -1267,7 +1267,7 @@ async def recheck_environment_diagnostics(session: RequireAuth):
     "/ocr",
     response_model=OcrSettingsResponse,
     summary="Update OCR preference",
-    description="Per-profile toggle for scanned PDF and image OCR (subject to server config and Tesseract).",
+    description="Per-profile toggle for scanned PDF and image OCR (subject to server config and an OCR engine).",
 )
 async def update_ocr_settings(
     data: OcrSettingsUpdate,
