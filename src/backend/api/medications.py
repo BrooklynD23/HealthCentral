@@ -1058,8 +1058,10 @@ async def log_dose(
     profile_db.add(dose_record)
     await profile_db.commit()
     await profile_db.refresh(dose_record)
-    # Bind now: the badge-failure rollback below expires dose_record.
+    # Bind the id and the response now: the badge-failure rollback below
+    # expires dose_record.
     dose_id = dose_record.id
+    dose_response = DoseResponse.from_model(dose_record)
 
     newly_earned_badges: list[BadgeInfo] = []
     if not dose_record.was_skipped:
@@ -1133,7 +1135,7 @@ async def log_dose(
         f"{'skipped' if dose.was_skipped else 'taken'} at {dose.taken_at}"
     )
     return DoseLogResponse(
-        dose=DoseResponse.from_model(dose_record),
+        dose=dose_response,
         newly_earned_badges=newly_earned_badges,
     )
 
