@@ -1,6 +1,5 @@
 import { m, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { cn } from '@/utils/cn';
 
 /**
  * Shared motion variants for consistent entrance animations.
