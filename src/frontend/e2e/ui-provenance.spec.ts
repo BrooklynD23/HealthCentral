@@ -890,8 +890,8 @@ for (const route of GATE_ROUTES) {
     await seedSession(page);
     await route.ready(page);
     const slowest = await maxEventDuration(page, () => route.interact(page));
-    expect(slowest).toBeLessThan(200);
     recordLine(`G3 ${route.path} INP proxy ${slowest} ms (bound 200, CPU x4)`);
+    expect(slowest).toBeLessThan(200);
   });
 
   test(`Gate G5 ${route.path} own nodes and their descendants keep the identity transform under reduced motion`, async ({

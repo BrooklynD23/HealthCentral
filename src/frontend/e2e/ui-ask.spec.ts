@@ -1113,8 +1113,8 @@ test('UI-PG-ASK GATE G3 on /explain (quiet box only)', async ({ page }) => {
   // G3: the worst Event Timing duration of a send, with CPU throttled x4.
   await settle(page);
   const inp = await maxEventDuration(page, () => ask(page, 'Is my LDL high?', 2), { cpuRate: 4 });
-  expect(inp, 'G3 /explain').toBeLessThan(200);
   console.log(`GATE G3 /explain: INP proxy ${inp} ms (bound 200, CPU x4)`);
+  expect(inp, 'G3 /explain').toBeLessThan(200);
 });
 
 test('UI-PG-ASK GATE G5 on /explain (quiet box only)', async ({ page }) => {

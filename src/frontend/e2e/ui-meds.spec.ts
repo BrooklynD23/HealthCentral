@@ -284,8 +284,8 @@ for (const theme of THEMES) {
 
       // G3: the worst Event Timing duration of the interaction, with CPU throttled x4.
       const inp = await maxEventDuration(page, () => route.interact(page), { cpuRate: 4 });
-      expect(inp, `G3 ${route.path} ${theme}`).toBeLessThan(200);
       console.log(`GATE G3 ${route.path} (${theme}): INP proxy ${inp} ms (bound 200, CPU x4)`);
+      expect(inp, `G3 ${route.path} ${theme}`).toBeLessThan(200);
       await settle(page);
 
       // G5: reduced motion, no element with a transform 50 ms after the interaction; screenshot for the PR.

@@ -1150,8 +1150,8 @@ test.describe('Gate G on every route', () => {
     const inp = await maxEventDuration(page, () =>
       visibleNav(page).getByRole('link', { name: 'Timeline', exact: true }).click()
     );
-    expect(inp).toBeLessThan(200);
     console.log(`GATE G3 shell: INP proxy ${inp} ms (bound 200)`);
+    expect(inp).toBeLessThan(200);
   });
 
   test('GATE G5: reduced motion leaves no transformed element 50 ms after a nav click', async ({ page }) => {

@@ -654,8 +654,8 @@ test.describe('UI-PALETTE', () => {
       await expect(dialog(page)).toBeVisible();
       await input(page).pressSequentially('lipid');
     });
-    expect(inp).toBeLessThan(200);
     console.log(`GATE G3 palette: INP proxy ${inp} ms (bound 200)`);
+    expect(inp).toBeLessThan(200);
   });
 
   test('G5 (quiet box): with reduced motion no element has a transform after the palette opens, after typing and after moving', async ({ page }, testInfo) => {

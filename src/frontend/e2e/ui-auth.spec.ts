@@ -304,8 +304,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     const createNew = page.getByRole('button', { name: 'Create a new profile' });
     await expect(createNew).toBeVisible({ timeout: 15000 });
     const inp = await maxEventDuration(page, () => createNew.click(), { cpuRate: 4 });
-    expect(inp, 'G3 /setup').toBeLessThan(200);
     console.log(`GATE G3 /setup open create: INP proxy ${inp} ms (bound 200, CPU x4)`);
+    expect(inp, 'G3 /setup').toBeLessThan(200);
   });
 
   test('G2 CLS on a cold /recover load, filling the form and showing its error (timing)', async ({ page }) => {
@@ -343,8 +343,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
       },
       { cpuRate: 4 }
     );
-    expect(inp, 'G3 /recover').toBeLessThan(200);
     console.log(`GATE G3 /recover submit: INP proxy ${inp} ms (bound 200, CPU x4)`);
+    expect(inp, 'G3 /recover').toBeLessThan(200);
   });
 
   test('G3 INP proxy on submitting the empty create form, CPU x4 (timing)', async ({ page }) => {
@@ -358,8 +358,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
       },
       { cpuRate: 4 }
     );
-    expect(inp, 'G3 /setup submit').toBeLessThan(200);
     console.log(`GATE G3 /setup submit: INP proxy ${inp} ms (bound 200, CPU x4)`);
+    expect(inp, 'G3 /setup submit').toBeLessThan(200);
   });
 
   test('G5 reduced motion: no transform 50 ms after showing the /recover error (timing)', async ({ page }) => {
@@ -439,8 +439,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     await ensureE2EProfile(request);
     await fillUnlockForm(page);
     const inp = await maxEventDuration(page, () => submitUnlock(page), { cpuRate: 4 });
-    expect(inp, 'G3 unlock submit').toBeLessThan(200);
     console.log(`GATE G3 unlock submit: INP proxy ${inp} ms (bound 200, CPU x4)`);
+    expect(inp, 'G3 unlock submit').toBeLessThan(200);
   });
 
   test('G5 reduced motion: no transform 50 ms after the unlock submit lands on /overview (timing)', async ({
@@ -472,8 +472,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
     await settleReveal(page);
     await fillCreateForm(page);
     const inp = await maxEventDuration(page, () => submitCreateUntilRecoveryCode(page), { cpuRate: 4 });
-    expect(inp, 'G3 create success').toBeLessThan(200);
     console.log(`GATE G3 create success: INP proxy ${inp} ms (bound 200, CPU x4)`);
+    expect(inp, 'G3 create success').toBeLessThan(200);
   });
 
   test('G5 reduced motion: no transform 50 ms after the recovery-code step shows (timing)', async ({ page }) => {
@@ -499,8 +499,8 @@ test.describe('UI-PG-AUTH gate G on /setup and /recover', () => {
       },
       { cpuRate: 4 }
     );
-    expect(inp, 'G3 failed create').toBeLessThan(200);
     console.log(`GATE G3 failed create: INP proxy ${inp} ms (bound 200, CPU x4)`);
+    expect(inp, 'G3 failed create').toBeLessThan(200);
   });
 
   test('G5 reduced motion: no transform 50 ms after a failed create shows its error (timing)', async ({ page }) => {

@@ -315,12 +315,13 @@ test.describe('Gate G on /care-tasks', () => {
     const done = await maxEventDuration(page, () =>
       cardFor(page, TITLE_OPEN).getByRole('button', { name: 'Done', exact: true }).click()
     );
+    console.log(`GATE G3 /care-tasks: Done ${done} ms (bound 200, CPU x4)`);
     expect(done, 'Done click').toBeLessThan(200);
 
     await expect(undoButton(page)).toBeVisible();
     const undo = await maxEventDuration(page, () => undoButton(page).click());
+    console.log(`GATE G3 /care-tasks: Undo ${undo} ms (bound 200, CPU x4)`);
     expect(undo, 'Undo click').toBeLessThan(200);
-    console.log(`GATE G3 /care-tasks: Done ${done} ms, Undo ${undo} ms (bound 200, CPU x4)`);
   });
 
   test('Gate G5 /care-tasks: no element has a transform 50 ms after the Done click or the Undo click under reduced motion', async ({
