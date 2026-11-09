@@ -280,6 +280,8 @@ def test_hc_expa_004_row_owned_by_another_profile_is_refused(tmp_path, monkeypat
     from models.export_artifact import ExportArtifact
     audit = AsyncMock()
     monkeypatch.setattr(export_api, "log_export_event", audit)
+    denial = AsyncMock()  # the vault-fallback refusal must still write the denial audit row
+    monkeypatch.setattr(export_api, "audit_denial", denial)
     vault = tmp_path / "vault.db"
     asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
     art_id = str(uuid.uuid4())
@@ -298,6 +300,10 @@ def test_hc_expa_004_row_owned_by_another_profile_is_refused(tmp_path, monkeypat
     assert response.status_code == 403
     assert response.json()["detail"] == detail
     audit.assert_not_awaited()  # a refused download writes no download audit row
+    denial.assert_awaited_once()  # ... but the cross-profile denial is audited
+    assert denial.await_args.args[:2] == (
+        PROFILE_A, {"doctor_summary": "summary", "visit_prep": "packet", "fhir_r4": "export"}[kind]
+    )
 
 
 def test_hc_expa_005_artifact_id_is_bound_to_its_kind(tmp_path):
@@ -331,7 +337,6 @@ def test_hc_expa_007_crypto_erase_removes_persisted_artifacts(tmp_path, monkeypa
     """Content-level, not filename-level: no file left under the data dir contains the
     artifact id or the seeded marker. Would not notice: copies outside the data dir
     (backups the user took, OS swap, filesystem journals)."""
-    from tests.test_profile_deletion import _delete
     monkeypatch.setattr(type(profiles_api.settings), "app_data_path", property(lambda self: tmp_path))
     vaults = {p: tmp_path / "vaults" / p / "vault.db" for p in (PROFILE_A, PROFILE_B)}
     art = {}
@@ -349,7 +354,16 @@ def test_hc_expa_007_crypto_erase_removes_persisted_artifacts(tmp_path, monkeypa
     assert _leaks(), "the scan must see A's content before the erase, or it proves nothing"
     _register_open_vault(monkeypatch, PROFILE_A, vaults[PROFILE_A])
     _simulate_restart()
-    asyncio.run(_delete(profile_id=PROFILE_A))
+    profile = SimpleNamespace(id=PROFILE_A, display_name="T")
+    with patch.object(profiles_api, "_load_profile_for_delete", AsyncMock(return_value=profile)), \
+         patch.object(profiles_api, "authenticate_profile", AsyncMock(return_value=profile)), \
+         _profiles_client(PROFILE_A, _FakeMasterDb()) as prof:  # over HTTP, Depends() runs
+        resp = prof.request(
+            "DELETE", f"/profiles/{PROFILE_A}",
+            json={"password": "CorrectHorse1", "confirmation_phrase": PROFILE_DELETE_CONFIRMATION,
+                  "export_acknowledged": True},
+        )
+    assert resp.status_code == 204, resp.text
     assert not (tmp_path / "vaults" / PROFILE_A).exists()
     assert _leaks() == []
     assert [r.id for r in asyncio.run(_rows(vaults[PROFILE_B]))] == [art[PROFILE_B]]
@@ -563,18 +577,20 @@ def _end_session_client(profile_id: str, master_db, jti: str, close=None,
 
 
 def _export_as(vault: Path, jti: str, case, profile_id: str = PROFILE_A,
-               expires_at: datetime | None = None) -> str:
+               expires_at: datetime | None = None, master_db=None) -> str:
     """Generate one artifact as the session `jti`; returns its id."""
     _kind, gen, body, idkey, _dl, _t = case
     with _client(export_api.router, "/export", vault, profile_id=profile_id, jti=jti,
-                 expires_at=expires_at) as client:
+                 expires_at=expires_at, master_db=master_db) as client:
         created = client.post(gen, json=body)
         assert created.status_code == 200, created.text
         return created.json()[idkey]
 
 
-def _download_as(vault: Path, jti: str | None, url: str, expires_at: datetime | None = None):
-    with _client(export_api.router, "/export", vault, jti=jti, expires_at=expires_at) as client:
+def _download_as(vault: Path, jti: str | None, url: str, expires_at: datetime | None = None,
+                 master_db=None):
+    with _client(export_api.router, "/export", vault, jti=jti, expires_at=expires_at,
+                 master_db=master_db) as client:
         return client.get(url)
 
 
@@ -1107,3 +1123,250 @@ def test_hc_expa_032_saving_prunes_this_profiles_rows_past_session_exp(tmp_path,
     ids = {r.id for r in asyncio.run(_rows(vault))}
     assert ids == {new_id, b_expired, "b-null-exp"}, ids
     assert a_expired not in ids
+
+
+# ---------------------------------------------------------------------------
+# REVIEW ROUND (L0 ruling, #537 comment 6732000906) - HC-EXPA-033..039
+# ---------------------------------------------------------------------------
+
+
+async def _make_master(path: Path) -> None:
+    """A real master DB file: every master table, profiles A and B."""
+    import models  # noqa: F401  (registers every master table on Base)
+    from core.database import Base
+    from models import Profile
+    engine = _engine(path)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    async with async_sessionmaker(engine, expire_on_commit=False)() as s:
+        for pid in (PROFILE_A, PROFILE_B):
+            s.add(Profile(id=pid, display_name="Zed Example", encryption_key_id="k",
+                          is_locked=False, created_at=T0, updated_at=T0))
+        await s.commit()
+    await engine.dispose()
+
+
+def _real_master(tmp_path: Path):
+    """(master session for route_client, master file path). The audit rows the logout
+    and lock routes write land in a real `audit_logs` table the download can read."""
+    path = tmp_path / "master.db"
+    asyncio.run(_make_master(path))
+    return async_sessionmaker(_engine(path), expire_on_commit=False)(), path
+
+
+async def _add_end_event(path: Path, profile_id: str, event_type: str) -> None:
+    """A durable logout/lock audit row stamped now (the route's own commit, minus the route)."""
+    from models import AuditLog
+    engine = _engine(path)
+    async with async_sessionmaker(engine)() as s:
+        s.add(AuditLog(event_type=event_type, action=event_type, profile_id=profile_id,
+                       timestamp=core_time.utcnow()))
+        await s.commit()
+    await engine.dispose()
+
+
+def _end_real(profile_id: str, master, jti: str, how: str):
+    """Log out or lock through the REAL profiles route with the REAL audit write (only the
+    vault close is stubbed). With no vault open in the manager the export purge cannot reach
+    the rows, which is the scenario under test."""
+    with patch.object(profiles_api, "close_profile_database_on_logout", AsyncMock()), \
+         route_client(profiles_api.router, "/profiles", profile_id=profile_id,
+                      master_db=master) as client:
+        _set_session_jti(client, profile_id, jti)
+        url = "/profiles/logout" if how == "logout" else f"/profiles/{profile_id}/lock"
+        response = client.post(url)
+    assert response.status_code == 200, response.text
+
+
+END_EVENTS = ["logout", "lock"]
+
+
+@pytest.mark.parametrize("how", END_EVENTS)
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_033_another_logins_logout_with_the_vault_closed_ends_the_export(
+    tmp_path, case, how
+):
+    """Codex BLOCKER. Login A exports, the backend restarts (vault closed), login B logs
+    out or locks: the purge cannot reach the row and A's jti is NOT revoked. Login C must
+    still get 404 and the read deletes the row, because the profile's logout/lock audit row
+    is newer than the export. Would not notice: a master without the audit row (the cutoff
+    only exists because the route committed it), or a logout of another profile."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    master, _path = _real_master(tmp_path)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-a", case, master_db=master)
+    assert _download_as(vault, "jti-a", dl.format(id=art_id), master_db=master).status_code == 200
+    _simulate_restart()
+    time.sleep(0.01)
+    _end_real(PROFILE_A, master, "jti-b", how)
+    assert not core_security.is_jwt_token_revoked("jti-a")  # the hole: A is not revoked
+    assert [r.id for r in asyncio.run(_rows(vault))] == [art_id]  # the purge did not reach it
+    response = _download_as(vault, "jti-c", dl.format(id=art_id), master_db=master)
+    assert response.status_code == 404, response.text
+    assert "zzmarkera" not in response.text
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("how", END_EVENTS)
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_034_memory_layer_is_also_refused_after_a_later_logout_or_lock(
+    tmp_path, case, how
+):
+    """Same cutoff on the in-process entry. The route's own purge would have emptied the
+    dicts, so the audit row is written directly to leave the entry in place. 404, entry and
+    row both deleted. Would not notice: a purge that runs and clears the dict first."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    master, path = _real_master(tmp_path)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-a", case, master_db=master)
+    time.sleep(0.01)
+    asyncio.run(_add_end_event(path, PROFILE_A, f"profile.{how}"))
+    assert any(art_id in s for s in (export_api._summary_store, export_api._packet_store,
+                                      export_api._fhir_store))  # the memory layer holds it
+    response = _download_as(vault, "jti-c", dl.format(id=art_id), master_db=master)
+    assert response.status_code == 404, response.text
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+@pytest.mark.parametrize("how", END_EVENTS)
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_035_an_export_made_after_the_latest_logout_or_lock_is_served(
+    tmp_path, case, how, restart
+):
+    """The cutoff is a floor, not a ban: the older export is refused, the newer one is
+    served (dict and vault), and another profile's later logout changes nothing. Would not
+    notice: equal timestamps (the clock moves 10 ms between steps here)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    master, path = _real_master(tmp_path)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    old_id = _export_as(vault, "jti-a", case, master_db=master)
+    time.sleep(0.01)
+    _end_real(PROFILE_A, master, "jti-b", how)
+    time.sleep(0.01)
+    new_id = _export_as(vault, "jti-c", case, master_db=master)
+    time.sleep(0.01)
+    asyncio.run(_add_end_event(path, PROFILE_B, f"profile.{how}"))  # someone else's
+    if restart:
+        _simulate_restart()
+    served = _download_as(vault, "jti-d", dl.format(id=new_id), master_db=master)
+    assert served.status_code == 200, served.text
+    refused = _download_as(vault, "jti-d", dl.format(id=old_id), master_db=master)
+    assert refused.status_code == 404, refused.text
+    assert [r.id for r in asyncio.run(_rows(vault))] == [new_id]
+
+
+WRITE_KINDS = ["summary", "packet", "fhir", "pinboard"]
+ID_KEYS = {"summary": "summary_id", "packet": "packet_id", "fhir": "export_id",
+           "pinboard": "packet_id"}
+
+
+@pytest.mark.parametrize("kind", WRITE_KINDS)
+def test_hc_expa_036_failed_audit_leaves_no_artifact_in_either_layer(tmp_path, monkeypatch, kind):
+    """Codex MAJOR, extends HC-EXPA-006 (table only, doctor summary only) to every kind
+    and to the in-process layer. Order must be stage, audit commit, vault commit, THEN
+    publish to memory: an audit commit that fails leaves no row, no dict entry in any
+    store, and a download of the id the audit call was given is 404. Would not notice: a
+    failure in the vault commit after the audit committed (the audit row is then durable
+    and the artifact absent, which is the safe direction)."""
+    audit = AsyncMock()
+    monkeypatch.setattr(export_api, "log_export_event", audit)
+    monkeypatch.setattr(pinboards_api, "log_pinboard_event", audit)
+    vault = tmp_path / "vault.db"
+    ids = asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    master = _master_db(commit_error=RuntimeError("audit commit failed"))
+    if kind == "pinboard":
+        router, prefix = pinboards_api.router, "/pinboards"
+        url, body = f"/pinboards/{ids['pinboard_id']}/export", {"confirm": True}
+    else:
+        case = next(c for c in CASES if c[0] == kind)
+        router, prefix, url, body = export_api.router, "/export", case[1], case[2]
+    with _client(router, prefix, vault, master_db=master) as client:
+        with pytest.raises(RuntimeError, match="audit commit failed"):
+            client.post(url, json=body)
+    assert asyncio.run(_rows(vault)) == []
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store,
+                  pinboards_api._packet_store):
+        assert store == {}, store
+    art_id = audit.await_args.kwargs["details"][ID_KEYS[kind]]
+    dl = {"summary": "/export/doctor-summary/{id}/download?format=text",
+          "packet": "/export/visit-prep/{id}/download?format=markdown",
+          "fhir": "/export/fhir/{id}/download",
+          "pinboard": "/export/visit-prep/{id}/download?format=markdown"}[kind]
+    assert _download_as(vault, ROUTE_CLIENT_JTI, dl.format(id=art_id)).status_code == 404
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+def test_hc_expa_037_pinboard_packet_past_session_exp_is_not_served_and_is_deleted(
+    tmp_path, monkeypatch, restart
+):
+    """HC-EXPA-030 for the pinboard export route (it has its own `_packet_store` write
+    and its own `_session_exp` argument). The creating token expires 5 minutes after the
+    export, never revoked; a new login 6 minutes after gets 404 and the read deletes the
+    row, from the dict or the vault. Would not notice: a pinboard whose items are not
+    observations, or the logout path (HC-EXPA-029)."""
+    monkeypatch.setattr(pinboards_api, "log_pinboard_event", AsyncMock())
+    clock = _frozen_clock(monkeypatch)
+    exp = T0 + timedelta(minutes=5)
+    vault = tmp_path / "vault.db"
+    ids = asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    with _client(pinboards_api.router, "/pinboards", vault, jti="jti-exp-1",
+                 expires_at=_aware(exp)) as client:
+        created = client.post(f"/pinboards/{ids['pinboard_id']}/export", json={"confirm": True})
+        assert created.status_code == 200, created.text
+    packet_id = created.json()["packet_id"]
+    assert [r.id for r in asyncio.run(_rows(vault))] == [packet_id]
+    if restart:
+        _simulate_restart()
+    else:
+        assert packet_id in export_api._packet_store  # the dict layer holds it
+    clock["now"] = exp + timedelta(minutes=1)
+    assert not core_security.is_jwt_token_revoked("jti-exp-1")
+    response = _download_as(
+        vault, "jti-exp-2", f"/export/visit-prep/{packet_id}/download?format=markdown",
+        expires_at=_aware(clock["now"] + timedelta(hours=1)),
+    )
+    assert response.status_code == 404, response.text
+    assert asyncio.run(_rows(vault)) == []
+    assert packet_id not in export_api._packet_store
+
+
+async def _insert_foreign_row(path: Path) -> None:
+    """A row in this profile's vault whose profile_id is another profile's, as a
+    cross-profile restore leaves behind."""
+    from models.export_artifact import ExportArtifact
+    engine = _engine(path)
+    async with async_sessionmaker(engine)() as s:
+        s.add(ExportArtifact(id="foreign-row", kind="doctor_summary", profile_id=PROFILE_B,
+                             payload_json="{}", created_at=core_time.utcnow(),
+                             session_jti="jti-live", session_exp=core_time.utcnow() + timedelta(hours=1)))
+        await s.commit()
+    await engine.dispose()
+
+
+@pytest.mark.parametrize("how", END_EVENTS)
+def test_hc_expa_038_purge_deletes_every_row_in_the_vault_including_foreign_ones(
+    two_open_vaults, how
+):
+    """The vault is per-profile, so logout and lock empty the table, not just rows that
+    carry this profile's id: a foreign-`profile_id` row (left by a cross-profile restore)
+    would otherwise outlive the purge. Serving such a row stays 403 plus the denial audit
+    (HC-EXPA-004). Asserted by querying the table of A's vault. Would not notice: the
+    delete route, which shares `purge_profile_exports`."""
+    asyncio.run(_insert_foreign_row(two_open_vaults.vaults[PROFILE_A]))
+    assert len(asyncio.run(_rows(two_open_vaults.vaults[PROFILE_A]))) == 4  # 3 own + 1 foreign
+    if how == "logout":
+        with _profiles_client(PROFILE_A, _db_with_profile(None)) as prof:
+            assert prof.post("/profiles/logout").status_code == 200
+    else:
+        profile = SimpleNamespace(id=PROFILE_A, display_name="T", is_locked=False,
+                                  password_hash="x", created_at=T0, last_accessed_at=None)
+        with _profiles_client(PROFILE_A, _db_with_profile(profile)) as prof:
+            assert prof.post(f"/profiles/{PROFILE_A}/lock").status_code == 200
+    assert asyncio.run(_rows(two_open_vaults.vaults[PROFILE_A])) == []
+    assert len(asyncio.run(_rows(two_open_vaults.vaults[PROFILE_B]))) == 3  # B's own vault
