@@ -4,7 +4,7 @@
  *
  * framer-motion is deliberately NOT mocked in this file: the point is to see
  * the real library reject a leftover `motion.*` under LazyMotion strict.
- * HC-UIMO-002 retired with the deleted PageTransition export.
+ * HC-UIMO-002 retired with the deleted page-transition export.
  */
 
 import { describe, it, expect, vi, beforeAll, beforeEach, onTestFinished } from 'vitest';
