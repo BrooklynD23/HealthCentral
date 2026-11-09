@@ -141,7 +141,7 @@ function announceChecked(observation: Observation) {
 function documentAttentionHint(doc: Document): string {
   switch (doc.status) {
     case 'pending_ocr':
-      return 'OCR is required or unavailable. In Settings, turn on document OCR under Document import and ensure Tesseract is installed. Your server must allow OCR (OCR_ENABLED). Or use a clearer scan.';
+      return 'This scan needs text recognition. In Settings, turn on document OCR under Document import — the OCR reader is built into the app. Your server must allow OCR (OCR_ENABLED). Or use a clearer scan.';
     case 'extraction_failed':
       return 'Extraction failed for this file. Try re-importing or a different PDF export.';
     case 'pending':

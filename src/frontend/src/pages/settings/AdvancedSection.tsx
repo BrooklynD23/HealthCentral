@@ -56,8 +56,8 @@ import { SwitchRow } from './PreferencesSection';
 
 const OCR_BLOCKER_LABELS: Record<string, string> = {
   disabled_by_admin: 'OCR is disabled in server configuration (OCR_ENABLED). Restart the backend after changing .env.',
-  tesseract_missing: 'Install Tesseract OCR and add it to PATH.',
-  user_disabled: 'Turn on document OCR below for this profile.',
+  tesseract_missing: 'The built-in OCR reader could not start. Re-run the backend setup (dev.ps1 / dev.sh) or reinstall dependencies.',
+  user_disabled: 'Turn on document OCR above for this profile.',
 };
 
 const tierDescriptions: Record<string, { label: string; desc: string; icon: typeof Zap }> = {
@@ -523,9 +523,15 @@ function HardwareCard() {
   );
 }
 
+// Only the patient's own switch is off: a normal state, not a blocker.
+function isOcrOffOnly(blockers: string[] | undefined): boolean {
+  return !!blockers && blockers.length > 0 && blockers.every((b) => b === 'user_disabled');
+}
+
 function OcrCard() {
   const { data: settings } = useModelSettings();
   const saveOcr = useSaveOcrPreference();
+  const ocrOffOnly = isOcrOffOnly(settings?.ocr_blockers);
 
   return (
     <Card>
@@ -537,7 +543,7 @@ function OcrCard() {
       </CardHeader>
       <CardContent className="p-6 space-y-3">
         <p className="text-sm text-ink-secondary">
-          Extract text from scanned PDFs and lab images using Tesseract. Your preference applies to this profile;
+          Read text from scanned PDFs and lab images with the built-in reader. Your preference applies to this profile;
           the server must also allow OCR (<code className="text-xs bg-surface-muted px-1 rounded-sm">OCR_ENABLED</code>).
         </p>
         <SwitchRow
@@ -553,14 +559,16 @@ function OcrCard() {
             'rounded-xl px-3 py-2.5 text-sm border',
             settings?.ocr_effective
               ? 'bg-status-verified-subtle border-status-verified/20 text-status-verified'
+              : ocrOffOnly
+              ? 'bg-surface-muted border-black/2 text-ink-secondary'
               : 'bg-status-attention-subtle border-status-attention/20 text-status-attention'
           )}
         >
           {settings?.ocr_effective ? (
-            <span>OCR is active for this profile (Tesseract + server allow).</span>
+            <span>OCR is active for this profile (built-in reader + server allow).</span>
           ) : (
             <div className="space-y-1">
-              <p className="font-medium">OCR is blocked</p>
+              <p className="font-medium">{ocrOffOnly ? 'OCR is off for this profile' : 'OCR is blocked'}</p>
               <ul className="list-disc pl-4 text-xs space-y-0.5 opacity-90">
                 {(settings?.ocr_blockers ?? []).map((b) => (
                   <li key={b}>{OCR_BLOCKER_LABELS[b] ?? b}</li>
@@ -619,8 +627,11 @@ function StatusCard() {
         />
         <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-muted border border-black/2">
           <span className="text-sm text-ink-secondary">OCR (profile)</span>
-          <Badge variant={settings?.ocr_effective ? 'verified' : 'attention'} className="font-bold">
-            {settings?.ocr_effective ? 'Ready' : 'Blocked'}
+          <Badge
+            variant={settings?.ocr_effective ? 'verified' : isOcrOffOnly(settings?.ocr_blockers) ? 'default' : 'attention'}
+            className="font-bold"
+          >
+            {settings?.ocr_effective ? 'Ready' : isOcrOffOnly(settings?.ocr_blockers) ? 'Off' : 'Blocked'}
           </Badge>
         </div>
       </CardContent>

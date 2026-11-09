@@ -552,7 +552,7 @@ export function DocumentInbox() {
                           Verified
                         </Badge>
                       ) : doc.status === 'pending_ocr' ? (
-                        <Badge variant="default" className="gap-1" data-t0 data-inbox-status title="OCR processing is required. In Settings, enable document OCR and install Tesseract (or your admin must set OCR_ENABLED).">
+                        <Badge variant="default" className="gap-1" data-t0 data-inbox-status title="This scan needs text recognition before its values can be read. In Settings, turn on document OCR under Document import (the reader is built in; your server must allow OCR with OCR_ENABLED).">
                           <AlertCircle className="w-3 h-3" />
                           OCR Required
                         </Badge>
