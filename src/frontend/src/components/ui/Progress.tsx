@@ -9,8 +9,10 @@ export interface ProgressProps {
 }
 
 /**
- * Determinate progress (M12, scaleX over 240 ms). The fill scales with
- * transform, so the bar never changes layout. Reduced motion makes the step instant.
+ * Determinate progress (M12, clip-path over 240 ms). The fill is revealed by
+ * clip-path, so the bar never changes layout and paints no transform — G5's
+ * reduced-motion snapshot would read a resting scaleX as motion. Reduced
+ * motion makes the step instant.
  */
 export function Progress({ value, max = 100, label, className }: ProgressProps) {
   const now = Math.min(Math.max(value, 0), max);
@@ -26,8 +28,8 @@ export function Progress({ value, max = 100, label, className }: ProgressProps) 
       className={cn('relative h-2 overflow-hidden rounded-full bg-surface-sunken', className)}
     >
       <div
-        className="absolute inset-0 origin-left bg-accent transition-transform duration-[240ms] ease-[var(--ease-out)] motion-reduce:transition-none"
-        style={{ transform: `scaleX(${fraction})` }}
+        className="absolute inset-0 bg-accent transition-[clip-path] duration-[240ms] ease-[var(--ease-out)] motion-reduce:transition-none"
+        style={{ clipPath: `inset(0 ${(1 - fraction) * 100}% 0 0)` }}
       />
     </div>
   );
