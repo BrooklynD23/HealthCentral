@@ -481,7 +481,7 @@ test('UI-PG-SETTINGS GATE G6 on /settings: no horizontal scroll at 390 and 320',
   }
 });
 
-test('UI-PG-SETTINGS GATE G2, G3, G5 on /settings (quiet box only)', async ({ page }) => {
+test('UI-PG-SETTINGS GATE G2 on /settings (quiet box only)', async ({ page }) => {
   await page.setViewportSize(DESKTOP);
   await installMockApi(page);
   await mockSettingsApi(page);
@@ -508,12 +508,40 @@ test('UI-PG-SETTINGS GATE G2, G3, G5 on /settings (quiet box only)', async ({ pa
     await interactions();
   });
   expect(cls, 'G2 /settings').toBeLessThan(0.1);
+});
+
+test('UI-PG-SETTINGS GATE G3 on /settings (quiet box only)', async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await installMockApi(page);
+  await mockSettingsApi(page);
+  await seedMockSession(page);
+
+  const interactions = async () => {
+    await page.getByRole('tab', { name: 'Preferences' }).click();
+    await expect(page.getByLabel('Time zone')).toBeVisible();
+    await page.getByRole('tab', { name: 'Assistant & privacy' }).click();
+    await page.getByRole('switch', { name: 'Use External API' }).click();
+    await expect(page.getByRole('alertdialog', { name: 'Privacy Notice' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Advanced' }).click();
+    await showAdvanced(page).click();
+    await expect(page.getByTestId('tier-row-mid')).toBeVisible();
+  };
 
   // G3: the worst Event Timing duration of the same interactions, CPU throttled x4.
   await page.goto('/settings');
   await settle(page);
   const inp = await maxEventDuration(page, interactions, { cpuRate: 4 });
+  console.log(`GATE G3 /settings: INP proxy ${inp} ms (bound 200, CPU x4)`);
   expect(inp, 'G3 /settings').toBeLessThan(200);
+});
+
+test('UI-PG-SETTINGS GATE G5 on /settings (quiet box only)', async ({ page }) => {
+  await page.setViewportSize(DESKTOP);
+  await installMockApi(page);
+  await mockSettingsApi(page);
+  await seedMockSession(page);
 
   // G5: reduced motion, one snapshot 50 ms after each interaction (plan G5), so a transform that one step leaves behind
   // is not cleared by the next. The overlays are separate steps: opening and closing each of them.
