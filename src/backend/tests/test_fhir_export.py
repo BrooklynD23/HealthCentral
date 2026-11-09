@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.auth import Session
 from core.time import utcnow
 from modules.fhir_export import build_fhir_bundle
+from tests.support.routes import no_logout_cutoff
 
 
 def _session(profile_id: str = "test-profile") -> Session:
@@ -529,7 +530,7 @@ class TestFhirExportApi:
             "session_exp": utcnow() + timedelta(hours=1),
             "bundle": {"resourceType": "Bundle", "type": "collection", "entry": []},
         }
-        master_db = AsyncMock()
+        master_db = no_logout_cutoff(AsyncMock())
         audit = AsyncMock()
         monkeypatch.setattr("api.export.log_export_event", audit)
 

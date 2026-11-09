@@ -32,7 +32,7 @@ from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
 from models import Document, Observation
 from modules.interpret import InterpretationContext, InterpretModule
-from tests.support.routes import route_client
+from tests.support.routes import no_logout_cutoff, route_client
 
 PROFILE = "profile-a"
 OBS_AT = datetime(2026, 3, 1, 19, 45)
@@ -402,7 +402,7 @@ def _master_db_with_profile():
     db.commit = AsyncMock()
     db.flush = AsyncMock()
     db.refresh = AsyncMock()
-    return db
+    return no_logout_cutoff(db)
 
 
 def _export_fhir(profile_db):

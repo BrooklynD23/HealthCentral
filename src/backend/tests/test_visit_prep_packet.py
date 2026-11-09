@@ -380,7 +380,7 @@ class TestVisitPrepRoute:
             packet_id=response.packet_id,
             session=_make_session(),
             format="markdown",
-            master_db=AsyncMock(),
+            master_db=no_logout_cutoff(AsyncMock()),
         )
         assert download.media_type == "text/markdown"
         body = bytes(download.body).decode("utf-8")
@@ -406,7 +406,7 @@ class TestVisitPrepRoute:
             packet_id=response.packet_id,
             session=_make_session(),
             format="html",
-            master_db=AsyncMock(),
+            master_db=no_logout_cutoff(AsyncMock()),
         )
         assert download.media_type == "text/html"
         html = bytes(download.body).decode("utf-8")
@@ -427,7 +427,7 @@ class TestVisitPrepRoute:
                 packet_id=response.packet_id,
                 session=_make_session("another-profile"),
                 format="markdown",
-                master_db=AsyncMock(),
+                master_db=no_logout_cutoff(AsyncMock()),
             )
         assert exc_info.value.status_code == 403
 
@@ -440,7 +440,7 @@ class TestVisitPrepRoute:
                 packet_id=str(uuid.uuid4()),
                 session=_make_session(),
                 format="markdown",
-                master_db=AsyncMock(),
+                master_db=no_logout_cutoff(AsyncMock()),
             )
         assert exc_info.value.status_code == 404
 
@@ -461,7 +461,7 @@ class TestVisitPrepRoute:
             packet_id=response.packet_id,
             session=_make_session(),
             format="markdown",
-            master_db=AsyncMock(),
+            master_db=no_logout_cutoff(AsyncMock()),
         )
         body = bytes(download.body).decode("utf-8")
         assert "555-123-4567" not in body
@@ -708,7 +708,7 @@ class TestRealFetchers:
 import api.export as export_api  # noqa: E402
 from core.auth import get_profile_db_session  # noqa: E402
 from models import UserModelSettings  # noqa: E402
-from tests.support.routes import route_client  # noqa: E402
+from tests.support.routes import no_logout_cutoff, route_client  # noqa: E402
 
 TZ_FROZEN_UTC = datetime(2026, 1, 16, 1, 0)  # = Jan 15 17:00 America/Los_Angeles
 

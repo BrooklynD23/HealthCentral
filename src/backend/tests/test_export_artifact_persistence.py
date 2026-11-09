@@ -112,9 +112,20 @@ class _Result:
         return self._obj
 
 
+class _NoCutoff:
+    def scalar(self):
+        return None
+
+
 def _master_db(profile_id: str = PROFILE_A, commit_error: Exception | None = None):
     db = AsyncMock()  # the FHIR route reads Profile from master
-    db.execute.return_value = _Result(SimpleNamespace(id=profile_id, display_name="Zed Example"))
+
+    async def _execute(statement, *_args, **_kwargs):
+        if "audit_logs" in str(statement):  # the logout/lock cutoff read: no such row
+            return _NoCutoff()
+        return _Result(SimpleNamespace(id=profile_id, display_name="Zed Example"))
+
+    db.execute.side_effect = _execute
     if commit_error is not None:
         db.commit.side_effect = commit_error
     return db
