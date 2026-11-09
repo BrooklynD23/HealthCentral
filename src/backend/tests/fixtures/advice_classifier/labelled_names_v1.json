@@ -1,0 +1,25 @@
+{
+ "version": 1,
+ "note": "Synthetic labelled set for MED-NAME-LIST. 'expect' is advice+category or none. The insulin take-more entry is pinned none: the frame gap is out of scope for MED-NAME-LIST and recorded, not fixed.",
+ "entries": [
+  {"id": "MNL-001", "question": "Can I take ibuprofen?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-002", "question": "Can I take atorvastatin with grapefruit?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-003", "question": "Can I take amoxicillin while pregnant?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-004", "question": "Should I take levothyroxine at night?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-005", "question": "Can I take aspirin every day?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-006", "question": "Can I use metoprolol with caffeine?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-007", "question": "Can I use albuterol twice an hour?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-008", "question": "Can I stop sertraline?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-009", "question": "Should I take omeprazole before meals?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-010", "question": "Can I take warfarin and ibuprofen together?", "expect": "advice", "category": "medication", "group": "name-generic"},
+  {"id": "MNL-011", "question": "Can I take Lipitor?", "expect": "advice", "category": "medication", "group": "name-brand"},
+  {"id": "MNL-012", "question": "Can I take Synthroid with coffee?", "expect": "advice", "category": "medication", "group": "name-brand"},
+  {"id": "MNL-013", "question": "Can I take Advil?", "expect": "advice", "category": "medication", "group": "name-brand"},
+  {"id": "MNL-014", "question": "Can I take folic acid?", "expect": "advice", "category": "medication", "group": "name-multiword"},
+  {"id": "MNL-015", "question": "Should I take vitamin d daily?", "expect": "advice", "category": "medication", "group": "name-multiword"},
+  {"id": "MNL-101", "question": "Can I take notes?", "expect": "none", "group": "negative"},
+  {"id": "MNL-102", "question": "Can I take the stairs?", "expect": "none", "group": "negative"},
+  {"id": "MNL-103", "question": "Should I take a nap?", "expect": "none", "group": "negative"},
+  {"id": "MNL-104", "question": "What if I take more insulin?", "expect": "none", "group": "frame-gap-pin"}
+ ]
+}
