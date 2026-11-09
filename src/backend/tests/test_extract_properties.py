@@ -1,7 +1,9 @@
-"""Property tests for the lab extractor (HC-PROP-001..004, HYPOTHESIS-EXTRACT).
+"""Property tests for the lab extractor (HC-PROP-001..005, HYPOTHESIS-EXTRACT).
 
-These pin current behaviour of ``modules/extract.py`` with Hypothesis. They do
-not assert ref_low <= ref_high (RANGE-ORDER is a known open bug).
+These pin current behaviour of ``modules/extract.py`` with Hypothesis.
+HC-PROP-005 asserts ref_low <= ref_high: RANGE-ORDER is closed (owner answer
+2026-11-07: swap the bounds; ref_range_text/provenance keep the printed order
+verbatim).
 """
 
 import re
@@ -10,7 +12,7 @@ import time
 from datetime import date, datetime
 from pathlib import Path
 
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -109,3 +111,19 @@ def test_hc_prop_004_extract_dates_linear_on_padding(n, label):
     start = time.perf_counter()
     _MODULE._extract_dates(text)
     assert time.perf_counter() - start < 1.0
+
+
+@settings(**PROP_SETTINGS)
+@given(line=_lab_lines)
+@example("Glucose: 105 mg/dL (99-70)")
+@example("Glucose 105 mg/dL (99-70)")
+@example("Glucose 105 mg/dL 99-70")
+def test_hc_prop_005_parsed_bounds_never_inverted(line):
+    """HC-PROP-005 (RANGE-ORDER): a lab interval is low->high by definition, so
+    no parsed observation may store ref_low > ref_high. The explicit examples
+    cover the colon, alt and column forms of a backwards-printed "99-70"."""
+    result = _MODULE._parse_text_line(line, 1)
+    if result is not None and result.ref_low is not None and result.ref_high is not None:
+        assert result.ref_low <= result.ref_high, (
+            f"inverted bounds {result.ref_low}>{result.ref_high} from {line!r}"
+        )

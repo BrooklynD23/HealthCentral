@@ -553,6 +553,53 @@ class TestExtractFormats:
         # The unit filter applies only on pages that have tables.
         assert [o.analyte_raw for o in result.observations] == ["Glucose"]
 
+    def test_hc_exf_007a_inverted_range_ordered_column_form(self, extract_module):
+        # RANGE-ORDER (owner answer 2026-11-07: swap the bounds, keep the printed
+        # text). A backwards-printed interval stores ordered; ref_range_text and
+        # provenance keep "99-70" verbatim so the swap is auditable.
+        obs = extract_module._extract_from_text("Glucose 105 mg/dL 99-70", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+    def test_hc_exf_007b_inverted_range_ordered_colon_form(self, extract_module):
+        obs = extract_module._extract_from_text("Glucose: 105 mg/dL (99-70)", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+    def test_hc_exf_007c_inverted_range_ordered_alt_form_and_table_cell(self, extract_module):
+        obs = extract_module._extract_from_text("Glucose 105 mg/dL (99-70)", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+        table = [
+            ["Test", "Result", "Units", "Range"],
+            ["Glucose", "105", "mg/dL", "99-70"],
+        ]
+        obs = extract_module._extract_from_table(table, 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+    def test_hc_exf_007d_ordering_pins(self, extract_module):
+        # Pins: only a both-bounds inverted pair is reordered.
+        obs = extract_module._extract_from_text("TSH 2.10 mIU/L <4.5", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (None, 4.5)
+        assert obs[0].ref_range_text == "<4.5"
+
+        obs = extract_module._extract_from_text("Glucose 80 mg/dL 80-80", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (80.0, 80.0)
+        assert obs[0].ref_range_text == "80-80"
+
+        obs = extract_module._extract_from_text("Glucose: 105 mg/dL (Normal: 99-70)", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
 
 class TestMgPerLiterUnit:
     """EXTRACT-UNIT-MGL: `mg/L` (CRP) is a known unit on all three text-line patterns."""
