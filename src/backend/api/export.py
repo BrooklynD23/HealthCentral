@@ -17,7 +17,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import time as core_time
@@ -28,7 +28,7 @@ from core.denial_audit import audit_denial
 from core.profile_database import get_profile_db_manager
 from core.security import is_jwt_token_revoked
 from core.time import NaiveUtcDatetime, profile_timezone_name, to_local, utcnow
-from models import CarePlanTask, Document, Medication, Observation, Profile
+from models import AuditLog, CarePlanTask, Document, Medication, Observation, Profile
 from models.document_category import DocumentCategory, DocumentEntity
 from models.export_artifact import EXPORT_ARTIFACT_KINDS, ExportArtifact
 from modules.export import ExportModule
@@ -99,9 +99,9 @@ async def purge_profile_exports(profile_id: str) -> int:
         )
         return removed
     async with connection.get_session() as vault:
-        result = await vault.execute(
-            delete(ExportArtifact).where(ExportArtifact.profile_id == profile_id)
-        )
+        # The vault is per-profile, so EVERY row goes, including one carrying another
+        # profile's id (left by a cross-profile restore). Serving such a row stays a 403.
+        result = await vault.execute(delete(ExportArtifact))
     return removed + (result.rowcount or 0)
 
 
@@ -191,8 +191,8 @@ async def _save_artifact(
 
 async def _load_artifact(
     profile_db: Optional[AsyncSession], *, artifact_id: str, kind: str
-) -> Optional[tuple[str, dict, Optional[str], Optional[datetime]]]:
-    """Return `(owner profile_id, payload, session_jti, session_exp)` for a live persisted artifact, else None.
+) -> Optional[tuple[str, dict, Optional[str], Optional[datetime], datetime]]:
+    """Return `(owner profile_id, payload, session_jti, session_exp, created_at)` for a live persisted artifact, else None.
 
     None covers: no vault session, no such row, a row of another kind, and a row
     older than `_EXPORT_TTL` (deleted here, on read). The caller keeps the
@@ -212,11 +212,27 @@ async def _load_artifact(
         await profile_db.execute(delete(ExportArtifact).where(ExportArtifact.id == artifact_id))
         await profile_db.commit()
         return None
-    return row.profile_id, json.loads(row.payload_json), row.session_jti, row.session_exp
+    return row.profile_id, json.loads(row.payload_json), row.session_jti, row.session_exp, row.created_at
+
+
+async def _logout_cutoff(master_db: AsyncSession, profile_id: str) -> Optional[datetime]:
+    """Timestamp of the profile's latest `profile.logout` / `profile.lock` audit row, else None.
+
+    Logout and lock commit that row before the export purge runs, so it is a durable cutoff
+    even when the purge could not reach a closed vault (EXPORT-LIVE-LOGIN fail-closed).
+    """
+    result = await master_db.execute(
+        select(func.max(AuditLog.timestamp)).where(
+            AuditLog.profile_id == profile_id,
+            AuditLog.event_type.in_(("profile.logout", "profile.lock")),
+        )
+    )
+    return result.scalar()
 
 
 async def _bound_to_session(
-    profile_db: Optional[AsyncSession], entry: dict, session, *, artifact_id: str, store: dict
+    profile_db: Optional[AsyncSession], entry: dict, session, *, artifact_id: str, store: dict,
+    master_db: AsyncSession,
 ) -> bool:
     """EXPORT-LIVE-LOGIN: serve to any live login of the owning profile.
 
@@ -226,7 +242,10 @@ async def _bound_to_session(
     not revoked (a revoked jti means that login ended). The caller's jti is not compared
     to the stored one, because every login mints a new jti, so equality could never serve
     a row after a restart. A caller with no jti stays refused. A NULL jti or `session_exp`
-    fails closed. Otherwise the in-process entry and the vault row are deleted and the
+    fails closed. The entry must also be newer than the profile's latest logout or lock audit
+    row (`_logout_cutoff`): a later logout by another login ends every earlier export, even
+    when its purge could not reach a closed vault. An entry with no `created_at` cannot be
+    shown newer, so it fails closed whenever such a row exists. Otherwise the in-process entry and the vault row are deleted and the
     caller answers the same 404 as for an expired export.
     """
     jti = entry.get("session_jti")
@@ -238,7 +257,10 @@ async def _bound_to_session(
         and session.token_jti
         and not is_jwt_token_revoked(jti)
     ):
-        return True
+        cutoff = await _logout_cutoff(master_db, session.profile_id)
+        created = entry.get("created_at")
+        if cutoff is None or (created is not None and created > cutoff):
+            return True
     store.pop(artifact_id, None)
     if profile_db is not None:
         await profile_db.execute(delete(ExportArtifact).where(ExportArtifact.id == artifact_id))
@@ -659,10 +681,6 @@ async def generate_doctor_summary(
         session_jti=session.token_jti,
         session_exp=_session_exp(session),
     )
-    summary_data["created_at"] = core_time.utcnow()
-    summary_data["session_jti"] = session.token_jti
-    summary_data["session_exp"] = _session_exp(session)
-    _summary_store[summary.summary_id] = summary_data
 
     # Create audit log
     await audit_and_commit(
@@ -679,6 +697,11 @@ async def generate_doctor_summary(
         },
     )
     await profile_db.commit()
+    # Published to memory only after the audit row AND the vault row are committed.
+    summary_data["created_at"] = core_time.utcnow()
+    summary_data["session_jti"] = session.token_jti
+    summary_data["session_exp"] = _session_exp(session)
+    _summary_store[summary.summary_id] = summary_data
 
     # Build date range string
     date_range = "All time"
@@ -725,7 +748,7 @@ async def download_summary(
         if loaded:
             summary_data = {
                 **loaded[1], "profile_id": loaded[0],
-                "session_jti": loaded[2], "session_exp": loaded[3],
+                "session_jti": loaded[2], "session_exp": loaded[3], "created_at": loaded[4],
             }
 
     if not summary_data:
@@ -742,7 +765,8 @@ async def download_summary(
             detail="Access denied to this summary"
         )
     if not await _bound_to_session(
-        profile_db, summary_data, session, artifact_id=summary_id, store=_summary_store
+        profile_db, summary_data, session, artifact_id=summary_id, store=_summary_store,
+        master_db=master_db,
     ):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Summary not found")
 
@@ -1051,10 +1075,6 @@ async def generate_visit_prep(
         session_jti=session.token_jti,
         session_exp=_session_exp(session),
     )
-    packet["created_at"] = core_time.utcnow()
-    packet["session_jti"] = session.token_jti
-    packet["session_exp"] = _session_exp(session)
-    _packet_store[packet["packet_id"]] = packet
 
     await audit_and_commit(
         master_db,
@@ -1069,6 +1089,10 @@ async def generate_visit_prep(
         },
     )
     await profile_db.commit()
+    packet["created_at"] = core_time.utcnow()  # published only after both commits
+    packet["session_jti"] = session.token_jti
+    packet["session_exp"] = _session_exp(session)
+    _packet_store[packet["packet_id"]] = packet
 
     return VisitPrepResponse(
         packet_id=packet["packet_id"],
@@ -1105,7 +1129,7 @@ async def download_visit_prep(
         if loaded:
             packet = {
                 **loaded[1], "profile_id": loaded[0],
-                "session_jti": loaded[2], "session_exp": loaded[3],
+                "session_jti": loaded[2], "session_exp": loaded[3], "created_at": loaded[4],
             }
     if not packet:
         raise HTTPException(
@@ -1120,7 +1144,8 @@ async def download_visit_prep(
             detail="Access denied to this packet",
         )
     if not await _bound_to_session(
-        profile_db, packet, session, artifact_id=packet_id, store=_packet_store
+        profile_db, packet, session, artifact_id=packet_id, store=_packet_store,
+        master_db=master_db,
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1515,13 +1540,6 @@ async def generate_fhir_export(
         session_jti=session.token_jti,
         session_exp=_session_exp(session),
     )
-    _fhir_store[export_id] = {
-        "profile_id": profile_id,
-        "bundle": result["bundle"],
-        "created_at": core_time.utcnow(),
-        "session_jti": session.token_jti,
-        "session_exp": _session_exp(session),
-    }
 
     await audit_and_commit(
         master_db,
@@ -1535,6 +1553,13 @@ async def generate_fhir_export(
         },
     )
     await profile_db.commit()
+    _fhir_store[export_id] = {  # published only after both commits
+        "profile_id": profile_id,
+        "bundle": result["bundle"],
+        "created_at": core_time.utcnow(),
+        "session_jti": session.token_jti,
+        "session_exp": _session_exp(session),
+    }
 
     return FhirExportResponse(
         export_id=export_id,
@@ -1568,7 +1593,7 @@ async def download_fhir_export(
         if loaded:
             stored = {
                 "profile_id": loaded[0], "bundle": loaded[1],
-                "session_jti": loaded[2], "session_exp": loaded[3],
+                "session_jti": loaded[2], "session_exp": loaded[3], "created_at": loaded[4],
             }
     if not stored:
         raise HTTPException(
@@ -1583,7 +1608,8 @@ async def download_fhir_export(
             detail="Access denied to this export",
         )
     if not await _bound_to_session(
-        profile_db, stored, session, artifact_id=export_id, store=_fhir_store
+        profile_db, stored, session, artifact_id=export_id, store=_fhir_store,
+        master_db=master_db,
     ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
