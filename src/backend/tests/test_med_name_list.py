@@ -45,14 +45,22 @@ def test_hc_mnl_002_named_drug_positives(entry):
 
 
 def test_hc_mnl_003_labelled_v1_unchanged():
+    """Every labelled_v1 entry still gets its label (owner-decides entries are not asserted)."""
     flips = []
     for e in LABELLED:
-        v = classify_advice(e["question"])
+        if e["expect"] == "owner":
+            continue
+        if "draft_ref" in e:
+            mod, name = e["draft_ref"].split(":")
+            text = getattr(importlib.import_module(mod), name)
+        else:
+            text = e.get("question") or e["draft_sentence"]
+        v = classify_advice(text)
         got = v.category if v.is_advice_seeking else "none"
-        if got != e["main"] and e["expect"] != "owner" and got != (e.get("category") if e["expect"] == "advice" else "none"):
-            flips.append((e["id"], got))
-    # Entries must still meet their label (same standard as HC-ACF-001); print the flip count.
-    print(f"labelled_v1 label mismatches after name list: {len(flips)}")
+        want = e["category"] if e["expect"] == "advice" else "none"
+        if got != want:
+            flips.append((e["id"], want, got))
+    print(f"labelled_v1 flips after name list: {len(flips)}")
     assert flips == []
 
 
