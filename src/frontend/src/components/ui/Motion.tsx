@@ -26,27 +26,6 @@ export const staggerContainerVariants: Variants = {
 };
 
 /**
- * PageTransition wrapper for consistent route entrance.
- */
-export function PageTransition({ children, className, ...props }: HTMLMotionProps<'div'>) {
-  const prefersReducedMotion = useReducedMotion();
-
-  return (
-    <m.div
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      variants={prefersReducedMotion ? fadeVariants : slideUpVariants}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className={cn('w-full', className)}
-      {...props}
-    >
-      {children}
-    </m.div>
-  );
-}
-
-/**
  * StaggerGroup for list orchestrations.
  */
 export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<'div'>) {
