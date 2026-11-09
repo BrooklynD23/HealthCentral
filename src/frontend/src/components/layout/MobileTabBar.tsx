@@ -8,8 +8,9 @@ const TAB_BASE =
   'flex min-h-[56px] w-full flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium leading-tight rounded-xl focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-hidden';
 
 /**
- * The phone tab bar (plan §3.2): it replaces the sidebar below 1024 px, five
- * slots, each at least 56 px tall, above the home indicator.
+ * The phone tab bar (plan §3.2): it replaces the sidebar below 768 px — the icon
+ * rail takes over on tablets (ICON-RAIL-TABLET) — five slots, each at least
+ * 56 px tall, above the home indicator.
  */
 export function MobileTabBar() {
   const { pathname } = useLocation();
@@ -17,7 +18,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="Tab bar"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-elevated pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-elevated pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <ul className="grid grid-cols-5">
         {navTabs.map((tab) => {
