@@ -27,6 +27,14 @@ const isAssistantCategoryProofRun =
   process.env.PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF === '1' ||
   (/assistant\.spec\.[cm]?[jt]sx?/i.test(cliArgs) && /\bcategory\b/i.test(cliArgs));
 
+/**
+ * The job/runner started the preview and the backend itself, so the config must
+ * not start (or wait for) its own webServers. The g3-preview CI legs use this:
+ * the mocked leg serves `vite preview` on :4173, the auth leg serves it on
+ * :3000 with the real backend on :8000.
+ */
+const providedServers = !!process.env.HC_E2E_PROVIDED_SERVERS;
+
 const frontendServer = {
   command: 'npm run dev -- --host 127.0.0.1 --port 3000',
   cwd: '.',
@@ -79,5 +87,5 @@ export default defineConfig({
     },
   ],
 
-  webServer: isAssistantCategoryProofRun ? [frontendServer] : [backendServer, frontendServer],
+  webServer: providedServers ? [] : isAssistantCategoryProofRun ? [frontendServer] : [backendServer, frontendServer],
 });
