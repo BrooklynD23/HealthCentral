@@ -1,12 +1,12 @@
 # Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine
 
-> **Superseded** by [the 2026-10-21b handoff](../archive/plans/2026-10-21b-session-handoff.md) and its successors (newest: [the 2026-10-24 handoff](2026-10-24-session-handoff.md)); retained for history, not an active tracker.
+> **Superseded** by [the 2026-10-21b handoff](2026-10-21b-session-handoff.md) and its successors (newest: [the 2026-10-24 handoff](../../plans/2026-10-24-session-handoff.md)); retained for history, not an active tracker.
 
 **Last Updated:** 2026-10-21
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, works §3, and replaces this file with its own handoff.
 
-Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the [build-program RUNBOOK](2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20c handoff](2026-10-20c-session-handoff.md). This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the end: "Commit & push all of our works … provide me a handoff … we will have the cloud agent take care of the merges." Every branch is pushed; nothing is only local. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-20c handoff](2026-10-20c-session-handoff.md). This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the end: "Commit & push all of our works … provide me a handoff … we will have the cloud agent take care of the merges." Every branch is pushed; nothing is only local. Treat this file as a lead: verify with `gh pr view` / `git log origin/main` before acting.
 
 ## 1. What this session did
 
@@ -14,7 +14,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 - **Merged (L0, `merge_par.sh`, review PASS):** #253 NLI-LOG-M7 (`3e5a835`, +1), #252 RUNSTEP-CONTRACT (`b8e30a3`, +1), #258 CHAT-TREND-DEF (`7fd0c26`, +5), #257 RRSI-H2-SANDBOX runbook (`3f2484f`, 0). Main is `3f2484f`; expected collected 2125 (not measured on main: measure it in the batch).
 - **G-C5 Task 7 on the model host:** PR #262 (review round 2 PASS). The laptop's flag-on findings reproduce exactly. New: real LLM output (llama3.1:8b served 0 of 26 both ways; qwen3:8b served 8 flag-off and 7 flag-on). With the flag on, no abstention ever became a served answer. Truncation past 512 tokens did not change the label on one fixture. Pyslot locks were held about 633 s, with no pytest. `use_llm_entailment` stays off.
 - **Planning:** #261 planned GC5-PREDICT-FAILCLOSED, GC5-NLI-NEUTRAL, GC5-FAITH-SCORE, FEATURE-LIST-LICENCE, RSI-LOG-STDERR, plus new rows RSI-LOG-SESSIONLOG and EMPTY-ANSWER-SERVED (review round 2 PASS; owner prompt 21 recorded in it).
-- **R-22 B-3 Codex plan review:** REVISE. The review is [committed verbatim](../reviews/2026-10-21/b3-codex-plan-review.md). Per R-22 the B-3 L1 fixes the gaps as the first commit on its branch.
+- **R-22 B-3 Codex plan review:** REVISE. The review is [committed verbatim](../../reviews/2026-10-21/b3-codex-plan-review.md). Per R-22 the B-3 L1 fixes the gaps as the first commit on its branch.
 - **rsi-loop ran once** (`run_id 2026-10-21-gpu`): 1,951 tool calls; **0 candidates, 0 PRs**. Bash/other 42 failures remain unminable without finer classes. This confirms RSI-LOG-STDERR and RSI-LOG-SESSIONLOG.
 - **MM runs:** MM-1 is done (2026-10-16, #72), with no re-run needed. MM-2 is blocked on OW-3 (owner writes sealed set S5) and on B-3. MM-4 is done (2026-10-16); a re-smoke of current main on the model host was **not** run (machine move). B-9's judge check waits on B-3.
 
@@ -53,7 +53,7 @@ Read this after [CLAUDE.md](../../CLAUDE.md), [AGENT.md](../../AGENT.md) and the
 
 1. **Merges (cloud L0):** #255 + #256 → #261 → #262 → this PR, as in §2. Then a **post-merge batch**: record EMPTY-ANS-SCOPE (a), set RSI-LOG-SESSIONLOG to owner-merged, mark the merged rows done, add the §4 bullets, measure the collected count on main and write the slots (`CLAUDE.md:30`, `AGENT.md`). Expected 2126 after #255/#256 (2118 +1 +1 +5 +1), but measure it; do not copy this number.
 2. **Owner asks:** UNC-VERIFY-DIFF (#251), PATH-NL-DIFF (#254), REDACT-NAME-GAPS options (#246), GC5-NEUTRAL-DIFF (when its draft exists), O-6 on or after 2026-10-24.
-3. **build-wave**, then one top-level `build-item` per id. Ready once #261 is merged: GC5-PREDICT-FAILCLOSED (GC5-PFC-DIFF (a): the one hunk is licensed; owner merges), GC5-FAITH-SCORE (`rag.py` only), FEATURE-LIST-LICENCE, RSI-LOG-STDERR (RSI: owner merges), EMPTY-ANSWER-SERVED (after the prompt 22 row is recorded), then RSI-LOG-SESSIONLOG (after RSI-LOG-STDERR; owner merges). Also resume #260. B-3 goes after #251 is decided, with the [Codex review](../reviews/2026-10-21/b3-codex-plan-review.md) as its first-commit brief.
+3. **build-wave**, then one top-level `build-item` per id. Ready once #261 is merged: GC5-PREDICT-FAILCLOSED (GC5-PFC-DIFF (a): the one hunk is licensed; owner merges), GC5-FAITH-SCORE (`rag.py` only), FEATURE-LIST-LICENCE, RSI-LOG-STDERR (RSI: owner merges), EMPTY-ANSWER-SERVED (after the prompt 22 row is recorded), then RSI-LOG-SESSIONLOG (after RSI-LOG-STDERR; owner merges). Also resume #260. B-3 goes after #251 is decided, with the [Codex review](../../reviews/2026-10-21/b3-codex-plan-review.md) as its first-commit brief.
 4. **Plan the new bullets** (§4) once their sources have merged.
 5. **Model host only** (not the cloud): the MM-4 re-smoke of current main (memory recipe: fresh clone in `~`, `dev.sh`, Playwright). MM-2 waits on OW-3 and B-3. Hold all three pyslot locks during model runs, and run no pytest.
 6. **RSI:** start sessions with `--plugin-dir .claude/mods/asclexis-rsi`; run `rsi-loop` once after the day's run.
