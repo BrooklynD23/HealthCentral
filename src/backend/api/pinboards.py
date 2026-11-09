@@ -511,10 +511,11 @@ async def export_pinboard_packet(
         include_normal_observations=True,
         today=local_today,
     )
+    created_at = utcnow()  # one creation time for the vault row and the dict entry
     await _save_artifact(
         profile_db, artifact_id=packet["packet_id"], kind="visit_prep",
         profile_id=session.profile_id, payload=packet, session_jti=session.token_jti,
-        session_exp=_session_exp(session),
+        session_exp=_session_exp(session), created_at=created_at,
     )
     await audit_and_commit(
         master_db, log_pinboard_event, event="export", profile_id=session.profile_id,
@@ -523,7 +524,7 @@ async def export_pinboard_packet(
                  "redaction_count": packet["redaction_count"]},
     )
     await profile_db.commit()
-    packet["created_at"] = utcnow()  # EXPORT-STORE-PURGE: TTL stamp; published after both commits
+    packet["created_at"] = created_at  # EXPORT-STORE-PURGE: TTL stamp; published after both commits
     packet["session_jti"] = session.token_jti
     packet["session_exp"] = _session_exp(session)
     _packet_store[packet["packet_id"]] = packet

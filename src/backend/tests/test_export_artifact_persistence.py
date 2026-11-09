@@ -1381,3 +1381,134 @@ def test_hc_expa_038_purge_deletes_every_row_in_the_vault_including_foreign_ones
             assert prof.post(f"/profiles/{PROFILE_A}/lock").status_code == 200
     assert asyncio.run(_rows(two_open_vaults.vaults[PROFILE_A])) == []
     assert len(asyncio.run(_rows(two_open_vaults.vaults[PROFILE_B]))) == 3  # B's own vault
+
+
+# ---------------------------------------------------------------------------
+# FINAL ROUND (L0 ruling, #537 comment after 6734556486) - HC-EXPA-039..041
+# ---------------------------------------------------------------------------
+
+
+async def _add_end_event_at(path: Path, profile_id: str, event_type: str, when: datetime) -> None:
+    """Like `_add_end_event`, but the audit row carries exactly `when`."""
+    from models import AuditLog
+    engine = _engine(path)
+    async with async_sessionmaker(engine)() as s:
+        s.add(AuditLog(event_type=event_type, action=event_type, profile_id=profile_id,
+                       timestamp=when))
+        await s.commit()
+    await engine.dispose()
+
+
+def _memory_entry(art_id: str) -> dict:
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        if art_id in store:
+            return store[art_id]
+    raise AssertionError(f"{art_id} is not in any in-process store")
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_hit", "vault_hit"])
+@pytest.mark.parametrize("how", END_EVENTS)
+@pytest.mark.parametrize("kind", WRITE_KINDS)
+def test_hc_expa_039_logout_between_the_save_and_the_publish_ends_the_export(
+    tmp_path, monkeypatch, kind, how, restart
+):
+    """Codex BLOCKER (final). A logout/lock audit row is committed after the vault row is
+    staged but before the memory entry is published. The row and the entry must carry the
+    SAME creation time, taken once before the save, so both are older than that cutoff:
+    a new login gets 404 from the dict layer and from the vault layer, and the row and the
+    entry are gone. Injected by wrapping `audit_and_commit` (it runs between save and
+    publish). Would not notice: a second clock read for the dict entry in a route that is
+    not one of the four kinds here."""
+    monkeypatch.setattr(pinboards_api, "log_pinboard_event", AsyncMock())
+    master, path = _real_master(tmp_path)
+    vault = tmp_path / "vault.db"
+    ids = asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    event = f"profile.{how}"
+
+    def _inject_after(module):
+        original = module.audit_and_commit
+
+        async def _wrapped(*args, **kwargs):
+            result = await original(*args, **kwargs)
+            time.sleep(0.01)
+            await _add_end_event(path, PROFILE_A, event)
+            time.sleep(0.01)
+            return result
+        monkeypatch.setattr(module, "audit_and_commit", _wrapped)
+
+    _inject_after(export_api)
+    _inject_after(pinboards_api)
+    if kind == "pinboard":
+        with _client(pinboards_api.router, "/pinboards", vault, jti="jti-a",
+                     master_db=master) as client:
+            created = client.post(f"/pinboards/{ids['pinboard_id']}/export", json={"confirm": True})
+        assert created.status_code == 200, created.text
+        art_id = created.json()["packet_id"]
+        dl = "/export/visit-prep/{id}/download?format=markdown"
+    else:
+        case = next(c for c in CASES if c[0] == kind)
+        art_id = _export_as(vault, "jti-a", case, master_db=master)
+        dl = case[4]
+    assert len(asyncio.run(_rows(vault))) == 1
+    if restart:
+        _simulate_restart()
+    else:
+        _memory_entry(art_id)  # the dict layer holds it
+    response = _download_as(vault, "jti-c", dl.format(id=art_id), master_db=master)
+    assert response.status_code == 404, response.text
+    assert "zzmarkera" not in response.text
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("restart", [False, True], ids=["memory_layer", "vault_layer"])
+@pytest.mark.parametrize("how", END_EVENTS)
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_040_created_at_equal_to_the_cutoff_is_refused_and_deleted(
+    tmp_path, case, how, restart
+):
+    """Codex MINOR. The cutoff is strict: an export created at exactly the logout/lock
+    timestamp is not newer, so 404 and deletion in both layers. Kills a `>=` mutant of
+    `created > cutoff`. Would not notice: a clock that never lands on the same microsecond
+    (the audit row is stamped by hand with the entry's own `created_at`)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    master, path = _real_master(tmp_path)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-a", case, master_db=master)
+    created = (asyncio.run(_rows(vault))[0].created_at if restart
+               else _memory_entry(art_id)["created_at"])
+    asyncio.run(_add_end_event_at(path, PROFILE_A, f"profile.{how}", created))
+    if restart:
+        _simulate_restart()
+    response = _download_as(vault, "jti-c", dl.format(id=art_id), master_db=master)
+    assert response.status_code == 404, response.text
+    assert "zzmarkera" not in response.text
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store
+    assert asyncio.run(_rows(vault)) == []
+
+
+@pytest.mark.parametrize("how", END_EVENTS)
+@pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+def test_hc_expa_041_memory_entry_without_created_at_is_refused_when_a_cutoff_exists(
+    tmp_path, case, how
+):
+    """Codex MINOR. An in-process entry with no `created_at` cannot be shown newer than the
+    cutoff: 404, entry and row deleted. The vault layer has no such case: `created_at` is
+    NOT NULL in the table. Would not notice: a missing `created_at` with NO cutoff (that
+    stays served, HC-EXPA-035's older sibling for the TTL rule)."""
+    _kind, _gen, _body, _idkey, dl, _t = case
+    master, path = _real_master(tmp_path)
+    vault = tmp_path / "vault.db"
+    asyncio.run(_create_vault(vault, PROFILE_A, "zzmarkera"))
+    art_id = _export_as(vault, "jti-a", case, master_db=master)
+    time.sleep(0.01)
+    asyncio.run(_add_end_event(path, PROFILE_A, f"profile.{how}"))
+    del _memory_entry(art_id)["created_at"]
+    response = _download_as(vault, "jti-c", dl.format(id=art_id), master_db=master)
+    assert response.status_code == 404, response.text
+    for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store):
+        assert art_id not in store
+    assert asyncio.run(_rows(vault)) == []

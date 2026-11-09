@@ -159,6 +159,7 @@ async def _save_artifact(
     payload: dict,
     session_jti: Optional[str],
     session_exp: datetime,
+    created_at: datetime,
 ) -> None:
     """Stage a downloadable artifact in the caller's profile vault (G-C1).
 
@@ -171,6 +172,9 @@ async def _save_artifact(
     profile may be served the row, and each save prunes this profile's dead rows.
     `session_exp` is that login's expiry as naive UTC (`_session_exp`): the revocation list
     forgets the jti at that moment, so the row is not served from then on.
+    `created_at` is the artifact's one creation time, taken by the route before this call
+    and reused for the in-process entry, so a logout committed between save and publish
+    cannot make the two layers disagree about which side of the cutoff the export is on.
     """
     if kind not in EXPORT_ARTIFACT_KINDS:
         raise ValueError(f"unknown export artifact kind: {kind}")
@@ -181,7 +185,7 @@ async def _save_artifact(
             kind=kind,
             profile_id=profile_id,
             payload_json=json.dumps(payload),
-            created_at=core_time.utcnow(),
+            created_at=created_at,
             session_jti=session_jti,
             session_exp=session_exp,
         )
@@ -672,6 +676,7 @@ async def generate_doctor_summary(
     # Profile-local generation day, added after redaction (a bare ISO date).
     summary_data["generated_on"] = local_today.isoformat()
     _prune_expired()
+    created_at = core_time.utcnow()
     await _save_artifact(
         profile_db,
         artifact_id=summary.summary_id,
@@ -680,6 +685,7 @@ async def generate_doctor_summary(
         payload=summary_data,  # the redacted copy; created_at below is not persisted
         session_jti=session.token_jti,
         session_exp=_session_exp(session),
+        created_at=created_at,
     )
 
     # Create audit log
@@ -698,7 +704,7 @@ async def generate_doctor_summary(
     )
     await profile_db.commit()
     # Published to memory only after the audit row AND the vault row are committed.
-    summary_data["created_at"] = core_time.utcnow()
+    summary_data["created_at"] = created_at
     summary_data["session_jti"] = session.token_jti
     summary_data["session_exp"] = _session_exp(session)
     _summary_store[summary.summary_id] = summary_data
@@ -1066,6 +1072,7 @@ async def generate_visit_prep(
         today=local_today,
     )
     _prune_expired()
+    created_at = core_time.utcnow()
     await _save_artifact(
         profile_db,
         artifact_id=packet["packet_id"],
@@ -1074,6 +1081,7 @@ async def generate_visit_prep(
         payload=packet,
         session_jti=session.token_jti,
         session_exp=_session_exp(session),
+        created_at=created_at,
     )
 
     await audit_and_commit(
@@ -1089,7 +1097,7 @@ async def generate_visit_prep(
         },
     )
     await profile_db.commit()
-    packet["created_at"] = core_time.utcnow()  # published only after both commits
+    packet["created_at"] = created_at  # published only after both commits
     packet["session_jti"] = session.token_jti
     packet["session_exp"] = _session_exp(session)
     _packet_store[packet["packet_id"]] = packet
@@ -1531,6 +1539,7 @@ async def generate_fhir_export(
 
     export_id = str(uuid.uuid4())
     _prune_expired()
+    created_at = core_time.utcnow()
     await _save_artifact(
         profile_db,
         artifact_id=export_id,
@@ -1539,6 +1548,7 @@ async def generate_fhir_export(
         payload=result["bundle"],
         session_jti=session.token_jti,
         session_exp=_session_exp(session),
+        created_at=created_at,
     )
 
     await audit_and_commit(
@@ -1556,7 +1566,7 @@ async def generate_fhir_export(
     _fhir_store[export_id] = {  # published only after both commits
         "profile_id": profile_id,
         "bundle": result["bundle"],
-        "created_at": core_time.utcnow(),
+        "created_at": created_at,
         "session_jti": session.token_jti,
         "session_exp": _session_exp(session),
     }
