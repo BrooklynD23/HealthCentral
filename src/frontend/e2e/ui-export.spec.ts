@@ -409,6 +409,7 @@ test.describe('QUIET-BOX UI-PG-EXPORT timing gates', () => {
         { cpuRate: 4 }
       );
       expect(inp, `G3 ${theme}`).toBeLessThan(200);
+      console.log(`GATE G3 /export (${theme}): INP proxy ${inp} ms (bound 200, CPU x4)`);
     });
 
     test(`QUIET-BOX G5 on /export (${theme})`, async ({ page }, testInfo) => {

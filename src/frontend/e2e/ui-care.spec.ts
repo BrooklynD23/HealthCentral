@@ -320,6 +320,7 @@ test.describe('Gate G on /care-tasks', () => {
     await expect(undoButton(page)).toBeVisible();
     const undo = await maxEventDuration(page, () => undoButton(page).click());
     expect(undo, 'Undo click').toBeLessThan(200);
+    console.log(`GATE G3 /care-tasks: Done ${done} ms, Undo ${undo} ms (bound 200, CPU x4)`);
   });
 
   test('Gate G5 /care-tasks: no element has a transform 50 ms after the Done click or the Undo click under reduced motion', async ({

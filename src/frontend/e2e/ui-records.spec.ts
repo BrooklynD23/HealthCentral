@@ -1217,6 +1217,7 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         { cpuRate: 4 }
       );
       expect(pinboards, `G3 pinboards ${theme}`).toBeLessThan(200);
+      console.log(`GATE G3 records (${theme}): timeline ${timeline} ms, search ${search} ms, pinboards ${pinboards} ms (bound 200, CPU x4)`);
     });
 
     test(`QUIET-BOX G5 on the records routes (${theme})`, async ({ page }, testInfo) => {
