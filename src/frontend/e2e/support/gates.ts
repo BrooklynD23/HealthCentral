@@ -555,7 +555,11 @@ function startSampler(config: { expected: string[]; intervalMs: number }): void 
       };
     }
 
-    const nodes: NodeSnap[] = Array.from(document.querySelectorAll('[data-t0]')).map((el): NodeSnap => {
+    // G10-HIDDEN-TABPANEL (#535 ruling 6714563477): a node whose closest Tabs content panel carries `hidden` is gone.
+    const inHiddenTabPanel = (el: Element) =>
+      el.closest('[data-state][data-orientation][id*="-content-"]')?.hasAttribute('hidden') === true;
+    const tracked = Array.from(document.querySelectorAll('[data-t0]')).filter((el) => !inHiddenTabPanel(el));
+    const nodes: NodeSnap[] = tracked.map((el): NodeSnap => {
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       const text = el.textContent ?? '';
