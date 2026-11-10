@@ -4,17 +4,16 @@
  *
  * framer-motion is deliberately NOT mocked in this file: the point is to see
  * the real library reject a leftover `motion.*` under LazyMotion strict.
+ * HC-UIMO-002 retired with the deleted page-transition export.
  */
 
-import { describe, it, expect, vi, beforeAll, beforeEach, afterEach, onTestFinished } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, onTestFinished } from 'vitest';
 import { Component, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { act, render, waitFor } from '@testing-library/react';
 import App from '@/App';
-import { PageTransition } from '@/components/ui/Motion';
 import { useAuthStore } from '@/stores/authStore';
 
 vi.mock('@/services/api', () => ({
@@ -89,41 +88,6 @@ describe('UI-MOTION source audit', () => {
 
     expect(deps['framer-motion']).toMatch(/^\^10\.\d+\.\d+$/);
     expect(deps).not.toHaveProperty('motion');
-  });
-});
-
-describe('UI-MOTION reduced motion on the first render', () => {
-  let originalMatchMedia: typeof window.matchMedia;
-
-  beforeEach(() => {
-    originalMatchMedia = window.matchMedia;
-    window.matchMedia = ((query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)',
-      media: query,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    })) as unknown as typeof window.matchMedia;
-  });
-
-  afterEach(() => {
-    window.matchMedia = originalMatchMedia;
-  });
-
-  it('HC-UIMO-002: the first render of PageTransition has no transform when reduced motion is on', () => {
-    // renderToStaticMarkup runs exactly one render and no effects, so it shows
-    // the first render. A hook that starts false would emit the y offset here.
-    const html = renderToStaticMarkup(
-      <PageTransition>
-        <p>Page body</p>
-      </PageTransition>
-    );
-
-    expect(html).toContain('Page body');
-    expect(html).not.toMatch(/translate/);
   });
 });
 
