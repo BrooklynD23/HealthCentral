@@ -16,7 +16,7 @@
  * - the real 409 body or the real refusal screen: the reader in HC-SMT-002 is a stand-in that shows
  *   its data or its error, so a screen that ignores the error (the bug this test pins) is only
  *   caught for a screen that reads the cache the way the stand-in does;
- * - header geometry (no clipping, the fixed four lines): jsdom has no layout, and HC-SMT-005 and
+ * - header geometry (no clipping, the fixed 66 px note box: four lines plus the descent): jsdom has no layout, and HC-SMT-005 and
  *   HC-UISH-006 measure it in a browser;
  * - the 599 mock answer for a PATCH sent on page load: only the e2e GATE G tests see it.
  */
@@ -43,7 +43,7 @@ const KEY = ['assistant', 'safety-mode'];
 const LOAD_TOAST = "Couldn't load the stricter safety mode setting.";
 const CHANGE_TOAST = "Couldn't change the stricter safety mode setting.";
 const NOTE =
-  "On: AI explanations of a single result need more verified support, and values you haven't checked get no explanation. New chat answers show their sources. The standard safety checks always run.";
+  "On: AI explanations of a single result need more verified support, and values you haven't checked get no explanation. New chat answers show their sources. The Results chart leaves out unchecked values. The standard safety checks always run.";
 const LONG_TEXT =
   'Asclexis checks every answer for medical advice and against your own records. These checks are always on and cannot be turned off. This switch turns on a stricter mode for this profile. It never turns the standard checks off.';
 
