@@ -12,7 +12,6 @@
     "build:check": "npm run build && node scripts/check-bundle.mjs",
     "preview": "vite preview",
     "lint": "eslint .",
-    "typecheck:e2e": "tsc -p tsconfig.e2e.json --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
     "e2e": "playwright test",
