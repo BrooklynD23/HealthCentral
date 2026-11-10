@@ -3013,7 +3013,8 @@ async def test_hc_vrc_033_d_both_members_withheld_prints_the_plural_notice(rdbs)
     assert "values are within normal range" not in body["summary_text"]
     assert "glucose" not in body["summary_text"].lower()
     assert "sodium" not in body["summary_text"].lower()
-    assert body["overall_status"] == "normal"  # the status counts checked members only
+    # Owner 2026-11-10: a panel with nothing checked never reads "normal".
+    assert body["overall_status"] == "incomplete"
     rows = await _rows_of(master_db, "interpretation.withheld")
     assert {r.entity_id for r in rows} == {glucose_id, sodium_id}
     _no_phi(await _audit_blob(master_db))

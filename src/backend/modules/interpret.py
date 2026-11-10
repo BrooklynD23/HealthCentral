@@ -566,7 +566,11 @@ class InterpretModule:
         )
 
         # Determine overall status
-        if abnormal_count == 0:
+        if not observation_summaries and withheld_dropped:
+            # PANEL-WITHHELD-FIRSTGEN (owner 2026-11-10): nothing was checked, so the
+            # panel never reads "normal".
+            overall_status = "incomplete"
+        elif abnormal_count == 0:
             overall_status = "normal"
         elif abnormal_count == 1:
             overall_status = "borderline"
