@@ -518,7 +518,15 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 
 **Superseded by 2026-10-18 handoff.**
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-18-session-handoff.md`
+
+**Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
 
 ## `docs/archive/plans/2026-10-19-session-handoff.md`
 
@@ -526,7 +534,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-18 handoff. Every PR number and sha below was checked with `gh pr view` when it was written, but treat this…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
 
 ## `docs/archive/plans/2026-10-20-session-handoff.md`
 
@@ -542,7 +550,23 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-19-session-handof
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20 handoff. This session ran in a Claude Code cloud container; the owner moved development back to a local…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+
+## `docs/archive/plans/2026-10-20c-session-handoff.md`
+
+**Session handoff: 2026-10-20 local session → GPU machine (L0)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20b handoff. This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit &…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-21-session-handoff.md`
+
+**Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20c handoff. This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
 
 ## `docs/archive/plans/2026-10-21b-session-handoff.md`
 
@@ -550,7 +574,7 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20-session-handof
 
 Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21 GPU handoff. This session ran as a **cloud** L0 (claude.ai/code container, Linux, 4 CPUs, no GPU, no…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
 
 ## `docs/archive/plans/2026-10-21c-session-handoff.md`
 
@@ -1372,7 +1396,7 @@ Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/0
 
 ---
 
-Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-20c-session-handoff.md`
+Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
 
@@ -1388,7 +1412,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 - 2026-11-10 (docs batch BATCH-1110A, the combined batch: the 1107B, 1107C, 1107E, 1108A and 1107F-0 to 1107F-3 plans published together; rows MED-NAME-LIST, ICON-RAIL-TABLET,…
 
-Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-seven-rows-plan.md`, `docs/plans/2026-11-07-six-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107e-plan.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/plans/2026-11-08-seven-rows-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-seven-rows-plan.md`, `docs/plans/2026-11-07-six-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107e-plan.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/plans/2026-11-08-seven-rows-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1429,30 +1453,6 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 **This plan changes no product code.** It describes one hunk in an ask-first file (`modules/verifier_agent.py`); it does not touch it.
 
 Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
-
-## `docs/plans/2026-10-18-session-handoff.md`
-
-**Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)**
-
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
-
-## `docs/plans/2026-10-20c-session-handoff.md`
-
-**Session handoff: 2026-10-20 local session → GPU machine (L0)**
-
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20b handoff. This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit &…
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-21-session-handoff.md`
-
-## `docs/plans/2026-10-21-session-handoff.md`
-
-**Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine**
-
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20c handoff. This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the…
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-24-session-handoff.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
 
 ## `docs/plans/2026-10-22-mvp-rows-plan.md`
 
