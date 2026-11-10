@@ -706,7 +706,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -1386,9 +1386,9 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 **Build Program 2026-10-15 — Execution Queue**
 
-Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
+- 2026-11-10 (docs batch BATCH-1110A, the combined batch: the 1107B, 1107C, 1107E, 1108A and 1107F-0 to 1107F-3 plans published together; rows MED-NAME-LIST, ICON-RAIL-TABLET,…
 
-Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-seven-rows-plan.md`, `docs/plans/2026-11-07-six-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107e-plan.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/plans/2026-11-08-seven-rows-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1574,6 +1574,22 @@ Queue rows: queue.md, "Planned 2026-11-06, owner answers". Rules: RUNBOOK, contr
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
+## `docs/plans/2026-11-07-seven-rows-plan.md`
+
+**Plans for DOC-EXC-LOGGING, CPU-DEFAULT-PIN, SRE-002-WEAK, SAFETY-MODE-DUPROW, A11Y-LABEL-MINORS, DOC-OVERCLAIM-2 and HANDOFF-ARCHIVE-6**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the seven rows append at the end of that table; promoted from candidate bullets `IMPORT-FAILED-REASON` :549, `DOCS-VISIT-EXC-LOG` :558,…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-07-six-rows-plan.md`
+
+**Plans for FE-401-MOCKS, TEST-PLACEHOLDERS, PYSLOT-LOCK-GUARD, RANGE-ORDER, VERIFY-NONFINITE and TIMELINE-VERIFY-INVALIDATE**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the six rows sit at the end of that table; promoted from the candidate-pool bullets `RANGE-ORDER` :555, `TEST-PLACEHOLDERS` :563,…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-07-three-rows-plan.md`
+
 ## `docs/plans/2026-11-07-three-rows-plan.md`
 
 **Plans for DELETED-DOC-NAMES-TIMELINE, PANEL-WITHHELD-FIRSTGEN and OCR-COPY-ENGINE**
@@ -1581,6 +1597,54 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the three rows sit at the end of that table). Rules: RUNBOOK (§10.1 planner checklist, §10.2 Codex CLI), contracts §b-§d. Path shorthand…
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-08-batch-1107e-plan.md`
+
+**Plans for MED-NAME-LIST, ICON-RAIL-TABLET, CRIT-DEFAULT-KB-LIMITS, G3-JOB-LEFTOVERS, KV-THINK-RAG, RSI-LOG-CMD and TREND-MARKERS-RETIRE**
+
+Queue rows: queue.md — the seven rows append at the end of the newest ready table (the "Planned 2026-11-07" batch section); promoted from candidate bullets `MED-NAME-LIST` :752, `ICON-RAIL-TABLET`…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-08-batch-1107f-0-plan.md`
+
+**Plans for KV-LEFTOVERS, MOTION-EXPORTS-DELETE, SHOWCASE-PROVENANCE-MOVES, VERIFY-EDIT-LT-VALUE and EXPORT-QUESTIONS-CONTEXT**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** This file and the f-3 plan both planned FIT-REPORT-SECTION, RECOVER-ORDER and FALLBACK-COUNT-50. One plan section each is kept, and it is…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`
+
+## `docs/plans/2026-11-08-batch-1107f-1-plan.md`
+
+**Plans for RULES-RANGE-VALUE, RSI-ARCHIVE-SIZE, TEST-RESET-ROUTE, EXPORT-RESTORE-PURGE, RECOVERY-CODE-RATELIMIT, EXTRACT-DOB-MINORS, ANALYTE-NAME-SWEEP and OCR-BOOT-COST**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** This file and the f-2 plan both planned TEST-RESET-ROUTE. One section is kept, the later file's (f-2); this file's section is removed. The…
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`
+
+## `docs/plans/2026-11-08-batch-1107f-2-plan.md`
+
+**Plans for EXTRACT-LABEL-BOUNDARY, COUNT-ENV-VARIES, TEST-RESET-ROUTE, VERIFY-UNDO and SAFETY-VERIFIED-MINORS**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** TEST-RESET-ROUTE was planned here and in the f-1 plan. This file's section is the one kept (the later file; it agrees with the owner…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`
+
+## `docs/plans/2026-11-08-batch-1107f-3-plan.md`
+
+**Plans for FIT-REPORT-SECTION, RECOVER-ORDER, FALLBACK-COUNT-50, PERF-POST-MVP-MEASURE, UI-GATES-TIMING-FLAKE and GATES-POPPER-TRANSFORM**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** This file and the f-0 plan both planned FIT-REPORT-SECTION, RECOVER-ORDER and FALLBACK-COUNT-50. This file is the one kept for all three…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`
+
+## `docs/plans/2026-11-08-seven-rows-plan.md`
+
+**Plans for FHIR-DOSAGE-FORM, VKF-RANGE-EDIT-PIN, CRIT-LOG-ROUNDED, LOG-DOSE-BADGE-FAILURE, TOAST-TIMER-TEARDOWN, PROGRESS-CLIPPATH, IMPORT-SCANNED-MINORS (+ alternate BREAK-GLASS-320)**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the seven rows append at the end of that table before its `**Done:**` line; promoted from the candidate bullets `IMPORT-SCANNED-MINORS`…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
