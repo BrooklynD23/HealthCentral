@@ -1212,7 +1212,14 @@
       "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/plans/2026-11-06-docs-audit-rows-plan.md",
       "docs/plans/2026-11-06-owner-answers-rows-plan.md",
+      "docs/plans/2026-11-07-seven-rows-plan.md",
+      "docs/plans/2026-11-07-six-rows-plan.md",
       "docs/plans/2026-11-07-three-rows-plan.md",
+      "docs/plans/2026-11-08-batch-1107e-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-0-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-2-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md",
+      "docs/plans/2026-11-08-seven-rows-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "README.md"
     ],
@@ -1234,7 +1241,14 @@
       "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/plans/2026-11-06-docs-audit-rows-plan.md",
       "docs/plans/2026-11-06-owner-answers-rows-plan.md",
+      "docs/plans/2026-11-07-seven-rows-plan.md",
+      "docs/plans/2026-11-07-six-rows-plan.md",
       "docs/plans/2026-11-07-three-rows-plan.md",
+      "docs/plans/2026-11-08-batch-1107e-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-0-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-2-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md",
+      "docs/plans/2026-11-08-seven-rows-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "README.md"
     ],
@@ -1297,7 +1311,15 @@
       "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/plans/2026-11-06-docs-audit-rows-plan.md",
       "docs/plans/2026-11-06-owner-answers-rows-plan.md",
+      "docs/plans/2026-11-07-seven-rows-plan.md",
+      "docs/plans/2026-11-07-six-rows-plan.md",
       "docs/plans/2026-11-07-three-rows-plan.md",
+      "docs/plans/2026-11-08-batch-1107e-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-0-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-1-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-2-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md",
+      "docs/plans/2026-11-08-seven-rows-plan.md",
       "docs/reviews/2026-10-15/build-program-codex.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/reviews/2026-10-26/don-ner-measure.md",
@@ -1429,8 +1451,38 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
+    "docs/plans/2026-11-07-seven-rows-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/plans/2026-11-07-six-rows-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
     "docs/plans/2026-11-07-three-rows-plan.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-11-07-six-rows-plan.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107e-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-0-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-1-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-11-08-batch-1107f-2-plan.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-2-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-11-08-batch-1107f-1-plan.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-3-plan.md": [
+      "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-11-08-batch-1107f-0-plan.md"
+    ],
+    "docs/plans/2026-11-08-seven-rows-plan.md": [
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/plans/implementation-log": [
@@ -3375,6 +3427,7 @@
       "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md",
       "docs/plans/2026-11-06-owner-answers-rows-plan.md",
       "docs/plans/2026-11-07-three-rows-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
     ],
@@ -3893,6 +3946,8 @@
       "docs/plans/2026-11-06-owner-answers-rows-plan.md",
       "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/2026-11-07-seven-rows-plan.md",
+      "docs/plans/2026-11-07-six-rows-plan.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
@@ -3912,6 +3967,7 @@
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/research/2026-10-22-mvp/00-README.md",
       "docs/research/2026-10-23-frontend-revamp/00-README.md",
+      "docs/plans/2026-11-08-seven-rows-plan.md",
       "docs/research/2026-10-23-safety-mode-real/00-README.md",
       "docs/research/2026-11-06-judge-laya-ft/00-README.md",
       "docs/research/2026-11-06-judge-nli-tune/00-README.md",
@@ -3923,6 +3979,11 @@
       "docs/plans/2026-10-31-harness-improvements-plan.md",
       "docs/plans/2026-11-01-harness-speedup-plan.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-11-08-batch-1107e-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-0-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-1-plan.md",
+      "docs/plans/2026-11-08-batch-1107f-2-plan.md",
       "docs/plans/2026-11-06-docs-audit-rows-plan.md",
       "docs/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
@@ -4112,8 +4173,51 @@
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/contracts.md"
     ],
+    "docs/plans/2026-11-07-seven-rows-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md"
+    ],
+    "docs/plans/2026-11-07-six-rows-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md",
+      "docs/plans/2026-11-07-three-rows-plan.md"
+    ],
     "docs/plans/2026-11-07-three-rows-plan.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107e-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-0-plan.md": [
+      "docs/plans/2026-11-08-batch-1107f-3-plan.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-1-plan.md": [
+      "docs/plans/2026-11-08-batch-1107f-2-plan.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-2-plan.md": [
+      "docs/plans/2026-11-08-batch-1107f-1-plan.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md"
+    ],
+    "docs/plans/2026-11-08-batch-1107f-3-plan.md": [
+      "docs/plans/2026-11-08-batch-1107f-0-plan.md",
+      "docs/plans/2026-10-15-build-program/queue.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/plans/2026-10-15-build-program/contracts.md"
+    ],
+    "docs/plans/2026-11-08-seven-rows-plan.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/plans/2026-10-15-build-program/contracts.md"

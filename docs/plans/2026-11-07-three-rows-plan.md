@@ -137,6 +137,12 @@ The panel is still created and saved, the dropped member stays out of `observati
 
 ---
 
+> **Delta 2026-11-10 (BATCH-1110A; owner answers relayed by L0): PANEL-WITHHELD-WORDING (residual) and PANEL-ALL-WITHHELD-STATUS.**
+> - The two sentences at `be/modules/interpret.py:1567-1578` are approved as built ("Text OK; all-withheld not normal (Recommended)").
+> - New fix, in the same row before merge: a panel where **every** member is withheld never shows `overall_status` "normal". The first answer was "no status"; the second answer (PANEL-ALL-WITHHELD-STATUS, 2026-11-10) chose **"incomplete" (Recommended)**: an all-withheld panel gets `overall_status` "incomplete" (no migration, no API change; the frontend shows the default badge). This supersedes "no status".
+> - Test (d) below changes: HC-VRC-033(d) was report-only (it recorded that an all-withheld panel still read "normal"); it now asserts `overall_status == "incomplete"` and not "normal". The built branch has this at `6d00b325` (HC-VRC-033(d) RED then GREEN, 1120 passed, ruff clean).
+> - The earlier line in this plan, "`overall_status` `normal`" for case (a) and "`overall_status` still counts the checked members only", stays true for panels with at least one checked member.
+
 ## OCR-COPY-ENGINE
 
 **Source:** #498 (RAPIDOCR-BUNDLE, merged `8b59d35a`, "read scans with bundled RapidOCR once the patient opts in") review round 1 finding 6 (comment 6656935102). "Task 6 makes `pending_ocr` the first thing a new patient sees after importing a scan, and it says to install software they do not need." Kind: PRODUCT (frontend and backend copy, launcher text). **Owner question: OCR-COPY-TEXT** (merge-only; the build uses the Recommended strings).
@@ -197,3 +203,8 @@ Rows 5 and 6 are no longer than the text they replace. HC-UISET-005 holds Advanc
 **Not in this row:** `dev.ps1` makes the same claims at `:532`, `:540` and `:555`, and #316 holds that file. The `ocr_python` diagnostic (`environment_diagnostics.py:74-106`) still calls `pytesseract` and `pdf2image` required, which is behaviour, not copy. Both are follow-ups for L0, not rows here.
 
 **Estimate:** 2.5 h. **Runtime:** `codex` (+ Claude Code Opus review).
+
+> **Delta 2026-11-10 (BATCH-1110A): OCR-COPY-MERGE and an L0 licence amendment.**
+> - Owner answer OCR-COPY-MERGE "Merge as built (Recommended)" (2026-11-10): the 14 strings as built from OCR-COPY-TEXT merge; the string diff still goes in the PR body.
+> - **L0 ruling (2026-11-09; L0's, not the owner's) on HC-UISET-002:** the row's licence is amended to include ONE assertion edit in `src/frontend/src/__tests__/ui-settings.test.tsx`: `screen.getAllByText(/Tesseract/)` becomes `await screen.findAllByText(/Tesseract/)`. It waits for the same diagnostics label and is not weakened. Owner-visible at merge.
+
