@@ -66,6 +66,7 @@ from models import (
     DoseTaken,
     EarnedBadge,
     Embedding,
+    ExportArtifact,
     LabInterpretation,
     Medication,
     MedicationSchedule,
@@ -152,6 +153,7 @@ _SYNTHETIC_RESET_MODELS = (
     EarnedBadge,  # FK -> badge_definition (the parent is kept)
     DonatedRecord,
     DonationConsent,
+    ExportArtifact,  # no FK; transient export downloads (C-GC1)
 )
 
 # Runtime tables from modules/search.py. They are not ORM models and exist only
@@ -560,8 +562,10 @@ async def logout(
         await db.commit()
 
     # Phase 3: Close the per-profile encrypted database and clear keys
-    purge_profile_exports(session.profile_id)
-    await close_profile_database_on_logout(session.profile_id)
+    try:
+        await purge_profile_exports(session.profile_id)
+    finally:
+        await close_profile_database_on_logout(session.profile_id)
 
     logger.info(f"Profile logged out: {session.profile_id}")
 
@@ -902,7 +906,9 @@ async def delete_profile(
     ``export_acknowledged``. The RL dataset export (POST /feedback/export) is
     the exception: it writes per-profile JSONL server-side under
     ``rl_exports/profile_{id}/``, so this route removes that directory as a
-    step after the backups sweep.
+    step after the backups sweep. Downloadable summary/packet/FHIR artifacts
+    are the exception: they are rows in the profile vault and are erased by
+    step 4.
     """
     profile = await _load_profile_for_delete(profile_id, db)
     if profile is None:
@@ -963,8 +969,10 @@ async def delete_profile(
     if session.token_jti:
         revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
 
-    purge_profile_exports(profile_id)
-    await close_profile_database_on_logout(profile_id)
+    try:
+        await purge_profile_exports(profile_id)
+    finally:
+        await close_profile_database_on_logout(profile_id)
 
     from core.profile_database import get_profile_db_manager
 
@@ -1132,12 +1140,16 @@ async def lock_profile(
     await db.commit()
 
     # Phase 3: Close the per-profile encrypted database and clear keys
-    purge_profile_exports(profile_id)
-    await close_profile_database_on_logout(profile_id)
-
-    # Revoke the current JWT so the session can't be reused after locking.
-    if session.token_jti:
-        revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
+    try:
+        try:
+            await purge_profile_exports(profile_id)
+        finally:
+            await close_profile_database_on_logout(profile_id)
+    finally:
+        # Revoke the current JWT so the session can't be reused after locking, even
+        # when the export purge or the close raised (the error still propagates).
+        if session.token_jti:
+            revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
 
     logger.info(f"Profile locked: {profile_id}")
 
