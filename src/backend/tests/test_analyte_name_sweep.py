@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from modules.normalize import NormalizeModule
+from tests.agent.conftest import agent_profile_db, make_run_context  # noqa: F401  (fixtures)
 
 FE_PANEL_LABELS = [
     "Lipid Panel", "Metabolic Panel", "CBC", "Thyroid Panel", "Liver Panel", "Kidney Panel",
@@ -30,13 +31,40 @@ def test_hc_ans_002b_unknown_panel_still_empty():
     assert NormalizeModule().get_panel_analytes("Nonsense Panel") == []
 
 
-def test_hc_ans_003_cholesterol_plan_filter_matches_stored_name():
+def test_hc_ans_002c_panel_labels_are_stored_canonical_keys():
+    stored = set(NormalizeModule.ANALYTE_SYNONYMS)
+    for label, analytes in NormalizeModule.PANEL_LABELS.items():
+        assert set(analytes) <= stored, (label, set(analytes) - stored)
+
+
+@pytest.mark.asyncio
+async def test_hc_ans_003_cholesterol_plan_filter_finds_stored_total_cholesterol(
+    agent_profile_db, make_run_context
+):
+    """The planner's real filter, run through query_observations, hits the stored name.
+
+    plan.py keeps "Cholesterol"; query_observations expands it through
+    canonical_keys_for (CHAT-FACT-ROUTING), so no plan.py change is needed.
+    """
+    import uuid
+
     from modules.agent.nodes.plan import _default_planner
     from modules.agent.state import RunLog
+    from modules.agent.tools.query_observations import QueryObservationsInput, QueryObservationsTool
+    from tests.agent.conftest import seed_document, seed_observation
 
-    d = _default_planner("Explain my cholesterol", RunLog(run_id="r", profile_id="p"))
-    keys = {d.tool_args["analyte"].lower(), *NormalizeModule.canonical_keys_for(d.tool_args["analyte"])}
-    assert "total_cholesterol" in keys
+    profile_id = str(uuid.uuid4())
+    doc_id = await seed_document(agent_profile_db, profile_id=profile_id)
+    obs_id = await seed_observation(
+        agent_profile_db, profile_id=profile_id, doc_id=doc_id,
+        analyte="total_cholesterol", value=210.0, verified=True,
+    )
+    d = _default_planner("Explain my cholesterol", RunLog(run_id="r", profile_id=profile_id))
+    assert d.tool_name == "query_observations"
+    out = await QueryObservationsTool().run(
+        QueryObservationsInput(**d.tool_args), make_run_context(agent_profile_db, profile_id=profile_id)
+    )
+    assert [r.observation_id for r in out.rows] == [obs_id]
 
 
 def test_hc_ans_004_lookup_reference_canonicalizes_name():
