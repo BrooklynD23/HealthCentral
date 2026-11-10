@@ -26,6 +26,7 @@ def test_hc_cpu_001_cpu_only_16_to_31_gb_gets_mid():
 
 def test_hc_cpu_002_gpu_path_unchanged_pin():
     assert get_recommended_tier_from_hardware(24.0, 100.0, 16.0) == "high"
+    assert get_recommended_tier_from_hardware(16.0, 100.0, 8.0) == "gemma4-12b"
 
 
 def test_hc_cpu_005_mid_label_names_phi4_mini():
