@@ -1,6 +1,7 @@
 # Curated common generic + brand drug and supplement names (lowercase, sorted, unique).
-# Source: selected by hand from the public-domain NLM RxNorm vocabulary (RxNorm content is public domain), 2026-11.
-# Rule: most-prescribed generics + their common brands + common OTC/supplements; no compound strings.
+# Source: written from general knowledge by an AI model in 2026-11. Not extracted from an RxNorm release and not yet checked against one.
+# Drug names are not copyrighted. NLM RxNorm (public domain) is the intended reference for a later check.
+# Scope: most-prescribed generics + their common brands + common OTC/supplements; no compound strings.
 # Used by modules/agent/guardrails/classifier.py as a medication cue. Edits are safety-relevant: ADD only.
 abilify
 acarbose
