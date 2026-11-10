@@ -32,7 +32,7 @@ const ROW1 =
   'This scan needs text recognition before its values can be read. In Settings, turn on document OCR under Document import (the reader is built in; your server must allow OCR with OCR_ENABLED).';
 const ROW2 =
   'This scan needs text recognition. In Settings, turn on document OCR under Document import — the OCR reader is built into the app. Your server must allow OCR (OCR_ENABLED). Or use a clearer scan.';
-const ROW3 = 'The built-in OCR reader could not start. Re-run the backend setup (dev.ps1 / dev.sh) or reinstall dependencies.';
+const ROW3 = 'The built-in OCR reader could not start. Re-run the backend setup (dev.ps1 / dev.sh).';
 const ROW4 = 'Turn on document OCR above for this profile.';
 const ROW5 =
   'Read text from scanned PDFs and lab images with the built-in reader. Your preference applies to this profile; the server must also allow OCR (OCR_ENABLED).';

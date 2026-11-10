@@ -56,7 +56,7 @@ import { SwitchRow } from './PreferencesSection';
 
 const OCR_BLOCKER_LABELS: Record<string, string> = {
   disabled_by_admin: 'OCR is disabled in server configuration (OCR_ENABLED). Restart the backend after changing .env.',
-  tesseract_missing: 'The built-in OCR reader could not start. Re-run the backend setup (dev.ps1 / dev.sh) or reinstall dependencies.',
+  tesseract_missing: 'The built-in OCR reader could not start. Re-run the backend setup (dev.ps1 / dev.sh).',
   user_disabled: 'Turn on document OCR above for this profile.',
 };
 
