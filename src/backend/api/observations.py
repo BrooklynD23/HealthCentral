@@ -10,6 +10,7 @@ Uses ProfileDbSession for database access instead of master database.
 
 import json
 import logging
+import math
 import re
 from collections import defaultdict
 from datetime import date
@@ -486,6 +487,30 @@ async def verify_observation(
 
     # Verify session has access to this observation
     verify_observation_access(observation, session)
+
+    # Fail closed on bad numbers before any write or audit row. Pydantic
+    # accepts NaN/+-inf for Optional[float]; a NaN comparison is always
+    # False, so the recalculation below would silently erase a stored flag
+    # (VERIFY-NONFINITE). A schema-level Field(allow_inf_nan=False) returns
+    # 422, not the specified 400, so the check lives here. An inverted pair
+    # the patient typed is rejected, never silently reordered (owner answer
+    # RANGE-ORDER-STORE-VERIFY, 2026-11-07).
+    for field_name in ("value", "ref_low", "ref_high"):
+        field_value = getattr(verify_data, field_name)
+        if field_value is not None and not math.isfinite(field_value):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{field_name} must be a finite number",
+            )
+    if (
+        verify_data.ref_low is not None
+        and verify_data.ref_high is not None
+        and verify_data.ref_low > verify_data.ref_high
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ref_low must not exceed ref_high",
+        )
 
     # Store original values if this is first edit
     if not observation.original_value_json:
