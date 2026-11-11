@@ -14,6 +14,7 @@ way it is in production.
 from __future__ import annotations
 
 import sys
+from unittest.mock import MagicMock
 from pathlib import Path
 
 import pytest
@@ -259,3 +260,71 @@ async def test_hc_reset_030_badge_definitions_survive(vault):
         "badge_definition": 1,
         "earned_badge": 0,
     }
+
+
+# ---------------------------------------------------------------------------
+# TEST-RESET-ROUTE — the 500 carries a static detail; the log keeps the type name
+# ---------------------------------------------------------------------------
+# Owner answers RESET-ROUTE-ASKFIRST ("static detail message") and
+# TEST-RESET-ROUTE-LOG ("Error type name only (Recommended)").
+
+_RESET_FAILED_DETAIL = "Synthetic profile reset failed."
+
+
+def _reset_with_audit(engine, **client_kwargs):
+    """Like _reset, with a master DB the test can inspect for audit rows."""
+    from unittest.mock import AsyncMock
+
+    master = AsyncMock()
+    master.add = MagicMock()
+    with route_client(
+        router,
+        "/profiles",
+        profile_id="profile-a",
+        profile_name=E2E_NAME,
+        profile_db=_factory(engine),
+        master_db=master,
+        **client_kwargs,
+    ) as client:
+        return client.post("/profiles/test/reset"), master
+
+
+@pytest.mark.asyncio
+async def test_hc_reset_040_failed_reset_hides_the_exception_text(vault, monkeypatch, caplog):
+    """The 500 detail is static and the log keeps the exception type name only:
+    no message text, no traceback. Reset fails inside the try block."""
+    import logging
+
+    def _boom(_path):
+        raise RuntimeError("SECRET-TOKEN-XYZ")
+
+    monkeypatch.setattr("api.profiles.purge_pre017_snapshot", _boom)
+
+    with caplog.at_level(logging.DEBUG):
+        resp, _master = _reset_with_audit(vault)
+
+    assert resp.status_code == 500
+    assert resp.json() == {"detail": _RESET_FAILED_DETAIL}
+    assert "SECRET-TOKEN-XYZ" not in resp.text
+    assert "SECRET-TOKEN-XYZ" not in caplog.text, "the exception text reached the log"
+    assert all(r.exc_info is None for r in caplog.records), "a traceback was logged"
+    assert any(
+        "RuntimeError" in r.getMessage() and "Synthetic profile reset failed" in r.getMessage()
+        for r in caplog.records
+    ), "the log lost the exception type name"
+
+
+@pytest.mark.asyncio
+async def test_hc_reset_041_audit_row_follows_the_commit_not_the_failure(vault, monkeypatch):
+    """Pin: the test_reset audit row is written on success and not on failure.
+    The 404 and 403 gates stay pinned by HC-RESET-020/021."""
+    resp, master = _reset_with_audit(vault)
+    assert resp.status_code == 204, resp.text
+    assert [c.args[0].event_type for c in master.add.call_args_list] == ["profile.test_reset"]
+
+    monkeypatch.setattr(
+        "api.profiles.purge_pre017_snapshot", lambda _p: (_ for _ in ()).throw(RuntimeError("x"))
+    )
+    resp, master = _reset_with_audit(vault)
+    assert resp.status_code == 500
+    master.add.assert_not_called()

@@ -618,10 +618,13 @@ async def reset_synthetic_test_profile(
         await profile_db.commit()
     except Exception as exc:
         await profile_db.rollback()
-        logger.exception("Synthetic profile reset failed for %s", session.profile_id)
+        # Type name only: the message and traceback can carry SQL or path detail.
+        logger.error(
+            "Synthetic profile reset failed for %s: %s", session.profile_id, type(exc).__name__
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Synthetic profile reset failed: {exc}",
+            detail="Synthetic profile reset failed.",
         ) from exc
     # AUD-02: written only after the vault commit, so a failed reset leaves no
     # row claiming it happened (HC-PAUD-004). Outside the try: an audit failure
