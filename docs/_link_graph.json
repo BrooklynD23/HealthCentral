@@ -25,9 +25,12 @@
       "docs/architecture/README.md",
       "docs/architecture/overview.md",
       "docs/archive/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-18-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
       "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-21-session-handoff.md",
       "docs/archive/plans/2026-10-21b-session-handoff.md",
       "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/capstone-report/architecture-engineering-contract.md",
@@ -38,9 +41,6 @@
       "docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
-      "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
@@ -58,9 +58,12 @@
       "docs/architecture/ci-and-quality-gates.md",
       "docs/architecture/overview.md",
       "docs/archive/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-18-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
       "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-21-session-handoff.md",
       "docs/archive/plans/2026-10-21b-session-handoff.md",
       "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/capstone-report/architecture-engineering-contract.md",
@@ -72,9 +75,6 @@
       "docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
-      "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-24-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md",
@@ -540,12 +540,17 @@
     ],
     "docs/archive/plans/2026-10-17-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/plans/2026-10-18-session-handoff.md"
+      "docs/archive/plans/2026-10-18-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-18-session-handoff.md": [
+      "docs/archive/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-19-session-handoff.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/archive/plans/2026-10-19-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/archive/plans/2026-10-20-session-handoff.md",
-      "docs/plans/2026-10-18-session-handoff.md"
+      "docs/archive/plans/2026-10-18-session-handoff.md",
+      "docs/archive/plans/2026-10-20-session-handoff.md"
     ],
     "docs/archive/plans/2026-10-20-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
@@ -554,12 +559,23 @@
     "docs/archive/plans/2026-10-20b-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
       "docs/archive/plans/2026-10-20-session-handoff.md",
-      "docs/plans/2026-10-20c-session-handoff.md"
+      "docs/archive/plans/2026-10-20c-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-20c-session-handoff.md": [
+      "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-21-session-handoff.md",
+      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/archive/plans/2026-10-21-session-handoff.md": [
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "docs/plans/2026-10-15-build-program/queue.md"
     ],
     "docs/archive/plans/2026-10-21b-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
-      "docs/archive/plans/2026-10-21c-session-handoff.md",
-      "docs/plans/2026-10-21-session-handoff.md"
+      "docs/archive/plans/2026-10-21-session-handoff.md",
+      "docs/archive/plans/2026-10-21c-session-handoff.md"
     ],
     "docs/archive/plans/2026-10-21c-session-handoff.md": [
       "docs/00_architecture_plans_index.md",
@@ -716,6 +732,7 @@
       "docs/archive/plans/2026-10-04-RCC3-restore-backup.md",
       "docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md",
       "docs/archive/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/README.md",
       "docs/capstone-report/fit-decoder-journey.md",
       "docs/capstone-report/implementation-program.md",
@@ -752,7 +769,6 @@
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/plans/2026-10-17-rsi-track2-eval-harness-plan.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
-      "docs/plans/2026-10-18-session-handoff.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
@@ -1194,15 +1210,15 @@
       "docs/agentic/recurring-failures.md",
       "docs/architecture/overview.md",
       "docs/archive/plans/2026-10-17-session-handoff.md",
+      "docs/archive/plans/2026-10-18-session-handoff.md",
       "docs/archive/plans/2026-10-19-session-handoff.md",
       "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/archive/plans/2026-10-20b-session-handoff.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-21-session-handoff.md",
       "docs/archive/plans/2026-10-21b-session-handoff.md",
       "docs/archive/plans/2026-10-21c-session-handoff.md",
       "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-18-session-handoff.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
-      "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
@@ -1357,22 +1373,6 @@
       "docs/reviews/2026-10-20/gc5-real-model-evidence.md",
       "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
     ],
-    "docs/plans/2026-10-18-session-handoff.md": [
-      "docs/archive/plans/2026-10-17-session-handoff.md",
-      "docs/archive/plans/2026-10-19-session-handoff.md",
-      "docs/plans/2026-10-15-build-program/queue.md"
-    ],
-    "docs/plans/2026-10-20c-session-handoff.md": [
-      "docs/archive/plans/2026-10-20b-session-handoff.md",
-      "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
-      "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-21-session-handoff.md"
-    ],
-    "docs/plans/2026-10-21-session-handoff.md": [
-      "docs/archive/plans/2026-10-21b-session-handoff.md",
-      "docs/plans/2026-10-15-build-program/queue.md",
-      "docs/plans/2026-10-20c-session-handoff.md"
-    ],
     "docs/plans/2026-10-22-mvp-rows-plan.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/queue.md",
@@ -1403,7 +1403,6 @@
       "docs/plans/2026-10-25-session-handoff.md"
     ],
     "docs/plans/2026-10-24-session-handoff.md": [
-      "docs/plans/2026-10-21-session-handoff.md",
       "docs/plans/2026-10-22-session-handoff.md",
       "docs/plans/2026-10-25-session-handoff.md"
     ],
@@ -2663,7 +2662,7 @@
       "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
     ],
     "docs/reviews/2026-10-21/b3-codex-plan-review.md": [
-      "docs/plans/2026-10-21-session-handoff.md"
+      "docs/archive/plans/2026-10-21-session-handoff.md"
     ],
     "docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py": [
       "docs/reviews/2026-10-21/gc5-model-host-evidence.md"
@@ -3243,17 +3242,25 @@
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/archive/plans/2026-10-17-session-handoff.md": [
-      "docs/plans/2026-10-18-session-handoff.md",
+      "docs/archive/plans/2026-10-18-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/capstone-report/owner-decisions-2026-09-27.md"
+    ],
+    "docs/archive/plans/2026-10-18-session-handoff.md": [
+      "docs/archive/plans/2026-10-19-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/archive/plans/2026-10-17-session-handoff.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md"
     ],
     "docs/archive/plans/2026-10-19-session-handoff.md": [
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-18-session-handoff.md"
+      "docs/archive/plans/2026-10-18-session-handoff.md"
     ],
     "docs/archive/plans/2026-10-20-session-handoff.md": [
       "docs/archive/plans/2026-10-20b-session-handoff.md",
@@ -3263,19 +3270,34 @@
       "docs/archive/plans/2026-10-19-session-handoff.md"
     ],
     "docs/archive/plans/2026-10-20b-session-handoff.md": [
-      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
       "docs/archive/plans/2026-10-20-session-handoff.md",
       "docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md"
     ],
+    "docs/archive/plans/2026-10-20c-session-handoff.md": [
+      "docs/archive/plans/2026-10-21-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/archive/plans/2026-10-20b-session-handoff.md"
+    ],
+    "docs/archive/plans/2026-10-21-session-handoff.md": [
+      "docs/archive/plans/2026-10-21b-session-handoff.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
+      "docs/reviews/2026-10-21/b3-codex-plan-review.md"
+    ],
     "docs/archive/plans/2026-10-21b-session-handoff.md": [
       "docs/archive/plans/2026-10-21c-session-handoff.md",
       "CLAUDE.md",
       "AGENT.md",
       "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-21-session-handoff.md"
+      "docs/archive/plans/2026-10-21-session-handoff.md"
     ],
     "docs/archive/plans/2026-10-21c-session-handoff.md": [
       "docs/plans/2026-10-22-session-handoff.md",
@@ -3930,7 +3952,7 @@
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-10-09-AUDIT-ORDER.md",
       "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md",
       "docs/capstone-report/implementation-program.md"
     ],
@@ -3963,7 +3985,7 @@
       "docs/capstone-report/owner-decisions-2026-09-27.md",
       "docs/plans/2026-10-15-build-program/contracts.md",
       "docs/plans/2026-10-24-safety-mode-build-plan.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
+      "docs/archive/plans/2026-10-20c-session-handoff.md",
       "docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md",
       "docs/research/2026-10-22-fit-decoder/00-README.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md",
@@ -3973,7 +3995,7 @@
       "docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md",
       "docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md",
       "docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md",
-      "docs/plans/2026-10-21-session-handoff.md",
+      "docs/archive/plans/2026-10-21-session-handoff.md",
       "docs/reviews/2026-10-22/kv-prefix-measure.md",
       "docs/plans/2026-10-22-mvp-rows-plan.md",
       "docs/plans/2026-10-22-session-handoff.md",
@@ -3997,7 +4019,7 @@
       "docs/plans/2026-11-08-batch-1107f-1-plan.md",
       "docs/plans/2026-11-08-batch-1107f-2-plan.md",
       "docs/plans/2026-11-06-docs-audit-rows-plan.md",
-      "docs/plans/2026-10-18-session-handoff.md",
+      "docs/archive/plans/2026-10-18-session-handoff.md",
       "docs/capstone-report/implementation-program.md"
     ],
     "docs/plans/2026-10-16-E1a-redaction-underscore-phi.md": [
@@ -4024,30 +4046,6 @@
     "docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md": [
       "docs/plans/2026-10-15-build-program/queue.md",
       "docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md"
-    ],
-    "docs/plans/2026-10-18-session-handoff.md": [
-      "docs/archive/plans/2026-10-19-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/archive/plans/2026-10-17-session-handoff.md",
-      "docs/capstone-report/owner-decisions-2026-09-27.md"
-    ],
-    "docs/plans/2026-10-20c-session-handoff.md": [
-      "docs/plans/2026-10-21-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/archive/plans/2026-10-20b-session-handoff.md"
-    ],
-    "docs/plans/2026-10-21-session-handoff.md": [
-      "docs/archive/plans/2026-10-21b-session-handoff.md",
-      "docs/plans/2026-10-24-session-handoff.md",
-      "CLAUDE.md",
-      "AGENT.md",
-      "docs/plans/2026-10-15-build-program/RUNBOOK.md",
-      "docs/plans/2026-10-20c-session-handoff.md",
-      "docs/reviews/2026-10-21/b3-codex-plan-review.md"
     ],
     "docs/plans/2026-10-22-mvp-rows-plan.md": [
       "docs/capstone-report/owner-decisions-2026-09-27.md",
