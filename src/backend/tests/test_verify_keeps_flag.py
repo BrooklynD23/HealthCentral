@@ -11,7 +11,8 @@ A real change to value, ref_low or ref_high recalculates when a range exists
 after the edit (005-007, 013, 022, 023). A real edit with both bounds null after
 the edit keeps an abnormal flag and its is_abnormal (017, 018, 020), while a
 normal word recalculates to (None, False), as a plain Verify does (019, 025), and
-a row with no flag stays none (021) (VERIFY-EDIT-NO-RANGE, 017-025). Every case
+a row with no flag stays none (021) (VERIFY-EDIT-NO-RANGE, 017-025); a range
+edit on a row with no value keeps its flag (026). Every case
 goes through HTTP and asserts the STORED columns, not only the response.
 """
 
@@ -648,3 +649,18 @@ async def test_hc_vkf_025_real_no_range_edit_does_not_tell_the_patient_outside(p
     text, _ = await module._generate_interpretation(
         InterpretationContext(observation=obs), AsyncMock())
     assert "outside" not in text.lower(), text
+
+
+@pytest.mark.asyncio
+async def test_hc_vkf_026_range_edit_on_a_row_with_no_value_keeps_the_flag(profile_db):
+    # A qualitative row ("Positive", no number) gets a range typed in. The edit
+    # recalculates (a real range change with a range after it), but there is no
+    # value to compare, so the report's own flag must stay. Pins the
+    # `observation.value is not None` guard on the edit path: without it
+    # `None < 12.0` raises and the route 500s.
+    obs_id = await _seed_obs(profile_db, flag="Positive", is_abnormal=True,
+                             value=None, ref_low=None, ref_high=None)
+    obs = await _verify_and_load(profile_db, obs_id, {"ref_low": 12.0, "ref_high": 16.0})
+    assert (obs.ref_low, obs.ref_high) == (12.0, 16.0)
+    assert obs.value is None
+    assert (obs.flag, obs.is_abnormal) == ("Positive", True)
