@@ -113,6 +113,7 @@ CLASSIFICATION: dict[str, str] = {
     "api/observations.py::list_observations": "excluded: read route, audit_and_commit only",
     "api/observations.py::get_observation": "excluded: read route, audit_and_commit only",
     "api/observations.py::verify_observation": "C",
+    "api/observations.py::unverify_observation": "C",
     "api/observations.py::get_analyte_trend": "excluded: read route, audit_and_commit only",
     "api/observations.py::get_panel": "excluded: read route, audit_and_commit only",
     "api/pinboards.py::create_pinboard": "C",
