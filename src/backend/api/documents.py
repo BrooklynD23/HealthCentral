@@ -291,7 +291,8 @@ class DocumentImportResponse(BaseModel):
     # existing PDF/image import clients are unaffected.
     import_summary: Optional[ImportSummary] = None
     # 1-based pages with no readable text, so their values were not read
-    # (IMPORT-SCANNED-PAGE). Null when the pipeline did not run.
+    # (IMPORT-SCANNED-PAGE). Null when the pipeline did not run, on the
+    # pre-extraction pending_ocr early return, or when extraction failed.
     pages_without_text: Optional[list[int]] = None
     # Exception type name when extraction failed (e.g. "RuntimeError") —
     # never the exception message, which can carry paths/secrets/PHI.

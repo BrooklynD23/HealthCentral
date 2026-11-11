@@ -343,6 +343,7 @@ describe('DocumentInbox scanned-page notice', () => {
     mutateAsync
       .mockResolvedValueOnce(importResponse('scan-one', 'one-scan.pdf', [2]))
       .mockResolvedValueOnce(importResponse('scan-two', 'two-scan.pdf', [2, 3]))
+      .mockResolvedValueOnce(importResponse('scan-three', 'three-scan.pdf', [2, 3, 4]))
       .mockResolvedValueOnce(importResponse('text-only', 'text.pdf', []));
     render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
     const input = screen.getByLabelText(/upload medical documents/i);
@@ -358,6 +359,11 @@ describe('DocumentInbox scanned-page notice', () => {
       'Pages 2 and 3 have no readable text, so their values were not read. Check the original report.'
     );
     expect(plural).toHaveAttribute('role', 'status');
+
+    await user.upload(input, new File(['%PDF-1.4 d'], 'three-scan.pdf', { type: 'application/pdf' }));
+    await screen.findByText(
+      'Pages 2, 3 and 4 have no readable text, so their values were not read. Check the original report.'
+    );
 
     await user.upload(input, new File(['%PDF-1.4 c'], 'text.pdf', { type: 'application/pdf' }));
     await waitFor(() => {
