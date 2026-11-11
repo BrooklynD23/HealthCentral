@@ -503,3 +503,98 @@ async def test_hc_smd_007_all_verified_panel_succeeds_under_on():
 
     assert resp.status_code == 201, resp.text
     assert [r.id for r in stored] == [resp.json()["id"]]
+
+
+# ---------------------------------------------------------------------------
+# SAFETY-VERIFIED-MINORS (HC-SMD-009 to 012). Plan: docs/plans/2026-11-08-batch-1107f-2-plan.md.
+# ---------------------------------------------------------------------------
+
+# One verified member on the panel's day, one unverified member the next calendar day.
+NEXT_DAY_ROWS = [
+    ("ldl", 120.0, COLLECTED, True),
+    ("hdl", 52.0, NEXT_DAY, False),
+]
+
+
+@pytest.mark.asyncio
+async def test_hc_smd_009_batch_refusal_audit_failure_fails_closed(monkeypatch):
+    """A refusal whose audit row cannot be written must not become a quiet "Internal error"
+    entry under "failed": the unlogged refusal has to surface as a server error."""
+    async def broken_audit(*args, **kwargs):
+        raise RuntimeError("audit write failed")
+
+    async with _dbs() as db:
+        await _set_strict(db.profile, True)
+        monkeypatch.setattr(I, "_audit_unverified_refusal", broken_audit)
+        with route_client(interpretations_router, "/interpretations", profile_id=PROFILE_ID,
+                          master_db=db.master, raise_server_exceptions=False) as client:
+            async def _profile_db():
+                return db.profile
+            client.app.dependency_overrides[get_profile_db_session] = _profile_db
+            resp = client.post("/interpretations/batch", json={
+                "observation_ids": db.ids, "force_regenerate": False,
+            })
+
+    assert resp.status_code == 500, resp.text
+    assert "Internal error" not in resp.text, "the unlogged refusal became a failed entry"
+
+
+@pytest.mark.asyncio
+async def test_hc_smd_010_batch_force_regenerate_still_refuses_and_off_serves_both():
+    async with _dbs() as db:
+        await _set_strict(db.profile, True)
+        forced = _batch(db, db.ids, force=True)
+        rows = await _audit_rows(db.master)
+
+        await _set_strict(db.profile, False)
+        before = len(rows)
+        off = _batch(db, db.ids, force=True)
+        off_rows = await _audit_rows(db.master)
+
+    assert forced.status_code == 200, forced.text
+    assert forced.json() == {
+        "successful": [db.verified],
+        "failed": [{"observation_id": db.unverified, "error": BATCH_ERROR}],
+    }
+    refused = [r for r in rows if r.event_type == REFUSED_EVENT]
+    assert [r.entity_id for r in refused] == [db.unverified]
+    assert json.loads(refused[0].details_json) == ROW_DETAILS
+
+    assert off.status_code == 200, off.text
+    assert sorted(off.json()["successful"]) == sorted(db.ids)
+    assert off.json()["failed"] == []
+    assert [r.event_type for r in off_rows if r.event_type == REFUSED_EVENT] == [REFUSED_EVENT] * (
+        len(refused)
+    ), "OFF wrote a refusal row"
+    assert len(off_rows) > before
+
+
+@pytest.mark.asyncio
+async def test_hc_smd_011_panel_member_on_the_next_day_is_outside_the_bound():
+    async with _dbs(NEXT_DAY_ROWS) as db:
+        await _set_strict(db.profile, True)
+        resp = _panel(db, COLLECTED_TXT)
+        rows = await _audit_rows(db.master)
+
+    assert NEXT_DAY_TXT != COLLECTED_TXT
+    assert resp.status_code == 201, resp.text
+    assert REFUSED_EVENT not in [r.event_type for r in rows]
+
+
+@pytest.mark.asyncio
+async def test_hc_smd_012_off_serves_stored_unverified_get_and_same_day_panel():
+    async with _dbs(LATER_ROWS) as db:
+        created = _post_interp(db, db.unverified, "interpret")
+        assert created.status_code == 201, created.text
+        absent_get = _get_interp(db, db.unverified)
+        absent_panel = _panel(db, COLLECTED_TXT)
+        await _set_strict(db.profile, False)
+        false_get = _get_interp(db, db.unverified)
+        rows = await _audit_rows(db.master)
+
+    assert absent_get.status_code == 200, absent_get.text
+    assert absent_get.json()["id"] == created.json()["id"]
+    assert false_get.status_code == 200, false_get.text
+    assert _normalise(false_get.json()) == _normalise(absent_get.json())
+    assert absent_panel.status_code == 201, absent_panel.text
+    assert REFUSED_EVENT not in [r.event_type for r in rows]
