@@ -256,6 +256,8 @@ A 2026-11-09 instance, an environment assumption that passes alone and fails in 
 
 A second 2026-11-09 instance, wall-clock and load flakes on `main`. `test_hc_vrc_030` failed once in the full run of the ANALYTE-NAME-SWEEP branch at load about 9 and passed alone three times, though the branch does not touch it. `test_hc_edf_004` flaked the same way (KV-LEFTOVERS already carries it as item 22), and on #537 the three HC-ENL-001 cases failed at load 20 on `/mnt/e` and gave `38 passed in 22.05s` from a `git archive` copy in `/dev/shm`. Recheck: for a failure in a file the branch does not touch, re-run it alone and from a `/dev/shm` copy, paste the load average (`uptime`) with each result, and never move a limit or a threshold to make it pass. Report it as a flake with the evidence, not as a pass.
 
+A 2026-11-10 instance, the same test failing on GitHub CI rather than under local load. `test_hc_edf_004` (the date regex must parse a 50,000-space header in under 1.0 s) failed on #541 three times (1.09 s, 1.04 s, 1.01 s) and on `main`'s own CI, and blocked every backend PR though none of them touch date extraction. The owner chose best of 3 (EDF-004-BEST-OF-3): the same input, the same 1.0 s bound, the fastest of three timed runs asserted, so a truly quadratic regex is still caught. The bound did not move. Recheck: a wall-clock test that fails on CI at a margin of 1 to 9 percent over its bound is a noisy bound, not a slow product; take the fastest of several runs and keep the limit, and never raise it.
+
 ---
 
 ## 5. Gates run in a contaminated tree
