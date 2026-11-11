@@ -31,7 +31,7 @@ const A1C_CSV =
   '2026-04-10,Hemoglobin A1c,5.9,%,4.0,5.6,H\n' +
   '2026-07-10,Hemoglobin A1c,6.1,%,4.0,5.6,H\n';
 
-test.use({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+test.use({ viewport: { width: 1280, height: 800 }, contextOptions: { reducedMotion: 'reduce' } });
 
 async function shot(page: Page, name: string) {
   await page.screenshot({

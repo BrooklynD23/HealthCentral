@@ -31,7 +31,7 @@ import {
 import { installMockApi, seedMockSession } from './support/mockApi';
 
 /** The rule, impact and first three nodes of an axe violation, so a failure names the element. */
-function describeViolation(v: { id: string; impact?: string | null; nodes: Array<{ target: string[] }> }): string {
+function describeViolation(v: AxeViolation): string {
   const nodes = v.nodes.slice(0, 3).map((node) => node.target.join(' ')).join(', ');
   return `${v.id}:${v.impact} at ${nodes}`;
 }
@@ -403,7 +403,7 @@ test.describe('HC-UISH-005 Safety Rail is opaque and on top', () => {
 
         const style = await page.locator(RAIL).evaluate((el) => {
           const cs = getComputedStyle(el);
-          return { background: cs.backgroundColor, backdrop: cs.backdropFilter, webkit: cs.webkitBackdropFilter };
+          return { background: cs.backgroundColor, backdrop: cs.backdropFilter, webkit: (cs as CSSStyleDeclaration & { webkitBackdropFilter?: string }).webkitBackdropFilter };
         });
         // rgb() has three channels; rgba() carries the alpha as the fourth.
         const channels = style.background.match(/rgba?\(([^)]+)\)/)?.[1].split(',').map((part) => part.trim()) ?? [];

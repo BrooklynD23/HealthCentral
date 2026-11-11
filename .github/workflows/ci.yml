@@ -155,6 +155,10 @@ jobs:
         working-directory: src/frontend
         run: npx tsc --noEmit
 
+      - name: Type check (e2e)
+        working-directory: src/frontend
+        run: npm run typecheck:e2e
+
       - name: Lint (eslint)
         working-directory: src/frontend
         run: npm run lint
