@@ -258,6 +258,8 @@ A second 2026-11-09 instance, wall-clock and load flakes on `main`. `test_hc_vrc
 
 A 2026-11-10 instance, the same test failing on GitHub CI rather than under local load. `test_hc_edf_004` (the date regex must parse a 50,000-space header in under 1.0 s) failed on #541 three times (1.09 s, 1.04 s, 1.01 s) and on `main`'s own CI, and blocked every backend PR though none of them touch date extraction. The owner chose best of 3 (EDF-004-BEST-OF-3): the same input, the same 1.0 s bound, the fastest of three timed runs asserted, so a truly quadratic regex is still caught. The bound did not move. Recheck: a wall-clock test that fails on CI at a margin of 1 to 9 percent over its bound is a noisy bound, not a slow product; take the fastest of several runs and keep the limit, and never raise it.
 
+A 2026-11-11 instance, a wall-clock perf pin that flakes under parallel pytest slots (KV-LEFTOVERS; reported by another builder). `test_date_extraction.py::test_hc_edf_004_dob_inputs_stay_linear_with_new_tail_regex` pins each DOB input to under 1.0 s. It flaked when run beside other pytest slots and passed in isolation, so a red result there can be machine load, not a regex regression. (Evidence is the builder's report; the pin's 1.0 s bound is verified in the test file, the flake is not re-reproduced here.) Recheck: on a failure of a wall-clock pin, re-run that test alone on a quiet box (`scripts/pyslot.sh` with no other slots busy) before changing code, and report both timings. Do not raise the bound to make it pass (CLAUDE.md section 3); if a pin must survive load, make it measure work (call counts, input-size scaling ratio) instead of seconds, as its own row. Same mode, not a new one.
+
 ---
 
 ## 5. Gates run in a contaminated tree
@@ -686,7 +688,7 @@ All three are recorded as instances of this mode, not new modes.
 
 KV evidence (#298): the model-host `hold_slots.sh` quiet-run wrapper flocks a hard-coded list of `hc-pytest` slot locks (`for i in 1 2 3 4 5 6 7 8`, lock files `/tmp/claude-1000/hc-pytest.$i.lock`) while `scripts/pyslot.sh` hands out slots `1..PYSLOTS` (`n="${PYSLOTS:-3}"`, line 5). When the wrapper's list stopped at 3 (later 8), a `PYSLOTS` above it let a pytest take an unheld slot and run beside the run the wrapper exists to isolate: the exclusion silently covered only part of the pool.
 
-**Recheck:** any "hold every X" wrapper must derive its count from the thing it excludes (`PYSLOTS` itself, or `ls` over the lock prefix), not keep a copy of it. Before trusting an exclusive run, run one probe job at a `PYSLOTS` above the wrapper's top lock and prove it still blocks. The wrapper lives outside the repo today (`/tmp/claude-1000/hold_slots.sh`); if HOLD-SLOTS-IN-REPO lands first it is `scripts/hold_slots.sh`.
+**Recheck:** any "hold every X" wrapper must derive its count from the thing it excludes (`PYSLOTS` itself, or `ls` over the lock prefix), not keep a copy of it. Before trusting an exclusive run, run one probe job at a `PYSLOTS` above the wrapper's top lock and prove it still blocks. The wrapper lives outside the repo today (the durable copy is `~/hc-quiet-logs/tools/hold_slots.sh`); if HOLD-SLOTS-IN-REPO lands first it moves into the repo's scripts directory.
 
 **Owner action (KV evidence item 4, not a failure mode):** the Ollama fallback tag `gemma4:12b` (`core/llm/factory.py:49`, `model = llm_model or "gemma4:12b"`) already matches the documented recommendation (`config/.env.example`), so no repo change is needed. It is not pulled on the model host, so a `LLM_PROVIDER=ollama` install without `LLM_MODEL` asks for a missing model. The owner runs `python scripts/download_models.py ollama --tag gemma4:12b` (or `ollama pull gemma4:12b`) on the model host.
 
@@ -697,11 +699,3 @@ KV evidence (#298): the model-host `hold_slots.sh` quiet-run wrapper flocks a ha
 The inverse of the leaked-orphan instance under mode 5: there the orphan outlived the batch and held a port or lock; here the orphan makes the caller wait. Reported by another builder: `subprocess.run(..., capture_output=True)` on a command that leaves a background grandchild blocks on pipe EOF until the orphan exits, because the grandchild inherited the stdout/stderr pipe write ends. The test hung with the command already at rc=0; nothing in the output showed a wait on a pipe. (Evidence is the builder's report; not re-reproduced here.)
 
 **Recheck:** a test that runs a command which may background anything redirects the child's stdout/stderr to a file (or `DEVNULL`) instead of pipes, or sets a `timeout=` and kills the process group (`start_new_session=True`, `os.killpg`). When a test hangs at rc=0, list the process's descendants (`pgrep -P`, `ps --forest`) before blaming the code under test.
-
----
-
-## 22. A wall-clock perf pin that passes alone and flakes under parallel load
-
-Reported by another builder: `test_date_extraction.py::test_hc_edf_004_dob_inputs_stay_linear_with_new_tail_regex` pins each DOB input to under 1.0 s (the `HC-EDF-004` docstring says so). It flaked when run beside other pytest slots and passed in isolation, so a red result there can be machine load, not a regex regression. (Evidence is the builder's report; the pin's 1.0 s bound is verified in the test file, the flake is not re-reproduced here.)
-
-**Recheck:** on a failure of a wall-clock pin, re-run that test alone on a quiet box (`scripts/pyslot.sh` with no other slots busy) before changing code, and report both timings. Do not raise the bound to make it pass (CLAUDE.md section 3); if a pin must survive load, make it measure work (call counts, input-size scaling ratio) instead of seconds, as its own row.
