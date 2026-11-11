@@ -8,7 +8,7 @@ HC-ERN-005  through HTTP (pinboard export) the printed range reaches the packet
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 
 import pytest
 import pytest_asyncio
