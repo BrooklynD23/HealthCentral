@@ -432,11 +432,10 @@ describe('UI-SHOWCASE-KIT EmptyState (HC-UISK-006)', () => {
     expect(screen.getByRole('link', { name: 'Go to documents' })).toHaveAttribute('href', '/inbox');
   });
 
-  it('HC-UISK-006: action stays optional: this call compiles without one and renders none', () => {
-    // tsc is the check here: the call below must compile with no action (L0 ruling 1).
+  it('HC-UISK-006: action is required: a call without one does not compile', () => {
+    // tsc is the check here: the marker below fails tsc if the call ever compiles.
+    // @ts-expect-error — action is required since the page migrations
     render(<EmptyState title="Nothing here yet" description="Results appear after an import." />);
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('HC-UISK-006: the layout is illustration, then the sentence, then the action', () => {
@@ -468,6 +467,7 @@ describe('UI-SHOWCASE-KIT EmptyState (HC-UISK-006)', () => {
         title="Nothing here yet"
         description="Results appear after an import."
         illustration={<svg data-testid="line-art" viewBox="0 0 10 10" />}
+        action={<Button>Import a report</Button>}
       />
     );
     expect(screen.getByTestId('line-art').closest('[aria-hidden="true"]')).not.toBeNull();
@@ -477,7 +477,11 @@ describe('UI-SHOWCASE-KIT EmptyState (HC-UISK-006)', () => {
   it('HC-UISK-006: the sentence takes the S1 entrance: 12 px down and transparent on the first visit', () => {
     render(
       <LazyMotion features={domAnimation}>
-        <EmptyState title="Nothing here yet" description="Results appear after an import." />
+        <EmptyState
+          title="Nothing here yet"
+          description="Results appear after an import."
+          action={<Button>Import a report</Button>}
+        />
       </LazyMotion>
     );
     // heading -> sentence group (title and description) -> reveal wrapper for that group.
