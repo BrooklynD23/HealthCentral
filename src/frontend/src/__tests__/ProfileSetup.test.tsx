@@ -10,11 +10,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProfileSetup } from '@/pages/ProfileSetup';
+import { useLogin } from '@/services';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -385,6 +386,39 @@ describe('ProfileSetup', () => {
       });
       await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
       expect(useAuthStore.getState().token).toBe('unlocked-token-456');
+      // RCC-2: positive control, then the password must leave the cache.
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0));
+    });
+
+    it('HC-SRE-002b: after reset() with no queryClient.clear(), gcTime drops the settled login mutation', async () => {
+      // The component's success path clears the whole cache, so it cannot
+      // prove gcTime: 0 (services/profiles.ts) is what collects a settled
+      // login mutation. Drive the hook directly: reset() detaches the
+      // observer and nothing else empties the cache.
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'unlocked-token-456',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: PROFILE.id,
+        profile_name: PROFILE.display_name,
+      });
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { result } = renderHook(() => useLogin(), { wrapper });
+      const pw = watchCacheFor(queryClient, PASSWORD);
+
+      await result.current.mutateAsync({ profile_id: PROFILE.id, password: PASSWORD });
+      result.current.reset();
+
       // RCC-2: positive control, then the password must leave the cache.
       expect(pw.seen.value).toBe(true);
       pw.unsubscribe();
