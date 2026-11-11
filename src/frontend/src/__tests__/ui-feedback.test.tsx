@@ -442,7 +442,7 @@ describe('HC-UIFB-004: DF-3 toast layer sits below the modal and yields to overl
   });
 });
 
-describe('HC-UIFB-005: Progress animates scaleX, never width', () => {
+describe('HC-UIFB-005: Progress reveals with clip-path, never transform or width', () => {
   it('exposes role="progressbar" with min, max and now', async () => {
     // Would not notice: a progress bar drawn with divs and no ARIA values.
     const { Progress } = await load<typeof ProgressModule>('@/components/ui/Progress');
@@ -454,18 +454,22 @@ describe('HC-UIFB-005: Progress animates scaleX, never width', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '40');
   });
 
-  it('moves the fill with transform: scaleX and sets no width', async () => {
-    // Would not notice: a fill that animates width (layout on every frame).
-    // The class check catches a Tailwind w-* width that the inline style would miss.
+  it('reveals the fill with clip-path: inset and sets no transform or width', async () => {
+    // Would not notice: a fill that moves with transform: scaleX — G5's
+    // reduced-motion snapshot reads any non-identity transform as motion,
+    // even at rest, and clip-path is not sampled. The class check catches a
+    // Tailwind w-* width or a transform transition the inline style would miss.
     const { Progress } = await load<typeof ProgressModule>('@/components/ui/Progress');
     render(<Progress value={40} max={100} label="Importing documents" />);
 
     const fill = screen.getByRole('progressbar').firstElementChild as HTMLElement;
-    expect(fill.style.transform).toBe('scaleX(0.4)');
+    expect(fill.style.clipPath).toContain('60%');
+    expect(fill.style.transform).toBe('');
     expect(fill.style.width).toBe('');
     expect(fill.className).not.toMatch(/(^|\s)w-/);
-    expect(fill.className).toMatch(/transition-transform/);
-    expect(fill.className).not.toMatch(/transition-all/);
+    expect(fill.className).toMatch(/transition-\[clip-path\]/);
+    expect(fill.className).not.toMatch(/transition-transform|transition-all/);
+    expect(fill.className).toMatch(/motion-reduce:transition-none/);
   });
 });
 
