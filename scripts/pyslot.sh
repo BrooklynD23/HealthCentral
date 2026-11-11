@@ -4,8 +4,11 @@
 # ponytail: fixed slot count (default 3, ~2 GB each on the 22 GiB WSL box); raise PYSLOTS with more RAM.
 n="${PYSLOTS:-3}"
 mkdir -p /tmp/claude-1000
+# scripts/hold_slots.sh holds this lock for a quiet run: while it is held, start nothing (whatever PYSLOTS is).
+H=/tmp/claude-1000/hc-pytest.hold.lock
 while :; do
   for i in $(seq 1 "$n"); do
+    flock -s -n -E 75 "$H" true; [ $? -eq 75 ] && break
     flock -o -n -E 75 "/tmp/claude-1000/hc-pytest.$i.lock" "$@"
     rc=$?
     [ "$rc" -ne 75 ] && exit "$rc"
