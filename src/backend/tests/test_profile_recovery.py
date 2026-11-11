@@ -351,3 +351,186 @@ def test_hc_recov_025_recovery_uses_the_project_time_helper():
         "use core.time.utcnow, per the hard invariant this branch enforces "
         "elsewhere"
     )
+
+
+# ---------------------------------------------------------------------------
+# HC-RECOV-026..030 (RECOVER-ORDER) — commit before rotation, through HTTP
+# ---------------------------------------------------------------------------
+#
+# Owner answer RECOVER-ORDER-COMMIT (2026-11-09): "commit before rotation", and
+# the same reorder for the standalone ``issue_recovery_code``. A master commit
+# that fails after the recovery file was rotated used to leave neither the
+# password nor the recovery code working. These tests drive the real routes via
+# ``route_client`` with a master DB whose ``commit`` is fault-injected.
+
+_OLD_PASS = "OldPassw0rd!"
+_NEW_PASS = "NewPassw0rd!"
+
+
+class _FaultDb:
+    """Master-DB stand-in: one profile row, commits that can be made to raise."""
+
+    def __init__(self, profile, fail_on=()):
+        self._profile = profile
+        self.fail_on = set(fail_on)  # 1-based commit numbers that raise; "all" = every one
+        self.added: list[object] = []
+        self.commit_calls = 0
+        self.rollbacks = 0
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def commit(self):
+        self.commit_calls += 1
+        if "all" in self.fail_on or self.commit_calls in self.fail_on:
+            raise RuntimeError("injected commit failure")
+
+    async def rollback(self):
+        self.rollbacks += 1
+
+    async def flush(self):
+        pass
+
+    async def execute(self, _stmt):
+        return SimpleNamespace(scalar_one_or_none=lambda: self._profile, scalar=lambda: None)
+
+
+def _events(db):
+    return [row.event_type for row in db.added]
+
+
+@pytest.fixture
+def sealed_vault(vault):
+    """A profile whose primary key is sealed under _OLD_PASS and which holds one
+    recovery code. Yields (dek, old_code, profile)."""
+    from core.security import generate_salt, hash_password
+    from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+    import base64
+
+    dek = generate_encryption_key()
+    sealed, method = seal_key_with_dpapi(dek, fallback_password=_OLD_PASS)
+    (vault / "key.bin").write_bytes(sealed)
+    (vault / "key.method").write_bytes(method.encode())
+    old_code = profiles_api._issue_recovery_code("profile-a", dek)
+    profile = SimpleNamespace(
+        id="profile-a",
+        display_name="T",
+        password_hash=hash_password(_OLD_PASS),
+        password_salt=base64.b64encode(generate_salt()).decode("ascii"),
+        is_locked=True,
+        last_accessed_at=None,
+    )
+    recovery_rate_limiter.reset("recover:testclient:profile-a")
+    auth_rate_limiter.reset("recovery-code:testclient")
+    return dek, old_code, profile
+
+
+def _recover(db, old_code, raise_exc=False):
+    from tests.support.routes import route_client
+
+    with route_client(
+        profiles_api.router, "/profiles", master_db=db, raise_server_exceptions=raise_exc
+    ) as client:
+        return client.post(
+            "/profiles/profile-a/recover",
+            json={"recovery_code": old_code, "new_password": _NEW_PASS},
+        )
+
+
+def test_hc_recov_026_failed_first_commit_leaves_the_old_code_working(sealed_vault):
+    """The load-bearing RED: with every commit failing, the old recovery code
+    must still unseal the DEK. On the old order the file was rotated first."""
+    dek, old_code, profile = sealed_vault
+    db = _FaultDb(profile, fail_on={"all"})
+
+    response = _recover(db, old_code)
+
+    assert response.status_code == 500
+    assert profiles_api._unseal_dek_with_recovery_code("profile-a", old_code) == dek
+
+
+def test_hc_recov_027_first_commit_precedes_rotation_in_recover_profile():
+    """Structural pin (same source-assertion convention as HC-RECOV-025)."""
+    import inspect
+
+    source = inspect.getsource(profiles_api.recover_profile)
+    after_primary = source.index("_atomic_write(manager._get_profile_key_method_path")
+    first_commit = source.index("await db.commit()", after_primary)
+    rotation = source.index("_issue_recovery_code(", after_primary)
+    assert first_commit < rotation
+
+
+def test_hc_recov_028_failed_second_commit_keeps_the_new_password(sealed_vault, vault):
+    """Window 3 pin. Not RED on the old order, where the second commit never
+    existed: commit 1 has landed the credential state, rotation has run, only
+    the commit of the second audit row failed. The new password still opens
+    the vault."""
+    dek, old_code, profile = sealed_vault
+    db = _FaultDb(profile, fail_on={2})
+
+    response = _recover(db, old_code)
+
+    assert response.status_code == 500
+    sealed = (vault / "key.bin").read_bytes()
+    method = (vault / "key.method").read_text().strip()
+    assert unseal_key_with_dpapi(sealed, method, fallback_password=_NEW_PASS) == dek
+
+
+def test_hc_recov_029_happy_path_orders_audit_rows_and_commits_twice(sealed_vault):
+    """Both audit rows are written, `recovered` before `recovery_code_generated`,
+    in two commits; the response carries the new code and the old one is dead.
+    The post-commit vault open and FK cleanup are stubbed (unchanged steps)."""
+    from unittest.mock import AsyncMock
+
+    dek, old_code, profile = sealed_vault
+    db = _FaultDb(profile)
+
+    with patch.object(profiles_api, "open_profile_database_on_login", AsyncMock()), \
+         patch.object(profiles_api, "_audit_fk_orphan_cleanup", AsyncMock()):
+        response = _recover(db, old_code)
+
+    assert response.status_code == 200
+    new_code = response.json()["recovery_code"]
+    assert _events(db) == ["profile.recovered", "profile.recovery_code_generated"]
+    assert db.commit_calls == 2
+    assert profiles_api._unseal_dek_with_recovery_code("profile-a", new_code) == dek
+    with pytest.raises(KeySealingError):
+        profiles_api._unseal_dek_with_recovery_code("profile-a", old_code)
+
+
+def _issue(db):
+    from tests.support.routes import route_client
+
+    with route_client(
+        profiles_api.router, "/profiles", master_db=db, raise_server_exceptions=False
+    ) as client:
+        return client.post("/profiles/profile-a/recovery-code", json={"password": _OLD_PASS})
+
+
+def test_hc_recov_030_issue_recovery_code_failed_commit_keeps_the_old_code(sealed_vault):
+    """Owner answer RECOVER-ORDER-COMMIT, standalone route: a commit that fails
+    must leave the existing recovery file untouched and return no code."""
+    dek, old_code, profile = sealed_vault
+    db = _FaultDb(profile, fail_on={"all"})
+
+    response = _issue(db)
+
+    assert response.status_code == 500
+    assert "recovery_code" not in response.text
+    assert profiles_api._unseal_dek_with_recovery_code("profile-a", old_code) == dek
+
+
+def test_hc_recov_030b_issue_recovery_code_success_rotates_the_code(sealed_vault):
+    dek, old_code, profile = sealed_vault
+    db = _FaultDb(profile)
+
+    response = _issue(db)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["replaced_existing"] is True
+    assert profiles_api._unseal_dek_with_recovery_code("profile-a", body["recovery_code"]) == dek
+    with pytest.raises(KeySealingError):
+        profiles_api._unseal_dek_with_recovery_code("profile-a", old_code)
+    assert _events(db) == ["profile.recovery_code_generated"]
+    assert db.commit_calls == 1
