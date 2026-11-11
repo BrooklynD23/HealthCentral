@@ -39,7 +39,7 @@ def test_hc_ans_002c_panel_labels_are_stored_canonical_keys():
 
 @pytest.mark.asyncio
 async def test_hc_ans_003_cholesterol_plan_filter_finds_stored_total_cholesterol(
-    agent_profile_db, make_run_context
+    agent_profile_db, make_run_context  # noqa: F811  # pytest fixture parameter
 ):
     """The planner's real filter, run through query_observations, hits the stored name.
 
