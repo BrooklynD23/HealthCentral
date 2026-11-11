@@ -6,8 +6,8 @@ behind leaks the slot lock through the inherited fd (a leftover vite server
 held slot 2 for ~4 h). That fix's acceptance was a pasted two-line test, so
 nothing committed guarded it — a later edit that drops ``-o`` fails nothing.
 
-- HC-PSG-001 (static): the script's ``flock`` invocation carries standalone
-  ``-o``, ``-n`` and ``-E 75``.
+- HC-PSG-001 (static): the script's one slot ``flock`` invocation (lock
+  ``hc-pytest.$i.lock``) carries standalone ``-o``, ``-n`` and ``-E 75``.
 - HC-PSG-002 (self-proving pair): a verbatim scratch copy frees the slot after
   a command that leaves an orphaned child (probe 0); a copy the test itself
   de-``-o``s leaks it (probe 75 — the built-in RED proof).
@@ -85,8 +85,10 @@ def _probe(lock: Path) -> int:
 def test_hc_psg_001_flock_invocation_pins_close_nonblocking_and_exit75_flags():
     """Static pin: tokenized flags, not a substring — flag order may change."""
     invocations = _flock_invocations(PYSLOT_SH.read_text(encoding="utf-8"))
-    assert len(invocations) == 1, invocations
-    tokens = invocations[0]
+    # Exactly one *slot* flock (HOLD-SLOTS-IN-REPO added a separate hold-lock probe).
+    slot = [t for t in invocations if any("hc-pytest.$i.lock" in tok for tok in t)]
+    assert len(slot) == 1, invocations
+    tokens = slot[0]
     assert "-o" in tokens, tokens  # --close: spawned children must not inherit the slot fd
     assert "-n" in tokens, tokens  # --nonblock: busy slot -> 75, the outer loop retries
     assert "-E" in tokens and tokens[tokens.index("-E") + 1] == "75", tokens
