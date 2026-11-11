@@ -890,6 +890,7 @@ for (const route of GATE_ROUTES) {
     await seedSession(page);
     await route.ready(page);
     const slowest = await maxEventDuration(page, () => route.interact(page));
+    recordLine(`G3 ${route.path} INP proxy ${slowest} ms (bound 200, CPU x4)`);
     expect(slowest).toBeLessThan(200);
   });
 

@@ -1164,6 +1164,7 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         },
         { cpuRate: 4 }
       );
+      console.log(`GATE G3 records (${theme}): timeline ${timeline} ms (bound 200, CPU x4)`);
       expect(timeline, `G3 timeline ${theme}`).toBeLessThan(200);
 
       await openSearch(page);
@@ -1189,6 +1190,7 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         },
         { cpuRate: 4 }
       );
+      console.log(`GATE G3 records (${theme}): search ${search} ms (bound 200, CPU x4)`);
       expect(search, `G3 search ${theme}`).toBeLessThan(200);
 
       await openPinboards(page);
@@ -1216,6 +1218,7 @@ test.describe('QUIET-BOX UI-PG-RECORDS timing gates', () => {
         },
         { cpuRate: 4 }
       );
+      console.log(`GATE G3 records (${theme}): pinboards ${pinboards} ms (bound 200, CPU x4)`);
       expect(pinboards, `G3 pinboards ${theme}`).toBeLessThan(200);
     });
 

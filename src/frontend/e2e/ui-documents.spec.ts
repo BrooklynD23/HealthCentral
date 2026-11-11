@@ -1034,17 +1034,17 @@ test.describe('Gate G on /inbox', () => {
     await openInbox(page);
     const row = rowByName(page, THIRD_NAME);
     const view = await maxEventDuration(page, () => row.getByRole('button', { name: 'View document' }).click());
+    console.log(`GATE G3 /inbox (${PREVIEW ? 'production build, bound 200 ms' : 'dev server, no bound asserted'}): View ${view} ms`);
     if (PREVIEW) expect(view, 'View document click').toBeLessThan(200);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toBeHidden();
 
     const menu = await maxEventDuration(page, () => row.getByRole('button', { name: 'More options' }).click());
+    console.log(`GATE G3 /inbox (${PREVIEW ? 'production build, bound 200 ms' : 'dev server, no bound asserted'}): More options ${menu} ms`);
     if (PREVIEW) expect(menu, 'More options click').toBeLessThan(200);
     const del = await maxEventDuration(page, () => page.getByRole('menuitem', { name: /delete/i }).click());
+    console.log(`GATE G3 /inbox (${PREVIEW ? 'production build, bound 200 ms' : 'dev server, no bound asserted'}): Delete ${del} ms`);
     if (PREVIEW) expect(del, 'Delete click').toBeLessThan(200);
-    console.log(
-      `GATE G3 /inbox (${PREVIEW ? 'production build, bound 200 ms' : 'dev server, no bound asserted'}): View ${view} ms, More options ${menu} ms, Delete ${del} ms`
-    );
   });
 
   test('GATE G5 /inbox: no element has a transform 50 ms after View document, Delete or an import starts, under reduced motion', async ({

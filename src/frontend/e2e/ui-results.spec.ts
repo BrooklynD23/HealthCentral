@@ -978,6 +978,7 @@ test.describe('gate G', () => {
       await page.getByRole('button', { name: 'Regenerate' }).click();
       await expect(page.getByText('Grounded explanation')).toBeVisible();
     });
+    console.log(`GATE G3 /results: INP proxy ${slowest} ms (bound 200, CPU x4)`);
     expect(slowest).toBeLessThan(200);
   });
 

@@ -400,28 +400,46 @@ jobs:
 
       - name: Production build
         working-directory: src/frontend
+        env:
+          # Baked for the auth leg below so the preview's API calls reach the backend on :8000
+          # (the default fallback is http://localhost:8000; 127.0.0.1 is what uvicorn binds).
+          # The mocked leg is unaffected: its specs intercept /api/v1 on any host.
+          VITE_API_URL: http://127.0.0.1:8000/api/v1
         run: npm run build
 
-      # The G3 set, picked by title (--grep '\bG3\b'), so a new mocked G3 spec joins with no change here:
-      #   ui-documents:1024  /inbox
+      # The G3 set, picked by title (--grep '\bG3\b'), so a new mocked G3 spec joins with no change here.
+      # Mocked leg (vite preview on :4173, no backend — every selected spec intercepts /api/v1):
+      #   ui-about:289       /about, 2 themes
+      #   ui-ask:1109        /explain send (split: G2 and G5 keep their own quiet-box titles)
       #   ui-care:306        /care-tasks
-      #   ui-provenance:885  3 routes (/interpret, /inbox, /verify)
-      #   ui-shell:1149      shell
-      #   ui-palette:659     palette
+      #   ui-documents:1024  /inbox
       #   ui-export:395      2 themes
-      #   ui-ask:1096        /explain
+      #   ui-landing:439     /overview first-run + data, 2 themes
+      #   ui-meds:254        4 routes x 2 themes (retitled from GATE G1-G10 so the test joins the job)
+      #   ui-palette:648     palette open + keystroke (split: G2 keeps its own quiet-box title)
+      #   ui-provenance:888  3 routes (/interpret, /inbox, /verify)
       #   ui-records:1147    2 themes, /timeline, /search, /pinboards
-      # (A mocked spec titled "UI-PG-REVIEW Gate G3 ...", such as the /verify one from #452, joins the same way.)
-      # Excluded: the six ui-auth G3 titles (describe "UI-PG-AUTH gate G on /setup and /recover"). They need the
-      # real backend and a preview on port 3000 (ui-auth.spec.ts:14-17), and this job runs no backend.
-      # The 200 ms bound lives in the specs, not here. Every spec is mocked, so no Python and no backend.
+      #   ui-results:966     /results
+      #   ui-review:1266     /verify
+      #   ui-settings:513    /settings (split: G2 and G5 keep their own quiet-box titles)
+      #   ui-shell:1145      shell nav click (split: G2 keeps its own quiet-box title)
+      # Auth leg (vite preview on :3000 + the real backend on :8000): the six ui-auth G3 titles in describe
+      # "UI-PG-AUTH gate G on /setup and /recover" (ui-auth.spec.ts:300-504). They need the real backend and a
+      # preview on port 3000 — the backend's local CORS list is http://127.0.0.1:3000 + http://localhost:3000
+      # only (ui-auth.spec.ts:14-17) — so they cannot share the :4173 preview; --grep-invert keeps them out
+      # of the mocked leg and the spec path scopes the auth leg to them.
+      # The 200 ms bound lives in the specs, not here. PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF=1 stays on the
+      # mocked leg: it is the config's no-backend switch (global-setup.ts skips its /health wait only on it),
+      # while HC_E2E_PROVIDED_SERVERS=1 stops the config's webServer spawn — both legs start their servers
+      # themselves.
       # --reporter=list: the config's html reporter prints no test names or stdout.
       # --retries=0: the config retries 2 under CI, and a retried miss exits 0.
-      - name: Run the G3 tests on vite preview
+      - name: Run the G3 tests on vite preview (mocked)
         working-directory: src/frontend
         env:
           CI: true
           HC_E2E_BASE_URL: http://127.0.0.1:4173
+          HC_E2E_PROVIDED_SERVERS: '1'
           PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF: '1'
         run: |
           npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
@@ -434,6 +452,48 @@ jobs:
           curl -fsS -o /dev/null http://127.0.0.1:4173/ || { echo "vite preview never answered on 4173"; exit 1; }
           npx playwright test --project chromium --list --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on'
           npx playwright test --project chromium --reporter=list --retries=0 --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y libsqlcipher-dev
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r src/backend/requirements.txt
+
+      - name: Fetch the embedding model (explicit one-time download; the backend loads it offline)
+        working-directory: src/backend
+        run: python scripts/download_models.py embedding
+
+      - name: Run the six ui-auth G3 tests on vite preview + the real backend
+        working-directory: src/frontend
+        env:
+          CI: true
+          HC_E2E_BASE_URL: http://127.0.0.1:3000
+          HC_E2E_PROVIDED_SERVERS: '1'
+        run: |
+          node e2e/support/start-backend.mjs &
+          BACKEND_PID=$!
+          npx vite preview --host 127.0.0.1 --port 3000 --strictPort &
+          PREVIEW_PID=$!
+          trap 'kill "$BACKEND_PID" "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 120); do
+            curl -fsS -o /dev/null http://127.0.0.1:8000/health && break
+            sleep 1
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:8000/health || { echo "backend never answered on 8000"; exit 1; }
+          for _ in $(seq 1 60); do
+            curl -fsS -o /dev/null http://127.0.0.1:3000/ && break
+            sleep 1
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:3000/ || { echo "vite preview never answered on 3000"; exit 1; }
+          npx playwright test e2e/ui-auth.spec.ts --project chromium --list --grep '\bG3\b'
+          npx playwright test e2e/ui-auth.spec.ts --project chromium --reporter=list --retries=0 --grep '\bG3\b'
 
   rsi-replay:
     name: RSI Replay
