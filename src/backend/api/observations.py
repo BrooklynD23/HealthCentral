@@ -534,6 +534,29 @@ async def verify_observation(
         changes["value_text"] = {"old": observation.value_text, "new": verify_data.value_text}
         observation.value_text = verify_data.value_text
 
+        # VERIFY-EDIT-LT-VALUE-SEMANTICS: text alone must not leave the old number
+        # standing as "checked". Non-numeric text clears value, flag and
+        # is_abnormal (nothing numeric remains to compare); text that parses as a
+        # finite number sets value, and the recalculation below runs on it.
+        if verify_data.value is None:
+            text = verify_data.value_text.strip()
+            try:
+                parsed = float(text)
+                if not math.isfinite(parsed) or "_" in text:
+                    parsed = None
+            except ValueError:
+                parsed = None
+            if observation.value != parsed:
+                changes["value"] = {"old": observation.value, "new": parsed}
+                observation.value = parsed
+            if parsed is None:
+                if observation.flag is not None:
+                    changes["flag"] = {"old": observation.flag, "new": None}
+                    observation.flag = None
+                if observation.is_abnormal:
+                    changes["is_abnormal"] = {"old": True, "new": False}
+                observation.is_abnormal = False
+
     if verify_data.unit is not None:
         changes["unit"] = {"old": observation.unit, "new": verify_data.unit}
         observation.unit = verify_data.unit
@@ -571,6 +594,8 @@ async def verify_observation(
     # nothing to recalculate against, and the report's own flag must not be
     # erased by a corrected number. The bounds are read from the row after the
     # edit block, never from verify_data, where None means "not sent".
+    # A value_text-only edit has already cleared value/flag/is_abnormal (or set
+    # value) in the edit block above (VERIFY-EDIT-LT-VALUE-SEMANTICS).
     numbers_changed = any(
         f in changes and changes[f]["old"] != changes[f]["new"]
         for f in ("value", "ref_low", "ref_high")
