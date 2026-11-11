@@ -163,8 +163,9 @@ export const MemoryManager: FC = () => {
         <Card>
           <CardContent className="p-4 space-y-3">
             <div>
-              <label className="text-xs font-medium text-ink-secondary block mb-1">Key</label>
+              <label htmlFor="memory-key" className="text-xs font-medium text-ink-secondary block mb-1">Key</label>
               <input
+                id="memory-key"
                 type="text"
                 value={formKey}
                 onChange={(e) => setFormKey(e.target.value)}
@@ -174,8 +175,9 @@ export const MemoryManager: FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-ink-secondary block mb-1">Value</label>
+              <label htmlFor="memory-value" className="text-xs font-medium text-ink-secondary block mb-1">Value</label>
               <textarea
+                id="memory-value"
                 value={formValue}
                 onChange={(e) => setFormValue(e.target.value)}
                 placeholder="Enter memory content..."
@@ -185,8 +187,9 @@ export const MemoryManager: FC = () => {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-ink-secondary block mb-1">Category</label>
+              <label htmlFor="memory-category" className="text-xs font-medium text-ink-secondary block mb-1">Category</label>
               <select
+                id="memory-category"
                 value={formCategory}
                 onChange={(e) => setFormCategory(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-black/10 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-accent bg-white"

@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ExplainAssistant } from '@/pages/ExplainAssistant';
@@ -82,6 +82,14 @@ vi.mock('@/services/feedback', () => ({
   FEEDBACK_TAGS: [],
 }));
 vi.mock('@/components/MemoryManager', () => ({ MemoryManager: () => null }));
+// HC-A11YCL-005 renders the real MemoryManager via importActual; its hooks are
+// stubbed here so it renders the loaded state with no backend.
+vi.mock('@/services/memory', () => ({
+  useMemoryItems: () => ({ data: [], isLoading: false, isError: false }),
+  useCreateMemoryItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateMemoryItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteMemoryItem: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 vi.mock('@/components/settings/BackupCard', () => ({ BackupCard: () => null }));
 vi.mock('@/components/settings/RecoveryCodeCard', () => ({ RecoveryCodeCard: () => null }));
 vi.mock('@/components/settings/DangerZone', () => ({ DangerZone: () => null }));
@@ -155,8 +163,32 @@ describe('A11Y-CRIT-LABELS accessible names', () => {
     mockExternalApiData = { use_external_api: true };
     renderSettings('assistant-privacy');
 
-    const provider = screen.getByLabelText(/provider/i);
+    const provider = screen.getByLabelText('Provider', { selector: 'select' });
 
     expect(provider.tagName).toBe('SELECT');
+  });
+
+  it('HC-A11YCL-004: external API Key and Model inputs are named by their labels', () => {
+    mockExternalApiData = { use_external_api: true };
+    renderSettings('assistant-privacy');
+
+    const apiKey = screen.getByLabelText('API Key', { selector: 'input' });
+    const model = screen.getByLabelText('Model', { selector: 'input' });
+
+    expect(apiKey).toHaveAttribute('type', 'password');
+    expect(model).toHaveAttribute('type', 'text');
+  });
+
+  it('HC-A11YCL-005: memory add-form fields are named Key, Value and Category', async () => {
+    const { MemoryManager } = await vi.importActual<
+      typeof import('@/components/MemoryManager')
+    >('@/components/MemoryManager');
+    render(<MemoryManager />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    expect(screen.getByLabelText('Key', { selector: 'input' }).tagName).toBe('INPUT');
+    expect(screen.getByLabelText('Value', { selector: 'textarea' }).tagName).toBe('TEXTAREA');
+    expect(screen.getByLabelText('Category', { selector: 'select' }).tagName).toBe('SELECT');
   });
 });
