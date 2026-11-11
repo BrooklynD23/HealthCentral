@@ -55,9 +55,8 @@ class LookupReferenceTool:
         try:
             from core.database import async_session_maker
 
-            from .. import knowledge_lookup  # local import to keep this seam swappable
-
             from ...normalize import NormalizeModule
+            from .. import knowledge_lookup  # local import to keep this seam swappable
 
             # Question-side label ("LDL") -> stored/seeded key; no key -> as before.
             keys = NormalizeModule.canonical_keys_for(args.analyte)
