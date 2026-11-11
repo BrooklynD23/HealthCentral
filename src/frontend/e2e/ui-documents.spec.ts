@@ -1286,6 +1286,31 @@ test.describe('Gate G10 and HC-UIDOC-006 on /inbox', () => {
     expect(report.postTriggerSamples).toBeGreaterThan(0);
   });
 
+  // UIDOC-006A-FLAKE (owner UIDOC-006A-FIX (a), amended by UIDOC-006A-X1): the first toLocaleDateString of a page loads ICU
+  // date data (7-13 ms), and on an empty list the imported row's date is that first call, inside the commit that the
+  // sampling-gap bound (40 ms) measures. The page warms the formatter with new Date(0) while it is idle, so by the time a
+  // file is picked the call has already happened. Nothing is imported here: the call must come from the idle warm-up.
+  // Would not notice: the warm-up moving out of the idle window but still before the pick (the miss rate is the
+  // measure of that: run (a) --repeat-each=20 at normal CPU), or a warm-up of a different formatter than the row's.
+  // RED today: no toLocaleDateString call on an idle empty /inbox.
+  test('HC-UIDOC-006 (a2): the page warms the date formatter while idle, before any import', async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __hcDateCalls: number[] };
+      w.__hcDateCalls = [];
+      const original = Date.prototype.toLocaleDateString;
+      Date.prototype.toLocaleDateString = function (this: Date, ...args: Parameters<Date['toLocaleDateString']>) {
+        w.__hcDateCalls.push(this.getTime());
+        return original.apply(this, args);
+      };
+    });
+    await setup(page, []);
+    await openInbox(page, { empty: true });
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { __hcDateCalls: number[] }).__hcDateCalls.includes(0)))
+      .toBe(true);
+    await expect(page.locator(ROW)).toHaveCount(0);
+  });
+
   test('HC-UIDOC-006 (c): a failed import is still for the import-failed alert (stillnessProbe, interaction)', async ({
     page,
   }) => {
