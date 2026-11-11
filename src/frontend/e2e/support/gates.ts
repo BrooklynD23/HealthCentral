@@ -218,15 +218,22 @@ export async function maxEventDuration(
  * A transform that is identical in both reads and a pure translation is a static positioning offset
  * (a Radix/floating-ui popper wrapper). It is left out of the return and logged, so it shows in the run output.
  *
+ * Optional `firstRead`: keys are selectors; they are filled in with how many elements matched at the first read
+ * (L0 R8: a guard that something was on screen when the snapshot started, not after it returned).
+ *
  * Would not notice: a translation that completed inside the first 50 ms and then holds still reads as static,
  * which is indistinguishable from positioning. HC-UIG-012 (d) pins that trade-off.
  */
-export async function reducedMotionSnapshot(page: Page, action: () => Promise<void>): Promise<string[]> {
+export async function reducedMotionSnapshot(
+  page: Page,
+  action: () => Promise<void>,
+  firstRead?: Record<string, number>
+): Promise<string[]> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await action();
   await page.waitForTimeout(50);
   const result = await page.evaluate(
-    async ({ identitySource, secondReadDelayMs }) => {
+    async ({ identitySource, secondReadDelayMs, countSelectors }) => {
       const identity = new RegExp(identitySource);
       const pureTranslation = (transform: string): boolean => {
         const nums = (body: string) => body.split(',').map((part) => Number(part.trim()));
@@ -250,6 +257,8 @@ export async function reducedMotionSnapshot(page: Page, action: () => Promise<vo
       };
       const elements = Array.from(document.querySelectorAll('body *'));
       const first = elements.map((el) => getComputedStyle(el).transform);
+      const counts: Record<string, number> = {};
+      for (const selector of countSelectors) counts[selector] = document.querySelectorAll(selector).length;
       await new Promise((resolve) => setTimeout(resolve, secondReadDelayMs));
       const offenders: string[] = [];
       const statics: string[] = [];
@@ -269,10 +278,11 @@ export async function reducedMotionSnapshot(page: Page, action: () => Promise<vo
           else offenders.push(`${label(el)} transform=${after}`);
         }
       });
-      return { offenders, statics, gone };
+      return { offenders, statics, gone, counts };
     },
-    { identitySource: IDENTITY_TRANSFORM.source, secondReadDelayMs: 150 }
+    { identitySource: IDENTITY_TRANSFORM.source, secondReadDelayMs: 150, countSelectors: Object.keys(firstRead ?? {}) }
   );
+  if (firstRead) Object.assign(firstRead, result.counts);
   if (result.statics.length > 0) {
     console.log(`reducedMotionSnapshot: ${result.statics.length} static positioning transform(s) ignored: ${result.statics.join('; ')}`);
   }
