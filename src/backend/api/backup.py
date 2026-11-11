@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.export import purge_profile_exports
 from core.audit import audit_and_commit, audit_intent, create_audit_log, log_export_event
 from core.auth import (
     RequireAuth,
@@ -494,6 +495,13 @@ async def restore_backup(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Restore failed; nothing was changed and safety copies remain.",
         )
+
+    # The vault just rewound, so a packet generated from the pre-restore data is no
+    # longer true and must not stay downloadable (EXPORT-RESTORE-PURGE). The vault was
+    # closed above, so this clears the in-process stores; rows inside the restored vault
+    # are bounded by the serving rule (TTL, session_exp, logout cutoff, contracts I-20).
+    # Success branch only: a refused or failed restore left the vault unchanged.
+    await purge_profile_exports(session.profile_id)
 
     await audit_intent(
         master_db, "completed", create_audit_log,
