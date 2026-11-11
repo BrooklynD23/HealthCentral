@@ -1180,3 +1180,37 @@ test('HC-UIG-012 (d) a translation that settles before the first read reads as s
   console.log(`HC-UIG-012 (d) offenders: ${JSON.stringify(offenders)}`);
   expect(offenders, 'a finished pure translation is indistinguishable from positioning').toEqual([]);
 });
+
+// HC-UIG-012 (e)/(f): a node that leaves the DOM between the two reads is not motion (UI-GATES-TIMING-FLAKE, L0 ruling R7).
+// The removal lands at ~120 ms after the action: after the first read (~50 ms) and before the second (~200 ms).
+const removeToastAt120 = (page: import('@playwright/test').Page) => async () => {
+  await page.evaluate(() => {
+    setTimeout(() => document.getElementById('toast')?.remove(), 120);
+  });
+};
+
+test('HC-UIG-012 (e) an element removed between the two reads is not an offender', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml('<div id="toast" style="position:absolute;transform:translate(10px,20px)">Saved</div><p>stay</p>', '')
+  );
+  const offenders = await reducedMotionSnapshot(page, removeToastAt120(page));
+  console.log(`HC-UIG-012 (e) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a node that left the DOM is not motion').toEqual([]);
+});
+
+test('HC-UIG-012 (f) a removed element is ignored but a connected element whose transform changes still fails', async ({
+  page,
+}) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<div id="toast" style="position:absolute;transform:translate(10px,20px)">Saved</div><div id="mover" style="width:40px;height:40px">x</div>',
+      "var n = 0; setInterval(function () { n += 7; document.getElementById('mover').style.transform = 'translateX(' + n + 'px)'; }, 20);"
+    )
+  );
+  const offenders = await reducedMotionSnapshot(page, removeToastAt120(page));
+  console.log(`HC-UIG-012 (f) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'only the connected mover is reported').toHaveLength(1);
+  expect(offenders[0]).toMatch(/#mover.* moving/);
+});

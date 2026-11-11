@@ -214,6 +214,7 @@ export async function maxEventDuration(
  *  - its computed transform differs between the reads (running motion; tagged `moving`), or
  *  - it holds the same non-identity transform in both reads and that transform is not a pure translation
  *    (a residual rotate/scale/skew/perspective has no positioning justification).
+ * An element detached at the second read (`!isConnected`) left the DOM; it is logged as such and not counted (L0 ruling R7).
  * A transform that is identical in both reads and a pure translation is a static positioning offset
  * (a Radix/floating-ui popper wrapper). It is left out of the return and logged, so it shows in the run output.
  *
@@ -252,7 +253,13 @@ export async function reducedMotionSnapshot(page: Page, action: () => Promise<vo
       await new Promise((resolve) => setTimeout(resolve, secondReadDelayMs));
       const offenders: string[] = [];
       const statics: string[] = [];
+      const gone: string[] = [];
       elements.forEach((el, index) => {
+        // A node that left the DOM between the reads (toast, dialog, page change) reads "" and is not motion.
+        if (!el.isConnected) {
+          gone.push(label(el));
+          return;
+        }
         const before = first[index];
         const after = getComputedStyle(el).transform;
         if (before !== after) {
@@ -262,12 +269,15 @@ export async function reducedMotionSnapshot(page: Page, action: () => Promise<vo
           else offenders.push(`${label(el)} transform=${after}`);
         }
       });
-      return { offenders, statics };
+      return { offenders, statics, gone };
     },
     { identitySource: IDENTITY_TRANSFORM.source, secondReadDelayMs: 150 }
   );
   if (result.statics.length > 0) {
     console.log(`reducedMotionSnapshot: ${result.statics.length} static positioning transform(s) ignored: ${result.statics.join('; ')}`);
+  }
+  if (result.gone.length > 0) {
+    console.log(`reducedMotionSnapshot: ${result.gone.length} element(s) left the DOM between the reads, not counted: ${result.gone.join('; ')}`);
   }
   return result.offenders;
 }
