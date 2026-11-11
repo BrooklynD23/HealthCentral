@@ -35,7 +35,7 @@ const ROW2 =
 const ROW3 = 'The built-in OCR reader could not start. Re-run the backend setup (dev.ps1 / dev.sh).';
 const ROW4 = 'Turn on document OCR above for this profile.';
 const ROW5 =
-  'Read text from scanned PDFs and lab images with the built-in reader. Your preference applies to this profile; the server must also allow OCR (OCR_ENABLED).';
+  'Read scanned PDFs and lab images with the built-in reader. Your preference applies to this profile; the server must also allow OCR (OCR_ENABLED).';
 const ROW6 = 'OCR is active for this profile (built-in reader + server allow).';
 
 const pendingDoc = {

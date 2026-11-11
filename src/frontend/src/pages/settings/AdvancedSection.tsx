@@ -543,7 +543,7 @@ function OcrCard() {
       </CardHeader>
       <CardContent className="p-6 space-y-3">
         <p className="text-sm text-ink-secondary">
-          Read text from scanned PDFs and lab images with the built-in reader. Your preference applies to this profile;
+          Read scanned PDFs and lab images with the built-in reader. Your preference applies to this profile;
           the server must also allow OCR (<code className="text-xs bg-surface-muted px-1 rounded-sm">OCR_ENABLED</code>).
         </p>
         <SwitchRow
