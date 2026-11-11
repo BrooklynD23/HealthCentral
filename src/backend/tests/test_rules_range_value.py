@@ -69,3 +69,22 @@ def test_hc_rrv_007_same_sentence_with_range_still_entails():
     text = "Potassium was within the reference range 3.5-5.0"
     r = _agent()._check_entailment_rules(text, _src(text))
     assert r.label is EntailmentLabel.ENTAILMENT
+
+
+def test_hc_rrv_008_confidence_counts_measured_values_only():
+    r = _agent()._check_entailment_rules(CLAIM, _src("Potassium 9.0 mmol, reference range 3.5-5.0 mmol"))
+    assert r.label is EntailmentLabel.ENTAILMENT
+    assert r.confidence == pytest.approx(0.7)
+
+
+def test_hc_rrv_009_explanation_counts_measured_values_only():
+    r = _agent()._check_entailment_rules(CLAIM, _src("Potassium 9.0 mmol, reference range 3.5-5.0 mmol"))
+    assert "1 measured value" in r.explanation
+
+
+def test_hc_rrv_010_two_measured_values_formula_unchanged():
+    r = _agent()._check_entailment_rules(
+        "Potassium is 4.1 mmol and sodium is 140 mmol", _src("Potassium 4.1 mmol, sodium 140 mmol")
+    )
+    assert r.label is EntailmentLabel.ENTAILMENT
+    assert r.confidence == pytest.approx(0.8)

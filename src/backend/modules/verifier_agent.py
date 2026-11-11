@@ -285,12 +285,12 @@ class VerifierAgent:
                 measured_source = self._extract_values(self._strip_range_clauses(source.source_text))
                 measured_matches = sum(1 for v in measured_claim if v in measured_source)
                 if measured_matches > 0:
-                    confidence = min(0.9, 0.6 + (value_matches * 0.1))
+                    confidence = min(0.9, 0.6 + (measured_matches * 0.1))
                     return EntailmentResult(
                         source_id=source.source_id,
                         label=EntailmentLabel.ENTAILMENT,
                         confidence=confidence,
-                        explanation=f"Value match: {value_matches} values from claim found in source",
+                        explanation=f"Value match: {measured_matches} measured values from claim found in source",
                     )
                 bound_only_match = True
 
