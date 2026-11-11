@@ -928,6 +928,10 @@ async def generate_panel_interpretation(
     # rebuilt before the withheld one stays rebuilt: its id is in the completed row.
     for member_id, member_result in result.withheld_members:
         await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
+    # PANEL-WITHHELD-FIRSTGEN: a withheld member dropped from a first-generation panel is
+    # counted in the saved summary and still writes its withheld row — same shape, ids only.
+    for member_id, member_result in result.withheld_dropped:
+        await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
 
     if started:
         await _audit_interpretation(
