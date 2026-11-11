@@ -217,6 +217,16 @@ class NormalizeModule:
         "diabetes": ["glucose", "hba1c"],
     }
 
+    # ExplainAssistant panel-select labels -> analytes (ANALYTE-NAME-SWEEP).
+    # Kept apart from ANALYTE_CATEGORIES so _get_category() is unaffected.
+    PANEL_LABELS = {
+        "lipid panel": ANALYTE_CATEGORIES["lipid"],
+        "metabolic panel": ANALYTE_CATEGORIES["cmp"],
+        "thyroid panel": ANALYTE_CATEGORIES["thyroid"],
+        "liver panel": ["alt", "ast", "alkaline_phosphatase", "bilirubin_total", "albumin"],
+        "kidney panel": ["creatinine", "bun"],
+    }
+
     # Display names
     DISPLAY_NAMES = {
         "hemoglobin": "Hemoglobin",
@@ -324,4 +334,5 @@ class NormalizeModule:
 
     def get_panel_analytes(self, panel_name: str) -> list[str]:
         """Get list of analytes in a panel."""
-        return self.ANALYTE_CATEGORIES.get(panel_name.lower(), [])
+        key = panel_name.strip().lower()
+        return self.ANALYTE_CATEGORIES.get(key) or self.PANEL_LABELS.get(key, [])

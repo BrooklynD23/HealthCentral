@@ -275,7 +275,9 @@ for (const theme of THEMES) {
       ).toEqual([]);
 
       // G2: layout shift over the load.
-      const cls = await measureCls(page, () => page.goto(route.path));
+      const cls = await measureCls(page, async () => {
+        await page.goto(route.path);
+      });
       expect(cls, `G2 ${route.path} ${theme}`).toBeLessThan(0.1);
       await route.ready(page);
       await settle(page);

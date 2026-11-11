@@ -274,20 +274,38 @@ class VerifierAgent:
         claim_values = self._extract_values(claim)
         source_values = self._extract_values(source.source_text)
 
+        bound_only_match = False
         if claim_values and source_values:
             # Check if claim values appear in source
             value_matches = sum(1 for v in claim_values if v in source_values)
             if value_matches > 0:
-                confidence = min(0.9, 0.6 + (value_matches * 0.1))
-                return EntailmentResult(
-                    source_id=source.source_id,
-                    label=EntailmentLabel.ENTAILMENT,
-                    confidence=confidence,
-                    explanation=f"Value match: {value_matches} values from claim found in source",
-                )
+                # Numbers inside "range X-Y" clauses are bounds, not measurements:
+                # an echoed range must not verify a wrong measured value.
+                measured_claim = self._extract_values(self._strip_range_clauses(claim))
+                measured_source = self._extract_values(self._strip_range_clauses(source.source_text))
+                measured_matches = sum(1 for v in measured_claim if v in measured_source)
+                if measured_matches > 0:
+                    confidence = min(0.9, 0.6 + (value_matches * 0.1))
+                    return EntailmentResult(
+                        source_id=source.source_id,
+                        label=EntailmentLabel.ENTAILMENT,
+                        confidence=confidence,
+                        explanation=f"Value match: {value_matches} values from claim found in source",
+                    )
+                bound_only_match = True
 
         # Check lexical overlap
         overlap_score = self._calculate_lexical_overlap(claim, source.source_text)
+        if bound_only_match or self._RANGE_CLAUSE.search(claim) or self._RANGE_CLAUSE.search(source.source_text):
+            # Shared "range X-Y" text (bounds matched, or unitless bounds that
+            # only show up as shared tokens) must never raise the score.
+            overlap_score = min(
+                overlap_score,
+                self._calculate_lexical_overlap(
+                    self._strip_range_clauses(claim),
+                    self._strip_range_clauses(source.source_text),
+                ),
+            )
 
         if overlap_score >= 0.5:
             return EntailmentResult(
@@ -355,6 +373,15 @@ class VerifierAgent:
                 confidence=0.0,
                 explanation="NLI check failed; claim left unverified",
             )
+
+    _RANGE_CLAUSE = re.compile(
+        r"(?:(?:normal|reference)\s+)?range(?:\s*:|\s+is)?\s*\d+(?:\.\d+)?\s*[-\u2013\u2014]\s*\d+(?:\.\d+)?",
+        re.IGNORECASE,
+    )
+
+    def _strip_range_clauses(self, text: str) -> str:
+        """Remove 'range X-Y' clauses so their bounds are not read as measured values."""
+        return self._RANGE_CLAUSE.sub(" ", text)
 
     def _extract_values(self, text: str) -> list[str]:
         """Extract numeric values with units from text."""

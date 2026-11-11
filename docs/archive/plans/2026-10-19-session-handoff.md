@@ -6,7 +6,7 @@
 **Owner:** repository owner
 **Refresh Trigger:** the next L0 session reads this first, finishes §2 "In flight", works §3, and replaces this file with its own handoff.
 
-Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-18 handoff](../../plans/2026-10-18-session-handoff.md). Every PR number and sha below was checked with `gh pr view` when it was written, but treat this file as a lead, not a finding: verify before acting. The session ended because the context ran out (owner: "When processes are done, provide a handoff for the next orchestrator to continue with dynamic workflow. You are out of contexts.").
+Read this after [CLAUDE.md](../../../CLAUDE.md), [AGENT.md](../../../AGENT.md) and the [build-program RUNBOOK](../../plans/2026-10-15-build-program/RUNBOOK.md). It replaces [the 2026-10-18 handoff](2026-10-18-session-handoff.md). Every PR number and sha below was checked with `gh pr view` when it was written, but treat this file as a lead, not a finding: verify before acting. The session ended because the context ran out (owner: "When processes are done, provide a handoff for the next orchestrator to continue with dynamic workflow. You are out of contexts.").
 
 ## 1. What this session did
 

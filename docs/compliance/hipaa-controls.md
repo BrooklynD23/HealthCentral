@@ -82,10 +82,10 @@ profile data before still writes a row.
 
 **Legacy rows.** Rows written before this control was added may still contain
 filenames, analyte names and edit values. They are deliberately left untouched
-rather than rewritten — rewriting an append-only audit trail is a worse
-property to give up than the exposure it would remove. The only path that
-removes them is profile deletion (PROF-DEL-001), which purges that profile's
-audit rows entirely.
+rather than rewritten — rewriting history is a worse property than the
+exposure it removes. They are removed by profile deletion (PROF-DEL-001),
+which purges that profile's audit rows entirely, or by restoring a
+whole-install backup that does not contain them.
 
 **Out of scope / gated:** encrypting the master database itself (Phase B).
 

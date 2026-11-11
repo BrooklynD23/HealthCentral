@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -372,21 +373,43 @@ async def _make_potassium(profile_db, obs_id: str, value: float) -> None:
     await profile_db.commit()
 
 
+def _value_re(value: float) -> re.Pattern:
+    """The value as a whole number token: no digit or "." before it, only zeros
+    (4.150 is still 4.15) and no digit after it. "54.151537" does not match 4.15."""
+    return re.compile(r"(?<![\d.])" + re.escape(str(value)) + r"0*(?!\d)")
+
+
+def _assert_row_has_no_value(row: AuditLog, value: float) -> None:
+    """Search every audit column for the value. The one datetime column
+    (timestamp) cannot hold text, so it is skipped, and exactly one may be."""
+    pattern = _value_re(value)
+    skipped = []
+    for column in row.__table__.columns:
+        cell = getattr(row, column.name)
+        if isinstance(cell, datetime):
+            assert column.name == "timestamp", column.name
+            skipped.append(column.name)
+            continue
+        assert not pattern.search(str(cell)), column.name
+    assert skipped == ["timestamp"], skipped
+
+
 def _assert_value_and_reason_not_sent(resp, rows: list[AuditLog], caplog, value: float):
     value_str = str(value)
+    pattern = _value_re(value)
     assert value_str not in ESCALATE_TEMPLATE
     assert value_str not in DOSING_TEXT
-    assert value_str not in resp.text
+    assert not pattern.search(resp.text)
     for phrase in ("Critical high value", "Critical low value", "critical threshold", "threshold of"):
         assert phrase.lower() not in resp.text.lower(), phrase
     for row in rows:
+        _assert_row_has_no_value(row, value)
         blob = _row_blob(row)
-        assert value_str not in blob
         for phrase in ("Critical high value", "Critical low value", "threshold of"):
             assert phrase.lower() not in blob.lower(), phrase
     for record in caplog.records:
-        assert value_str not in record.getMessage()
-        assert value_str not in str(record.args)
+        assert not pattern.search(record.getMessage())
+        assert not pattern.search(str(record.args))
 
 
 @pytest.mark.asyncio
@@ -418,8 +441,8 @@ async def test_hc_iwm_007_withheld_critical_card_keeps_the_physician_review_flag
     assert model_result.safety_validation.requires_physician_review is True
     assert await _cards(profile_db) == []
     for record in caplog.records:
-        assert str(CRITICAL_VALUE) not in record.getMessage()
-        assert str(CRITICAL_VALUE) not in str(record.args)
+        assert not _value_re(CRITICAL_VALUE).search(record.getMessage())
+        assert not _value_re(CRITICAL_VALUE).search(str(record.args))
 
 
 @pytest.mark.asyncio
@@ -479,3 +502,67 @@ async def test_hc_iwm_008_non_withheld_failure_keeps_the_500_mapping(dbs):
         assert "interpretation.withheld" not in [
             r.event_type for r in await _audit_rows(master_db)
         ]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-009 / HC-IWM-010 (IWM-007-TIMESTAMP-FLAKE): the leak check matches the
+# value as a whole number, per audit column, so a microsecond timestamp such as
+# "...:54.151537" (which holds the digits "4.15") cannot fail it by chance.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _audit_row(**over) -> AuditLog:
+    base = dict(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, event_type="interpretation.withheld",
+        action="withheld", entity_type="observation", entity_id=str(uuid.uuid4()),
+        details_json="{}", client_info="ua", timestamp=datetime(2026, 11, 10, 10, 27, 54, 151537),
+    )
+    base.update(over)
+    return AuditLog(**base)
+
+
+def test_hc_iwm_009_value_matcher_is_exact_and_the_column_walk_is_total():
+    hits = ["4.15", "4.150", "=4.15,", '"4.15"', "value 4.15.", "(4.15)"]
+    misses = ["2026-11-10 10:27:54.151537", "14.15", "4.153", "24.15", "4.1"]
+    for text in hits:
+        assert _value_re(4.15).search(text), text
+    for text in misses:
+        assert not _value_re(4.15).search(text), text
+    assert _value_re(7.35).search("7.35") and _value_re(7.35).search("x 7.350 y")
+    assert not _value_re(7.35).search("2026-11-10 10:27:07.351000")
+    assert not _value_re(7.35).search("17.35")
+
+    # A value-bearing timestamp alone passes; the value in any text column is caught.
+    _assert_row_has_no_value(_audit_row(), NORMAL_VALUE)
+    for column in ("action", "details_json", "client_info"):
+        with pytest.raises(AssertionError):
+            _assert_row_has_no_value(_audit_row(**{column: "x 4.15 y"}), NORMAL_VALUE)
+
+
+class _FixedDT(datetime):
+    fixed: datetime
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls.fixed if tz is not None else cls.fixed.replace(tzinfo=None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stamp", [
+    datetime(2026, 11, 10, 10, 27, 54, 151537, tzinfo=timezone.utc),  # holds "4.15"
+    datetime(2026, 11, 10, 10, 27, 7, 351000, tzinfo=timezone.utc),   # holds "7.35"
+])
+async def test_hc_iwm_010_both_iwm_007_scenarios_pass_with_a_value_bearing_audit_clock(
+    dbs, caplog, monkeypatch, stamp
+):
+    import core.time
+
+    _FixedDT.fixed = stamp
+    monkeypatch.setattr(core.time, "datetime", _FixedDT)
+    await test_hc_iwm_007_withheld_critical_card_keeps_the_physician_review_flag(dbs, caplog)
+    caplog.clear()
+    profile_db, master_db, _ = dbs
+    # the critical run left its withheld row; the non-critical run asserts exactly one
+    await master_db.execute(AuditLog.__table__.delete())
+    await master_db.commit()
+    await test_hc_iwm_007_withheld_non_critical_card_has_no_physician_review_flag(dbs, caplog)

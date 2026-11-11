@@ -17,7 +17,7 @@ One folder per machine and date: `<YYYY-MM-DD>-<machine>/`.
 | File | What it is |
 |---|---|
 | `rsi-log.jsonl` | Copy of `.claude/logs/rsi/<date>.jsonl` (rows per the rsi contract: `kind` tool or session) |
-| `session-log.jsonl` | **Windowed** copy of `.claude/logs/session-log.jsonl`: only the rows in the folder's window (see Windows below), not the cumulative file. Applies from `2026-10-22-gpubox` on (owner RSI-ARCHIVE-SIZE, `docs/capstone-report/owner-decisions-2026-09-27.md:404`); `2026-10-21-laptop` keeps its earlier cumulative copy |
+| `session-log.jsonl` | **Windowed** copy of `.claude/logs/session-log.jsonl`: only the rows in the folder's window (see Windows below), not the cumulative file. Owner RSI-ARCHIVE-SIZE (`docs/capstone-report/owner-decisions-2026-09-27.md:404`); `2026-10-21-laptop` was trimmed to the rows since 2026-10-21T00:00Z, so every copy is now windowed |
 | `summary.json` | The rsi-loop result for that run: clusters, candidates, metrics. Copy `.claude/logs/rsi/summary-<run_id>.json` when the run wrote one; otherwise copy the workflow result |
 | `summary-dry.json` | Only in `2026-10-24-gpubox`: the dry run's result object (`run_id` `2026-10-24-gpubox-dry`, `dry_run` true), with the workflow progress and prompt or result previews left out |
 

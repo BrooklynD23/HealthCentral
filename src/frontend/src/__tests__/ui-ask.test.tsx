@@ -421,6 +421,62 @@ describe('UI-PG-ASK', () => {
         await waitFor(() => expect(helpful).toHaveAttribute('aria-pressed', 'true'));
         expect(notHelpful).toHaveAttribute('aria-pressed', 'false');
       });
+
+      // ASK-FEEDBACK-FALSE-THANKS (owner answer ASK-FEEDBACK-FAIL-COPY). Blind spot: the mock rejects the POST; it
+      // cannot tell a network error from a 4xx, and it asserts the alert role, not live-region timing in a real AT.
+      it('HC-AFT-001: a failed Submit hides "Thanks!", shows the inline error and keeps the typed text', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+
+        await user.click(screen.getByRole('button', { name: 'Not helpful' })); // saved: "Thanks!" shows
+        await waitFor(() => expect(screen.getByText('Thanks!')).toBeInTheDocument());
+        await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'my correction');
+
+        failFeedback = true;
+        await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent("Your feedback wasn't saved. Try again.");
+        expect(screen.queryByText('Thanks!')).not.toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: /better answer/i })).toHaveValue('my correction');
+      });
+
+      it('HC-AFT-002: a retry that succeeds clears the error, brings "Thanks!" back and resends the same text', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+
+        await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+        await waitFor(() => expect(screen.getByText('Thanks!')).toBeInTheDocument());
+        await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'my correction');
+        failFeedback = true;
+        await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+        failFeedback = false;
+        await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+        await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+        expect(screen.getByText('Thanks!')).toBeInTheDocument();
+        expect(feedbackBodies()[2].correction_text).toBe('my correction');
+        expect(feedbackBodies()[1].correction_text).toBe('my correction');
+      });
+
+      it('HC-AFT-003: a failed thumb shows no inline error (the alert is for Submit only)', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+        const helpful = screen.getByRole('button', { name: 'Helpful' });
+
+        failFeedback = true;
+        await user.click(helpful);
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+        await waitFor(() => expect(helpful).toBeEnabled());
+
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText('Thanks!')).not.toBeInTheDocument();
+      });
     });
 
     it('a thumb click never sends tags that were ticked but not submitted', async () => {
@@ -458,6 +514,48 @@ describe('UI-PG-ASK', () => {
 
       // The upsert replaces the row, so leaving the submitted tags out would erase them; the unsent tick stays out.
       expect(feedbackBodies()[2]).toMatchObject({ rating: 1, feedback_tags: ['inaccurate'] });
+    });
+
+    // FEEDBACK-MODEL-FIELDS-SET: the upsert now keeps a field the request leaves out, so a clear must be explicit.
+    // Blind spot: these assert the bodies the page sends, not what api/feedback.py stores (test_feedback_upsert_keep.py).
+    it('HC-FBK-005: clearing the correction box and pressing Submit sends correction_text null', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'the submitted answer');
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      expect(feedbackBodies()[1].correction_text).toBe('the submitted answer');
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Feedback options' })); // reopen the box
+      await user.clear(screen.getByRole('textbox', { name: /better answer/i }));
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      expect((feedbackBodies()[2] as { correction_text?: string | null }).correction_text).toBeNull();
+    });
+
+    it('HC-FBK-006: unticking every tag and pressing Submit sends feedback_tags null', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.click(screen.getByRole('button', { name: 'inaccurate' }));
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      expect(feedbackBodies()[1]).toMatchObject({ feedback_tags: ['inaccurate'] });
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Feedback options' })); // reopen the picker
+      await user.click(screen.getByRole('button', { name: 'inaccurate' })); // untick
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      expect((feedbackBodies()[2] as { feedback_tags?: string[] | null }).feedback_tags).toBeNull();
     });
   });
 

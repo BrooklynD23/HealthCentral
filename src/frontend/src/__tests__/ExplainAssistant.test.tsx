@@ -388,9 +388,19 @@ describe('ExplainAssistant', () => {
       await user.type(input, 'Test question{enter}');
     }
 
-    it('HC-FEE-001: a real 403 ApiError shows the session-expired message', async () => {
+    it('HC-FEE-001: a real 401 ApiError shows the session-expired message', async () => {
       vi.mocked(api.apiPost).mockRejectedValueOnce(
-        new api.ApiError(403, 'Forbidden', 'Profile database not available. Please log in again.')
+        new api.ApiError(401, 'Unauthorized', 'Profile database not available. Please log in again.')
+      );
+      await ask();
+      await waitFor(() => {
+        expect(screen.getByText(/session has expired/)).toBeInTheDocument();
+      });
+    });
+
+    it('HC-FEE-001b: a real 403 ApiError shows the same session-expired message', async () => {
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(403, 'Forbidden', 'Access denied to this profile')
       );
       await ask();
       await waitFor(() => {
