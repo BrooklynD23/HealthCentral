@@ -107,8 +107,9 @@ export function AssistantPrivacySection() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">API Key</label>
+                    <label htmlFor="external-api-key" className="text-xs font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">API Key</label>
                     <input
+                      id="external-api-key"
                       type="password"
                       value={externalKey}
                       onChange={(e) => setExternalKey(e.target.value)}
@@ -117,8 +118,9 @@ export function AssistantPrivacySection() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Model</label>
+                    <label htmlFor="external-api-model" className="text-xs font-bold uppercase tracking-wider text-ink-tertiary block mb-1.5 ml-1">Model</label>
                     <input
+                      id="external-api-model"
                       type="text"
                       value={externalModel}
                       onChange={(e) => setExternalModel(e.target.value)}
