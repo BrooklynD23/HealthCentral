@@ -153,6 +153,17 @@ class TestParseLabCsv:
         [obs] = parse_lab_csv(csv_text).observations
         assert len(obs["analyte_raw"]) == 2000
 
+    def test_hc_fimp_047_inverted_csv_bounds_stored_ordered(self):
+        # RANGE-ORDER (owner answer 2026-11-07: swap the bounds, keep the printed
+        # text). An inverted ref low/ref high pair stores ordered.
+        csv_text = (
+            "Date,Analyte,Value,Unit,Reference Low,Reference High,Flag\n"
+            "2026-06-01,Glucose,105,mg/dL,99,70,H\n"
+        )
+        [obs] = parse_lab_csv(csv_text).observations
+        assert obs["ref_low"] == 70.0
+        assert obs["ref_high"] == 99.0
+
 
 # ---------------------------------------------------------------------------
 # parse_fhir_bundle
@@ -305,6 +316,24 @@ class TestParseFhirBundle:
         assert round_tripped_med["entity_type"] == "medication_change"
         assert round_tripped_med["entity_value"].startswith("start metformin")
         assert "500.0 mg" in round_tripped_med["entity_value"]
+
+    def test_hc_fimp_048_inverted_fhir_reference_range_ordered_text_preserved(self):
+        # RANGE-ORDER: referenceRange {low:99, high:70, text:"99-70"} stores
+        # ordered bounds; the text field keeps the printed order verbatim.
+        bundle = _bundle([{
+            "resource": {
+                "resourceType": "Observation",
+                "code": {"text": "Glucose"},
+                "valueQuantity": {"value": 105, "unit": "mg/dL"},
+                "referenceRange": [
+                    {"low": {"value": 99}, "high": {"value": 70}, "text": "99-70"}
+                ],
+            }
+        }])
+        [obs] = parse_fhir_bundle(bundle).observations
+        assert obs["ref_low"] == 70.0
+        assert obs["ref_high"] == 99.0
+        assert obs["ref_range_text"] == "99-70"
 
 
 # ---------------------------------------------------------------------------
