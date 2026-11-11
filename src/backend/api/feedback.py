@@ -226,6 +226,8 @@ async def upsert_feedback(
 
     Upsert semantics: if feedback for this turn already exists in this
     profile, it is overwritten (user may change their rating).
+    A field the request leaves out keeps its stored value; an explicit
+    ``null`` clears it (``correction_text``, ``feedback_tags``).
     """
     profile_id = session.profile_id
     now = utcnow()
@@ -238,8 +240,10 @@ async def upsert_feedback(
 
     if existing:
         existing.rating = body.rating
-        existing.correction_text = body.correction_text
-        existing.feedback_tags = body.feedback_tags
+        if "correction_text" in body.model_fields_set:
+            existing.correction_text = body.correction_text
+        if "feedback_tags" in body.model_fields_set:
+            existing.feedback_tags = body.feedback_tags
         if prompt_snapshot is not None:
             existing.prompt_snapshot = prompt_snapshot
         if body.response_text is not None:

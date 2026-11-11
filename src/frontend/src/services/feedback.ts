@@ -28,8 +28,8 @@ export type FeedbackTag = (typeof FEEDBACK_TAGS)[number];
 export interface FeedbackRequest {
   session_id: string;
   rating: 1 | -1;
-  correction_text?: string;
-  feedback_tags?: FeedbackTag[];
+  correction_text?: string | null;
+  feedback_tags?: FeedbackTag[] | null;
   prompt_snapshot?: string;
   response_text?: string;
   model_name?: string;

@@ -403,8 +403,8 @@ export function ExplainAssistant() {
           rating,
           response_text: msg.content,
           // Only what was submitted: a draft in the textarea or a tag ticked since is not the patient's answer until
-          // they press Submit. Left out, the upsert would erase what is already stored, but only within this mount:
-          // after a reload these are empty and the backend upsert replaces the row (queued as a backend row).
+          // they press Submit. Left out, the stored correction and tags stay (the upsert keeps a field the request
+          // does not name); resending the saved values within this mount is harmless.
           feedback_tags: fs.savedTags.length > 0 ? fs.savedTags : undefined,
           correction_text: fs.savedCorrection || undefined,
         },
@@ -427,8 +427,9 @@ export function ExplainAssistant() {
           session_id: currentSessionId,
           rating: fs.rating ?? -1,
           response_text: msg.content,
-          feedback_tags: fs.selectedTags.length > 0 ? fs.selectedTags : undefined,
-          correction_text: fs.correction.trim() || undefined,
+          // An empty box or no tags is the patient's explicit clear, so send null (a field left out is kept).
+          feedback_tags: fs.selectedTags.length > 0 ? fs.selectedTags : null,
+          correction_text: fs.correction.trim() || null,
         },
       });
       updateFeedbackState(msg.id, {
