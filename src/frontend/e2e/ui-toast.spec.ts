@@ -244,9 +244,10 @@ test.describe('HC-TOAST-003 stacked and dismissed toasts under reduced motion', 
     }
     await raise(page, [{ message: 'First' }]);
     await waitForSettledToasts(page, 1);
-    const offenders = await reducedMotionSnapshot(page, () => raise(page, [{ message: 'Second' }]));
-    // Read right after the 50 ms snapshot; a replaced toast stays mounted well past it.
-    const backToasts = await page.locator(`${TOAST}[data-front="false"]`).count();
+    const seen: Record<string, number> = { [`${TOAST}[data-front="false"]`]: 0 };
+    const offenders = await reducedMotionSnapshot(page, () => raise(page, [{ message: 'Second' }]), seen);
+    // Counted at the snapshot's first read (L0 R8), not after the two reads have returned.
+    const backToasts = seen[`${TOAST}[data-front="false"]`];
     expect(backToasts, 'a back toast exists when the snapshot is taken (an empty list must not pass vacuously)').toBeGreaterThanOrEqual(1);
     expect(offenders, 'elements with a non-identity transform 50 ms after the second toast').toEqual([]);
   });
@@ -268,9 +269,10 @@ test.describe('HC-TOAST-003 stacked and dismissed toasts under reduced motion', 
     }
     await raise(page, [{ message: 'First' }, { message: 'Second' }]);
     await waitForSettledToasts(page, 2);
-    const offenders = await reducedMotionSnapshot(page, () => dismissAll(page));
-    // sonner keeps a removed li mounted for 200 ms (TIME_BEFORE_UNMOUNT), so it is still counted just after the 50 ms snapshot.
-    const removedToasts = await page.locator(`${TOAST}[data-removed="true"]`).count();
+    const seen: Record<string, number> = { [`${TOAST}[data-removed="true"]`]: 0 };
+    const offenders = await reducedMotionSnapshot(page, () => dismissAll(page), seen);
+    // Counted at the snapshot's first read (L0 R8): sonner unmounts a removed li 200 ms after dismissal, before the second read returns.
+    const removedToasts = seen[`${TOAST}[data-removed="true"]`];
     expect(removedToasts, 'a removed toast exists when the snapshot is taken (an empty list must not pass vacuously)').toBeGreaterThanOrEqual(1);
     expect(offenders, 'elements with a non-identity transform 50 ms after the dismissal').toEqual([]);
   });

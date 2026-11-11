@@ -208,25 +208,88 @@ export async function maxEventDuration(
 
 /**
  * Emulates reduced motion, runs `action`, waits 50 ms, and returns the
- * elements whose computed transform is not the identity. An empty array passes.
+ * elements still transformed. An empty array passes.
+ *
+ * Two reads, 150 ms apart (GATES-POPPER-TRANSFORM). An element is an offender when
+ *  - its computed transform differs between the reads (running motion; tagged `moving`), or
+ *  - it holds the same non-identity transform in both reads and that transform is not a pure translation
+ *    (a residual rotate/scale/skew/perspective has no positioning justification).
+ * An element detached at the second read (`!isConnected`) left the DOM; it is logged as such and not counted (L0 ruling R7).
+ * A transform that is identical in both reads and a pure translation is a static positioning offset
+ * (a Radix/floating-ui popper wrapper). It is left out of the return and logged, so it shows in the run output.
+ *
+ * Optional `firstRead`: keys are selectors; they are filled in with how many elements matched at the first read
+ * (L0 R8: a guard that something was on screen when the snapshot started, not after it returned).
+ *
+ * Would not notice: a translation that completed inside the first 50 ms and then holds still reads as static,
+ * which is indistinguishable from positioning. HC-UIG-012 (d) pins that trade-off.
  */
-export async function reducedMotionSnapshot(page: Page, action: () => Promise<void>): Promise<string[]> {
+export async function reducedMotionSnapshot(
+  page: Page,
+  action: () => Promise<void>,
+  firstRead?: Record<string, number>
+): Promise<string[]> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await action();
   await page.waitForTimeout(50);
-  return page.evaluate((identitySource) => {
-    const identity = new RegExp(identitySource);
-    const offenders: string[] = [];
-    for (const el of Array.from(document.querySelectorAll('body *'))) {
-      const transform = getComputedStyle(el).transform;
-      if (!identity.test(transform)) {
+  const result = await page.evaluate(
+    async ({ identitySource, secondReadDelayMs, countSelectors }) => {
+      const identity = new RegExp(identitySource);
+      const pureTranslation = (transform: string): boolean => {
+        const nums = (body: string) => body.split(',').map((part) => Number(part.trim()));
+        const m2 = /^matrix\(([^)]*)\)$/.exec(transform);
+        if (m2) {
+          const [a, b, c, d] = nums(m2[1]);
+          return a === 1 && b === 0 && c === 0 && d === 1;
+        }
+        const m3 = /^matrix3d\(([^)]*)\)$/.exec(transform);
+        if (m3) {
+          const n = nums(m3[1]);
+          const wanted = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+          return wanted.every((value, index) => n[index] === value) && n[15] === 1 && n[3] === 0 && n[7] === 0 && n[11] === 0;
+        }
+        return false;
+      };
+      const label = (el: Element) => {
         const id = el.id ? `#${el.id}` : '';
         const cls = (el.getAttribute('class') ?? '').trim().replace(/\s+/g, '.').slice(0, 60);
-        offenders.push(`${el.tagName.toLowerCase()}${id}${cls ? `.${cls}` : ''} transform=${transform}`);
-      }
-    }
-    return offenders;
-  }, IDENTITY_TRANSFORM.source);
+        return `${el.tagName.toLowerCase()}${id}${cls ? `.${cls}` : ''}`;
+      };
+      const elements = Array.from(document.querySelectorAll('body *'));
+      const first = elements.map((el) => getComputedStyle(el).transform);
+      const counts: Record<string, number> = {};
+      for (const selector of countSelectors) counts[selector] = document.querySelectorAll(selector).length;
+      await new Promise((resolve) => setTimeout(resolve, secondReadDelayMs));
+      const offenders: string[] = [];
+      const statics: string[] = [];
+      const gone: string[] = [];
+      elements.forEach((el, index) => {
+        // A node that left the DOM between the reads (toast, dialog, page change) reads "" and is not motion.
+        if (!el.isConnected) {
+          gone.push(label(el));
+          return;
+        }
+        const before = first[index];
+        const after = getComputedStyle(el).transform;
+        if (before !== after) {
+          offenders.push(`${label(el)} transform=${after} moving (was ${before})`);
+        } else if (!identity.test(after)) {
+          if (pureTranslation(after)) statics.push(`${label(el)} transform=${after}`);
+          else offenders.push(`${label(el)} transform=${after}`);
+        }
+      });
+      return { offenders, statics, gone, counts };
+    },
+    { identitySource: IDENTITY_TRANSFORM.source, secondReadDelayMs: 150, countSelectors: Object.keys(firstRead ?? {}) }
+  );
+  if (firstRead) Object.assign(firstRead, result.counts);
+  if (result.statics.length > 0) {
+    console.log(`reducedMotionSnapshot: ${result.statics.length} static positioning transform(s) ignored: ${result.statics.join('; ')}`);
+  }
+  if (result.gone.length > 0) {
+    console.log(`reducedMotionSnapshot: ${result.gone.length} element(s) left the DOM between the reads, not counted: ${result.gone.join('; ')}`);
+  }
+  return result.offenders;
 }
 
 // ---------------------------------------------------------------------------

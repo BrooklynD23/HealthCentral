@@ -1,5 +1,5 @@
 /**
- * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008, HC-UIG-009).
+ * UI-GATES acceptance harness self-tests (HC-UIG-001 .. HC-UIG-006, HC-UIG-008 .. HC-UIG-012).
  *
  * Every test here proves that a gate helper from e2e/support/gates.ts can
  * fail, or passes on the page it is given. HC-UIG-002 (/inbox colour contrast)
@@ -15,17 +15,20 @@
  * globalSetup; see e2e/README.md for the run that starts neither.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { errors, expect, test, type Page } from '@playwright/test';
 import {
   ROUTE_CONTAINER_SELECTOR,
   ROUTE_FALLBACK_SELECTOR,
   STILLNESS_NAV_MAX_GAP_MS,
   STILLNESS_OVERLAY_MAX_GAP_MS,
+  StillnessError,
+  StillnessSettleError,
   axeGate,
   checkSampling,
   consoleAndNetworkGuard,
   maxEventDuration,
   noHorizontalScroll,
+  reducedMotionSnapshot,
   routeOpacitySamples,
   stillnessProbe,
   type StillnessOptions,
@@ -89,6 +92,62 @@ const NAV_BODY = '<main id="route" data-route-container="/gates/fixture"><p data
 const startFixture = (page: Page): StillnessOptions['trigger'] => () =>
   page.evaluate(() => (window as unknown as { __start: () => void }).__start());
 
+// ---------------------------------------------------------------------------
+// withInfraRetry (UI-GATES-TIMING-FLAKE): retries only harness-side starvation.
+// ---------------------------------------------------------------------------
+/**
+ * A StillnessError whose every failure line is a sampling-starvation line is a symptom of a loaded box, not of the
+ * page. One product line (computed transform, effective opacity, ...) in the list makes the whole error a product
+ * failure. StillnessSettleError is page state and is never infra.
+ */
+const INFRA_LINE_PATTERNS: RegExp[] = [
+  /sampling gap of \d+ ms/,
+  /only \d+ sample\(s\)/,
+  /lost its sampler/,
+  /took no sample/,
+  /last sampler error/,
+];
+
+/** The error a wrapped body throws when it measured nothing (sparse sampling under load). Always retryable. */
+class InfraStarvedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InfraStarvedError';
+  }
+}
+
+/** True iff `error` is harness starvation: a Playwright TimeoutError, an InfraStarvedError, or an infra-only StillnessError. */
+function isInfraError(error: unknown): boolean {
+  if (error instanceof errors.TimeoutError) return true;
+  if (error instanceof InfraStarvedError) return true;
+  if (error instanceof StillnessSettleError) return false;
+  if (!(error instanceof StillnessError)) return false;
+  const lines = error.message.split('\n').filter((line) => /^\s*- /.test(line));
+  const candidates = lines.length > 0 ? lines : [error.message];
+  return candidates.every((line) => INFRA_LINE_PATTERNS.some((pattern) => pattern.test(line)));
+}
+
+/**
+ * Runs `fn`, retrying (default 3 attempts in all) only when it throws an infra error. Any other error, including a
+ * mixed failure list, is rethrown at once, so a retry can never turn a product failure into a pass.
+ */
+async function withInfraRetry<T>(
+  fn: () => Promise<T>,
+  options: { attempts?: number; pauseMs?: number } = {}
+): Promise<T> {
+  const attempts = options.attempts ?? 3;
+  const pauseMs = options.pauseMs ?? 500;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= attempts || !isInfraError(error)) throw error;
+      console.log(`withInfraRetry: attempt ${attempt} of ${attempts} hit harness starvation, retrying: ${String(error).split('\n')[0]}`);
+      if (pauseMs > 0) await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    }
+  }
+}
+
 /** Opens /inbox with the mock API, the seeded session, and returns the guard. */
 async function openInbox(page: Page) {
   const mock = await installMockApi(page);
@@ -147,8 +206,11 @@ test(
   async ({ page }) => {
     await installMockApi(page);
     await seedMockSession(page);
-    await page.goto('/inbox');
-    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
+    // Only the navigation and the heading wait retry under load; the axe answer below is never retried.
+    await withInfraRetry(async () => {
+      await page.goto('/inbox');
+      await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible', timeout: 5_000 });
+    });
 
     // Axe reads colour mid-fade if it runs during the route's entrance fade (flaky otherwise).
     await settleRoute(page);
@@ -213,10 +275,14 @@ test('HC-UIG-003 pre: a nav click samples the route container and ends at opacit
 test(
   'HC-UIG-003 route container opacity after a nav click never drops below 0.3',
   async ({ page }) => {
-    await openInbox(page);
-    await settleRoute(page);
-
-    const samples = await routeOpacitySamples(page, { navigate: navigateToVerify(page), durationMs: 800 });
+    // A retry re-opens /inbox: a sparse or timed-out run is starvation; a real sample below 0.3 is product.
+    const samples = await withInfraRetry(async () => {
+      await openInbox(page);
+      await settleRoute(page);
+      const taken = await routeOpacitySamples(page, { navigate: navigateToVerify(page), durationMs: 800 });
+      if (taken.length === 0) throw new InfraStarvedError('routeOpacitySamples recorded no sample after the trigger');
+      return taken;
+    });
     const low = samples.filter((s) => s.opacity < 0.3);
     console.log(
       `HC-UIG-003 samples below 0.3 (${low.length} of ${samples.length}): ${JSON.stringify(low.map((s) => [s.t, s.opacity]))}`
@@ -262,9 +328,12 @@ test('HC-UIG-005 maxEventDuration returns a finite number for a click on /setup 
   const setupButton = page.getByRole('button', { name: 'Create a new profile' });
   await expect(setupButton).toBeVisible();
 
-  const ms = await maxEventDuration(page, async () => {
-    await setupButton.click();
-  });
+  // A TimeoutError or CDP attach failure retries; a returned duration is data.
+  const ms = await withInfraRetry(() =>
+    maxEventDuration(page, async () => {
+      await setupButton.click();
+    })
+  );
   console.log(`HC-UIG-005 max event duration on /setup click at CPU x4: ${ms} ms`);
   expect(Number.isFinite(ms), `expected a finite duration, got ${ms}`).toBe(true);
 });
@@ -284,12 +353,16 @@ test('HC-UIG-005 maxEventDuration reports a 120 ms busy click as >= 100 ms and i
   await page.click('#busy');
   await page.waitForTimeout(200);
 
-  const quick = await maxEventDuration(page, async () => {
-    await page.click('#quick');
-  });
-  const busy = await maxEventDuration(page, async () => {
-    await page.click('#busy');
-  });
+  const quick = await withInfraRetry(() =>
+    maxEventDuration(page, async () => {
+      await page.click('#quick');
+    })
+  );
+  const busy = await withInfraRetry(() =>
+    maxEventDuration(page, async () => {
+      await page.click('#busy');
+    })
+  );
   console.log(`HC-UIG-005 busy click: ${busy} ms; quick click after an earlier busy click: ${quick} ms`);
   expect(busy, `a 120 ms click must be reported as >= 100 ms, got ${busy}`).toBeGreaterThanOrEqual(100);
   expect(quick, `the earlier 120 ms click must not be counted, got ${quick}`).toBeLessThan(100);
@@ -525,16 +598,21 @@ const FAIL_FIXTURES: Array<{
 
 for (const fixture of FAIL_FIXTURES) {
   test(`HC-UIG-006 ${fixture.id} stillnessProbe fails: ${fixture.title}`, async ({ page }) => {
-    await serveFixture(page, fixture.html, { slowFetchMs: fixture.slowFetchMs });
-    const error = await stillnessProbe(page, {
-      trigger: startFixture(page),
-      expected: fixture.expected,
-      kind: fixture.kind,
-      lazyRoute: fixture.lazyRoute,
-    }).then(
-      () => null,
-      (caught: unknown) => caught
-    );
+    // An infra-only rejection that does not match fixture.reason retries, so the product assertion is what gets checked.
+    const error = await withInfraRetry(async () => {
+      await serveFixture(page, fixture.html, { slowFetchMs: fixture.slowFetchMs });
+      const rejected = await stillnessProbe(page, {
+        trigger: startFixture(page),
+        expected: fixture.expected,
+        kind: fixture.kind,
+        lazyRoute: fixture.lazyRoute,
+      }).then(
+        () => null,
+        (caught: unknown) => caught
+      );
+      if (rejected !== null && !fixture.reason.test(String(rejected)) && isInfraError(rejected)) throw rejected;
+      return rejected;
+    });
     console.log(`HC-UIG-006 ${fixture.id} rejected with: ${String(error)}`);
     expect(error, 'the probe must reject this fixture').not.toBeNull();
     expect(String(error), 'the rejection must name the property that moved').toMatch(fixture.reason);
@@ -630,7 +708,7 @@ async function runPassFixture(page: Page, fixture: PassFixture) {
 
 for (const fixture of PASS_FIXTURES) {
   test(`HC-UIG-006 ${fixture.id} stillnessProbe passes: ${fixture.title}`, async ({ page }) => {
-    await runPassFixture(page, fixture);
+    await withInfraRetry(() => runPassFixture(page, fixture));
   });
 }
 
@@ -643,7 +721,7 @@ test('HC-UIG-006 pass-2 passes in a fresh browser context (cold sampler, no earl
   const context = await browser.newContext();
   try {
     const page = await context.newPage();
-    const report = await runPassFixture(page, fixture);
+    const report = await withInfraRetry(() => runPassFixture(page, fixture));
     expect(report.maxGapMs, 'no sampling gap may exceed 40 ms on a cold context').toBeLessThanOrEqual(40);
   } finally {
     await context.close();
@@ -790,6 +868,12 @@ async function settleProbe(
   } catch (caught) {
     return { error: caught as Error, report: null };
   }
+}
+
+/** Turns an infra-only probe error back into a throw, so withInfraRetry can retry it; any other outcome passes through. */
+function rethrowInfra(outcome: SettleOutcome): SettleOutcome {
+  if (outcome.error !== null && isInfraError(outcome.error)) throw outcome.error;
+  return outcome;
 }
 
 /**
@@ -943,22 +1027,21 @@ for (const lazyRoute of [false, true]) {
   test(`HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute ${lazyRoute})`, async ({
     page,
   }) => {
-    await serveFixture(
-      page,
-      fixtureHtml(
-        NAV_BODY,
-        `${NAV_SWAP_SCRIPT}
-         ${BEGIN_SLOW_SCRIPT}
-         window.__start = function () {
-           window.__sawDone = window.__slowDone === true;
-           var m = window.__swap('<p data-t0 id="t">Route B 92 mg/dL</p>');
-           m.animate([{opacity:.35},{opacity:1}], {duration:200, fill:'both'});
-         };`
-      ),
-      { slowFetchMs: 700 }
+    const html = fixtureHtml(
+      NAV_BODY,
+      `${NAV_SWAP_SCRIPT}
+       ${BEGIN_SLOW_SCRIPT}
+       window.__start = function () {
+         window.__sawDone = window.__slowDone === true;
+         var m = window.__swap('<p data-t0 id="t">Route B 92 mg/dL</p>');
+         m.animate([{opacity:.35},{opacity:1}], {duration:200, fill:'both'});
+       };`
     );
-    await beginSlowRequest(page);
-    const { error, report } = await settleProbe(page, { kind: 'navigation', lazyRoute });
+    const { error, report } = await withInfraRetry(async () => {
+      await serveFixture(page, html, { slowFetchMs: 700 });
+      await beginSlowRequest(page);
+      return rethrowInfra(await settleProbe(page, { kind: 'navigation', lazyRoute }));
+    });
     console.log(`HC-UIG-010 (f) lazyRoute ${lazyRoute}: error=${String(error)} report=${JSON.stringify(report)}`);
     expect(error, 'a settled page with a normal fade must pass').toBeNull();
     expect(await sawSlowDone(page), 'the trigger must run after the request that began before the probe').toBe(true);
@@ -971,11 +1054,163 @@ for (const lazyRoute of [false, true]) {
 for (const kind of ['interaction', 'overlay'] as const) {
   test(`HC-UIG-010 (g) the ${kind} probe does not wait for the start page to settle`, async ({ page }) => {
     test.setTimeout(45_000);
-    await serveWithHeldRequest(page, HELD_AT_LOAD_HTML);
-    const { error } = await settleProbe(page, { kind });
+    const { error } = await withInfraRetry(async () => {
+      await serveWithHeldRequest(page, HELD_AT_LOAD_HTML);
+      return rethrowInfra(await settleProbe(page, { kind }));
+    });
     console.log(`HC-UIG-010 (g) ${kind}: ${String(error)}`);
     expect(error?.name, `${kind} must not raise the settle error`).not.toBe(SETTLE_ERROR_NAME);
     expect(error, `${kind} on a still page must pass`).toBeNull();
     expect(await wasStarted(page), 'the trigger ran').toBe(true);
   });
 }
+
+// ---------------------------------------------------------------------------
+// HC-UIG-011: withInfraRetry retries harness starvation only (pure, no browser).
+// ---------------------------------------------------------------------------
+const stillnessErrorWith = (...lines: string[]) =>
+  new StillnessError(`stillnessProbe failed (${lines.length}):\n  - ${lines.join('\n  - ')}`);
+
+/** Runs withInfraRetry over a body that throws `error` every time; returns how many times it was called. */
+async function callsUntilStop(error: Error): Promise<number> {
+  let calls = 0;
+  await withInfraRetry(
+    async () => {
+      calls++;
+      throw error;
+    },
+    { pauseMs: 0 }
+  ).catch(() => undefined);
+  return calls;
+}
+
+test('HC-UIG-011 withInfraRetry retries sampling-gap and TimeoutError, and throws everything else at once', async () => {
+  const gap = stillnessErrorWith('sampling gap of 180 ms (must be <= 40 ms; G10 samples every 16-40 ms)');
+  const sparse = stillnessErrorWith('only 3 sample(s) after the trigger; the 800 ms window needs at least 20');
+  expect(await callsUntilStop(gap), 'a sampling-gap error uses all 3 attempts').toBe(3);
+  expect(await callsUntilStop(sparse), 'a sparse-sample error uses all 3 attempts').toBe(3);
+  expect(await callsUntilStop(new StillnessError('stillnessProbe lost its sampler: the page reloaded')), 'lost sampler').toBe(3);
+  expect(await callsUntilStop(new errors.TimeoutError('page.goto: Timeout 30000ms exceeded')), 'TimeoutError').toBe(3);
+
+  const opacity = stillnessErrorWith('effective opacity 0.35 must be 1 on [data-t0] p#t');
+  const mixed = stillnessErrorWith('sampling gap of 180 ms (x)', 'computed transform changed on [data-t0] p#t');
+  expect(await callsUntilStop(opacity), 'a product failure throws at once').toBe(1);
+  expect(await callsUntilStop(mixed), 'one product line in a mixed list throws at once').toBe(1);
+  expect(await callsUntilStop(new StillnessSettleError('start page never settled; sampling gap of 1 ms')), 'settle error').toBe(1);
+  expect(await callsUntilStop(new Error('expect(received).toBe(expected)')), 'an assertion error').toBe(1);
+});
+
+test('HC-UIG-011 withInfraRetry succeeds after an infra failure, and a passing body runs exactly once', async () => {
+  let calls = 0;
+  const result = await withInfraRetry(
+    async () => {
+      calls++;
+      if (calls < 2) throw stillnessErrorWith('sampling gap of 90 ms (x)');
+      return 'ok';
+    },
+    { pauseMs: 0 }
+  );
+  expect(result).toBe('ok');
+  expect(calls, 'one retry, then a pass').toBe(2);
+});
+
+test('HC-UIG-011 a wrapped probe on a known-good PASS fixture runs once (no double run)', async ({ page }) => {
+  const fixture = PASS_FIXTURES.find((candidate) => candidate.id === 'pass-1');
+  if (!fixture) throw new Error('pass-1 fixture is missing');
+  let calls = 0;
+  await withInfraRetry(() => {
+    calls++;
+    return runPassFixture(page, fixture);
+  });
+  expect(calls, 'a good fixture passes on the first attempt').toBe(1);
+});
+
+// ---------------------------------------------------------------------------
+// HC-UIG-012: reducedMotionSnapshot tells a static positioning transform from motion (GATES-POPPER-TRANSFORM).
+// ---------------------------------------------------------------------------
+const noAction = async () => undefined;
+
+test('HC-UIG-012 (a) a static popper-style translate wrapper is not an offender', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml('<div id="popper" style="position:absolute;transform:translate(223px,447px)"><p>Menu</p></div>', '')
+  );
+  const offenders = await reducedMotionSnapshot(page, noAction);
+  console.log(`HC-UIG-012 (a) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a never-animated positioning translate is not motion').toEqual([]);
+});
+
+test('HC-UIG-012 (b) a transform rewritten through the window is reported as moving', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<div id="mover" style="width:40px;height:40px">x</div>',
+      "var n = 0; setInterval(function () { n += 7; document.getElementById('mover').style.transform = 'translateX(' + n + 'px)'; }, 20);"
+    )
+  );
+  const offenders = await reducedMotionSnapshot(page, noAction);
+  console.log(`HC-UIG-012 (b) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'running motion is one offender').toHaveLength(1);
+  expect(offenders[0], 'tagged moving').toMatch(/#mover.* moving/);
+});
+
+test('HC-UIG-012 (c) a static rotate is still an offender', async ({ page }) => {
+  await serveFixture(page, fixtureHtml('<div id="tilt" style="transform:rotate(2deg)">x</div>', ''));
+  const offenders = await reducedMotionSnapshot(page, noAction);
+  console.log(`HC-UIG-012 (c) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a residual rotate has no positioning justification').toHaveLength(1);
+  expect(offenders[0]).toMatch(/#tilt transform=matrix/);
+  expect(offenders[0], 'not tagged moving').not.toMatch(/moving/);
+});
+
+test('HC-UIG-012 (d) a translation that settles before the first read reads as static (accepted blind spot)', async ({
+  page,
+}) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<div id="settled" style="width:40px;height:40px">x</div>',
+      "document.getElementById('settled').animate([{transform:'translateX(0px)'},{transform:'translateX(30px)'}], {duration:20, fill:'forwards'});"
+    )
+  );
+  // Design statement, not a silence: this is what the two-read rule cannot see (README, reducedMotionSnapshot docstring).
+  const offenders = await reducedMotionSnapshot(page, async () => {
+    await page.waitForTimeout(100);
+  });
+  console.log(`HC-UIG-012 (d) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a finished pure translation is indistinguishable from positioning').toEqual([]);
+});
+
+// HC-UIG-012 (e)/(f): a node that leaves the DOM between the two reads is not motion (UI-GATES-TIMING-FLAKE, L0 ruling R7).
+// The removal lands at ~120 ms after the action: after the first read (~50 ms) and before the second (~200 ms).
+const removeToastAt120 = (page: import('@playwright/test').Page) => async () => {
+  await page.evaluate(() => {
+    setTimeout(() => document.getElementById('toast')?.remove(), 120);
+  });
+};
+
+test('HC-UIG-012 (e) an element removed between the two reads is not an offender', async ({ page }) => {
+  await serveFixture(
+    page,
+    fixtureHtml('<div id="toast" style="position:absolute;transform:translate(10px,20px)">Saved</div><p>stay</p>', '')
+  );
+  const offenders = await reducedMotionSnapshot(page, removeToastAt120(page));
+  console.log(`HC-UIG-012 (e) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'a node that left the DOM is not motion').toEqual([]);
+});
+
+test('HC-UIG-012 (f) a removed element is ignored but a connected element whose transform changes still fails', async ({
+  page,
+}) => {
+  await serveFixture(
+    page,
+    fixtureHtml(
+      '<div id="toast" style="position:absolute;transform:translate(10px,20px)">Saved</div><div id="mover" style="width:40px;height:40px">x</div>',
+      "var n = 0; setInterval(function () { n += 7; document.getElementById('mover').style.transform = 'translateX(' + n + 'px)'; }, 20);"
+    )
+  );
+  const offenders = await reducedMotionSnapshot(page, removeToastAt120(page));
+  console.log(`HC-UIG-012 (f) offenders: ${JSON.stringify(offenders)}`);
+  expect(offenders, 'only the connected mover is reported').toHaveLength(1);
+  expect(offenders[0]).toMatch(/#mover.* moving/);
+});
