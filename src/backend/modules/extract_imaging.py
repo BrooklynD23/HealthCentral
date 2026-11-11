@@ -19,13 +19,13 @@ BODY_REGION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-FINDINGS_PATTERN = re.compile(r"(?>FINDINGS?):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})", re.DOTALL | re.IGNORECASE)
-IMPRESSION_PATTERN = re.compile(r"(?>IMPRESSION):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})", re.DOTALL | re.IGNORECASE)
+FINDINGS_PATTERN = re.compile(r"(?>\bFINDINGS?\s*+:)\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})", re.DOTALL | re.IGNORECASE)
+IMPRESSION_PATTERN = re.compile(r"(?>\bIMPRESSION\s*+:)\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})", re.DOTALL | re.IGNORECASE)
 
 LATERALITY_PATTERN = re.compile(r"\b(left|right|bilateral)\b", re.IGNORECASE)
 CONTRAST_PATTERN = re.compile(r"\b(with(?:out)?\s+contrast|contrast[\-\s]enhanced|non[\-\s]?contrast)\b", re.IGNORECASE)
-ORDERING_PROVIDER_PATTERN = re.compile(r"(?:ordering|referring)\s+(?:physician|provider|doctor|MD):?\s*(.+)", re.IGNORECASE)
-REPORT_DATE_PATTERN = re.compile(r"(?:date|exam\s+date|study\s+date):?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})", re.IGNORECASE)
+ORDERING_PROVIDER_PATTERN = re.compile(r"\b(?:ordering|referring)\s+(?:physician|provider|doctor|MD)\b:?\s*(.+)", re.IGNORECASE)
+REPORT_DATE_PATTERN = re.compile(r"\b(?:date|exam\s+date|study\s+date)\b:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})", re.IGNORECASE)
 
 
 def extract_imaging_entities(text: str) -> list[dict]:
