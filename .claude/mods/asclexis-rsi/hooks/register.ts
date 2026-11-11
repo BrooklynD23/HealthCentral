@@ -1,5 +1,5 @@
 import type { Register } from 'claude-code'
-import { checkAfter, checkBefore, classifyError, scoreboard, tracker, type Row } from './logic'
+import { checkAfter, checkBefore, classifyError, commandSignature, fieldOf, scoreboard, tracker, type CmdSig, type Row } from './logic'
 
 const LOG_DIR = '.claude/logs/rsi'
 const DAY = 86_400_000
@@ -73,6 +73,10 @@ export const register: Register = on => {
       const rule = guardRule ?? hintRule
       const { retry, edit_test_fail } = track.note(tool, input, !failed)
       const ts = await iso($)
+      // Redacted signature for Bash commands only (RSI-LOG-CMD): absent when there is no
+      // command — never guessed. Own try/catch so a signature bug can never eat the row.
+      let cmdSig: CmdSig | null = null
+      try { cmdSig = tool === 'Bash' ? commandSignature(fieldOf(tool, input)) : null } catch {}
       const row: Row = {
         v: 1, ts, session: await sessionId($), kind: 'tool', tool,
         ok: !failed,
@@ -83,6 +87,7 @@ export const register: Register = on => {
         error_class: rule?.errorClass ?? (failed ? classifyError(text, tool) : null),
         retry, edit_test_fail,
       }
+      if (cmdSig) row.cmd_sig = cmdSig
       calls++
       if (failed) fails++
       if (rule) guards++
