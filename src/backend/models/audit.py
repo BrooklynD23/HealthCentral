@@ -1,7 +1,7 @@
 """
 Audit log model for tracking all operations.
 
-HIPAA-compliant audit trail for security and compliance.
+Audit trail modelled on the HIPAA technical safeguards for security and compliance.
 """
 
 import uuid
@@ -22,7 +22,7 @@ class AuditLog(Base):
     """
     Audit trail entry.
 
-    Records all significant operations for HIPAA compliance:
+    Records all significant operations for security review:
     - Profile access and modifications
     - Document imports, views, and deletes
     - Observation edits and verifications
