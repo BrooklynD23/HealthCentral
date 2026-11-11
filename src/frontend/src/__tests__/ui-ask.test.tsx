@@ -459,6 +459,48 @@ describe('UI-PG-ASK', () => {
       // The upsert replaces the row, so leaving the submitted tags out would erase them; the unsent tick stays out.
       expect(feedbackBodies()[2]).toMatchObject({ rating: 1, feedback_tags: ['inaccurate'] });
     });
+
+    // FEEDBACK-MODEL-FIELDS-SET: the upsert now keeps a field the request leaves out, so a clear must be explicit.
+    // Blind spot: these assert the bodies the page sends, not what api/feedback.py stores (test_feedback_upsert_keep.py).
+    it('HC-FBK-005: clearing the correction box and pressing Submit sends correction_text null', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'the submitted answer');
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      expect(feedbackBodies()[1].correction_text).toBe('the submitted answer');
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Feedback options' })); // reopen the box
+      await user.clear(screen.getByRole('textbox', { name: /better answer/i }));
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      expect((feedbackBodies()[2] as { correction_text?: string | null }).correction_text).toBeNull();
+    });
+
+    it('HC-FBK-006: unticking every tag and pressing Submit sends feedback_tags null', async () => {
+      const user = userEvent.setup();
+      await answered(user);
+
+      await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+      await user.click(screen.getByRole('button', { name: 'inaccurate' }));
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+      expect(feedbackBodies()[1]).toMatchObject({ feedback_tags: ['inaccurate'] });
+
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Helpful' })).toBeEnabled());
+      await user.click(screen.getByRole('button', { name: 'Feedback options' })); // reopen the picker
+      await user.click(screen.getByRole('button', { name: 'inaccurate' })); // untick
+      await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+      await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+
+      expect((feedbackBodies()[2] as { feedback_tags?: string[] | null }).feedback_tags).toBeNull();
+    });
   });
 
   describe('HC-UIASK-004: no orb and no canvas (pin for the tier rule)', () => {
