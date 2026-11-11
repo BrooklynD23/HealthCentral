@@ -1,7 +1,7 @@
 {
   "$comment": "MODEL-INT-001 — SHA256 pins for local model artifacts. A silently swapped model artifact silently invalidates every tuned guardrail threshold and golden eval, so the artifact identity is checked at download and at load. Entries with sha256=null are UNPINNED and are reported as such rather than being treated as verified: fabricating a hash would be worse than admitting we do not have one. Add a pin by downloading the artifact, running `python -m modules.model_integrity --hash <path>`, and recording the result here together with the date and where it was obtained.",
   "manifest_version": 1,
-  "updated": "2026-10-20",
+  "updated": "2026-11-11",
   "models": {
     "low": {
       "repo": "Qwen/Qwen2.5-0.5B-Instruct-GGUF",
@@ -10,11 +10,11 @@
       "note": "Unpinned — pin on first verified local download."
     },
     "mid": {
-      "repo": "microsoft/Phi-3-mini-4k-instruct-gguf",
+      "repo": "bartowski/microsoft_Phi-4-mini-instruct-GGUF",
       "filename": null,
       "filename_pattern": "q4_k_m",
       "sha256": null,
-      "note": "Unpinned — filename is resolved by pattern, so the pin must record the exact resolved filename."
+      "note": "Unpinned — filename is resolved by pattern, so the pin must record the exact resolved filename. Repo follows TIER_MODEL_CONFIG; unverified (see model_selector.py)."
     },
     "high": {
       "repo": "BioMistral/BioMistral-7B-GGUF",
