@@ -421,6 +421,62 @@ describe('UI-PG-ASK', () => {
         await waitFor(() => expect(helpful).toHaveAttribute('aria-pressed', 'true'));
         expect(notHelpful).toHaveAttribute('aria-pressed', 'false');
       });
+
+      // ASK-FEEDBACK-FALSE-THANKS (owner answer ASK-FEEDBACK-FAIL-COPY). Blind spot: the mock rejects the POST; it
+      // cannot tell a network error from a 4xx, and it asserts the alert role, not live-region timing in a real AT.
+      it('HC-AFT-001: a failed Submit hides "Thanks!", shows the inline error and keeps the typed text', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+
+        await user.click(screen.getByRole('button', { name: 'Not helpful' })); // saved: "Thanks!" shows
+        await waitFor(() => expect(screen.getByText('Thanks!')).toBeInTheDocument());
+        await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'my correction');
+
+        failFeedback = true;
+        await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(2));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent("Your feedback wasn't saved. Try again.");
+        expect(screen.queryByText('Thanks!')).not.toBeInTheDocument();
+        expect(screen.getByRole('textbox', { name: /better answer/i })).toHaveValue('my correction');
+      });
+
+      it('HC-AFT-002: a retry that succeeds clears the error, brings "Thanks!" back and resends the same text', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+
+        await user.click(screen.getByRole('button', { name: 'Not helpful' }));
+        await waitFor(() => expect(screen.getByText('Thanks!')).toBeInTheDocument());
+        await user.type(screen.getByRole('textbox', { name: /better answer/i }), 'my correction');
+        failFeedback = true;
+        await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+        expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+        failFeedback = false;
+        await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(3));
+        await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+        expect(screen.getByText('Thanks!')).toBeInTheDocument();
+        expect(feedbackBodies()[2].correction_text).toBe('my correction');
+        expect(feedbackBodies()[1].correction_text).toBe('my correction');
+      });
+
+      it('HC-AFT-003: a failed thumb shows no inline error (the alert is for Submit only)', async () => {
+        const user = userEvent.setup();
+        await answered(user);
+        useFlakyFeedback();
+        const helpful = screen.getByRole('button', { name: 'Helpful' });
+
+        failFeedback = true;
+        await user.click(helpful);
+        await waitFor(() => expect(feedbackBodies()).toHaveLength(1));
+        await waitFor(() => expect(helpful).toBeEnabled());
+
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText('Thanks!')).not.toBeInTheDocument();
+      });
     });
 
     it('a thumb click never sends tags that were ticked but not submitted', async () => {
