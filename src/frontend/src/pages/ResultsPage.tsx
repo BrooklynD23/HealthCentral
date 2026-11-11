@@ -344,11 +344,13 @@ export function ResultsPage() {
     URL.revokeObjectURL(objectUrl);
   }, [effectiveAnalyte]);
 
-  const handleGenerateInterpretation = () => {
+  // `force` is true only for the card's Regenerate button: it asks the server to rebuild the card (and re-run the
+  // safety check). The first Generate stays unforced.
+  const handleGenerateInterpretation = (force = false) => {
     if (!effectiveObservation) return;
     const observationId = effectiveObservation.id;
     generateInterpretation.mutate(
-      { observationId },
+      { observationId, forceRegenerate: force },
       {
         onSuccess: (data) => {
           if (data.withheld) {
@@ -774,7 +776,7 @@ export function ResultsPage() {
                   unit={effectiveObservation?.unit ?? undefined}
                   refLow={effectiveObservation?.ref_low}
                   refHigh={effectiveObservation?.ref_high}
-                  onRegenerate={handleGenerateInterpretation}
+                  onRegenerate={() => handleGenerateInterpretation(true)}
                   isRegenerating={generateInterpretation.isPending}
                   observation={effectiveObservation ?? undefined}
                   alwaysShowSources={strictSafetyMode}
@@ -791,7 +793,7 @@ export function ResultsPage() {
                         </p>
                       </div>
                       <Button
-                        onClick={handleGenerateInterpretation}
+                        onClick={() => handleGenerateInterpretation()}
                         disabled={generateInterpretation.isPending}
                         className="gap-2"
                       >

@@ -908,4 +908,55 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
       view.unmount();
     }
   });
+
+  const postedUrls = () => vi.mocked(api.apiPost).mock.calls.map((call) => String(call[0]));
+  const normalBody = () => ({
+    interpretation: storedCard,
+    grounded_segments: [],
+    full_response: '**FACTS**\nRebuilt grounded text.',
+    insufficient_context: false,
+    insufficient_reasons: [],
+    verification: { ...emptyVerification, enabled: true, faithfulness_score: 1 },
+    is_valid: true,
+    validation_errors: [],
+  });
+
+  it('HC-RGF-001 Regenerate on a stored card asks the server to rebuild it', async () => {
+    mockPage({ stored: true, post: normalBody });
+    renderPage();
+    await openExplain();
+    expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+
+    await screen.findByText('Rebuilt grounded text.');
+    const posts = postedUrls().filter((url) => url.includes('/interpret-grounded'));
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toContain('force_regenerate=true');
+  });
+
+  it('HC-RGF-002 the first Generate (no card yet) does not send force_regenerate', async () => {
+    mockPage({ post: normalBody });
+    renderPage();
+    await openExplain();
+    fireEvent.click(await screen.findByRole('button', { name: /Generate Interpretation/i }));
+
+    await screen.findByText('Grounded explanation');
+    const posts = postedUrls().filter((url) => url.includes('/interpret-grounded'));
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).not.toContain('force_regenerate');
+  });
+
+  it('HC-RGF-003 a withheld answer to a forced Regenerate keeps the stored card on screen', async () => {
+    mockPage({ stored: true, post: withheldBody });
+    renderPage();
+    await openExplain();
+    expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+
+    await screen.findByText(LEAD);
+    const posts = postedUrls().filter((url) => url.includes('/interpret-grounded'));
+    expect(posts[0]).toContain('force_regenerate=true');
+    expect(screen.getByText('Stored card text.')).toBeInTheDocument();
+    expect(screen.queryByText('No interpretation yet')).toBeNull();
+  });
 });
