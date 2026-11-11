@@ -1068,6 +1068,67 @@ describe('HC-UIDOC-019 no count while the list loads', () => {
 });
 
 // ---------------------------------------------------------------------------
+// HC-UIDOC-020..022 (DOCUMENT-REMOVE-NO-ALERT, owner DOC-REMOVE-FAIL-COPY "Alert card"): a Remove that fails must say
+// so. The dialog closes and the row stays, so without a message the patient cannot tell it failed.
+// ---------------------------------------------------------------------------
+describe('HC-UIDOC-020..022 a failed Remove says so', () => {
+  async function removeRow(user: ReturnType<typeof userEvent.setup>, name: string) {
+    await openRowMenu(user, rowOf(name));
+    await user.click(await screen.findByRole('menuitem', { name: /delete/i }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
+  }
+
+  it('HC-UIDOC-020: a failed DELETE shows an alert naming the document; the row and the review card stay', async () => {
+    // Would not notice: a network error against a 4xx (both reach the same handler); the real Radix focus trap (the
+    // e2e HC-UIDOC-005 covers the dialog); the alert's axe contrast in the dark theme (it reuses the import card's classes).
+    // RED before this round: Unable to find role="alert" (the rejection handler was empty).
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiUpload.mockResolvedValueOnce(importResponse({ observations_extracted: 3, doc: { id: 'new-1', source: 'fresh.pdf' } }) as never);
+    documents = [makeDoc({ id: 'new-1', source: 'fresh.pdf' }), ...documents];
+    await upload(user, 'fresh.pdf');
+    await screen.findByRole('link', { name: '3 values ready to review' });
+
+    apiDelete.mockRejectedValueOnce(new api.ApiError(500, 'Server Error', 'nope'));
+    await removeRow(user, 'fresh.pdf');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't remove fresh.pdf");
+    expect(alert).toHaveTextContent('It is still in your library. Try again.');
+    expect(within(alert).getByRole('button', { name: 'Dismiss' })).toBeInTheDocument();
+    expect(rowOf('fresh.pdf')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '3 values ready to review' })).toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-021: Dismiss clears the alert; a later successful Remove of the same row removes it with no alert', async () => {
+    // Would not notice: an alert hidden by CSS only; this looks for the role, so one left in the DOM is found.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiDelete.mockRejectedValueOnce(new api.ApiError(500, 'Server Error', 'nope'));
+    await removeRow(user, 'a.pdf');
+    const alert = await screen.findByRole('alert');
+    await user.click(within(alert).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    apiDelete.mockResolvedValueOnce(undefined as never);
+    documents = [];
+    await removeRow(user, 'a.pdf');
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'a.pdf' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('HC-UIDOC-022: a successful Remove never shows the alert (green pin)', async () => {
+    // Would not notice: an alert that appears and clears inside one frame; the check runs after the row has gone.
+    const user = userEvent.setup();
+    await renderLoaded();
+    apiDelete.mockResolvedValueOnce(undefined as never);
+    documents = [];
+    await removeRow(user, 'a.pdf');
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'a.pdf' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // HC-UIDOC-006: the rows wait for the highlight summary on a cold load, so chips never arrive after the rows and push
 // the rows below them down. The e2e half navigates /verify to /inbox under stillnessProbe with the summary held.
 // ---------------------------------------------------------------------------

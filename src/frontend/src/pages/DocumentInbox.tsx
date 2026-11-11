@@ -84,6 +84,8 @@ export function DocumentInbox() {
   useEffect(() => () => waitTimers.current.forEach(clearTimeout), []);
   // Documents the patient removed in this visit: their import card and duplicate warning leave with their row.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
+  // A Remove the server refused: the row stays, so the patient is told (HC-UIDOC-020). Cleared by Dismiss or a later Remove.
+  const [removeError, setRemoveError] = useState<{ name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreButtons = useRef(new Map<string, HTMLButtonElement>());
   const importButton = useRef<HTMLButtonElement>(null);
@@ -241,9 +243,11 @@ export function DocumentInbox() {
     // the list drops the row (importResultShown), not before, so the two leave in one frame. The record is made here and
     // not in a per-call onSuccess: that fires only for the observer's latest call, so a second Remove sent while this
     // one is in flight would lose it. A failed DELETE records nothing (the document is still there).
+    const name = deleteTarget.source || 'this document';
+    setRemoveError(null);
     deleteDocument.mutateAsync(id).then(
       () => setRemovedIds((current) => [...current, id]),
-      () => {}
+      () => setRemoveError({ name })
     );
     setDeleteTarget(null);
     // With a neighbour: preventScroll. The page scrolls smoothly (globals.css), and a focus() that scrolls it slides every
@@ -300,6 +304,30 @@ export function DocumentInbox() {
               className="shrink-0"
               aria-label={`Dismiss import error for ${importErrorShown.fileName}`}
               onClick={() => setImportError(null)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {removeError && (
+        <Card className="border-status-critical/30 bg-status-critical/5" role="alert" data-inbox-remove-error>
+          <CardContent className="py-4 flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-status-critical shrink-0 mt-0.5" />
+              <div className="min-w-0 break-words">
+                <p className="font-medium text-ink">Couldn't remove {removeError.name}</p>
+                <p className="text-sm text-ink-secondary mt-1">It is still in your library. Try again.</p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              aria-label="Dismiss"
+              onClick={() => setRemoveError(null)}
             >
               <X className="w-4 h-4" />
             </Button>
