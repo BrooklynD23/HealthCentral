@@ -301,6 +301,8 @@ const EMPTY_FEEDBACK = {
   savedTags: [] as FeedbackTag[],
   submitting: false,
   submitted: false,
+  // The last "Submit feedback" failed: "Thanks!" is hidden and the inline error shows until a save succeeds.
+  saveFailed: false,
   selectedTags: [] as FeedbackTag[],
 };
 
@@ -409,7 +411,7 @@ export function ExplainAssistant() {
           correction_text: fs.savedCorrection || undefined,
         },
       });
-      updateFeedbackState(msg.id, { submitting: false, submitted: true });
+      updateFeedbackState(msg.id, { submitting: false, submitted: true, saveFailed: false });
     } catch {
       // Back to the stored rating (null if none), so the screen shows what the row has and the next click retries.
       updateFeedbackState(msg.id, { submitting: false, rating: fs.rating });
@@ -435,13 +437,15 @@ export function ExplainAssistant() {
       updateFeedbackState(msg.id, {
         submitting: false,
         submitted: true,
+        saveFailed: false,
         correctionOpen: false,
         tagsOpen: false,
         savedCorrection: fs.correction.trim(),
         savedTags: fs.selectedTags,
       });
     } catch {
-      updateFeedbackState(msg.id, { submitting: false });
+      // Keep the box open and the typed text and tags, so a retry sends the same thing.
+      updateFeedbackState(msg.id, { submitting: false, submitted: false, saveFailed: true });
     }
   };
 
@@ -771,7 +775,7 @@ export function ExplainAssistant() {
                     {fs.tagsOpen ? <ChevronUp className="w-3 h-3" aria-hidden="true" /> : <ChevronDown className="w-3 h-3" aria-hidden="true" />}
                   </IconButton>
                 )}
-                {fs.submitted && (
+                {fs.submitted && !fs.saveFailed && (
                   <span className="text-xs text-status-success ml-1">Thanks!</span>
                 )}
               </div>
@@ -821,6 +825,11 @@ export function ExplainAssistant() {
                       >
                         {fs.submitting ? 'Saving…' : 'Submit feedback'}
                       </Button>
+                      {fs.saveFailed && (
+                        <p role="alert" className="text-xs text-status-danger">
+                          Your feedback wasn't saved. Try again.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
