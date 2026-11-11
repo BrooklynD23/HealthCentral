@@ -110,15 +110,70 @@ class TestExtractionPipeline:
         assert glucose_obs.unit == "mg/dL"
 
     @pytest.mark.asyncio
-    async def test_api_import_003_document_status_set_to_parsed(self, extract_module):
+    async def test_api_import_003_document_status_set_to_parsed(self, monkeypatch):
         """
         API-IMPORT-003: Document status set to 'parsed' on success.
 
         After successful extraction, the document status should be updated.
         """
-        # This will be tested in integration - for now verify extraction succeeds
-        # The API endpoint should update status after extraction completes
-        pass  # Integration test will cover this
+        import io
+        from unittest.mock import AsyncMock
+
+        import api.documents as documents_api
+        from models import Document
+
+        document = Document(
+            id=str(uuid.uuid4()),
+            profile_id="profile-a",
+            path_hash="p" * 64,
+            content_hash="c" * 64,
+            doc_type="lab_pdf",
+            status="imported",
+            imported_at=documents_api.utcnow(),
+        )
+        stubbed_observations = [
+            ExtractedObservation(
+                analyte_raw="Glucose",
+                value=95.0,
+                unit="mg/dL",
+                ref_low=70.0,
+                ref_high=100.0,
+                flag=None,
+                confidence=0.9,
+                provenance=Provenance(page=1, text_snippet="Glucose: 95 mg/dL (70-100)"),
+            ),
+        ]
+
+        class _StubExtract:
+            async def extract_from_pdf(self, _source, document_id, ocr_pages=True):
+                return ExtractionResult(
+                    document_id=document_id,
+                    observations=stubbed_observations,
+                    extracted_text="t",
+                )
+
+        monkeypatch.setattr(documents_api, "ExtractModule", _StubExtract)
+        monkeypatch.setattr(
+            documents_api, "get_decrypted_document", lambda *_a: io.BytesIO(b"%PDF")
+        )
+        monkeypatch.setattr(
+            documents_api, "_create_chunks_and_embeddings", AsyncMock(return_value=0)
+        )
+
+        profile_db = AsyncMock()
+        profile_db.execute.return_value.scalar_one_or_none.return_value = None
+
+        out = await documents_api._run_extraction_pipeline(
+            profile_db, "profile-a", document, refresh_existing=False
+        )
+
+        assert document.status == "parsed"
+        assert document.parsed_at is not None
+        assert document.verified_at is None
+        assert out["observations_extracted"] == 1
+        assert out["needs_verification"] == documents_api._compute_needs_verification(
+            stubbed_observations
+        )
 
     @pytest.mark.asyncio
     async def test_api_import_004_needs_verification_computed(self, sample_observations):
@@ -552,6 +607,53 @@ class TestExtractFormats:
             result = await extract_module.extract_from_pdf(tmp_path / "c.pdf", "doc")
         # The unit filter applies only on pages that have tables.
         assert [o.analyte_raw for o in result.observations] == ["Glucose"]
+
+    def test_hc_exf_007a_inverted_range_ordered_column_form(self, extract_module):
+        # RANGE-ORDER (owner answer 2026-11-07: swap the bounds, keep the printed
+        # text). A backwards-printed interval stores ordered; ref_range_text and
+        # provenance keep "99-70" verbatim so the swap is auditable.
+        obs = extract_module._extract_from_text("Glucose 105 mg/dL 99-70", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+    def test_hc_exf_007b_inverted_range_ordered_colon_form(self, extract_module):
+        obs = extract_module._extract_from_text("Glucose: 105 mg/dL (99-70)", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+    def test_hc_exf_007c_inverted_range_ordered_alt_form_and_table_cell(self, extract_module):
+        obs = extract_module._extract_from_text("Glucose 105 mg/dL (99-70)", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+        table = [
+            ["Test", "Result", "Units", "Range"],
+            ["Glucose", "105", "mg/dL", "99-70"],
+        ]
+        obs = extract_module._extract_from_table(table, 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
+
+    def test_hc_exf_007d_ordering_pins(self, extract_module):
+        # Pins: only a both-bounds inverted pair is reordered.
+        obs = extract_module._extract_from_text("TSH 2.10 mIU/L <4.5", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (None, 4.5)
+        assert obs[0].ref_range_text == "<4.5"
+
+        obs = extract_module._extract_from_text("Glucose 80 mg/dL 80-80", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (80.0, 80.0)
+        assert obs[0].ref_range_text == "80-80"
+
+        obs = extract_module._extract_from_text("Glucose: 105 mg/dL (Normal: 99-70)", 1, "t")
+        assert len(obs) == 1
+        assert (obs[0].ref_low, obs[0].ref_high) == (70.0, 99.0)
+        assert obs[0].ref_range_text == "99-70"
 
 
 class TestMgPerLiterUnit:

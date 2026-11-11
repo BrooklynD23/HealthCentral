@@ -1,7 +1,8 @@
 """VISIT-ASSIST-THINK: the visit-note LLM assist must turn thinking off.
 
 With Gemma 4 and thinking on, the assist returned nothing. Only the visit-note
-assist sets ``think=False``; the RAG call sites keep the provider default.
+assist sets ``think=False``; of the RAG call sites, ``_generate_with_runner``
+now sets it too (KV-THINK-RAG) while ``generate_response`` keeps the default.
 
 The config is captured from the real call sites and then pushed through the real
 Ollama request-body builder, so a hand-built ``InferenceConfig`` never stands in.
@@ -11,7 +12,7 @@ model returns a non-empty answer with thinking off; that needs a model-host run.
 
 HC-VAT-001  llm_assist_visit_entities passes think=False to the runner
 HC-VAT-002  that recorded config puts "think": false in the /api/chat body
-HC-VAT-003  the two RAG call sites still leave think unset (pin)
+HC-VAT-003  _generate_with_runner sends think=False; generate_response leaves it unset (pin)
 """
 
 from __future__ import annotations
@@ -65,11 +66,12 @@ async def test_hc_vat_003_rag_call_sites_leave_think_unset():
     with patch("modules.rag.get_model_runner"), patch("modules.rag.EmbeddingsModule"):
         rag = RAGModule(enable_verification=True)
 
-    # RAGModule.query reaches the model through _generate_with_runner.
+    # RAGModule.query reaches the model through _generate_with_runner, which
+    # also disables thinking since KV-THINK-RAG (cite-schema answers went empty).
     via_runner = _RecordingRunner()
     await rag._generate_with_runner("prompt", via_runner)
     assert len(via_runner.configs) == 1
-    assert via_runner.configs[0].think is None
+    assert via_runner.configs[0].think is False
 
     # generate_response uses the module's own runner.
     own = _RecordingRunner()
