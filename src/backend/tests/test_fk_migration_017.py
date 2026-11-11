@@ -133,6 +133,11 @@ def _insert(conn, table: str, **values) -> str:
     return row["id"]
 
 
+# Tables created by a revision after 017_fk_cascade_alignment. 017 neither reads nor
+# rewrites them, so the before/after comparison leaves them out (C-GC1, 019).
+_TABLES_AFTER_017 = {"export_artifact"}
+
+
 def _snapshot(conn) -> dict[str, list[tuple]]:
     """Every row of every application table (cells compared as stored)."""
     tables = [
@@ -141,6 +146,7 @@ def _snapshot(conn) -> dict[str, list[tuple]]:
             "SELECT name FROM sqlite_master WHERE type='table' "
             "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'alembic_%' ORDER BY name"
         )
+        if r[0] not in _TABLES_AFTER_017
     ]
     return {
         t: sorted((tuple(r) for r in conn.execute(f"SELECT * FROM {t}")), key=repr)
@@ -2589,7 +2595,7 @@ def test_hc_fkb_003_unversioned_vault_already_at_017_is_stamped_only(
 ):
     monkeypatch.setattr(settings, "database_encryption_required", False)
     path = tmp_path / "vault.db"
-    command.upgrade(_alembic_cfg(path), "head")
+    command.upgrade(_alembic_cfg(path), "018_ocr_opt_in")  # the vault this test stamps; head moved on (019)
     conn = _connect(path)
     try:
         _insert(conn, "chunks", id="OC", doc_id="MISSING")  # an orphan nobody cleans now

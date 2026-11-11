@@ -35,7 +35,9 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   Those failures are environmental — they are not yours; fix them by fetching
   the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
-  **collected** count, which does not vary by environment: if it differs from
+  **collected** count, which can vary by installed optional deps (e.g. ±2 for
+  `sentence-transformers`): judge on your own measured count + delta against
+  the posted baseline; if it still differs from
   4661, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
@@ -51,7 +53,7 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   cannot see a broken `Depends(...)`. Use `tests/support/routes.py::route_client`
   for anything asserting auth, path scoping, or status codes.
 - **Read [docs/agentic/recurring-failures.md](docs/agentic/recurring-failures.md)
-  before claiming done.** Eighteen failure modes this repo has actually produced,
+  before claiming done.** Nineteen failure modes this repo has actually produced,
   each with the evidence that exposed it and a specific recheck. Catch a new
   instance of one — or a mode that is not listed — and add it in the same commit.
 - Done is defined once, in [AGENT.md](AGENT.md#definition-of-done). It requires seeing the output, not believing it.

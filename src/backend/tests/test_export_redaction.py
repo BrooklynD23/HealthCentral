@@ -108,6 +108,12 @@ class _Result:
     def scalars(self) -> _Scalars:
         return _Scalars(self._rows)
 
+    def scalar_one_or_none(self) -> None:
+        return None  # no persisted export_artifact row (G-C1)
+
+    def all(self) -> list:
+        return []  # no persisted export_artifact rows to prune (EXPORT-LIVE-LOGIN)
+
 
 class _FakeProfileDb:
     """Returns the fixture rows for any query (pattern: test_observations_audit.py)."""
@@ -117,6 +123,15 @@ class _FakeProfileDb:
 
     async def execute(self, _stmt: object) -> _Result:
         return _Result(self._rows)
+
+    def add(self, _obj: object) -> None:  # export_artifact stage (G-C1)
+        pass
+
+    async def flush(self) -> None:
+        pass
+
+    async def commit(self) -> None:
+        pass
 
 
 @pytest.fixture(autouse=True)

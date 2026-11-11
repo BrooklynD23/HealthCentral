@@ -1429,7 +1429,16 @@ I was unable to fully process your question within the time limit. Please try as
                     or any(type(c) is not int or not 1 <= c <= n_chunks for c in cites)
                 ):
                     return None
-                rendered.append(f"- {body} " + " ".join(f"[cite:{c}]" for c in cites))
+                # LLAMA-CITE-DETACH: keep the marker inside the bullet's
+                # sentence — move terminal .!? after the cites so a
+                # sentence-splitting verifier does not see a detached fragment.
+                stripped = body.rstrip(".!?")
+                trailing = body[len(stripped):] if stripped else ""
+                if stripped:
+                    body = stripped
+                rendered.append(
+                    f"- {body} " + " ".join(f"[cite:{c}]" for c in cites) + trailing
+                )
             if rendered:
                 lines.append(f"{title}:\n" + "\n".join(rendered))
 
@@ -1482,6 +1491,8 @@ I was unable to fully process your question within the time limit. Please try as
             top_p=0.9,
             timeout_seconds=60,
             response_schema=_cite_schema(n_chunks) if n_chunks else None,
+            # KV-THINK-RAG: thinking models return empty cite-schema answers.
+            think=False,
         )
 
         try:

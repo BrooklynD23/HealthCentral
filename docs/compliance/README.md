@@ -13,9 +13,9 @@ named beside it.
 
 **Known residual:** audit rows written *before* the minimization landed may
 still contain filenames and analyte names. They are deliberately left untouched
-rather than rewritten — an append-only audit trail is a worse property to give
-up than the exposure it would remove. Profile deletion is the only path that
-removes them.
+rather than rewritten — rewriting history is a worse property than the
+exposure it removes. They are removed by profile deletion, or by restoring a
+whole-install backup that does not contain them.
 
 ## Overview
 

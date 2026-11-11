@@ -71,6 +71,19 @@ def _parse_float(raw: Optional[str]) -> Optional[float]:
         return None
 
 
+def _ordered_bounds(
+    ref_low: Optional[float], ref_high: Optional[float]
+) -> tuple[Optional[float], Optional[float]]:
+    """RANGE-ORDER (owner answer 2026-11-07: swap the bounds, keep the
+    printed text). A lab interval is low->high by definition, so a
+    backwards-printed pair stores ordered; ref_range_text keeps the
+    printed order verbatim.
+    """
+    if ref_low is not None and ref_high is not None and ref_low > ref_high:
+        return ref_high, ref_low
+    return ref_low, ref_high
+
+
 _DATE_FORMATS = ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y")
 
 
@@ -180,13 +193,18 @@ def parse_lab_csv(text: str) -> StructuredImportResult:
         raw_unit = (row.get(header_map["unit"]) or "").strip() if "unit" in header_map else ""
         raw_flag = (row.get(header_map["flag"]) or "").strip() if "flag" in header_map else ""
 
+        ref_low, ref_high = _ordered_bounds(
+            _parse_float(row.get(header_map["ref_low"])) if "ref_low" in header_map else None,
+            _parse_float(row.get(header_map["ref_high"])) if "ref_high" in header_map else None,
+        )
+
         result.observations.append({
             "analyte_raw": _cap(analyte_raw),
             "value": value,
             "value_text": value_text,
             "unit": _cap(raw_unit) or None,
-            "ref_low": _parse_float(row.get(header_map["ref_low"])) if "ref_low" in header_map else None,
-            "ref_high": _parse_float(row.get(header_map["ref_high"])) if "ref_high" in header_map else None,
+            "ref_low": ref_low,
+            "ref_high": ref_high,
             "ref_range_text": None,
             "flag": _cap(raw_flag) or None,
             "collected_at": _parse_date(raw_date),
@@ -272,6 +290,8 @@ def _map_fhir_observation(resource: dict) -> Optional[dict]:
 
     effective = resource.get("effectiveDateTime")
     collected_at = _parse_date(effective) if isinstance(effective, str) else None
+
+    ref_low, ref_high = _ordered_bounds(ref_low, ref_high)
 
     return {
         "analyte_raw": _cap(analyte_raw),

@@ -175,3 +175,72 @@ test.describe('SAFETY-MODE-CITATIONS sources without a click', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// SAFETY-MODE-VERIFIED-FE, HC-SMV-005 (real backend): an unchecked value is refused an explanation.
+//
+// An imported report leaves its values unchecked. With the mode on, "Explain this result" on /results asks the stored
+// interpretation (GET), which the server refuses with 409 observation_unverified, and the page shows the verify-first
+// state with a link to Review values. The chart leaves the unchecked values out and lists them.
+//
+// What this test would not notice: the grounded POST and the panel POST 409 paths (HC-SMV-003 holds those with a mocked
+// API); that the same value is explained once it is checked (HC-SMV-005 stops at the refusal); the drawing's pixels.
+// ---------------------------------------------------------------------------
+
+test.describe('SAFETY-MODE-VERIFIED-FE verify-first', () => {
+  test.beforeEach(async ({ request }) => {
+    await resetFlagToOff(request);
+  });
+
+  // The test imports a document into the shared E2E profile, so it puts the profile back as global-setup found it.
+  test.afterEach(async ({ request }) => {
+    const { access_token: token } = await ensureE2EProfile(request);
+    await resetE2EProfile(request, token);
+    await resetFlagToOff(request);
+  });
+
+  test('HC-SMV-005: mode on, an unchecked value gets the verify-first state, not an explanation', async ({ page, request }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    // Real data: import the synthetic report and leave its values unchecked.
+    const { access_token: token } = await ensureE2EProfile(request);
+    const headers = { Authorization: `Bearer ${token}` };
+    await resetE2EProfile(request, token);
+    const imported = await request.post(`${E2E_API_URL}/documents/import`, {
+      headers,
+      multipart: { file: { name: 'synthetic-lab.pdf', mimeType: 'application/pdf', buffer: fs.readFileSync(SYNTHETIC_LAB_PDF) } },
+    });
+    expect(imported.ok(), await imported.text()).toBeTruthy();
+    const observationsResponse = await request.get(`${E2E_API_URL}/observations/`, { headers });
+    expect(observationsResponse.ok(), await observationsResponse.text()).toBeTruthy();
+    const observations = (await observationsResponse.json()) as { id: string; user_verified: boolean }[];
+    expect(observations.length).toBeGreaterThanOrEqual(1);
+    // The seed really is unchecked, so a later import that checks values itself fails here and not further down.
+    expect(observations.every((observation) => observation.user_verified === false)).toBe(true);
+
+    await openAuthenticatedPage(page, request, '/results');
+    const toggle = page.getByRole('switch', { name: 'Stricter safety mode' });
+    await expect(toggle).toBeEnabled({ timeout: 30_000 });
+    const turnedOn = waitForPatch(page);
+    await toggle.click();
+    await turnedOn;
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+
+    // The chart leaves the unchecked values out and lists them, with the way to check them.
+    const note = page.getByTestId('unchecked-values-note');
+    await expect(note).toContainText(/unchecked values? (is|are) not plotted/, { timeout: 60_000 });
+    await expect(note.getByRole('link', { name: 'Review values' })).toHaveAttribute('href', '/verify');
+    await expect(page.getByTestId('unchecked-values').getByRole('listitem').first()).toBeVisible();
+    await expect(page.getByRole('slider')).toHaveCount(0);
+
+    // The interpret action: refused by the server, shown as verify-first (not as an error, and not as an explanation).
+    await page.getByRole('button', { name: 'Explain this result' }).click();
+    const state = page.getByTestId('verify-first');
+    await expect(state).toBeVisible({ timeout: 60_000 });
+    await expect(state).toContainText('Verify this result first');
+    await expect(state.getByRole('link', { name: 'Review values' })).toHaveAttribute('href', '/verify');
+    await expect(page.getByRole('button', { name: /Generate Interpretation/ })).toHaveCount(0);
+    await expect(page.getByText('Failed to load interpretation')).toHaveCount(0);
+  });
+});

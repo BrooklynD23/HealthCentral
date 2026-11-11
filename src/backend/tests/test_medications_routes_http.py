@@ -876,3 +876,32 @@ async def test_hc_audcmed_003_log_dose_badge_failure_still_audits_dose_id(profil
     assert calls[0]["event"] == "medication_dose_log"
     assert calls[0]["document_id"]
     assert order[-2:] == ["audit", "master"]
+
+
+@pytest.mark.asyncio
+async def test_hc_audcmed_004_log_dose_badge_failure_returns_the_dose(profile_db, monkeypatch):
+    """Badge failure rolls back and expires dose_record; the 201 response must
+    still carry the stored dose (a lazy DoseResponse.from_model read would 500)."""
+    import api.medications as med_api
+
+    med, sched = await _acm_seed(profile_db)
+    master = _acm_master()
+    ctx, client, order, calls = _acm_wire(profile_db, master, monkeypatch)
+
+    async def _boom(*a, **k):
+        raise RuntimeError("badge down")
+
+    monkeypatch.setattr(med_api, "evaluate_badges_after_dose", _boom)
+    try:
+        resp = _acm_send(client, "log_dose", med, sched)
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 201, resp.text
+    assert len(calls) == 1
+    assert calls[0]["event"] == "medication_dose_log"
+    assert resp.json()["dose"]["id"] == calls[0]["document_id"]
+    assert resp.json()["newly_earned_badges"] == []
+    assert order[-2:] == ["audit", "master"]
+    assert await _acm_vault_change_present(
+        profile_db, "log_dose", med, sched, resp.json()["dose"]["id"]
+    )

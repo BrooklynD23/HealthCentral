@@ -1,6 +1,6 @@
 # Capstone Report Outline — Evidence-Mapped
 
-**Last Updated:** 2026-10-22
+**Last Updated:** 2026-11-08
 
 Working outline. Each section names the artifacts that back it — the report is an assembly of verifiable evidence, not narrative invention. Item status: ✅ ready · 🔶 needs work · ⬜ pending.
 
@@ -72,6 +72,7 @@ Working outline. Each section names the artifacts that back it — the report is
 ## 9. Roadmap / future work
 
 - Owner-sequenced program: branches → notifications → phantom-layer decision → doc-drift → utcnow → FK → reset → gated items, plus the gap phases G-A…G-C; the 2026-09-27 plan set (14 plans + S-1) was written PROPOSED, and since then W-1…W-6, W-8, W-10, W-11a PR-4, S-1, P2, P5 and the report-only P6 FK orphan audit have merged (ancestry checks, ledger row M9) while W-7 and W-11b have not
+- The FIT decoder journey (licence ambiguity → measurement → fitdecode choice; decided direction, not done work): [fit-decoder-journey.md](fit-decoder-journey.md)
 - Evidence: [implementation-program.md](implementation-program.md) (dependency graph, stop gates, measured acceptance, owner decisions D1–D13) ✅; audit §16–18; `plans/01`–`08` (corrected 2026-09-27)
 
 ## 10. Conclusion

@@ -180,13 +180,17 @@ async def test_hc_sms_004_profile_isolation(vault):
         await vault_b.close()
         await engine_b.dispose()
 
-    # One shared DB on purpose: a dropped profile_id filter would leak A's row
-    # to B at the route. Stricter than production, which never shares a vault.
+    # One shared DB on purpose: enforcement's EXISTS is unfiltered, so under
+    # SAFETY-MODE-DUPROW (owner answer option 1, any-ON authoritative) B's GET
+    # in a shared vault converges on the same any-ON value — there is no
+    # per-profile route read left to leak or drop. Stricter than production,
+    # which never shares a vault.
     resp, _ = _call("GET", vault, PROFILE_A)
     assert resp.json() == {"strict_safety_mode": True}
     resp, _ = _call("GET", vault, PROFILE_B)
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"strict_safety_mode": False}
+    assert resp.json() == {"strict_safety_mode": True}
+    assert await assistant_api.is_strict_safety_mode(vault) is True
 
 
 @pytest.mark.asyncio
@@ -344,3 +348,78 @@ def test_hc_sms_007_migration_round_trip_from_015(tmp_path, monkeypatch):
     assert _query(
         "SELECT strict_safety_mode FROM user_model_settings WHERE id = 'pre-016-row'"
     ) == [(0,)]
+
+
+async def _seed_rows(vault, *rows):
+    """Insert UserModelSettings rows one commit at a time (the HC-SMS-002
+    tail's shape: two first-time writers can each insert a row)."""
+    for id_, profile_id, flag in rows:
+        vault.add(
+            UserModelSettings(
+                id=id_, profile_id=profile_id, strict_safety_mode=flag
+            )
+        )
+        await vault.commit()
+
+
+async def _flags_by_id(vault):
+    rows = (await vault.execute(select(UserModelSettings))).scalars().all()
+    return {r.id: bool(r.strict_safety_mode) for r in rows}
+
+
+@pytest.mark.asyncio
+async def test_hc_sms_008a_dup_rows_get_answers_any_on(vault):
+    # SAFETY-MODE-DUPROW (owner answer SAFETY-MODE-DUPROW-SEMANTICS, option 1):
+    # duplicate rows must not 500 the route. GET answers the same any-ON
+    # EXISTS value enforcement uses, so display can never read OFF while
+    # enforcement is ON.
+    await _seed_rows(
+        vault,
+        ("race-off", PROFILE_A, False),
+        ("race-on", PROFILE_A, True),
+    )
+    resp, _ = _call("GET", vault)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"strict_safety_mode": True}
+    assert await assistant_api.is_strict_safety_mode(vault) is True
+
+
+@pytest.mark.asyncio
+async def test_hc_sms_008b_dup_rows_patch_writes_every_row(vault):
+    # PATCH writes every settings row in the vault, so no row can stay ON
+    # behind the route's back (or read ON while others read OFF).
+    await _seed_rows(
+        vault,
+        ("race-off", PROFILE_A, False),
+        ("race-on", PROFILE_A, True),
+    )
+    resp, _ = _call("PATCH", vault, json={"strict_safety_mode": False})
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"strict_safety_mode": False}
+    assert await _flags_by_id(vault) == {"race-off": False, "race-on": False}
+    assert await assistant_api.is_strict_safety_mode(vault) is False
+
+    resp, _ = _call("PATCH", vault, json={"strict_safety_mode": True})
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"strict_safety_mode": True}
+    assert await _flags_by_id(vault) == {"race-off": True, "race-on": True}
+    assert await assistant_api.is_strict_safety_mode(vault) is True
+
+
+@pytest.mark.asyncio
+async def test_hc_sms_008c_stray_row_under_other_profile_id(vault):
+    # Stricter than production (one vault per profile): a stray ON row under
+    # another profile_id in the same vault. Enforcement's EXISTS is
+    # unfiltered, so GET must answer true, and an OFF PATCH must flip the
+    # stray — an explicit OFF write is the only thing that switches it off.
+    await _seed_rows(vault, ("stray-on", "other", True))
+    resp, _ = _call("GET", vault)
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"strict_safety_mode": True}
+    assert await assistant_api.is_strict_safety_mode(vault) is True
+
+    resp, _ = _call("PATCH", vault, json={"strict_safety_mode": False})
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"strict_safety_mode": False}
+    assert await _flags_by_id(vault) == {"stray-on": False}
+    assert await assistant_api.is_strict_safety_mode(vault) is False

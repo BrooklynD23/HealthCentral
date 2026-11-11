@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.auth import Session
 from core.time import utcnow
 from modules.fhir_export import build_fhir_bundle
+from tests.support.routes import no_logout_cutoff
 
 
 def _session(profile_id: str = "test-profile") -> Session:
@@ -31,6 +32,7 @@ def _session(profile_id: str = "test-profile") -> Session:
         profile_id=profile_id,
         profile_name="Jane Doe",
         expires_at=utcnow() + timedelta(hours=1),
+        token_jti="jti-test",  # C-GC1: route_client's constant jti; any live login of the profile is served (EXPORT-LIVE-LOGIN)
     )
 
 
@@ -467,6 +469,9 @@ class _Result:
     def scalars(self):
         return _Scalars(self.items)
 
+    def all(self):  # the export_artifact prune select (EXPORT-LIVE-LOGIN)
+        return self.items
+
 
 def _fake_profile(profile_id: str, display_name: str = "Jane Doe"):
     return type("Profile", (), {"id": profile_id, "display_name": display_name})()
@@ -499,6 +504,7 @@ class TestFhirExportApi:
             _Result(items=[]),  # (documents categories, none needed)
             _Result(items=[]),  # entities
             _Result(items=[]),  # care tasks
+            _Result(items=[]),  # export_artifact prune (no rows)
         ]
         master_db = AsyncMock()
         master_db.execute.return_value = _Result(one=profile)
@@ -520,9 +526,11 @@ class TestFhirExportApi:
         export_id = str(uuid.uuid4())
         _fhir_store[export_id] = {
             "profile_id": "test-profile",
+            "session_jti": "jti-test",  # C-GC1
+            "session_exp": utcnow() + timedelta(hours=1),
             "bundle": {"resourceType": "Bundle", "type": "collection", "entry": []},
         }
-        master_db = AsyncMock()
+        master_db = no_logout_cutoff(AsyncMock())
         audit = AsyncMock()
         monkeypatch.setattr("api.export.log_export_event", audit)
 
@@ -567,7 +575,10 @@ class TestFhirExportApi:
         profile = _fake_profile("test-profile")
         profile_db = AsyncMock()
         # Only care_tasks fetch expected, since every other include_* is False.
-        profile_db.execute.side_effect = [_Result(items=[])]
+        profile_db.execute.side_effect = [
+            _Result(items=[]),  # care tasks
+            _Result(items=[]),  # export_artifact prune (no rows)
+        ]
         master_db = AsyncMock()
         master_db.execute.return_value = _Result(one=profile)
         audit = AsyncMock()

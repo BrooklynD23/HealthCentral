@@ -30,7 +30,7 @@ Stored in master database (not encrypted by default).
 
 | Data Type | Storage | Retention |
 |-----------|---------|-----------|
-| Audit logs | Master DB (not encrypted). No log file is written | Indefinite |
+| Audit logs | Master DB (not encrypted); each event is also logged to the application logger only (the process's stderr), at INFO below the default WARN level — the app writes no log file (`dev.sh` redirects it to `logs/dev-backend.log`) | Indefinite |
 | Request metrics | In-memory ring buffer | Session only (configurable size) |
 | Security events | Request events from `SecurityAuditMiddleware`: application logger only (the process's stderr); no log file is written, and they are logged at INFO, below the default WARN level, so by default they are not emitted. Break-glass external calls: an audit row in the master DB (`security.external_api.break_glass`) | Request events: not retained by the app. Break-glass rows: as audit logs |
 | Correlation IDs | Request-scoped | Not persisted |
@@ -43,7 +43,7 @@ Stored in master database (not encrypted by default).
 |-----------|-----------|----------------|
 | Profile vaults | AES-256-CBC (SQLCipher) | Password-derived key (PBKDF2) |
 | Master database | Not encrypted | Contains no PHI |
-| Backups | Same as source | SQLite backup API preserves encryption |
+| Backups | Same as source | SQLite backup API preserves encryption for the database files; `manifest.json` is plaintext metadata and sealed keys stay sealed |
 
 ### In Transit
 
