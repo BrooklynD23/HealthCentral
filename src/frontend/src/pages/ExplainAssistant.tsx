@@ -73,6 +73,24 @@ interface CitationChip {
  * Build the Verification Workbench deep link for a citation, or null when it
  * has no inspectable source (CITE-SRC-001).
  */
+/**
+ * The first toLocaleTimeString of a page loads the browser's ICU time data (5-9 ms at normal CPU speed). The first
+ * message's timestamp would pay it inside the Send-click render (ASK-TIME-WARMUP). This pays it while the page is idle
+ * instead; the bubble still prints its time in its first commit. The options match the timestamp's own, so the same
+ * formatter is warmed. Same pattern as warmExplainClick in ResultsPage.tsx.
+ */
+function warmTimeFormat(): () => void {
+  const warm = () => {
+    void new Date(0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    const handle = window.requestIdleCallback(warm, { timeout: 2000 });
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(warm, 300);
+  return () => window.clearTimeout(handle);
+}
+
 function citationTarget(citation: CitationChip): string | null {
   const params = new URLSearchParams();
   if (citation.observationId) {
@@ -319,6 +337,8 @@ export function ExplainAssistant() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(warmTimeFormat, []);
 
   // Load the most recent session on mount (ASSIST-HIST-001)
   const { data: sessionsData, isFetched: sessionsFetched } = useChatSessions();
