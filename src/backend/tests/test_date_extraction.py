@@ -582,6 +582,9 @@ class TestDobLayoutsNotCollectionDates:
         line has no next line to read as a data row, so it never reaches the
         column pass. Its tokens are not whitespace, so the whitespace inputs above
         cannot see a per-token cost.
+
+        The fastest of 3 runs is timed because CI runners are noisy (owner
+        EDF-004-BEST-OF-3, 2026-11-10); a quadratic regex is still slow on every run.
         """
         m = _module()
         many = "".join(f"DOB{' ' * 2000}x 2024-01-{(i % 28) + 1:02d}\n" for i in range(200))
@@ -592,10 +595,13 @@ class TestDobLayoutsNotCollectionDates:
             "50000-token-header": "DOB " + "1 " * 50000 + "\n",
         }
         for name, text in inputs.items():
-            start = time.perf_counter()
-            m._extract_dates(text)
-            elapsed = time.perf_counter() - start
-            assert elapsed < 1.0, f"{name} took {elapsed:.2f}s"
+            times = []
+            for _ in range(3):
+                start = time.perf_counter()
+                m._extract_dates(text)
+                times.append(time.perf_counter() - start)
+            elapsed = min(times)
+            assert elapsed < 1.0, f"{name} took {elapsed:.2f}s (best of 3: {times})"
 
     @pytest.mark.parametrize("text,expected", [
         # DOB column is the middle cell: the Collected column date is kept.
