@@ -338,7 +338,7 @@ describe('HC-UISET-002: Advanced is collapsed until "Show advanced settings"', (
     await user.click(button);
     expect(await screen.findByTestId('tier-row-mid')).toBeInTheDocument();
     await screen.findByRole('button', { name: 'Export training data' });
-    expect(screen.getAllByText(/Tesseract/).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Tesseract/)).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/GPU/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Phi-4-mini/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Re-detect' })).toBeInTheDocument();

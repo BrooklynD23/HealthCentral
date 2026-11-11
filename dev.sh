@@ -160,9 +160,9 @@ if [ "${HC_SKIP_OCR_SETUP:-}" = "1" ]; then
   status "Skipping OCR setup (HC_SKIP_OCR_SETUP=1)."
 else
   if command -v tesseract >/dev/null 2>&1; then TESSERACT_OK=1; ok "Tesseract OCR is available"
-  else warn "Tesseract not found. For scanned PDFs: sudo apt install tesseract-ocr  (macOS: brew install tesseract)"; fi
+  else status "Tesseract not found (optional fallback; the bundled OCR reader is used first). To add it: sudo apt install tesseract-ocr  (macOS: brew install tesseract)"; fi
   if command -v pdftoppm >/dev/null 2>&1; then ok "Poppler (pdftoppm) is available"
-  else warn "pdftoppm not found - scanned PDF OCR may fail. Install: sudo apt install poppler-utils  (macOS: brew install poppler)"; fi
+  else status "pdftoppm not found (optional: only the Tesseract fallback needs it). Install: sudo apt install poppler-utils  (macOS: brew install poppler)"; fi
 fi
 
 # --- STEP 4: .env ------------------------------------------------------------
