@@ -52,6 +52,21 @@ class ExtractedObservation:
     confidence: float = 0.0
     extraction_method: str = "pdf_text"
 
+    def __post_init__(self) -> None:
+        # RANGE-ORDER (owner answer 2026-11-07: swap the bounds, keep the
+        # printed text). A lab interval is low->high by definition; a
+        # backwards-printed range stores ordered here so every producer
+        # (_parse_text_line in all forms plus the OCR path, and
+        # _parse_table_row) is covered at one site. ref_range_text and the
+        # provenance snippet keep the printed order verbatim, so the swap
+        # stays auditable.
+        if (
+            self.ref_low is not None
+            and self.ref_high is not None
+            and self.ref_low > self.ref_high
+        ):
+            self.ref_low, self.ref_high = self.ref_high, self.ref_low
+
 
 @dataclass
 class ExtractionResult:

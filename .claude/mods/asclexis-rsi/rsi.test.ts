@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import cases from './replay/cases'
 import { RULES } from './hooks/rules'
-import { checkAfter, checkBefore, classifyError, fieldOf } from './hooks/logic'
+import { checkAfter, checkBefore, classifyError, commandSignature, fieldOf } from './hooks/logic'
 import type { Rule } from './hooks/rules'
 
 // The test environment has no fs: an in-memory one answers fs.* beneath the plugin.
@@ -395,5 +395,82 @@ describe('rule table strictness', () => {
       ['bad regex', { match: '(' }],
     ]
     for (const [name, o] of bad) expect([name, lintRule({ ...nsfp, ...o }).length > 0]).toEqual([name, true])
+  })
+})
+
+describe('commandSignature', () => {
+  test('shape skeleton + deterministic hash', () => {
+    const s = commandSignature('git status -sb')!
+    expect(s.shape).toBe('git ARG -sb')
+    expect(s.args_hash).toMatch(/^[0-9a-f]{12}$/)
+    expect(commandSignature('git status -sb')).toEqual(s)
+    // Different bare-word arguments hash differently; the shape is the same skeleton.
+    expect(commandSignature('git push')!.shape).toBe('git ARG')
+    expect(commandSignature('git push')!.args_hash).not.toBe(commandSignature('git pull')!.args_hash)
+  })
+  test('redaction: paths carry no segment', () => {
+    const s = commandSignature('cat /home/danny/secret.txt')!
+    expect(s.shape).toBe('cat PATH')
+    const flat = JSON.stringify(s)
+    for (const bad of ['danny', 'secret.txt', '/']) expect(flat).not.toContain(bad)
+    // Path values do not reach the hash either: two paths, one hash.
+    expect(commandSignature('cat /home/danny/secret.txt')!.args_hash).toBe(commandSignature('cat /etc/passwd')!.args_hash)
+  })
+  test('redaction: quoted strings and headers', () => {
+    const s = commandSignature('curl -H "Authorization: Bearer sk-abc"')!
+    expect(s.shape).toBe('curl -H STR')
+    const flat = JSON.stringify(s)
+    for (const bad of ['sk-abc', 'Bearer', 'Authorization']) expect(flat).not.toContain(bad)
+    // key=value keeps only the key name in shape and is KEY= in the hash input,
+    // so the same key under a different value hashes identically.
+    const kv = commandSignature('curl -H Authorization=Bearer')!
+    expect(kv.shape).toBe('curl -H Authorization=')
+    expect(kv.args_hash).toBe(commandSignature('curl -H Authorization=different')!.args_hash)
+  })
+  test('redaction: patient text', () => {
+    const s = commandSignature(`pytest tests/test_x.py -k 'patient Jane'`)!
+    expect(s.shape).toBe('pytest PATH -k STR')
+    const flat = JSON.stringify(s)
+    for (const bad of ['Jane', 'patient', 'test_x', 'tests']) expect(flat).not.toContain(bad)
+    const t = commandSignature('echo "my potassium was 4.2"')!
+    expect(t.shape).toBe('echo STR')
+    const flat2 = JSON.stringify(t)
+    for (const bad of ['potassium', '4.2', 'my']) expect(flat2).not.toContain(bad)
+  })
+  test('absence and program class', () => {
+    expect(commandSignature('')).toBeNull()
+    expect(commandSignature('   ')).toBeNull()
+    expect(commandSignature('  \n\t ')).toBeNull()
+    expect(commandSignature(undefined as unknown as string)).toBeNull()
+    expect(commandSignature(null as unknown as string)).toBeNull()
+    expect(commandSignature(42 as unknown as string)).toBeNull()
+    // A path as argv[0] records the class, never the path itself.
+    const s = commandSignature('./script.sh')!
+    expect(s.shape).toBe('PATH')
+    expect(s.args_hash).toMatch(/^[0-9a-f]{12}$/)
+  })
+  test('skeleton around env-prefixes, separators and redirects', () => {
+    expect(commandSignature('FOO=bar pytest -q')!.shape).toBe('FOO= pytest -q')
+    expect(commandSignature('cd src && pytest -q')!.shape).toBe('cd ARG && pytest -q')
+    expect(commandSignature('echo hi > /tmp/secret-out.txt')!.shape).toBe('echo ARG > PATH')
+    expect(commandSignature('git push --force origin main')!.shape).toBe('git ARG --force ARG ARG')
+  })
+  test('rows: cmd_sig only on Bash rows that carry a command', async ($, on) => {
+    const clock = mock.clock(on, { now: T0 })
+    const files = memfs(on)
+    bottom(on, 'fine', false)
+    await $.tool.call({ tool: 'Bash', command: 'cat /home/danny/secret.txt' })
+    await $.tool.call({ tool: 'Read', file_path: '/home/danny/patient.pdf' })
+    await $.tool.call({ tool: 'Bash', command: '' })
+    await $.tool.call({ tool: 'Bash', command: 'pkill -f "vite --port 5173"' })
+    await clock.settle()
+    const [bash, read, empty, denied] = rowsOf(files)
+    expect(bash.cmd_sig.shape).toBe('cat PATH')
+    expect(bash.cmd_sig.args_hash).toMatch(/^[0-9a-f]{12}$/)
+    expect('cmd_sig' in read).toBe(false)
+    expect('cmd_sig' in empty).toBe(false)
+    expect(denied.cmd_sig.shape).toBe('pkill -f STR')
+    const raw = [...files.values()].join('')
+    for (const bad of ['danny', 'secret.txt', 'patient.pdf', '5173', 'vite']) expect(raw).not.toContain(bad)
   })
 })

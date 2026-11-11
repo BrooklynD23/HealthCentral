@@ -10,15 +10,16 @@ interface EmptyStateProps {
   illustration?: ReactNode;
   title: string;
   description: string;
-  /** Optional. When given, it should be a real button or link. */
-  action?: ReactNode;
+  /** Required: a real button or link. An empty state always offers a next step. */
+  action: ReactNode;
   className?: string;
 }
 
 /**
  * Empty state (plan §2.6 and §7.7). The illustration, the sentence and the
- * action enter together as S1 groups, once per session. The action stays
- * optional (L0 ruling 1): the nine existing call sites compile unchanged.
+ * action enter together as S1 groups, once per session. The action is
+ * required: the page migrations landed, so the L0 ruling 1 optionality was
+ * retired (SHOWCASE-PROVENANCE-MOVES).
  */
 export function EmptyState({
   icon: Icon,

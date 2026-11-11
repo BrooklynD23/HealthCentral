@@ -154,6 +154,8 @@ def test_hc_esp_005_entry_without_created_at_counts_as_fresh(monkeypatch):
     with _export_client(A) as exp:
         sid = _create_summary(exp)
         export_api._summary_store[sid].pop("created_at")
+        # the frozen clock is 30 days past route_client's real-time session expiry
+        export_api._summary_store[sid]["session_exp"] = T0 + timedelta(days=31)
         assert _download(exp, sid).status_code == 200
 
 

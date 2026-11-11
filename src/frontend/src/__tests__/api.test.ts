@@ -243,25 +243,65 @@ describe('API Client', () => {
       expect(authState.isAuthenticated).toBe(false);
     });
 
-    it('should handle 403 for locked profile database', async () => {
-      useAuthStore.getState().setAuth({
-        token: 'valid-token',
-        profileId: 'profile-123',
-        profileName: 'Test Profile',
-      });
+    it('should handle 401 for locked profile database', async () => {
+      const loc = stubLocationReplace();
+      try {
+        useAuthStore.getState().setAuth({
+          token: 'valid-token',
+          profileId: 'profile-123',
+          profileName: 'Test Profile',
+        });
 
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        statusText: 'Forbidden',
-        text: async () =>
-          '{"detail": "Profile database not available. Please log in again."}',
-      });
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          text: async () =>
+            '{"detail": "Profile database not available. Please log in again."}',
+        });
 
-      await expect(apiGet('/protected-endpoint')).rejects.toMatchObject({
-        status: 403,
-        message: expect.stringContaining('Profile database not available'),
-      });
+        await expect(apiGet('/protected-endpoint')).rejects.toMatchObject({
+          status: 401,
+          message: expect.stringContaining('Profile database not available'),
+        });
+
+        const authState = useAuthStore.getState();
+        expect(authState.token).toBeNull();
+        expect(authState.isAuthenticated).toBe(false);
+        expect(loc.replace).toHaveBeenCalledTimes(1);
+        expect(loc.replace).toHaveBeenCalledWith('http://localhost:3000/setup');
+      } finally {
+        loc.restore();
+      }
+    });
+
+    it('HC-FEM-002: a genuine 403 keeps the session and does not redirect', async () => {
+      const loc = stubLocationReplace();
+      try {
+        useAuthStore.getState().setAuth({
+          token: 'valid-token',
+          profileId: 'profile-123',
+          profileName: 'Test Profile',
+        });
+
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 403,
+          statusText: 'Forbidden',
+          text: async () => '{"detail": "Access denied to this profile"}',
+        });
+
+        await expect(apiGet('/protected-endpoint')).rejects.toMatchObject({
+          status: 403,
+        });
+
+        const authState = useAuthStore.getState();
+        expect(authState.token).toBe('valid-token');
+        expect(authState.isAuthenticated).toBe(true);
+        expect(loc.replace).not.toHaveBeenCalled();
+      } finally {
+        loc.restore();
+      }
     });
   });
   describe('MVP-REAUTH-401: re-auth 401 must not log the user out', () => {

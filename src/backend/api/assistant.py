@@ -704,8 +704,9 @@ async def is_strict_safety_mode(profile_db: AsyncSession) -> bool:
     False when there is no settings row. Duplicate rows can exist (profile_id
     is indexed, not unique), so this never picks one row. The profile DB
     belongs to one profile (vaults/<profile_id>), so no profile_id filter is
-    applied. SAFETY-MODE-STRICT and SAFETY-MODE-VERIFIED import this; keep the
-    signature stable.
+    applied. The safety-mode routes converge on this rule: GET answers it and
+    PATCH writes every row. SAFETY-MODE-STRICT and SAFETY-MODE-VERIFIED import
+    this; keep the signature stable.
     """
     result = await profile_db.execute(
         select(exists().where(UserModelSettings.strict_safety_mode.is_(True)))
@@ -720,7 +721,7 @@ async def get_safety_mode(
     master_db: AsyncSession = Depends(get_db),
 ):
     """Return the per-profile strict safety mode flag. Audited read."""
-    row = await _get_user_model_settings(session.profile_id, profile_db)
+    strict = await is_strict_safety_mode(profile_db)
     await audit_and_commit(
         master_db,
         create_audit_log,
@@ -730,9 +731,7 @@ async def get_safety_mode(
         entity_type="settings",
         entity_id="safety_mode",
     )
-    return SafetyModeResponse(
-        strict_safety_mode=bool(row.strict_safety_mode) if row else False,
-    )
+    return SafetyModeResponse(strict_safety_mode=strict)
 
 
 @router.patch("/safety-mode", response_model=SafetyModeResponse)
@@ -743,8 +742,10 @@ async def update_safety_mode(
     master_db: AsyncSession = Depends(get_db),
 ):
     """Set the per-profile strict safety mode flag. Commit, then audit."""
-    row = await _get_user_model_settings(session.profile_id, profile_db)
-    if row is None:
+    rows = (
+        await profile_db.execute(select(UserModelSettings))
+    ).scalars().all()
+    if not rows:
         row = UserModelSettings(
             id=str(uuid.uuid4()),
             profile_id=session.profile_id,
@@ -752,11 +753,12 @@ async def update_safety_mode(
             updated_at=utcnow(),
         )
         profile_db.add(row)
+        rows.append(row)
 
-    row.strict_safety_mode = data.strict_safety_mode
-    row.updated_at = utcnow()
+    for row in rows:
+        row.strict_safety_mode = data.strict_safety_mode
+        row.updated_at = utcnow()
     await profile_db.commit()
-    await profile_db.refresh(row)
     await create_audit_log(
         db=master_db,
         event_type="safety_mode_updated",
@@ -778,7 +780,7 @@ async def update_safety_mode(
             "safety_mode",
         )
         raise
-    return SafetyModeResponse(strict_safety_mode=bool(row.strict_safety_mode))
+    return SafetyModeResponse(strict_safety_mode=bool(data.strict_safety_mode))
 
 
 # ---------------------------------------------------------------------------

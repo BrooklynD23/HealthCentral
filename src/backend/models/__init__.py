@@ -18,6 +18,7 @@ from .data_donation import DonatedRecord, DonationConsent
 from .document import Document
 from .document_category import DocumentCategory, DocumentEntity
 from .embedding import Embedding
+from .export_artifact import ExportArtifact
 from .gamification import BadgeDefinition, EarnedBadge
 from .interpretation import LabInterpretation, PanelInterpretation
 from .knowledge_base import (
@@ -83,6 +84,7 @@ __all__ = [
     # Pinboards (per-profile, HC-M20)
     "Pinboard",
     "PinboardItem",
+    "ExportArtifact",
     # Response feedback (per-profile)
     "ResponseFeedback",
 ]

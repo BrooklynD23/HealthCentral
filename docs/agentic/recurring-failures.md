@@ -139,6 +139,8 @@ contract that does not exist. When a check stubs an external tool (`npm`,
 a DOM-shape assertion, confirm against the real layout that the shape it
 looks for can occur at all.
 
+A 2026-11-09 instance, a test that never reached the route (VERIFY-NONFINITE; sub-orchestrator review of `build/verify-nonfinite`). httpx 0.28 refuses `NaN` and `Infinity` in `json=` on the client ("Out of range float values are not JSON compliant") before any request is made, so a test that posted `json={"value": float("nan")}` could not fail whatever the route did: the exception came from the test client, not from the handler. The plan's HC-VNF cases were written that way. Recheck: for a test whose input the client library may refuse (NaN, Infinity, an oversized body), send the body as raw text (`content='{"value": NaN}'` with a JSON content type), keep one finite `json=` case as the control, and show the case RED against `main` with a status code from the route, not a client exception. The plan text is corrected in BATCH-1110A. It is recorded as an instance of this mode, not a new mode.
+
 ---
 
 ## 2. The fix that creates the next bug one layer over
@@ -225,6 +227,10 @@ like dead provenance to one path is often a key to another.
 the command that produced it. Overriding a plan's figure with a "correction" is
 itself a claim — it does not get a pass because it came from the orchestrator.
 
+A 2026-11-09 instance, a provenance claim in a model-written data file (MED-NAME-LIST). The header of `rxnorm_names.txt` said the 461 names were "selected by hand from the public-domain NLM RxNorm vocabulary". A model had written the list; nothing was extracted from RxNorm. The plan had said "RxNorm-derived" first, and the file repeated it. The sub-orchestrator reworded the header (`0da251fb`), and the owner answered "Hold for RxNorm" (2026-11-10): the row stays unmerged until a real extract exists. Recheck: a source, date or "derived from" statement in a data file or its plan is a claim and needs the command or the extract that produced it; when a model wrote the content, the header says so. A probe of the list against the classifier (vitamin D questions moving from none to medication) is the kind of measurement the header did not have.
+
+A 2026-11-10 instance, a cause named to the owner without a measurement (OCR-COPY-ENGINE, #542; gate OCR-HEIGHT-SHORTEN). L0 attributed the 18 px HC-UISET-005 overflow (Settings > Advanced expanded 1814 px against the 1800 px bound; `main` 1796 px) to the longer `tesseract_missing` sentence wrapping to a second line, and put that to the owner without measuring the height with and without the sentence. The owner approved shortening it (OCR-HEIGHT-SHORTEN, "Shorten the sentence (Recommended)"); CI on `7ea39dde` still measured 1814 px. Recheck: before naming the cause of a height or timing overflow to the owner, measure it by bisecting reverts (revert one candidate change at a time on a clean copy and paste each height); a cause that has not moved the number is a hypothesis, and the question says so. It is recorded as an instance of this mode, not a new mode.
+
 ---
 
 ## 4. Environment-dependent results written as absolutes
@@ -247,6 +253,14 @@ itself a claim — it does not get a pass because it came from the orchestrator.
 whether another environment produces a different one. Prefer numbers that do not
 vary — collected counts over pass counts — and when quoting a collected count,
 say whether `sentence-transformers` was installed.
+
+A 2026-11-09 instance, an environment assumption that passes alone and fails in the full suite (CRIT-LOG-ROUNDED and DOC-EXC-LOGGING; SUBORCH-2026-11-09). A test that read a process-wide value, the log record's `correlation_id` set from a static environment, passed on its own and failed after other tests had set it first. Recheck: run a new test file alone and again inside the full suite; a test that depends on module or environment state sets that state itself (`monkeypatch`) and never reads the default.
+
+A second 2026-11-09 instance, wall-clock and load flakes on `main`. `test_hc_vrc_030` failed once in the full run of the ANALYTE-NAME-SWEEP branch at load about 9 and passed alone three times, though the branch does not touch it. `test_hc_edf_004` flaked the same way (KV-LEFTOVERS already carries it as item 22), and on #537 the three HC-ENL-001 cases failed at load 20 on `/mnt/e` and gave `38 passed in 22.05s` from a `git archive` copy in `/dev/shm`. Recheck: for a failure in a file the branch does not touch, re-run it alone and from a `/dev/shm` copy, paste the load average (`uptime`) with each result, and never move a limit or a threshold to make it pass. Report it as a flake with the evidence, not as a pass.
+
+A 2026-11-10 instance, the same test failing on GitHub CI rather than under local load. `test_hc_edf_004` (the date regex must parse a 50,000-space header in under 1.0 s) failed on #541 three times (1.09 s, 1.04 s, 1.01 s) and on `main`'s own CI, and blocked every backend PR though none of them touch date extraction. The owner chose best of 3 (EDF-004-BEST-OF-3): the same input, the same 1.0 s bound, the fastest of three timed runs asserted, so a truly quadratic regex is still caught. The bound did not move. Recheck: a wall-clock test that fails on CI at a margin of 1 to 9 percent over its bound is a noisy bound, not a slow product; take the fastest of several runs and keep the limit, and never raise it.
+
+A 2026-11-11 instance, a wall-clock perf pin that flakes under parallel pytest slots (KV-LEFTOVERS; reported by another builder). `test_date_extraction.py::test_hc_edf_004_dob_inputs_stay_linear_with_new_tail_regex` pins each DOB input to under 1.0 s. It flaked when run beside other pytest slots and passed in isolation, so a red result there can be machine load, not a regex regression. (Evidence is the builder's report; the pin's 1.0 s bound is verified in the test file, the flake is not re-reproduced here.) Recheck: on a failure of a wall-clock pin, re-run that test alone on a quiet box (`scripts/pyslot.sh` with no other slots busy) before changing code, and report both timings. Do not raise the bound to make it pass (CLAUDE.md section 3); if a pin must survive load, make it measure work (call counts, input-size scaling ratio) instead of seconds, as its own row. Same mode, not a new one.
 
 ---
 
@@ -289,6 +303,8 @@ A 2026-11-06 instance, a worktree that measured taller than the same code (#523,
 
 A 2026-11-07 instance of the leaked preview, again (#535, UI-PG-SECURITY; RUNBOOK §10.1 preflight item 7). The build agent's frontend build left a `vite preview` on :4173 (PID 2198476). Quiet batch 17 exited 75 PORT-LEAK three times, nothing ran, and the permission classifier refused L0's kill; the owner killed it. The 11-06 fix (the script's own `pkill -P`) covered L0's batches, not a build agent's. Recheck: after any frontend build, before a quiet batch, list the listeners (`ss -ltn | grep -E ':(3000|4173|5173|8000)\b'`) and expect nothing. Same mode, not a nineteenth.
 
+A 2026-11-07 instance, a worktree that rendered a different font (#538, SAFETY-MODE-VERIFIED-FE; queue label WORKTREE-ENV, fonts; L0 ruling 6718736151). `node_modules` in the build worktree was a symlink into another worktree. Vite dev refused the `.woff2` files (403, outside `fs.allow`), so the fallback face rendered, the Safety Mode note measured 5 lines and 80 px, and L0's first ruling (6718543811) sized the box for that. With the loaded Source Sans 3, which patients get and CI measures, the note is 4 lines and overflows 64 px by about 1 px; the ruling was replaced by `lg:h-[66px]` (6718736151). Recheck: before measuring layout in a worktree, `ls -ld node_modules` must not show a symlink (`npm ci` for a real install), and a `.woff2` request to the dev server must return 200; paste both. It is recorded as an instance of this mode, not a new mode.
+
 ---
 
 ## 6. Documented commands nobody ran
@@ -314,6 +330,8 @@ call exited 126, `Permission denied` (measured 2026-10-20; fixed by #220).
 directory the surrounding text implies. A planner checks every path it cites
 with `git ls-files <path>` on the base it plans from. Inherited-from-`main` is not a reason to
 skip it — it is a reason it survived this long.
+
+A 2026-11-09 instance, quiet-box helpers that lived only in `/tmp`. The box rebooted at about 22:06 on 2026-11-09 and wiped `/tmp/claude-1000`, where `quiet_run.sh`, `hold_slots.sh` and the CR-stripped `pyslot` copy lived. RUNBOOK §10.1 quotes those paths, so every documented quiet-box command would have failed until they were recreated (L0's notes record it). Copies are now kept in `~/hc-quiet-logs/tools/` (copy them back to `/tmp/claude-1000` after a reboot). Recheck: before a quiet run, `for f in quiet_run.sh hold_slots.sh; do test -x /tmp/claude-1000/$f || echo missing $f; done`, and after any reboot (`uptime`) assume they are gone. RUNBOOK §10.1 preflight item 2 now names the copy.
 
 ---
 
@@ -394,6 +412,8 @@ applying a defensive transform, check whether the defense already exists
 somewhere better, and ask what the transform destroys when it fires.
 
 A 2026-11-07 instance, a build agent's "all checks pass" (#533, AUDIT-CHAT-LEGACY). The agent reported every check passing and the PR looked ready, but CI Backend Lint was red: I001 (import order) at line 19 of #533's new audit test file, job 128338185595. The report was a statement about what the agent ran, not about what CI ran. A narrow Sonnet agent fixed the imports only (head `9826f92c`). Recheck: before asking the owner to ready a PR, read its CI yourself (`gh pr checks <n>`), and run the CI's own lint command, not a nearby one. It is recorded as an instance of this mode, not a nineteenth mode.
+
+A 2026-11-09 instance, a scan lead that read a status without the later ruling (RULES-RANGE-VALUE; SUBORCH-2026-11-09). A Haiku scan flagged the row as an unanswered owner gate because its plan and queue status said "gated, unanswered". The gate RULES-VERIFIER-ASKFIRST had been answered the same day in the L0 rulings (batch 5, "narrow to measured values"), so the row was licensed. The scan's report was a lead, not a finding (CLAUDE.md §1), and the sub-orchestrator caught it by reading the rulings file. Recheck: before reporting a gate unanswered or a row blocked, grep the owner-decisions record, the L0 rulings and the PR comments for the gate's name, and cite the newest hit; a status cell is a claim that may predate the answer. BATCH-1110A rewrites the stale status.
 
 ---
 
@@ -658,3 +678,26 @@ L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 
 UI-PG-SECURITY (#535, 2026-11-07): the quiet batch ran only the row's own spec. CI's run of another spec — one that renders the same settings components — failed on a regression the batch never exercised. The owner's same-day analysis counted the class four ways: status cells that lag merges (UISET-013-TEST already done inside #523, STILLNESS-NAV-LATE Task 3 already merged, each wrong start a burned run), plans older than the code (C-GC1's 2026-10-06 plan never learned #334's 2026-10-24 expiry and logout purges), file lists that name no test that breaks (a migration guard compares every table at the newest migration), and the narrow acceptance above.
 
 **Recheck:** the planner greps `e2e/` for every spec that renders a changed component (selectors and testids, not only file names) and lists them all in the row's acceptance; the gate re-runs the grep on the final head. Before a build, `git log --since=<plan date> --oneline origin/main -- <files>`: any commit means re-plan. Before starting a row, check `gh pr view` and `git log origin/main` for the merge itself, not the status cell. The four fixes are RUNBOOK §10.1 planner checklist items 4-7.
+
+Three 2026-11-09 instances found by the sub-orchestrator's diff review (SUBORCH-2026-11-09), all of the "file lists that name no test that breaks" and "plans older than the code" kinds.
+- **A plan that omits an assertion an owner answer forces.** SAFETY-MODE-DUPROW's plan said the existing assertions in `test_safety_mode_setting.py` stay unedited and listed only new HC-SMS-008 cases. The owner's any-ON answer forces HC-SMS-004's shared-vault tail (profile B's GET reads True, not False), and HC-SMS-008c asserts the same thing. The build had to edit it, and L0 licensed that after the fact (ruling R1, 2026-11-10). RUNBOOK §10.1 planner checklist item 1 exists for this (grep the tests for each file the row touches); it was not run against the assertion the owner answer changes. Recheck: when an owner answer changes a behaviour, grep the tests for assertions of the old behaviour and list each one that must flip in the row's file list, with the answer's name beside it.
+- **A stale plan fact.** ANALYTE-NAME-SWEEP's step 2 said `plan.py` mapped "cholesterol" to a name that is never stored. `query_observations.py:69` already canonicalizes "Cholesterol" to `total_cholesterol` (CHAT-FACT-ROUTING), so the planned test (HC-ANS-003) could not fail. The Phase A build replaced it with a DB-backed planner-to-tool test whose mutation turns RED. Recheck: for each planner step that claims a defect, run the cheap RED on `main` before the row is ready (checklist item 3) and paste it.
+- **A plan that contradicts an owner answer, and a ruling that contradicts its own pinned tests.** The f-3 plan for RECOVER-ORDER said `issue_recovery_code` was out of scope and that no owner gate applied; the owner then answered RECOVER-ORDER-COMMIT with the same reorder for `issue_recovery_code`. Separately, L0's ruling 6732000906 item 5 (prune every row in the vault on save) contradicted HC-EXPA-028 and HC-EXPA-032, which the same ruling kept unedited, and L0 withdrew that half (6734556486). Four rows (FIT-REPORT-SECTION, RECOVER-ORDER, FALLBACK-COUNT-50, TEST-RESET-ROUTE) were each planned twice, which meant two sets of test ids. Recheck: before publishing a plan or a ruling, compare it with every owner answer on the row and with the tests it declares unedited; keep one plan section per row (BATCH-1110A reconciled the four).
+All three are recorded as instances of this mode, not new modes.
+---
+
+## 20. A hold-everything wrapper that enumerates fewer locks than the pool it excludes
+
+KV evidence (#298): the model-host `hold_slots.sh` quiet-run wrapper flocks a hard-coded list of `hc-pytest` slot locks (`for i in 1 2 3 4 5 6 7 8`, lock files `/tmp/claude-1000/hc-pytest.$i.lock`) while `scripts/pyslot.sh` hands out slots `1..PYSLOTS` (`n="${PYSLOTS:-3}"`, line 5). When the wrapper's list stopped at 3 (later 8), a `PYSLOTS` above it let a pytest take an unheld slot and run beside the run the wrapper exists to isolate: the exclusion silently covered only part of the pool.
+
+**Recheck:** any "hold every X" wrapper must derive its count from the thing it excludes (`PYSLOTS` itself, or `ls` over the lock prefix), not keep a copy of it. Before trusting an exclusive run, run one probe job at a `PYSLOTS` above the wrapper's top lock and prove it still blocks. The wrapper lives outside the repo today (the durable copy is `~/hc-quiet-logs/tools/hold_slots.sh`); if HOLD-SLOTS-IN-REPO lands first it moves into the repo's scripts directory.
+
+**Owner action (KV evidence item 4, not a failure mode):** the Ollama fallback tag `gemma4:12b` (`core/llm/factory.py:49`, `model = llm_model or "gemma4:12b"`) already matches the documented recommendation (`config/.env.example`), so no repo change is needed. It is not pulled on the model host, so a `LLM_PROVIDER=ollama` install without `LLM_MODEL` asks for a missing model. The owner runs `python scripts/download_models.py ollama --tag gemma4:12b` (or `ollama pull gemma4:12b`) on the model host.
+
+---
+
+## 21. A captured subprocess whose background grandchild keeps the pipe open
+
+The inverse of the leaked-orphan instance under mode 5: there the orphan outlived the batch and held a port or lock; here the orphan makes the caller wait. Reported by another builder: `subprocess.run(..., capture_output=True)` on a command that leaves a background grandchild blocks on pipe EOF until the orphan exits, because the grandchild inherited the stdout/stderr pipe write ends. The test hung with the command already at rc=0; nothing in the output showed a wait on a pipe. (Evidence is the builder's report; not re-reproduced here.)
+
+**Recheck:** a test that runs a command which may background anything redirects the child's stdout/stderr to a file (or `DEVNULL`) instead of pipes, or sets a `timeout=` and kills the process group (`start_new_session=True`, `os.killpg`). When a test hangs at rc=0, list the process's descendants (`pgrep -P`, `ps --forest`) before blaming the code under test.

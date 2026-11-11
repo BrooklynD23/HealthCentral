@@ -948,6 +948,45 @@ async def test_hc_ocr_020_the_patient_opts_in_and_the_waiting_scan_is_read(
     assert all(r.user_verified is False for r in rows), [r.user_verified for r in rows]
 
 
+@pytest.mark.asyncio
+async def test_hc_ocr_022_mixed_pdf_with_the_patient_switch_off_leaves_the_picture_page_unread(
+    profile_db, monkeypatch, tmp_path
+):
+    """Admin on, engine present, no settings row: a mixed PDF keeps its text page
+    and reports the picture page, and nothing reaches the OCR reader.
+
+    Protects the ``ocr_pages=ocr_effective`` argument of ``extract_from_pdf`` in
+    ``api/documents.py``. Mutation: change it to ``ocr_pages=True`` and this
+    test goes RED (page 2 is read, ``pages_without_text`` is empty) while
+    HC-OCR-019 (scanned PDF only) still passes.
+    """
+    reads = _engine_present(monkeypatch)
+
+    with _patient_client(profile_db, monkeypatch, tmp_path) as client:
+        settings = client.get("/settings/model")
+        assert settings.status_code == 200, settings.text
+        body = settings.json()
+        assert body["ocr_effective"] is False, body
+        assert "user_disabled" in body["ocr_blockers"], body
+
+        imported = client.post(
+            "/documents/import",
+            files={"file": ("mixed.pdf", _mixed_pdf(), "application/pdf")},
+        )
+
+    assert imported.status_code == 201, imported.text
+    assert imported.json()["pages_without_text"] == [2], imported.json()
+    rows = (
+        await profile_db.execute(
+            select(Observation).where(Observation.doc_id == imported.json()["document"]["id"])
+        )
+    ).scalars().all()
+    assert [o for o in rows if o.source_page == 2] == []
+    assert len([o for o in rows if o.source_page == 1]) == 3
+    assert reads == [], "OCR was never switched on: no page may reach the OCR reader"
+    assert await _settings_rows(profile_db) == []
+
+
 _DEV_SH = REPO_ROOT / "dev.sh"
 _DEV_PS1 = REPO_ROOT / "dev.ps1"
 
