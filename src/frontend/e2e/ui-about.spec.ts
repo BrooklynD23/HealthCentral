@@ -304,6 +304,7 @@ test.describe('QUIET-BOX UI-ABOUT timing gates', () => {
         },
         { cpuRate: 4 }
       );
+      console.log(`GATE G3 /about (${theme}): INP proxy ${inp} ms (bound 200, CPU x4)`);
       expect(inp, `G3 ${theme}`).toBeLessThan(200);
     });
 

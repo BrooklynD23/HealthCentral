@@ -421,7 +421,7 @@ jobs:
       #   ui-records:1147    2 themes, /timeline, /search, /pinboards
       #   ui-results:966     /results
       #   ui-review:1266     /verify
-      #   ui-settings:484    /settings (one combined G2+G3+G5 test; its G2/G5 asserts still run here)
+      #   ui-settings:513    /settings (split: G2 and G5 keep their own quiet-box titles)
       #   ui-shell:1145      shell nav click (split: G2 keeps its own quiet-box title)
       # Auth leg (vite preview on :3000 + the real backend on :8000): the six ui-auth G3 titles in describe
       # "UI-PG-AUTH gate G on /setup and /recover" (ui-auth.spec.ts:300-504). They need the real backend and a

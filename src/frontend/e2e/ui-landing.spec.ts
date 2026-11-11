@@ -453,6 +453,7 @@ test.describe('QUIET-BOX UI-OVERVIEW timing gates', () => {
           { cpuRate: 4 }
         );
         // The dev server's React build is slower than the bound, so only a production build asserts (see the header).
+        console.log(`GATE G3 /overview ${state} (${theme}): INP proxy ${inp} ms (bound 200, CPU x4)`);
         if (PREVIEW) expect(inp, `G3 ${state} ${theme}`).toBeLessThan(200);
         else test.info().annotations.push({ type: 'gate-g3-dev-server', description: `${state} ${theme}: ${inp} ms (not asserted)` });
       });
