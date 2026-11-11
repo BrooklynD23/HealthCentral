@@ -220,7 +220,8 @@ export function TimelinePage() {
   const events = data?.events ?? [];
   const undated = data?.undated ?? [];
 
-  // The observations are shared with other pages and kept for 5 minutes, and an import does not invalidate them, so a
+  // The observations are shared with other pages and kept for 5 minutes. An import, delete, reprocess or verify in this
+  // tab invalidates them, but an answer cached before a write made elsewhere (another tab, a restore) can still miss an id, so a
   // lab card can point at an id the cached answer does not have. Once per visit, when that happens and a cached answer
   // exists (a failed query has none, and a refetch of it must not hold the cards) that is older than the timeline, they are asked for again, and the cards wait for that one answer.
   const [refreshed, setRefreshed] = useState(false);

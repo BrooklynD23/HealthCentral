@@ -446,8 +446,8 @@ describe('HC-UIPIN-001 timeline cards name their analytes', () => {
   });
 
   it('HC-UIPIN-001: observations cached before an import do not leave the new lab card unnamed on the first visit', async () => {
-    // Would not notice: the names come from ['observations'], which useImportDocument does not invalidate and the app
-    // keeps for 5 minutes. The test loads the observations first, then adds a row on the server, then opens the page
+    // Would not notice: the names come from ['observations'], which the app keeps for 5 minutes and which a write made
+    // elsewhere (another tab, a restore) leaves stale. The test loads the observations first, then adds a row on the server, then opens the page
     // again with the same cache (the timeline is gone from it, as on a first visit). Every other test starts with an
     // empty cache and cannot see this.
     // RED today: the card says "Lab results (1 analyte) fresh" with no name, and the page never asks again.
