@@ -35,7 +35,9 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   Those failures are environmental — they are not yours; fix them by fetching
   the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
-  **collected** count, which does not vary by environment: if it differs from
+  **collected** count, which can vary by installed optional deps (e.g. ±2 for
+  `sentence-transformers`): judge on your own measured count + delta against
+  the posted baseline; if it still differs from
   4661, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual

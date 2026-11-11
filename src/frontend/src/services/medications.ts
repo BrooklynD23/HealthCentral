@@ -173,6 +173,7 @@ export function useCreateMedication() {
     mutationFn: (data: MedicationCreate) => createMedication(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
@@ -191,6 +192,7 @@ export function useUpdateMedication() {
     onSuccess: (_, { medicationId }) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, medicationId] });
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
@@ -208,6 +210,7 @@ export function useDeleteMedication() {
     }) => deleteMedication(medicationId, hardDelete),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
