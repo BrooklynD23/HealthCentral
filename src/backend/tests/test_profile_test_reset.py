@@ -14,8 +14,8 @@ way it is in production.
 from __future__ import annotations
 
 import sys
-from unittest.mock import MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
