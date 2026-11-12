@@ -341,6 +341,11 @@ _LEGEND_LABELS = frozenset({
 })
 
 
+def _is_legend_label(name: str) -> bool:
+    """True if *name* is only a legend label word (trailing punctuation and case ignored)."""
+    return re.sub(r"\s+", " ", name.strip(" \t:.,;-")).lower() in _LEGEND_LABELS
+
+
 class ExtractModule:
     """
     Document extraction service.
@@ -611,7 +616,7 @@ class ExtractModule:
 
         # Get analyte name
         analyte = get_cell(name_col) if name_col >= 0 else get_cell(0)
-        if not analyte:
+        if not analyte or _is_legend_label(analyte):
             return None
 
         # Get value: the whole cell must parse. A comparator (<, >, <=, >=) is a
@@ -811,7 +816,7 @@ class ExtractModule:
         if not analyte or not value_str:
             return None
 
-        if re.sub(r"\s+", " ", analyte.strip(" \t:.,;-")).lower() in _LEGEND_LABELS:
+        if _is_legend_label(analyte):
             return None
 
         # Non-colon lines only: a numeric token after the analyte's first word is a
