@@ -1272,13 +1272,27 @@ class InterpretModule:
                 observation_range_status(None, obs.value, obs.ref_low, obs.ref_high)
             )
 
+        # INTERPRET-FLAG-SCRUB: free-text fields come from uploads; neutralise (never drop)
+        # injection phrases with the chat path's patterns before they reach the prompt.
+        from modules.rag import RAGModule  # lazy: rag imports interpret_safety
+
+        def _scrub(text):
+            if not isinstance(text, str):
+                return text
+            cleaned = text
+            for pattern in RAGModule.PROMPT_INJECTION_PATTERNS:
+                cleaned = re.sub(pattern, "[UNTRUSTED-INSTRUCTION-REMOVED]", cleaned, flags=re.IGNORECASE)
+            if cleaned != text:
+                logger.warning("Neutralized prompt-injection content in an observation field")
+            return cleaned
+
         return LLM_INTERPRETATION_PROMPT.format(
-            analyte=kb.display_name if kb else obs.analyte_canonical.upper(),
-            value=obs.value if obs.value is not None else obs.value_text or "N/A",
-            unit=obs.unit or "",
+            analyte=kb.display_name if kb else _scrub(obs.analyte_canonical.upper()),
+            value=obs.value if obs.value is not None else _scrub(obs.value_text) or "N/A",
+            unit=_scrub(obs.unit) or "",
             ref_low=obs.ref_low or "N/A",
             ref_high=obs.ref_high or "N/A",
-            flag=flag or "normal",
+            flag=_scrub(flag) or "normal",
             knowledge_text=knowledge_text,
         )
 
