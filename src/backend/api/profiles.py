@@ -746,7 +746,6 @@ async def issue_recovery_code(
             key_path.read_bytes(), method, fallback_password=payload.password
         )
         had_previous = manager.has_recovery_key(profile_id)
-        code = _issue_recovery_code(profile_id, dek)
     except KeySealingError as exc:
         logger.error("Recovery code generation failed for a profile")
         raise HTTPException(
@@ -762,6 +761,19 @@ async def issue_recovery_code(
         details={"trigger": "user_request" if had_previous else "backfill"},
     )
     await db.commit()
+
+    # Commit before rotation (RECOVER-ORDER-COMMIT): a failed commit leaves the
+    # existing recovery file untouched. The code is returned only once the new
+    # seal is on disk. A crash between the commit and this write leaves the old
+    # code valid and an audit row for a rotation that did not happen.
+    try:
+        code = _issue_recovery_code(profile_id, dek)
+    except KeySealingError as exc:
+        logger.error("Recovery code generation failed for a profile")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not generate a recovery code",
+        ) from exc
 
     return RecoveryCodeResponse(recovery_code=code, replaced_existing=had_previous)
 
@@ -785,6 +797,12 @@ async def recover_profile(
     hash with a new-password seal — login fails cleanly and the recovery code
     still works. The inverse order would leave auth accepting a password that
     cannot open the vault.
+
+    The recovery code is rotated only after that commit (RECOVER-ORDER-COMMIT),
+    then a second commit records the rotation. A crash in any window leaves at
+    least one working credential: the old recovery code before the first commit,
+    the new password after it. A crash between the rotation and the second
+    commit loses only the ``recovery_code_generated`` audit row.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
@@ -853,13 +871,6 @@ async def recover_profile(
     profile.is_locked = False
     profile.last_accessed_at = utcnow()
 
-    # Rotate the recovery code rather than invalidating it: plain invalidation
-    # would leave the user with *no* recovery until they remember to generate
-    # one, a durability regression in the feature whose whole point is
-    # durability. Rotation gives one-time-use semantics and keeps the invariant
-    # "there is always exactly one valid recovery code".
-    new_code = _issue_recovery_code(profile_id, dek)
-
     recovery_rate_limiter.reset(rate_key)
 
     await log_profile_event(
@@ -867,6 +878,16 @@ async def recover_profile(
         profile_name=profile.display_name,
         details={"password_reset": True, "recovery_rotated": True},
     )
+    await db.commit()
+
+    # Rotate the recovery code rather than invalidating it: plain invalidation
+    # would leave the user with *no* recovery until they remember to generate
+    # one, a durability regression in the feature whose whole point is
+    # durability. Rotation gives one-time-use semantics and keeps the invariant
+    # "there is always exactly one valid recovery code". It runs only after the
+    # credential commit above (RECOVER-ORDER-COMMIT).
+    new_code = _issue_recovery_code(profile_id, dek)
+
     await log_profile_event(
         db=db, event="recovery_code_generated", profile_id=profile_id,
         profile_name=profile.display_name,
