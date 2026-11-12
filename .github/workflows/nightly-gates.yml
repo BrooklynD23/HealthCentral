@@ -1,0 +1,105 @@
+name: Nightly timing gates
+
+# WF-NIGHTLY-GATES (workflow option H). Runs the mocked G3 timing-gate specs N times on main
+# and records the per-test miss rate. It does NOT replace the per-PR "G3 on Production Build" job in ci.yml.
+#
+# POLICY: recording only. A timing miss never fails this workflow (the Playwright step is
+# continue-on-error and its exit code is swallowed), because a red nightly email is noise;
+# the miss-rate table in the job summary and the playwright-gate-report artifact are the output.
+# Setup/build failures still fail the run, so a broken nightly is visible.
+#
+# Schedule triggers only ever run on the default branch (main). workflow_dispatch can also be
+# pointed at a branch with --ref once this file exists on main.
+# Gate bounds and specs are never changed here; the bound lives in the specs.
+# Scope: the mocked leg only. The six ui-auth G3 specs need the real backend and are not repeated here.
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      repeat_each:
+        description: 'Playwright --repeat-each N'
+        required: false
+        default: '10'
+
+permissions:
+  contents: read
+
+jobs:
+  gate-miss-rate:
+    name: Gate miss rate (mocked G3 x N)
+    runs-on: ubuntu-24.04  # Playwright has no chromium build for ubuntu26.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          echo "version=$(node -p "require('./src/frontend/package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Playwright browsers
+        working-directory: src/frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build
+        working-directory: src/frontend
+        env:
+          VITE_API_URL: http://127.0.0.1:8000/api/v1
+        run: npm run build
+
+      # Same selection as ci.yml's mocked G3 leg, plus --repeat-each, --workers=1 and the JSON reporter.
+      # --retries=0: a retried miss would exit 0 and hide the miss.
+      - name: Run the G3 tests N times on vite preview (mocked)
+        continue-on-error: true  # recording policy, see the header
+        working-directory: src/frontend
+        env:
+          CI: true
+          HC_E2E_BASE_URL: http://127.0.0.1:4173
+          HC_E2E_PROVIDED_SERVERS: '1'
+          PLAYWRIGHT_ASSISTANT_CATEGORY_PROOF: '1'
+          PLAYWRIGHT_JSON_OUTPUT_NAME: ${{ github.workspace }}/gate-report.json
+          REPEAT_EACH: ${{ inputs.repeat_each || '10' }}
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            curl -fsS -o /dev/null http://127.0.0.1:4173/ && break
+            sleep 1
+          done
+          curl -fsS -o /dev/null http://127.0.0.1:4173/ || { echo "vite preview never answered on 4173"; exit 1; }
+          npx playwright test --project chromium --reporter=json --retries=0 --workers=1 \
+            --repeat-each="$REPEAT_EACH" --grep '\bG3\b' --grep-invert 'UI-PG-AUTH gate G on' || true
+
+      - name: Aggregate the miss rate
+        if: always()
+        run: python3 scripts/gate_miss_rate.py gate-report.json --out gate-miss-rate.md && cat gate-miss-rate.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-gate-report
+          path: |
+            gate-report.json
+            gate-miss-rate.md
+          if-no-files-found: warn
