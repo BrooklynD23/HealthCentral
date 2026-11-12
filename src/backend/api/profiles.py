@@ -692,6 +692,7 @@ def _unseal_dek_with_recovery_code(profile_id: str, code: str) -> bytes:
 async def issue_recovery_code(
     profile_id: str,
     payload: ProfileUnlock,
+    request: Request,
     session: Session = Depends(require_profile_access()),
     db: AsyncSession = Depends(get_db),
 ):
@@ -702,16 +703,31 @@ async def issue_recovery_code(
     the only way to unseal the DEK that the new copy will re-seal.
 
     The code is returned exactly once and is not recoverable afterwards.
+
+    The password re-auth is throttled with the standard ``auth_rate_limiter``,
+    the login pattern (owner answer RECOVERY-CODE-THROTTLE).
     """
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"recovery-code:{client_ip}"
+    decision = auth_rate_limiter.check(rate_key)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Please try again shortly.",
+            headers={"Retry-After": str(decision.retry_after_seconds or 1)},
+        )
+
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
     if await authenticate_profile(profile_id, payload.password, db) is None:
+        auth_rate_limiter.add_failure(rate_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password"
         )
+    auth_rate_limiter.reset(rate_key)
 
     manager = get_profile_db_manager()
     key_path = manager._get_profile_key_path(profile_id)
