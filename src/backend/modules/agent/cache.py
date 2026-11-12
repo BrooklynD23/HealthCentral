@@ -91,3 +91,15 @@ def clear_cache() -> None:
     """
     with _lock:
         _cache.clear()
+
+
+def purge_profile(profile_id: str) -> int:
+    """Drop every cached answer of `profile_id` (lock, logout, delete, restore).
+
+    Other profiles' entries stay. Returns how many went.
+    """
+    with _lock:
+        keys = [k for k in _cache if k.profile_id == profile_id]
+        for k in keys:
+            del _cache[k]
+    return len(keys)
