@@ -1503,6 +1503,9 @@
     "docs/plans/2026-11-11-batch-1111g-plan.md": [
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
+    "docs/plans/2026-11-11-batch-1111i-plan.md": [
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
     ],
@@ -3987,6 +3990,7 @@
       "docs/agentic/recurring-failures.md"
     ],
     "docs/plans/2026-10-15-build-program/queue.md": [
+      "docs/plans/2026-11-11-batch-1111i-plan.md",
       "docs/plans/2026-11-11-batch-1111g-plan.md",
       "docs/plans/2026-11-11-batch-1111c-plan.md",
       "docs/plans/2026-11-11-batch-1111a-plan.md",

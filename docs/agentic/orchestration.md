@@ -21,7 +21,7 @@
 1. Read the RESUME POINT in [`ledger.md`](../../audit/2026-09-25/swarm-2026-09-27/ledger.md), the program graph and [owner-decisions](../capstone-report/owner-decisions-2026-09-27.md).
 2. Confirm every dependency of the wave's phases is merged: `git merge-base --is-ancestor <commit> origin/main`.
 3. List each owner gate the wave needs **before** a Task 0 or a merge. Ask the owner about any that are unsigned (at most 4 questions per prompt) and record each answer verbatim in owner-decisions in the same session.
-4. Spawn one L1 per wave, with the brief template in the handoff §4. Independent waves never run at once; phases inside one wave may. A large wave may be split across several L1s that own disjoint files, run in the background in one message (owner direction 2026-10-01, Wave 2); each L1 writes its own report `waves/wave-<N>-L1-<X>.md`. Merges stay serial: each PR after the first merges `origin/main`, re-measures and rewrites the count slots before the owner merges it. Size it to the host: on the 12 GB dev machine, at most 2 code L1s at once, one L2 per L1 at a time, and every full backend suite under `flock /tmp/claude-1000/hc-pytest.lock` (Wave 2 lost all agents to memory exhaustion before this rule).
+4. Spawn one L1 per wave, with the brief template in the handoff §4. Independent waves never run at once; phases inside one wave may. A large wave may be split across several L1s that own disjoint files, run in the background in one message (owner direction 2026-10-01, Wave 2); each L1 writes its own report `waves/wave-<N>-L1-<X>.md`. Merges stay serial: each PR after the first merges `origin/main`, re-measures and rewrites the count slots before the owner merges it. Size it to the host: on the 12 GB dev machine of Wave 2 (the box now has 24 logical CPUs and 37 GiB per `nproc` and `free -h`, 2026-11-11, but this cap has not been re-measured and stays), at most 2 code L1s at once, one L2 per L1 at a time, and every full backend suite under `flock /tmp/claude-1000/hc-pytest.lock` (Wave 2 lost all agents to memory exhaustion before this rule).
 5. When L1 reports, re-run one acceptance command from each PR yourself and compare the output. A report is a lead, not a finding (CLAUDE.md §1).
 6. Update the ledger (append-only, dated), the program state labels and the stakeholder artifact. Commit docs on a `docs/` branch.
 7. The owner merges PRs in the order L1 gives. The next wave starts only after its dependencies are on `origin/main`.
@@ -40,7 +40,7 @@
 ## 4. Environment rules
 
 - **Interpreter (D9, D9-SRC):** `uv venv -p 3.11 ~/venvs/asclexis-311 && uv pip install -p ~/venvs/asclexis-311/bin/python -r src/backend/requirements.txt`.
-- **Offline tests:** set `HF_HUB_OFFLINE=1` on every backend test run until W-8 lands. Without it the suite silently downloads the embedding model (matrix LOCAL-03).
+- **Offline tests:** set `HF_HUB_OFFLINE=1` on every backend test run. W-8 merged as #168: the embedding model is now a fetched, gitignored bundle, and without it exactly five tests fail (CLAUDE.md §4) instead of the suite downloading it (matrix LOCAL-03, a dated record).
 - **Run suites in the phase worktree only.** Tests that touch the master engine can write to the developer's real master DB (S-1 finding). After a run, `git status --short` must show only the phase's files.
 - **Frontend:** `vitest` stalls under WSL on `/mnt/c`. Run frontend checks from Windows, or record them as skipped with the reason.
 - **Staging:** explicit pathspecs only; never `git add -A`.
