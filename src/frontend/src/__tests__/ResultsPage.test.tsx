@@ -1096,5 +1096,54 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
       expect(await screen.findByText('LDL grounded text.')).toBeInTheDocument();
       expect(screen.queryByText(LEAD)).toBeNull();
     });
+
+    it('HC-RGP-004 a result whose Generate is in flight stays disabled after another result starts one, and sends no second POST', async () => {
+      const postsFor = (id: string) =>
+        vi.mocked(api.apiPost).mock.calls.filter((call) => String(call[0]).includes(`/observations/${id}/`)).length;
+      // Generate: held on Glucose, LDL's Generate started, back on Glucose its button still spins and sends nothing.
+      mockPage({ observations: [observation, ldl], post: () => null });
+      let release = holdPosts();
+      const first = renderPage();
+      await openExplain();
+      fireEvent.click(await generateButton());
+      await select(/LDL Cholesterol/i, 'Generate an AI interpretation for LDL Cholesterol');
+      fireEvent.click(await generateButton());
+      await waitFor(() => expect(postsFor('obs-2')).toBe(1));
+      await select(/Glucose/i, 'Generate an AI interpretation for Glucose');
+      const glucoseButton = await generateButton();
+      expect(glucoseButton).toBeDisabled();
+      expect(spinnerIn(glucoseButton)).not.toBeNull();
+      fireEvent.click(glucoseButton);
+      expect(postsFor('obs-1')).toBe(1);
+      // Released (withheld, so no card): Glucose's Generate is free again.
+      await release('obs-1', withheldBody());
+      await screen.findByText(LEAD);
+      await waitFor(async () => expect(await generateButton()).toBeEnabled());
+      expect(spinnerIn(await generateButton())).toBeNull();
+      first.unmount();
+
+      // Regenerate: the same with stored cards.
+      vi.clearAllMocks();
+      mockPage({ stored: true, observations: [observation, ldl], post: () => null });
+      release = holdPosts();
+      renderPage();
+      await openExplain();
+      expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+      await waitFor(() => expect(spinningButtons()).toHaveLength(1));
+      fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+      await waitFor(() => expect(postsFor('obs-2')).toBe(1));
+      fireEvent.click(await screen.findByRole('button', { name: /Glucose/i }));
+      await waitFor(() => expect(spinningButtons()).toHaveLength(1));
+      expect(spinningButtons()[0]).toBeDisabled();
+      expect(screen.queryByRole('button', { name: /Regenerate/i })).toBeNull();
+      fireEvent.click(spinningButtons()[0]);
+      expect(postsFor('obs-1')).toBe(1);
+      await release('obs-1', withheldBody());
+      await screen.findByText(LEAD);
+      expect(await screen.findByRole('button', { name: /Regenerate/i })).toBeEnabled();
+      expect(spinningButtons()).toHaveLength(0);
+    });
   });
 });

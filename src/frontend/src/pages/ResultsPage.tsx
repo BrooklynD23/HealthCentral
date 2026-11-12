@@ -222,6 +222,9 @@ export function ResultsPage() {
   const [grounded, setGrounded] = useState<
     Record<string, { summary: string; isValid: boolean; score: number }>
   >({});
+  // The results whose grounded POST is still in flight: one per result, so a result's own Generate stays disabled even
+  // after another result's Generate has started (the mutation's isPending and variables follow the latest call only).
+  const [interpInFlight, setInterpInFlight] = useState<ReadonlySet<string>>(() => new Set());
   const [withheldNotice, setWithheldNotice] = useState<{
     observationId: string;
     message: string;
@@ -348,6 +351,8 @@ export function ResultsPage() {
   const handleGenerateInterpretation = (force = false) => {
     if (!effectiveObservation) return;
     const observationId = effectiveObservation.id;
+    if (interpInFlight.has(observationId)) return;
+    setInterpInFlight((current) => new Set(current).add(observationId));
     // Not a per-call onSuccess on mutate: that fires only for the latest call, so with a Generate on another result
     // still in flight the earlier result's answer or withheld notice would be lost (RESULTS-GENERATE-PENDING).
     generateInterpretation
@@ -376,7 +381,14 @@ export function ResultsPage() {
         }));
       })
       // The failure is on the mutation's own state (the 409 is read from it below); nothing more to do here.
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() =>
+        setInterpInFlight((current) => {
+          const next = new Set(current);
+          next.delete(observationId);
+          return next;
+        })
+      );
   };
 
   // The panel is interpreted for the day the panel itself is from (the route matches observations of that day), never
@@ -406,9 +418,8 @@ export function ResultsPage() {
   const panelShown = panelInterpretation?.panel === activeTab ? panelInterpretation : null;
   const panelPending = generatePanelInterp.isPending && askedPanel === activeTab;
   const panelFailed = generatePanelInterp.isError && askedPanel === activeTab;
-  // The grounded POST is likewise one object for every result: it is pending here only for the result it was asked for.
-  const interpPending =
-    generateInterpretation.isPending && generateInterpretation.variables?.observationId === effectiveObservation?.id;
+  // The grounded POST is likewise one object for every result: it is pending here only while this result's own is.
+  const interpPending = effectiveObservation ? interpInFlight.has(effectiveObservation.id) : false;
   // The ribbon is on the page: nothing to download before it is, and nothing is selected on an empty or loading panel.
   // With the mode on, the unchecked values are not drawn, so a chart with only those has nothing to download.
   const plottedCount = (trendData?.data_points.length ?? 0) - (strictSafetyMode ? unverifiedPointCount : 0);
