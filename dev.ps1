@@ -323,7 +323,8 @@ Write-Host "  --- Checking prerequisites ---" -ForegroundColor DarkGray
 
 # -- Python --
 function Find-Python311Command {
-    foreach ($cmd in @("python", "python3", "py")) {
+    $userPython = Join-Path $env:LOCALAPPDATA "Programs\Python\Python311\python.exe"
+    foreach ($cmd in @("python", "python3", "py", $userPython)) {
         try {
             $version = & $cmd --version 2>&1
             if ($version -match "Python 3\.(\d+)") {
@@ -365,9 +366,13 @@ if (-not $pythonCmd) {
         exit 1
     }
     Write-Status "Installing Python 3.11 via winget (this may take a few minutes) ..."
-    & winget install --id Python.Python.3.11 --exact --source winget --accept-package-agreements --accept-source-agreements
+    & winget install --id Python.Python.3.11 --exact --source winget --scope user --accept-package-agreements --accept-source-agreements
     if ($LASTEXITCODE -ne 0) {
-        Write-Err "winget install failed (exit code $LASTEXITCODE)."
+        if ($LASTEXITCODE -eq -1978334964 -or $LASTEXITCODE -eq 1602) {
+            Write-Err "The Python installer was cancelled (an admin prompt may have been declined or hidden behind another window). Re-run dev.bat, or install Python 3.11 from https://python.org/downloads with 'Add Python to PATH' checked."
+        } else {
+            Write-Err "winget install failed (exit code $LASTEXITCODE)."
+        }
         Write-PythonManualInstallHelp
         Read-Host "  Press Enter to exit"
         exit 1
