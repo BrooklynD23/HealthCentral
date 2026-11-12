@@ -809,7 +809,12 @@
     "docs/capstone-report/phase1/report-draft.md": [
       "docs/capstone-report/README.md",
       "docs/capstone-report/phase1/evidence-index.md",
-      "docs/capstone-report/phase1/presentation-outline.md"
+      "docs/capstone-report/phase1/presentation-outline.md",
+      "docs/capstone-report/phase1/workflow-optimization-quiet-box.md"
+    ],
+    "docs/capstone-report/phase1/workflow-optimization-quiet-box.md": [
+      "docs/capstone-report/phase1/evidence-index.md",
+      "docs/capstone-report/phase1/report-draft.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -3498,7 +3503,8 @@
     "docs/capstone-report/phase1/evidence-index.md": [
       "docs/capstone-report/phase1/report-draft.md",
       "docs/capstone-report/claims-ledger.md",
-      "docs/capstone-report/phase1/presentation-outline.md"
+      "docs/capstone-report/phase1/presentation-outline.md",
+      "docs/capstone-report/phase1/workflow-optimization-quiet-box.md"
     ],
     "docs/capstone-report/phase1/presentation-outline.md": [
       "docs/capstone-report/phase1/report-draft.md",
@@ -3507,7 +3513,11 @@
     "docs/capstone-report/phase1/report-draft.md": [
       "docs/capstone-report/phase1/presentation-outline.md",
       "docs/capstone-report/phase1/evidence-index.md",
-      "docs/capstone-report/claims-ledger.md"
+      "docs/capstone-report/claims-ledger.md",
+      "docs/capstone-report/phase1/workflow-optimization-quiet-box.md"
+    ],
+    "docs/capstone-report/phase1/workflow-optimization-quiet-box.md": [
+      "docs/capstone-report/phase1/report-draft.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "audit/2026-09-25/review/2026-09-27-followup.md",

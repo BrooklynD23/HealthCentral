@@ -65,9 +65,10 @@ Verification legend: **R** = re-run or re-read for this draft on 2026-11-11 at `
 | EI-M10 | 21 failure modes (§5.1) | `docs/agentic/recurring-failures.md` | H14 (12 at `a16dd51`) | R |
 | EI-M11 | Count slot history (§5.5) | `git log -G 'backend tests collected' -- CLAUDE.md` | M3 | R |
 | EI-M12 | 4984 collected on `e5c7bf80` (§5.5, summary) | Haiku test runner, `pytest --collect-only` output (Appendix B) | — new | R |
+| EI-M12b | 5003 latest measured count slot value (§5.5) | `queue.md` count slot, BATCH-1111G (open PR #619) | — new | D (not re-run for this draft) |
 | EI-M13 | 621 tests on 2026-06-11 (§5.5) | `docs/plans/implementation-log/2026-06-11_verification-report.md` §2 | — | R |
 | EI-M14 | UIDOC-006A diagnosis and fix (§5.4) | `docs/plans/2026-11-11-batch-1111a-plan.md:75-119`; PR #591 | — new | R |
-| EI-M15 | MEDS-G-FLAKE candidate, not diagnosed (§5.4) | open PR #612, `queue.md` row MEDS-G-FLAKE | — new | R (PR branch, not `main`) |
+| EI-M15 | MEDS-G-FLAKE diagnosed as harness timing, not ICU; option A awaits owner gate MEDS-G-X1 (§5.4) | `queue.md` row MEDS-G-FLAKE, docs batch BATCH-1111G (open PR #619; `origin/docs/batch-1111g`) | — new | R (PR branch, not `main`) |
 | EI-M16 | Three-tier L0/L1/L2 model; nesting depth measured (§6.1) | `docs/agentic/orchestration.md` §1 | — | R |
 | EI-M17 | Build-program scripts and Task 0 (§6.2) | `RUNBOOK.md` §4, §10.1; `.claude/workflows/build-program.js` | — | R |
 | EI-M18 | Docs batch must merge before the item's PR (§6.2) | `RUNBOOK.md` §10.1, L0 duty #5 | — | R |
@@ -110,7 +111,7 @@ Each gap is marked `[evidence gap]` at its place in the draft. IDs are prefixed 
 | GAP-17 | Which Codex model version ran in each review | §4.3 | record the model in each review file |
 | GAP-18 | Why the audit file is named "Devin" | §4.4 | owner answer |
 | GAP-19 | UIDOC-006A raw diagnosis is off-repo | §5.4 | commit the diagnosis file |
-| GAP-20 | MEDS-G-FLAKE not diagnosed; recorded only on an open PR | §5.4 | the pending diagnosis; merge of #612 |
+| GAP-20 | MEDS-G-FLAKE diagnosis is recorded only on an open PR (#619) and in an off-repo report; the fix awaits owner gate MEDS-G-X1 | §5.4 | merge of #619; commit the diagnosis report; owner answer to MEDS-G-X1 |
 | GAP-21 | Causes of the 1560 spike (2026-10-13) and 3066 → 4141 jump (2026-11-05) | §5.5 | diff the commits around each slot change |
 | GAP-22 | No current frontend test count | §5.5 | `npx vitest run` and `npx playwright test --list` on `main` |
 | GAP-23 | No time log of the author's own hours per era | §10 | none retrospectively |
@@ -167,5 +168,6 @@ Each prior report, the commit or date it was measured at, and the sections of th
 | `docs/archive/agile/RETRO.md` | sprint S0–S6 | product-agent sprint retro | — (no coding-agent content) | §4.1 context only |
 | `docs/archive/plans/2026-07-02-consolidated-findings-report.md` | 2026-07-02 | CI gap list of that date | gaps since closed (§1.7 CI rows) | §1.7 |
 | `docs/plans/implementation-log/2026-06-11_verification-report.md` | 2026-06-11 | 621-test baseline; "do not lower the threshold" | — | §5.5 |
+| [workflow-optimization-quiet-box.md](workflow-optimization-quiet-box.md) (Phase 1 input) | 2026-11-11, `origin/main` @ `c79b7fd1`; read-only consultant review (Fable 5.2) | the three time sinks, the host measurement (24 CPUs / 37 GiB), options A-N with `[E]` estimates, the RSI proposal, the guardrails | — (new; estimates and operator reports are tagged in the file, not re-run) | §6.5, §8, §11 |
 
 [PHASE 2 PLACEHOLDER: claim rows, gaps and lineage entries for other projects' material.]

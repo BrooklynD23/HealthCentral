@@ -134,7 +134,7 @@ Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Fi
 - Timing checks need a quiet machine: one lock, all test slots held, load below 1.5
 - UIDOC-006A: a 42-50 ms gap against a 40 ms bound
 - Cause: the first `toLocaleDateString()` loads ICU data; idle warm-up → 0/20 misses
-- The bound did not move; MEDS-G-FLAKE is next
+- The bound did not move; MEDS-G-FLAKE came next: harness timing, not ICU (warm-up A/B: no change)
 
 **Visual:** before/after bar (9/20 → 0/20 at normal CPU; 11/20 at 2× throttle, a known limit).
 **Speaker notes:** Report §5.4. Emphasise that `gh run view` returned the wrong attempt's log, and the real count was 3, not 5.
@@ -183,7 +183,7 @@ Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Fi
 
 - Shows: one developer directing agents through 593 merged PRs, with every rule tied to a failure it answers
 - Doesn't show: speed or quality versus another method; no user study; no cost in dollars
-- Next: constrained decoding for citations, encrypted master DB decision, installer, MEDS-G diagnosis
+- Next: constrained decoding for citations, encrypted master DB decision, installer, MEDS-G fix (option A, awaiting owner gate MEDS-G-X1)
 - [PHASE 2 PLACEHOLDER: other projects]
 
 **Visual:** three columns: shows / does not show / next.

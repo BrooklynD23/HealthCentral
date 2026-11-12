@@ -746,7 +746,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation
 
 Claim → source table for report-draft.md and presentation-outline.md. Where a claim already has a row in the claims ledger, this index points to that row and does not restate its evidence; the…
 
-Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/report-draft.md`
+Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/report-draft.md`, `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
 
 ## `docs/capstone-report/phase1/presentation-outline.md`
 
@@ -762,7 +762,15 @@ Links to: `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report
 
 Companion files: presentation-outline.md (slides) and evidence-index.md (claim → source table, evidence gaps, lineage). Load-bearing claims reuse the rows of the existing claims ledger (cited as…
 
-Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report/phase1/presentation-outline.md`
+Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
+
+## `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
+
+**Workflow optimization: the quiet box and long-running tests**
+
+One machine does five jobs: it builds, runs pytest, runs the timing gates, drives Playwright and hosts the local models. The quiet box makes timing measurements trustworthy by stopping everything…
+
+Links to: `docs/capstone-report/phase1/report-draft.md`
 
 ## `docs/capstone-report/report-outline.md`
 
