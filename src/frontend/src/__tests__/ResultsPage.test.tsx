@@ -959,4 +959,142 @@ describe('HC-IWM-FE: a withheld explanation shows the escalation message', () =>
     expect(screen.getByText('Stored card text.')).toBeInTheDocument();
     expect(screen.queryByText('No interpretation yet')).toBeNull();
   });
+
+  // RESULTS-GENERATE-PENDING: the grounded POST is one mutation object for every result, so its pending state counts
+  // only for the result it was started on, and each answer lands on the result it was asked for even when two overlap.
+  describe('HC-RGP: Generate is pending per result, and overlapping answers each land on their own result', () => {
+    const goodBody = (observationId: string, text: string) => ({
+      interpretation: { ...storedCard, id: `interp-${observationId}`, observation_id: observationId },
+      grounded_segments: [],
+      full_response: text,
+      insufficient_context: false,
+      insufficient_reasons: [],
+      verification: { ...emptyVerification, enabled: true, faithfulness_score: 1 },
+      is_valid: true,
+      validation_errors: [],
+    });
+
+    // Every grounded POST is held until the test releases it by observation id.
+    function holdPosts() {
+      const held = new Map<string, (body: unknown) => void>();
+      vi.mocked(api.apiPost).mockImplementation((url) => {
+        const id = /\/observations\/([^/]+)\/interpret-grounded/.exec(String(url))?.[1];
+        if (!id) throw new Error(`unmocked POST ${url}`);
+        return new Promise((resolve) => held.set(id, resolve));
+      });
+      return async (id: string, body: unknown) => {
+        await waitFor(() => expect(held.has(id)).toBe(true));
+        await act(async () => {
+          held.get(id)!(body);
+        });
+      };
+    }
+
+    const spinnerIn = (button: HTMLElement) => button.querySelector('[class*="animate-spin"]');
+    const generateButton = () => screen.findByRole('button', { name: /Generate Interpretation/i });
+    // While a card regenerates its button holds only the spinner, so it has no name: find it by the spinner.
+    const spinningButtons = () =>
+      screen.getAllByRole('button').filter((button) => spinnerIn(button) !== null);
+
+    async function select(name: RegExp, shownText: string | RegExp) {
+      fireEvent.click(await screen.findByRole('button', { name }));
+      await screen.findByText(shownText);
+    }
+
+    it('HC-RGP-001 a Generate in flight on one result leaves another result\'s Generate enabled, with no spinner', async () => {
+      mockPage({ observations: [observation, ldl], post: () => null });
+      holdPosts();
+      renderPage();
+      await openExplain();
+      const glucoseButton = await generateButton();
+      fireEvent.click(glucoseButton);
+      await waitFor(() => expect(glucoseButton).toBeDisabled());
+
+      await select(/LDL Cholesterol/i, 'Generate an AI interpretation for LDL Cholesterol');
+      const ldlButton = await generateButton();
+      expect(ldlButton).toBeEnabled();
+      expect(spinnerIn(ldlButton)).toBeNull();
+    });
+
+    it('HC-RGP-002 the result whose Generate or Regenerate is in flight keeps its own button disabled with a spinner', async () => {
+      // Generate: held on Glucose, still disabled and spinning when Glucose is back on screen.
+      mockPage({ observations: [observation, ldl], post: () => null });
+      holdPosts();
+      const first = renderPage();
+      await openExplain();
+      fireEvent.click(await generateButton());
+      await waitFor(async () => expect(await generateButton()).toBeDisabled());
+      await select(/LDL Cholesterol/i, 'Generate an AI interpretation for LDL Cholesterol');
+      await select(/Glucose/i, 'Generate an AI interpretation for Glucose');
+      const glucoseButton = await generateButton();
+      expect(glucoseButton).toBeDisabled();
+      expect(spinnerIn(glucoseButton)).not.toBeNull();
+      first.unmount();
+
+      // Regenerate: held on Glucose's stored card, LDL's own Regenerate is free, and back on Glucose it still spins.
+      vi.clearAllMocks();
+      mockPage({ stored: true, observations: [observation, ldl], post: () => null });
+      holdPosts();
+      renderPage();
+      await openExplain();
+      expect(await screen.findByText('Stored card text.')).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole('button', { name: /Regenerate/i }));
+      await waitFor(() => expect(spinningButtons()).toHaveLength(1));
+      expect(spinningButtons()[0]).toBeDisabled();
+
+      fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+      const ldlRegenerate = await screen.findByRole('button', { name: /Regenerate/i });
+      expect(ldlRegenerate).toBeEnabled();
+      expect(spinningButtons()).toHaveLength(0);
+
+      fireEvent.click(await screen.findByRole('button', { name: /Glucose/i }));
+      await waitFor(() => expect(spinningButtons()).toHaveLength(1));
+      expect(spinningButtons()[0]).toBeDisabled();
+      expect(screen.queryByRole('button', { name: /Regenerate/i })).toBeNull();
+    });
+
+    it('HC-RGP-003 two overlapping Generates, the second answered first: each result shows its own grounded answer', async () => {
+      mockPage({ observations: [observation, ldl], post: () => null });
+      const release = holdPosts();
+      renderPage();
+      await openExplain();
+      fireEvent.click(await generateButton());
+      await select(/LDL Cholesterol/i, 'Generate an AI interpretation for LDL Cholesterol');
+      fireEvent.click(await generateButton());
+
+      await release('obs-2', goodBody('obs-2', 'LDL grounded text.'));
+      expect(await screen.findByText('LDL grounded text.')).toBeInTheDocument();
+      await release('obs-1', goodBody('obs-1', 'Glucose grounded text.'));
+
+      fireEvent.click(await screen.findByRole('button', { name: /Glucose/i }));
+      expect(await screen.findByText('Glucose grounded text.')).toBeInTheDocument();
+      expect(screen.queryByText('LDL grounded text.')).toBeNull();
+
+      fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+      expect(await screen.findByText('LDL grounded text.')).toBeInTheDocument();
+      expect(screen.queryByText('Glucose grounded text.')).toBeNull();
+    });
+
+    it('HC-RGP-003b the first of two overlapping Generates is withheld and answered last: its notice shows on its result', async () => {
+      mockPage({ observations: [observation, ldl], post: () => null });
+      const release = holdPosts();
+      renderPage();
+      await openExplain();
+      fireEvent.click(await generateButton());
+      await select(/LDL Cholesterol/i, 'Generate an AI interpretation for LDL Cholesterol');
+      fireEvent.click(await generateButton());
+
+      await release('obs-2', goodBody('obs-2', 'LDL grounded text.'));
+      expect(await screen.findByText('LDL grounded text.')).toBeInTheDocument();
+      await release('obs-1', withheldBody());
+
+      fireEvent.click(await screen.findByRole('button', { name: /Glucose/i }));
+      expect(await screen.findByText(LEAD)).toBeInTheDocument();
+      expect(screen.queryByText('Grounded explanation')).toBeNull();
+
+      fireEvent.click(await screen.findByRole('button', { name: /LDL Cholesterol/i }));
+      expect(await screen.findByText('LDL grounded text.')).toBeInTheDocument();
+      expect(screen.queryByText(LEAD)).toBeNull();
+    });
+  });
 });
