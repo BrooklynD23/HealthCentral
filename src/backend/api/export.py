@@ -85,7 +85,16 @@ async def purge_profile_exports(profile_id: str) -> int:
     If no connection is open there is no vault session to delete through (the
     vault cannot serve a download either); that is logged, never silent. A
     delete that raises is not caught: the lock, logout or delete fails loudly.
+
+    Also drops that profile's cached page pictures and assistant answers from memory
+    (MEM-PURGE). That runs first, so it holds when no vault is open. The return value
+    still counts exports only.
     """
+    from api.documents import purge_page_images
+    from modules.agent.cache import purge_profile
+
+    images, answers = purge_page_images(profile_id), purge_profile(profile_id)
+    logger.debug("Memory purge: %d page images, %d cached answers dropped", images, answers)
     removed = 0
     for store in (_summary_store, _packet_store, _fhir_store):
         for key in [k for k, v in store.items() if v.get("profile_id") == profile_id]:

@@ -136,6 +136,19 @@ def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
             _page_image_cache.popitem(last=False)
 
 
+def purge_page_images(profile_id: str) -> int:
+    """Drop every cached page picture of `profile_id` (lock, logout, delete, restore).
+
+    Other profiles' entries stay. Returns how many went. This dereferences the bytes; it
+    does not zero them.
+    """
+    with _page_image_cache_lock:
+        keys = [k for k in _page_image_cache if k[0] == profile_id]
+        for k in keys:
+            del _page_image_cache[k]
+    return len(keys)
+
+
 def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
     """
     Parse a date string from extraction into a datetime object.
