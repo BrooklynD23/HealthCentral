@@ -689,6 +689,14 @@ async def unverify_observation(
 
     verify_observation_access(observation, session)
 
+    # VERIFY-UNDO-NOOP (owner answer VERIFY-NOOP): an empty undo is refused, with
+    # no version bump, no audit row and no write.
+    if observation.user_verified is not True:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Observation is not verified",
+        )
+
     observation.user_verified = False
     observation.verified_at = None
     observation.version += 1
