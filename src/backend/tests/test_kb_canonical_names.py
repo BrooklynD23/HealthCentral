@@ -803,7 +803,7 @@ def test_hc_kcn_005_seed_after_a_collision_adds_nothing_and_raises_nothing(data_
     _upgrade("head")
     healed = _dump()
 
-    assert _counts(healed) == {"biomarker_knowledge": 12, "intervention_mappings": 9, "biomarker_relationships": 7}
+    assert _counts(healed) == {"biomarker_knowledge": 14, "intervention_mappings": 9, "biomarker_relationships": 7}
     assert _run_seed() == (0, 0, 0)
     assert _counts(_dump()) == _counts(healed)
 
@@ -816,13 +816,13 @@ def test_hc_kcn_005_accepted_path_standalone_seed_on_an_unmigrated_old_db(data_r
 
     assert _run_seed() == (3, 2, 1)  # 3 biomarkers, 2 hba1c interventions, glucose->hba1c
     beside = _dump()
-    assert _counts(beside) == {"biomarker_knowledge": 15, "intervention_mappings": 11, "biomarker_relationships": 8}
+    assert _counts(beside) == {"biomarker_knowledge": 17, "intervention_mappings": 11, "biomarker_relationships": 8}
     # the five lipid rows are found by (primary, related, type) and skipped: still lipid_panel
     assert Counter(r["panel_name"] for r in beside["biomarker_relationships"])["lipid_panel"] == 5
 
     _upgrade("head")  # the next app start
     healed = _dump()
-    assert _counts(healed) == {"biomarker_knowledge": 12, "intervention_mappings": 9, "biomarker_relationships": 7}
+    assert _counts(healed) == {"biomarker_knowledge": 14, "intervention_mappings": 9, "biomarker_relationships": 7}
     assert _keys(healed) == _seed_keys(_as_new)
     assert Counter(r["panel_name"] for r in healed["biomarker_relationships"])["lipid"] == 5
 
@@ -844,14 +844,14 @@ def test_hc_kcn_005_accepted_path_baseline_stamp_never_runs_the_migration(data_r
 
     assert _run_seed() == (3, 2, 1)  # no crash
     after = _dump()
-    assert _counts(after) == {"biomarker_knowledge": 15, "intervention_mappings": 11, "biomarker_relationships": 8}
+    assert _counts(after) == {"biomarker_knowledge": 17, "intervention_mappings": 11, "biomarker_relationships": 8}
     assert Counter(r["panel_name"] for r in after["biomarker_relationships"])["lipid_panel"] == 5
 
 
 def test_hc_kcn_005_downgrade_round_trip(data_root):
     """Downgrade is the same logic with the maps inverted, so the old code's seed finds its rows."""
     run_master_migrations()
-    assert _run_seed() == (12, 9, 7)
+    assert _run_seed() == (14, 9, 7)
     head = _dump()
     assert _keys(head) == _seed_keys(_as_new)
 
@@ -868,14 +868,14 @@ def test_hc_kcn_005_downgrade_round_trip(data_root):
 
 def test_hc_kcn_005_downgrade_with_both_names_present_ends_with_one(data_root):
     run_master_migrations()
-    assert _run_seed() == (12, 9, 7)
+    assert _run_seed() == (14, 9, 7)
     glucose = next(r for r in _seed_rows("biomarker_knowledge", _as_old) if r["analyte_canonical"] == "glucose_fasting")
     old_id = _insert(BIO, [glucose])[0]  # a row under the old name beside the new one
 
     command.downgrade(_cfg(), "002_backup_schedules")
     rows = _dump()["biomarker_knowledge"]
     assert [r["id"] for r in rows if r["analyte_canonical"] == "glucose_fasting"] == [old_id]
-    assert len(rows) == 12
+    assert len(rows) == 14
     assert max(Counter(r["analyte_canonical"] for r in rows).values()) == 1
 
 
@@ -914,6 +914,8 @@ BIOMARKER_DIGESTS = {
     "tsh": "cef2ca27e9f3039fe7d04ff392f0305b6806ea6ab43854b1da17eb719bd5d44c",
     "creatinine": "976421e76078ba3d3e83234e08dddac18171da889c60bdb17c878222525d1354",
     "vitamin_d": "7d0e47292cbbd48e5b9e2cfdc522fb1880a71dbb68ff5caac7a0614a8d346742",
+    "potassium": "48da91e2f93a7842243b421338b7afe46b7aa36a24b94542a684036e998d6919",
+    "sodium": "75c6bd040338af690617a7ada3281ddc9c60d9d0b586c3c0927787483a6836a2",
 }
 INTERVENTION_DIGESTS = {
     ("ldl_cholesterol", "high", "Reduce Saturated Fat Intake"): "b95cc7019077eb8169fd884a63037b24615c6e3c0c9d78a3c4744d7df9094f99",
