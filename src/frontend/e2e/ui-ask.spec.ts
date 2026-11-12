@@ -730,6 +730,31 @@ test('HC-UIASK-005: a new answer and its citations pass the stillness probe', as
   await expect(page.locator('[data-testid="chat-message"][data-role="assistant"]')).toHaveCount(1);
 });
 
+// ASK-TIME-WARMUP (owner UIDOC-006A-SIBLINGS): the first toLocaleTimeString of a page loads ICU time data (5-9 ms), and the
+// first message's timestamp is that first call, inside the Send-click commit that the 40 ms sampling-gap bound measures.
+// The page warms the same formatter (same locales and options as the timestamp) with new Date(0) while it is idle.
+// Nothing is sent here: the call must come from the idle warm-up.
+// Would not notice: a warm-up that is early but of a different formatter (the options are checked); the miss rate is the
+// measure of the rest: run HC-UIASK-005 --repeat-each=20 at normal CPU.
+// RED today: no toLocaleTimeString call on an idle /explain.
+test('HC-UIASK-005 (warm-up): the page warms the time formatter while idle, before any question is sent', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __hcTimeCalls: string[] };
+    w.__hcTimeCalls = [];
+    const original = Date.prototype.toLocaleTimeString;
+    Date.prototype.toLocaleTimeString = function (this: Date, ...args: Parameters<Date['toLocaleTimeString']>) {
+      w.__hcTimeCalls.push(JSON.stringify([this.getTime(), args]));
+      return original.apply(this, args);
+    };
+  });
+  await openAsk(page);
+  const warm = JSON.stringify([0, [[], { hour: '2-digit', minute: '2-digit' }]]);
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __hcTimeCalls: string[] }).__hcTimeCalls))
+    .toContain(warm);
+  await expect(page.locator('[data-testid="chat-message"]')).toHaveCount(0);
+});
+
 test('HC-UIASK-005: a citation popover is still when it opens', async ({ page }) => {
   await openAsk(page);
   await ask(page, 'What is my LDL?', 1);

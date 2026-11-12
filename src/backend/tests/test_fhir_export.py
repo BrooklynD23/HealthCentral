@@ -435,6 +435,20 @@ class TestRedaction:
         ]
         assert "555-222-3333" not in medication["dosage"][0]["text"]
 
+    def test_hc_fhir_083_dosage_form_is_redacted(self):
+        """FHIR-DOSAGE-FORM: dosage_form is free text (MedicationCreate, max_length=50,
+        no pattern) and lands in dosage[].text, so it is redacted like dosage_unit."""
+        med = _med(id="med-1", dosage_form="call 555-123-4567")
+        result = build_fhir_bundle("Jane Doe", [], [med], [], [], [])
+
+        assert "555-123-4567" not in json.dumps(result["bundle"])
+        [medication] = [
+            e["resource"] for e in result["bundle"]["entry"]
+            if e["resource"]["resourceType"] == "MedicationStatement"
+        ]
+        assert "555-123-4567" not in medication["dosage"][0]["text"]
+        assert result["redaction_count"] > 0
+
 
 class TestResourceCounts:
     def test_hc_fhir_090_resource_counts_reflect_included_resources(self):

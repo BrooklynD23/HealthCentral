@@ -1121,6 +1121,7 @@ async def batch_generate_interpretations(
                 )
 
     withheld_results: dict[str, object] = {}
+    refused_ids: list[str] = []
     for obs_id in request.observation_ids:
         try:
             validate_uuid(obs_id, "observation_id")
@@ -1141,9 +1142,7 @@ async def batch_generate_interpretations(
 
             # SAFETY-MODE-VERIFIED: refused before generation, listed under "failed".
             if strict and not observation.user_verified:
-                await _audit_unverified_refusal(
-                    master_db, session.profile_id, "observation", obs_id,
-                )
+                refused_ids.append(obs_id)  # audited after the loop, outside this try
                 failed.append({"observation_id": obs_id, "error": UNVERIFIED_BATCH_ERROR})
                 continue
 
@@ -1179,6 +1178,12 @@ async def batch_generate_interpretations(
     logger.info(
         f"Batch interpretation: {len(successful)} successful, {len(failed)} failed"
     )
+
+    # SAFETY-VERIFIED-MINORS: one refusal row per refusal occurrence, written outside the
+    # per-item try so a failed audit write raises (fail closed) instead of being swallowed
+    # into an "Internal error" entry and leaving the refusal unlogged.
+    for obs_id in refused_ids:
+        await _audit_unverified_refusal(master_db, session.profile_id, "observation", obs_id)
 
     # INTERP-WITHHOLD-MSG, as the single card does: one row per withheld card. Written after
     # the loop and outside its try, so a failed audit write raises (fail closed) instead of

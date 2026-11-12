@@ -66,6 +66,24 @@ function docTypeWords(doc: Document): string {
 /** How long an import result waits for the list refresh to settle before it shows without the new row (INBOX-ROW-JUMP). */
 const IMPORT_RESULT_WAIT_MS = 3000;
 
+/**
+ * The first toLocaleDateString of a page loads the browser's ICU date data (7-13 ms at normal CPU speed). On an empty
+ * list the first row's date is that first call, so it would land inside the one task that commits the imported row
+ * (UIDOC-006A-FLAKE). This pays it while the page is idle instead; the row still prints its date in its first commit.
+ * Same pattern as warmExplainClick in ResultsPage.tsx.
+ */
+function warmDateFormat(): () => void {
+  const warm = () => {
+    void new Date(0).toLocaleDateString();
+  };
+  if (typeof window.requestIdleCallback === 'function') {
+    const handle = window.requestIdleCallback(warm, { timeout: 2000 });
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(warm, 300);
+  return () => window.clearTimeout(handle);
+}
+
 export function DocumentInbox() {
   const navigate = useNavigate();
   const [isDragging, setIsDragging] = useState(false);
@@ -82,6 +100,7 @@ export function DocumentInbox() {
   const [waitedOut, setWaitedOut] = useState<number[]>([]);
   const waitTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => waitTimers.current.forEach(clearTimeout), []);
+  useEffect(warmDateFormat, []);
   // Documents the patient removed in this visit: their import card and duplicate warning leave with their row.
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   // A Remove the server refused: the row stays, so the patient is told (HC-UIDOC-020). Cleared by Dismiss or a later Remove.

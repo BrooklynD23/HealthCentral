@@ -128,6 +128,13 @@ _TOKENS = [
 ]
 
 
+def _old_label_is_clean(text, m):
+    """EXTRACT-LABEL-BOUNDARY: the old match began on a whole-word label followed by ':'."""
+    head = text[m.start():m.start(1)]
+    word_before = m.start() > 0 and (text[m.start() - 1].isalnum() or text[m.start() - 1] == "_")
+    return not word_before and head.rstrip().endswith(":")
+
+
 def _observable(text, m):
     """(trimmed start, trimmed end, stripped group 1), trimming as with_span does."""
     if m is None:
@@ -150,8 +157,15 @@ def test_hc_enl_004_new_pattern_matches_old_except_empty_values(label):
     differences = 0
     for _ in range(20000):
         t = "".join(rng.choice(_TOKENS) for _ in range(rng.randint(1, 12)))
-        old_v, new_v = _observable(t, old.search(t)), _observable(t, new.search(t))
+        old_m = old.search(t)
+        old_v, new_v = _observable(t, old_m), _observable(t, new.search(t))
         if old_v == new_v:
+            continue
+        # EXTRACT-LABEL-BOUNDARY: an old match whose label sat inside a word or had no
+        # ':' after it may vanish or give way to a later boundary-clean match.
+        if (old_m is not None and not _old_label_is_clean(t, old_m)
+                and (new_v is None or new_v[0] >= old_v[0])):
+            differences += 1
             continue
         assert old_v is not None and old_v[2].lower() in ("", ":", "s", "sign") and new_v is None, (
             t, old_v, new_v)

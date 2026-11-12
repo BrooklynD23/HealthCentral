@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { Download, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Download, FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Input } from '@/components/ui';
 import { AlertDialog } from '@/components/ui/AlertDialog';
 import { Dialog } from '@/components/ui/Dialog';
@@ -24,7 +24,7 @@ const ITEM_LABELS = {
 };
 
 export function PinboardsPage() {
-  const { data: pinboards = [], isLoading } = usePinboards();
+  const { data: pinboards = [], isLoading, isError, refetch: refetchPinboards } = usePinboards();
   const [selectedId, setSelectedId] = useState('');
   const [newName, setNewName] = useState('');
   const [reason, setReason] = useState('');
@@ -219,7 +219,27 @@ export function PinboardsPage() {
         </Button>
       </form>
 
-      {pinboards.length === 0 ? (
+      {isError ? (
+        // Error text is T0: a static alert, not an EmptyState, whose entrance would move it (same as Timeline and Search).
+        <Card data-pinboards-error className="border-status-critical/30 bg-status-critical/5">
+          <CardContent className="py-10 text-center">
+            <div role="alert" data-t0>
+              <AlertTriangle className="mx-auto mb-3 h-8 w-8 text-status-critical" aria-hidden="true" />
+              <h2 className="font-display text-lg font-medium text-ink">Could not load pinboards</h2>
+              <p className="mx-auto mt-1 max-w-xs text-sm text-ink-secondary">
+                Something went wrong loading your pinboards. Please try again.
+              </p>
+            </div>
+            <Button variant="secondary" className="mt-6" onClick={() => {
+              void refetchPinboards();
+              // The button leaves with the alert; keep focus on the page.
+              newNameInput.current?.focus();
+            }}>
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
+      ) : pinboards.length === 0 ? (
         <EmptyState icon={FolderOpen} title="No pinboards yet"
           description="Create one, then pin records from the inbox or timeline."
           action={<Button variant="secondary" onClick={() => newNameInput.current?.focus()}>Name a pinboard</Button>} />
@@ -248,7 +268,19 @@ export function PinboardsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {items.length === 0 ? <p className="text-sm text-ink-secondary">No pinned items yet.</p> : (
+                {observedId && itemsQuery.isError ? (
+                  <div>
+                    <div role="alert" data-t0>
+                      <p className="text-sm text-ink">Could not load the pinned items. Please try again.</p>
+                    </div>
+                    <Button variant="secondary" size="sm" className="mt-3" onClick={() => {
+                      void itemsQuery.refetch();
+                      newNameInput.current?.focus();
+                    }}>
+                      Try again
+                    </Button>
+                  </div>
+                ) : items.length === 0 ? <p className="text-sm text-ink-secondary">No pinned items yet.</p> : (
                   <ul className="divide-y divide-border">
                     {items.map((item) => <li key={item.id} className="flex items-center justify-between gap-3 py-3">
                       <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">

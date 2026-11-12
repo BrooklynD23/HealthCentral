@@ -244,6 +244,47 @@ async def test_hc_reset_021_non_synthetic_profile_is_403_and_deletes_nothing(vau
     assert await _counts(vault, seeded) == before
 
 
+def _plant_docs_sentinels(tmp_path) -> list[Path]:
+    """Two files (top level and nested) in profile-a's docs folder."""
+    docs = tmp_path / "vaults" / "profile-a" / "docs"
+    (docs / "nested").mkdir(parents=True)
+    files = [docs / "sentinel.txt", docs / "nested" / "sentinel-2.txt"]
+    for f in files:
+        f.write_text("synthetic sentinel")
+    return files
+
+
+@pytest.mark.asyncio
+async def test_hc_reset_022_synthetic_reset_wipes_the_docs_folder(vault, tmp_path):
+    """The docs-folder wipe is asserted on disk: files are gone, folder stays, empty."""
+    sentinels = _plant_docs_sentinels(tmp_path)
+    assert all(f.exists() for f in sentinels)
+
+    resp = _reset(vault)
+
+    assert resp.status_code == 204, resp.text
+    docs = tmp_path / "vaults" / "profile-a" / "docs"
+    assert docs.is_dir(), "the reset must leave an empty docs folder"
+    assert list(docs.iterdir()) == []
+    assert not any(f.exists() for f in sentinels)
+
+
+@pytest.mark.asyncio
+async def test_hc_reset_023_guards_run_before_the_docs_wipe(vault, tmp_path, monkeypatch):
+    """The 404 (production) and 403 (non-synthetic) guards must come before the
+    wipe: a guard moved below shutil.rmtree would stay green in 020/021."""
+    sentinels = _plant_docs_sentinels(tmp_path)
+
+    forbidden = _reset(vault, "Regular User")
+    assert forbidden.status_code == 403
+    assert all(f.read_text() == "synthetic sentinel" for f in sentinels)
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    hidden = _reset(vault, "Playwright E2E Production Probe")
+    assert hidden.status_code == 404
+    assert all(f.read_text() == "synthetic sentinel" for f in sentinels)
+
+
 @pytest.mark.asyncio
 async def test_hc_reset_030_badge_definitions_survive(vault):
     """badge_definition is seed data: kept. earned_badge points at it: cleared."""

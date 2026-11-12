@@ -535,3 +535,114 @@ def test_hc_recov_030b_issue_recovery_code_success_rotates_the_code(sealed_vault
         profiles_api._unseal_dek_with_recovery_code("profile-a", old_code)
     assert _events(db) == ["profile.recovery_code_generated"]
     assert db.commit_calls == 1
+
+
+# ---------------------------------------------------------------------------
+# HC-RCR-001..003 (RECOVERY-CODE-RATELIMIT) — POST /{id}/recovery-code throttle
+# ---------------------------------------------------------------------------
+#
+# Owner answer RECOVERY-CODE-THROTTLE (2026-11-09): "auth_rate_limiter, login
+# pattern". The password re-auth on this route used to be an unthrottled
+# guessing oracle. Ordering implemented: limiter check FIRST (before the
+# profile lookup), like login; failures counted on 401; reset on success.
+
+_RCR_PASS = "RcrPassw0rd!"
+_RCR_KEY = "recovery-code:testclient"
+
+
+class _RcrDb:
+    def __init__(self, profile):
+        self._profile = profile
+        self.added: list[object] = []
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def commit(self):
+        pass
+
+    async def rollback(self):
+        pass
+
+    async def flush(self):
+        pass
+
+    async def execute(self, _stmt):
+        return SimpleNamespace(scalar_one_or_none=lambda: self._profile, scalar=lambda: None)
+
+
+@pytest.fixture
+def rcr_env(vault, monkeypatch):
+    """A sealed vault, a real password hash, and the limiter armed and clean."""
+    from core.rate_limiter import auth_rate_limiter
+    from core.security import hash_password
+
+    monkeypatch.setattr(profiles_api.settings, "auth_rate_limit_enabled", True)
+    dek = generate_encryption_key()
+    sealed, method = seal_key_with_dpapi(dek, fallback_password=_RCR_PASS)
+    (vault / "key.bin").write_bytes(sealed)
+    (vault / "key.method").write_bytes(method.encode())
+    profile = SimpleNamespace(
+        id="profile-a", display_name="T", password_hash=hash_password(_RCR_PASS)
+    )
+    auth_rate_limiter.reset(_RCR_KEY)
+    yield _RcrDb(profile), dek
+    auth_rate_limiter.reset(_RCR_KEY)
+
+
+def _rcr_post(db, password, profile_id="profile-a"):
+    from tests.support.routes import route_client
+
+    with route_client(
+        profiles_api.router, "/profiles", profile_id="profile-a", master_db=db,
+        raise_server_exceptions=False,
+    ) as client:
+        return client.post(f"/profiles/{profile_id}/recovery-code", json={"password": password})
+
+
+def test_hc_rcr_001_wrong_passwords_are_throttled_with_retry_after(rcr_env):
+    db, _dek = rcr_env
+    limit = profiles_api.settings.auth_rate_limit_max_attempts
+
+    statuses = [_rcr_post(db, "wrong-password").status_code for _ in range(limit)]
+    blocked = _rcr_post(db, "wrong-password")
+
+    assert statuses == [401] * limit
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) >= 1
+    # The throttle also stops the correct password: a guesser cannot tell.
+    assert _rcr_post(db, _RCR_PASS).status_code == 429
+    assert db.added == [], "a throttled request must not write an audit row"
+
+
+def test_hc_rcr_002_correct_password_after_failures_succeeds_and_resets(rcr_env):
+    db, dek = rcr_env
+    limit = profiles_api.settings.auth_rate_limit_max_attempts
+
+    for _ in range(limit - 1):
+        assert _rcr_post(db, "wrong-password").status_code == 401
+    ok = _rcr_post(db, _RCR_PASS)
+
+    assert ok.status_code == 200, ok.text
+    assert profiles_api._unseal_dek_with_recovery_code(
+        "profile-a", ok.json()["recovery_code"]
+    ) == dek
+    assert [r.event_type for r in db.added] == ["profile.recovery_code_generated"]
+    # The success cleared the window: a full set of fresh failures is allowed.
+    assert [_rcr_post(db, "wrong-password").status_code for _ in range(limit)] == [401] * limit
+
+
+def test_hc_rcr_003_limiter_is_checked_before_the_profile_lookup(rcr_env):
+    """Ordering pinned: check first, like login. A missing-profile 404 consumes
+    no failure, and an exhausted limiter answers 429 before any lookup."""
+    db, _dek = rcr_env
+    limit = profiles_api.settings.auth_rate_limit_max_attempts
+    missing_db = _RcrDb(None)
+
+    for _ in range(limit + 2):
+        assert _rcr_post(missing_db, "x").status_code == 404
+    assert _rcr_post(db, "wrong-password").status_code == 401  # nothing was consumed
+
+    for _ in range(limit - 1):
+        _rcr_post(db, "wrong-password")
+    assert _rcr_post(missing_db, "x").status_code == 429

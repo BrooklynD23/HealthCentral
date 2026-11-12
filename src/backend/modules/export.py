@@ -68,6 +68,18 @@ class QuestionPrompt:
 NEAR_DUE_WINDOW_DAYS = 14
 
 
+def _ref_text(obs: dict) -> str:
+    """EXPORT-REF-NONE: say what is known about the reference range, never "None"."""
+    low, high = obs.get("ref_low"), obs.get("ref_high")
+    if low is not None and high is not None:
+        return f"{low}-{high}"
+    if high is not None:
+        return f"up to {high}"
+    if low is not None:
+        return f"{low} and above"
+    return obs.get("ref_range_text") or "not printed"
+
+
 class ExportModule:
     """
     Export generation service.
@@ -203,7 +215,7 @@ class ExportModule:
             date_str = obs.get("collected_at", "").strftime("%Y-%m-%d") if obs.get("collected_at") else "Unknown date"
             lines.append(
                 f"• {obs['analyte_canonical']}: {obs['value']} {obs.get('unit', '')} "
-                f"(ref: {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "
+                f"(ref: {_ref_text(obs)}) "
                 f"[{obs.get('flag') or 'abnormal'}] - {date_str}"
             )
         return "\n".join(lines)
@@ -630,7 +642,7 @@ class ExportModule:
                 date_str = collected.date().isoformat() if collected else "no date"
                 lines.append(
                     f"- {obs.get('analyte_canonical', '')}: {obs.get('value', '')} {obs.get('unit', '')} "
-                    f"(ref {obs.get('ref_low', '?')}-{obs.get('ref_high', '?')}) "
+                    f"(ref {_ref_text(obs)}) "
                     f"[{obs.get('flag') or ('abnormal' if obs.get('is_abnormal') else 'normal')}] "
                     f"— {date_str}"
                 )

@@ -534,6 +534,29 @@ async def verify_observation(
         changes["value_text"] = {"old": observation.value_text, "new": verify_data.value_text}
         observation.value_text = verify_data.value_text
 
+        # VERIFY-EDIT-LT-VALUE-SEMANTICS: text alone must not leave the old number
+        # standing as "checked". Non-numeric text clears value, flag and
+        # is_abnormal (nothing numeric remains to compare); text that parses as a
+        # finite number sets value, and the recalculation below runs on it.
+        if verify_data.value is None:
+            text = verify_data.value_text.strip()
+            try:
+                parsed = float(text)
+                if not math.isfinite(parsed) or "_" in text:
+                    parsed = None
+            except ValueError:
+                parsed = None
+            if observation.value != parsed:
+                changes["value"] = {"old": observation.value, "new": parsed}
+                observation.value = parsed
+            if parsed is None:
+                if observation.flag is not None:
+                    changes["flag"] = {"old": observation.flag, "new": None}
+                    observation.flag = None
+                if observation.is_abnormal:
+                    changes["is_abnormal"] = {"old": True, "new": False}
+                observation.is_abnormal = False
+
     if verify_data.unit is not None:
         changes["unit"] = {"old": observation.unit, "new": verify_data.unit}
         observation.unit = verify_data.unit
@@ -571,6 +594,8 @@ async def verify_observation(
     # nothing to recalculate against, and the report's own flag must not be
     # erased by a corrected number. The bounds are read from the row after the
     # edit block, never from verify_data, where None means "not sent".
+    # A value_text-only edit has already cleared value/flag/is_abnormal (or set
+    # value) in the edit block above (VERIFY-EDIT-LT-VALUE-SEMANTICS).
     numbers_changed = any(
         f in changes and changes[f]["old"] != changes[f]["new"]
         for f in ("value", "ref_low", "ref_high")
@@ -623,6 +648,61 @@ async def verify_observation(
         # master DB. Which fields the user corrected is the auditable fact; what
         # they corrected them to lives in the encrypted profile DB.
         details={"changed_fields": sorted(changes)} if changes else None,
+    )
+    await master_db.commit()
+
+    return ObservationResponse.from_model(observation)
+
+
+@router.post("/{observation_id}/unverify", response_model=ObservationResponse)
+async def unverify_observation(
+    observation_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Re-open a verified observation (VERIFY-UNDO, flag-only).
+
+    Clears user_verified and verified_at and keeps every edit the user made;
+    original_value_json is not restored (owner answers VERIFY-UNDO and
+    VERIFY-UNDO-SCOPE). A verified parent document drops back to parsed.
+    """
+    validate_uuid(observation_id, "observation_id")
+
+    result = await profile_db.execute(select(Observation).where(Observation.id == observation_id))
+    observation = result.scalar_one_or_none()
+
+    if not observation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found"
+        )
+
+    verify_observation_access(observation, session)
+
+    observation.user_verified = False
+    observation.verified_at = None
+    observation.version += 1
+
+    if observation.doc_id:
+        doc_result = await profile_db.execute(
+            select(Document).where(Document.id == observation.doc_id)
+        )
+        document = doc_result.scalar_one_or_none()
+        if document is not None and document.status == "verified":
+            document.status = "parsed"
+            document.verified_at = None
+
+    await profile_db.commit()
+
+    await log_observation_event(
+        db=master_db,
+        event="unverify",
+        profile_id=observation.profile_id,
+        observation_id=observation_id,
+        analyte=observation.analyte_canonical,
+        # AUDIT-PHI-001: field names only.
+        details={"changed_fields": ["user_verified"]},
     )
     await master_db.commit()
 

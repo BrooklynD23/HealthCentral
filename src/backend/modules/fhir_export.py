@@ -13,7 +13,7 @@ Hard invariants enforced here (do not weaken):
   data leaves the device.
 - Redaction: every free-text string sourced from user or document narrative
   (display name, entity values, quotes, task titles, medication names/
-  instructions, dosage units, document metadata titles, observation analyte
+  instructions, dosage units, dosage forms, document metadata titles, observation analyte
   names/units, observation flags) is passed through
   ``modules.redaction.RedactionEngine(policy_level="strict")`` before it is
   placed in the bundle. Structured fields (ISO-8601 dates, numeric values,
@@ -166,7 +166,7 @@ def build_medication_statement(med: dict, patient_ref: str, redact) -> dict:
     amount, unit, form, frequency = (
         med.get("dosage_amount"),
         redact(med.get("dosage_unit")),
-        med.get("dosage_form"),
+        redact(med.get("dosage_form")),
         med.get("frequency"),
     )
     if amount is not None:
