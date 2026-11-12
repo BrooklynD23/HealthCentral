@@ -28,4 +28,4 @@ Return: claim | evidence found (file:line or quoted output line) | VERIFIED, UNV
 Limits:
 
 - You cannot run pytest, vitest, Playwright or any other command. Never report a result you did not see in the supplied output.
-- `test_api_rag_index_002b` fails where no embedding model is installed. Report it as environmental; never suggest lowering its 0.7 threshold.
+- Five tests fail where the fetched embedding model is not installed: `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`, `test_api_rag_index_002c` and `test_search_vectors_async_calculates_similarity`. Report them as environmental; never suggest lowering the 0.7 threshold.
