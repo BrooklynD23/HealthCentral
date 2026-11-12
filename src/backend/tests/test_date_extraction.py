@@ -632,23 +632,70 @@ class TestDobLayoutsNotCollectionDates:
         assert _module()._extract_dates(text) == expected
 
     def test_hc_edf_005_token_count_mismatch_keeps_the_collected_date(self):
-        """HC-EDF-005: on a token-count mismatch the column guard is off, and the Collected date stays.
+        """HC-EDF-005: on a token-count mismatch the Collected date stays.
 
-        The header has 3 tokens and the data row 2, so nothing is skipped by column.
-        The DOB may still leak into the output (see the known-gap test below); the
-        Collected date must never be dropped.
+        The header has 3 tokens and the data row 2. The ordered date-column rule pairs
+        dates with labels, never by token index, so the Collected date is never dropped
+        (see test_hc_edf_005_token_count_mismatch_dob_is_dropped).
         """
         result = _module()._extract_dates("Patient  DOB  Collected\n01/02/1960  03/04/2026\n")
         assert "2026-03-04" in result
 
-    @pytest.mark.xfail(strict=True, reason="EXTRACT-DOB-FORMS known gap: token-count mismatch")
-    def test_hc_edf_005_token_count_mismatch_dob_leak_known_gap(self):
-        """HC-EDF-005 (known gap): on a token-count mismatch the DOB leaks as a collection date.
+    def test_hc_edf_005_token_count_mismatch_dob_is_dropped(self):
+        """HC-EDF-005: with a named Collected column the DOB cell is dropped (EXTRACT-DOB-MINORS).
 
-        The correct output is ['2026-03-04']; today the DOB 1960-01-02 comes first.
-        Strict xfail: once a fix makes this pass, the run reports XPASS as a failure,
-        so the marker is removed on purpose, not by accident.
+        The correct output is ['2026-03-04'].
         """
         assert _module()._extract_dates(
             "Patient  DOB  Collected\n01/02/1960  03/04/2026\n"
         ) == ["2026-03-04"]
+
+
+class TestDobHeaderTokenCountMismatch:
+    """EXTRACT-DOB-MINORS: a DOB under a header whose token count differs from its row.
+
+    The ordered date-column rule marks the DOB only when every guard holds. Each GREEN
+    pin below names the guard that keeps its date; exact lists, so a leak or a drop fails.
+    """
+
+    def test_hc_dob_042_two_named_date_columns_after_dob(self):
+        """HC-DOB-042: DOB then Collected and Received; the DOB is dropped, both others kept."""
+        text = "Patient  DOB  Collected  Received\n01/02/1960  03/04/2026  03/05/2026\n"
+        assert _module()._extract_dates(text) == ["2026-03-04", "2026-03-05"]
+
+    @pytest.mark.parametrize("text,expected", [
+        # (ii) one date label only: a lone DOB header never claims a row's only date.
+        ("Name DOB Sex\nJane Smith F 03/04/2026\n", ["2026-03-04"]),
+        # (iii) a row token that is a date-column label is a labelled line, never claimed.
+        ("Name DOB Collected\nSmith Received 03/04/2026 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
+        # (iii)+(v) a labelled line with a label between its dates: kept too.
+        ("Name DOB Collected\nReported 03/04/2026 Received 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
+        # (iv) allowlist: an unlisted header word (Resulted) declines the rule.
+        ("Patient DOB Collected Resulted\nSmith 03/04/2026 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
+        # (v) free text before and between dates declines the rule.
+        ("Patient DOB Collected\nPeriod 01/01/2026 - 03/31/2026\n",
+         ["2026-01-01", "2026-03-31"]),
+        ("Patient DOB Collected\nPeriod 01/01/2026 to 03/31/2026\n",
+         ["2026-01-01", "2026-03-31"]),
+        # named residual: one date label, two dates, a name cell: stays ambiguous.
+        ("Patient Name DOB Visit\nJane 01/02/1960 03/04/2026\n",
+         ["1960-01-02", "2026-03-04"]),
+        # named residual: the old HC-DOB-040 shape (no named date column) still leaks.
+        ("Name    DOB\nJane Smith 03/04/1960\nCollected: 03/10/2026\n",
+         ["2026-03-10", "1960-03-04"]),
+    ], ids=[
+        "guard-ii-lone-dob-label",
+        "guard-iii-label-word-in-row",
+        "guard-iii-v-labelled-line",
+        "guard-iv-unlisted-header-word",
+        "guard-v-free-text-dash",
+        "guard-v-free-text-to",
+        "residual-visit-header",
+        "residual-old-dob040-shape",
+    ])
+    def test_hc_dob_043_declined_shapes_keep_every_date(self, text, expected):
+        """HC-DOB-043 (pins): each guard declines the rule; the residual shapes keep leaking."""
+        assert _module()._extract_dates(text) == expected
