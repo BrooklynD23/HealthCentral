@@ -333,6 +333,14 @@ def _read_pdf_bytes(pdf_source: Union[Path, BinaryIO, io.BytesIO]) -> bytes:
     return data
 
 
+# Label words a legend/target line starts with ("Target: 100 mg/dL"). A line whose whole analyte
+# name is one of these is never a test result (owner decision LEGEND-LIST).
+_LEGEND_LABELS = frozenset({
+    "target", "goal", "optimal", "desirable", "recommended", "reference",
+    "reference range", "normal", "normal range", "therapeutic range",
+})
+
+
 class ExtractModule:
     """
     Document extraction service.
@@ -801,6 +809,9 @@ class ExtractModule:
         ref_high_str = fields.get("ref_high") or fields.get("hi") or fields.get("lt")
 
         if not analyte or not value_str:
+            return None
+
+        if re.sub(r"\s+", " ", analyte.strip(" \t:.,;-")).lower() in _LEGEND_LABELS:
             return None
 
         # Non-colon lines only: a numeric token after the analyte's first word is a
