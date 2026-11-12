@@ -933,7 +933,7 @@ async def get_analyte_trend(
         log_observation_event,
         event="view",
         profile_id=profile_id,
-        observation_id=analyte,
+        observation_id="all",
         analyte=analyte,
         details={"action": "trend", "count": len(data_points)},
     )
@@ -1021,7 +1021,7 @@ async def get_panel(
         log_observation_event,
         event="view",
         profile_id=profile_id,
-        observation_id=panel_id.lower(),
+        observation_id="all",
         analyte=panel_def["name"],
         details={"action": "panel", "count": len(obs_responses)},
     )
