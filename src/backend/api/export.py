@@ -741,6 +741,9 @@ async def download_summary(
     summary_id: str,
     session: RequireAuth,
     format: str = Query("text", description="Download format: text, html, or pdf"),
+    omit_questions: bool = Query(
+        False, description="Leave the questions out (patient unticked them after generating)"
+    ),
     master_db: AsyncSession = Depends(get_db),
     profile_db: ProfileDbSession = None,
 ):
@@ -794,6 +797,10 @@ async def download_summary(
 
     export_module = ExportModule()
     short_id = summary_id[:8]
+
+    if omit_questions:
+        # Render-time only: the stored summary keeps its questions. Nothing else is dropped.
+        summary_data = {**summary_data, "questions": []}
 
     if format == "html":
         html_content = export_module.render_html_summary(summary_data)
