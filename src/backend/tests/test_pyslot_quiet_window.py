@@ -97,7 +97,7 @@ def test_hc_qw_001_default_is_six_and_hold_slots_covers_it():
     pyslot = (SCRIPTS / "pyslot.sh").read_text(encoding="utf-8")
     hold = (SCRIPTS / "hold_slots.sh").read_text(encoding="utf-8")
     assert 'n="${PYSLOTS:-6}"' in pyslot
-    assert "n=${PYSLOTS:-6}; [ \"$n\" -lt 8 ] && n=8" in hold  # slots 1..8 >= 1..6
+    assert 'n=${PYSLOTS:-6}; [ "$n" -lt 8 ] && n=8' in hold  # slots 1..8 >= 1..6
     for name in ("pyslot.sh", "hold_slots.sh", "quiet_run.sh"):
         assert b"\r" not in (SCRIPTS / name).read_bytes(), f"{name} must stay LF-only"
 
@@ -178,7 +178,10 @@ def test_hc_qw_004_outside_the_window_refuses_without_force(tmp_path):
     assert _probe(tmp_path / "hc-pytest.hold.lock") == 0, "refusal must not take locks"
     # No window set: unchanged behaviour, the command runs.
     ok = subprocess.run(
-        [str(quiet), "touch", str(marker)], env=_quiet_env(tmp_path), capture_output=True, timeout=60
+        [str(quiet), "touch", str(marker)],
+        env=_quiet_env(tmp_path),
+        capture_output=True,
+        timeout=60,
     )
     assert ok.returncode == 0 and marker.exists(), ok
 
