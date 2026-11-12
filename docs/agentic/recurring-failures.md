@@ -711,3 +711,11 @@ The inverse of the leaked-orphan instance under mode 5: there the orphan outlive
 `modules/interpret_safety.py`: `validate_interpretation` requires at least two of the three `REQUIRED_DISCLAIMER_KEYWORDS` groups in interpretation plus advice, but `add_required_disclaimers` treated one group in the interpretation alone as enough and skipped its append. A one-group text ("Ask your doctor what it means for you.") went through add then validate and was withheld with `missing_disclaimers`. Evidence: the probe run on `origin/main` (4d32143e), recorded as the RED output of `HC-DGQ-001`/`002`/`003` in `tests/test_disclaimer_guard_quirk.py`. Two existing withhold tests (`HC-ISE-002`, `HC-IWM-002`) had been using that text as their "production" disclaimer failure, so the quirk read as intended behaviour. Fixed under DISCLAIMER-GUARD-QUIRK by sharing one `_has_required_disclaimers` rule between both sides.
 
 **Recheck:** grep for every fixer/normaliser that feeds a validator (`add_*`, `ensure_*`, `normalize_*` beside a `validate_*`) and compare its "is this already sufficient" test with the validator's pass condition; they must call the same predicate. A test that drives fixer then validator over inputs just below the validator's threshold (0, 1, N-1 of N) would have failed.
+
+---
+
+## 23. quiet_run counts slot waiters as busy
+
+`scripts/quiet_run.sh` holds `pyslot` slots 1-8 and then waits until no test process is running. A `pyslot.sh` pytest that is only WAITING for a slot counts as a running test process, so `quiet_run` waits for the waiter while the waiter waits for `quiet_run`'s slot: a deadlock until `--max-wait`. Evidence: the #621 diagnosis agent's first `quiet_run` on 2026-11-12 deadlocked against another agent's `pyslot` pytest. The script is not changed in this batch (BATCH-1112B); this entry only records the mode.
+
+**Recheck:** before trusting a `quiet_run` stall, run `pgrep -fa pyslot` and see whether the "busy" process is a slot waiter (a `pyslot.sh` pytest that has not started) rather than a running test. If it is a waiter, the run is deadlocked, not slow: stop it and start the waiter's owner first, or wait for the waiter to finish, instead of sitting to `--max-wait`.
