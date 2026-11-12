@@ -212,9 +212,12 @@ export function ExportPage() {
     );
   };
 
+  const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
+
   const handleCopy = async () => {
     if (summary) {
-      const questionLines = questions.map((q) => `- ${q.question}`);
+      // Same rule as the preview: question lines are copied only while the Questions section is ticked.
+      const questionLines = showQuestionsInSummary ? questions.map((q) => `- ${q.question}`) : [];
       const text = [
         ...summary.key_findings,
         ...(questionLines.length
@@ -328,8 +331,6 @@ export function ExportPage() {
       downloadFhirExport.mutate(fhirExport.export_id);
     }
   };
-
-  const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
 
   const isLoading =
     exportCSV.isPending ||
