@@ -1,6 +1,6 @@
 # Capstone Report Knowledge Base
 
-**Last Updated:** 2026-11-08
+**Last Updated:** 2026-11-11 (Phase 1 senior report draft linked, SENIOR-REPORT-P1)
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is evidence-linked. A claim without a `file:line`, commit hash, or command output is marked UNVERIFIED, not asserted.
 
@@ -18,6 +18,7 @@ Knowledge base for the CS4610 capstone report. It tracks the distance between th
 | [00-original-goal.md](00-original-goal.md) | Product goal and research question, restated for the report, with the re-checked state beside the stated intent |
 | [claims-ledger.md](claims-ledger.md) | Every load-bearing claim ↔ repo evidence ↔ verdict. The anti-overclaim artifact. |
 | [report-outline.md](report-outline.md) | Capstone structure; each section mapped to the evidence that backs it |
+| [phase1/report-draft.md](phase1/report-draft.md) | Senior report Phase 1 draft (2026-11-11): the whole project, building on the earlier reports; with [presentation outline](phase1/presentation-outline.md) and [evidence index](phase1/evidence-index.md) (claims, evidence gaps, lineage) |
 | [asclexis-showcase-2026-10-22.html](asclexis-showcase-2026-10-22.html) | Ledger-gated copy of the stakeholder showcase page: every claim element maps to a claims-ledger row, checked by a script. Supersedes the 2026-09-25 page, which stays unchanged in `audit/2026-09-25/`. |
 | [architecture-overview.md](architecture-overview.md) | Verified current architecture (process, data, document/assistant paths, model/network boundary, exports, jobs, migrations, CI) kept separate from proposed change; integration diagram; divergences from `docs/architecture/` |
 | [architecture-engineering-contract.md](architecture-engineering-contract.md) | Testable MUST / MUST NOT contracts, each classed `BINDING`, `PROPOSED` or `OWNER-GATED`, with enforcement, verification command, failure response and owner |

@@ -680,6 +680,8 @@
     "docs/capstone-report/claims-ledger.md": [
       "docs/capstone-report/00-original-goal.md",
       "docs/capstone-report/README.md",
+      "docs/capstone-report/phase1/evidence-index.md",
+      "docs/capstone-report/phase1/report-draft.md",
       "docs/capstone-report/report-outline.md",
       "docs/plans/2026-09-27-W01-harness-agents-branch-a.md",
       "docs/plans/2026-09-27-senior-report-showcase-plan.md"
@@ -793,6 +795,21 @@
       "docs/research/2026-10-23-safety-mode-real/00-README.md",
       "docs/reviews/2026-10-28/qwen3-4b-tier.md",
       "README.md"
+    ],
+    "docs/capstone-report/phase1/evidence-index.md": [
+      "docs/capstone-report/README.md",
+      "docs/capstone-report/phase1/presentation-outline.md",
+      "docs/capstone-report/phase1/report-draft.md"
+    ],
+    "docs/capstone-report/phase1/presentation-outline.md": [
+      "docs/capstone-report/README.md",
+      "docs/capstone-report/phase1/evidence-index.md",
+      "docs/capstone-report/phase1/report-draft.md"
+    ],
+    "docs/capstone-report/phase1/report-draft.md": [
+      "docs/capstone-report/README.md",
+      "docs/capstone-report/phase1/evidence-index.md",
+      "docs/capstone-report/phase1/presentation-outline.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "docs/capstone-report/00-original-goal.md",
@@ -3361,6 +3378,9 @@
       "docs/capstone-report/00-original-goal.md",
       "docs/capstone-report/claims-ledger.md",
       "docs/capstone-report/report-outline.md",
+      "docs/capstone-report/phase1/report-draft.md",
+      "docs/capstone-report/phase1/presentation-outline.md",
+      "docs/capstone-report/phase1/evidence-index.md",
       "docs/capstone-report/asclexis-showcase-2026-10-22.html",
       "docs/capstone-report/architecture-overview.md",
       "docs/capstone-report/architecture-engineering-contract.md",
@@ -3474,6 +3494,20 @@
       "docs/plans/2026-11-08-batch-1107f-3-plan.md",
       "docs/plans/2026-09-27-W08-bundled-embedding-model.md",
       "docs/capstone-report/README.md"
+    ],
+    "docs/capstone-report/phase1/evidence-index.md": [
+      "docs/capstone-report/phase1/report-draft.md",
+      "docs/capstone-report/claims-ledger.md",
+      "docs/capstone-report/phase1/presentation-outline.md"
+    ],
+    "docs/capstone-report/phase1/presentation-outline.md": [
+      "docs/capstone-report/phase1/report-draft.md",
+      "docs/capstone-report/phase1/evidence-index.md"
+    ],
+    "docs/capstone-report/phase1/report-draft.md": [
+      "docs/capstone-report/phase1/presentation-outline.md",
+      "docs/capstone-report/phase1/evidence-index.md",
+      "docs/capstone-report/claims-ledger.md"
     ],
     "docs/capstone-report/report-outline.md": [
       "audit/2026-09-25/review/2026-09-27-followup.md",
