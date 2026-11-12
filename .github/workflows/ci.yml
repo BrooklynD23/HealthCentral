@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+# WF-CI-SHARD option B: a newer push to the same PR cancels the superseded run. Never cancels pushes to main
+# (their group key is the commit sha, and cancel-in-progress is off for non-PR events).
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # HARNESS-SPEEDUP (owner SPEEDUP-1-3): a docs-only PR skips the code jobs below. Skipping is per JOB, never a
   # workflow-level paths filter: a skipped job reports Success, a filtered-out workflow leaves required checks
@@ -299,8 +305,13 @@ jobs:
       - name: Legacy RAG eval gate (fail when an invalid legacy answer is served)
         run: python3 scripts/legacy_eval_gate.py
 
+  # WF-CI-SHARD option A: the same Playwright test list split over 4 runners, 1 worker each, retries unchanged.
   e2e-tests:
-    name: E2E Smoke Tests
+    name: E2E Shard ${{ matrix.shard }}/4
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-24.04  # Playwright has no chromium build for ubuntu26.04 (ubuntu-latest from 2026-10-23)
     needs: [changes, frontend-tests, backend-tests]
     if: ${{ !cancelled() && needs.frontend-tests.result == 'success' && needs.backend-tests.result == 'success' }}
@@ -352,7 +363,7 @@ jobs:
 
       - name: Run E2E tests
         working-directory: src/frontend
-        run: npx playwright test --project chromium
+        run: npx playwright test --project chromium --shard=${{ matrix.shard }}/4
         env:
           CI: true
 
@@ -360,9 +371,24 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tw4-shots
+          name: tw4-shots-${{ matrix.shard }}
           path: src/frontend/test-results/tw4-shots/**
           if-no-files-found: warn
+
+  # One stable check name for the merge tooling: it reports the shards' combined result. A skipped E2E (frontend or
+  # backend failed first) stays skipped, as before; any failed or cancelled shard fails this job.
+  e2e-smoke:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-24.04
+    needs: [e2e-tests]
+    if: ${{ always() }}
+    steps:
+      - name: Fail unless every E2E shard succeeded or was skipped
+        env:
+          RESULT: ${{ needs.e2e-tests.result }}
+        run: |
+          echo "E2E shards: $RESULT"
+          case "$RESULT" in success|skipped) exit 0 ;; *) exit 1 ;; esac
 
   g3-preview:
     name: G3 on Production Build

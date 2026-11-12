@@ -1,0 +1,37 @@
+{
+  "suites": [
+    {
+      "title": "ui-meds.spec.ts",
+      "file": "ui-meds.spec.ts",
+      "specs": [],
+      "suites": [
+        {
+          "title": "UI gate G3",
+          "file": "ui-meds.spec.ts",
+          "specs": [
+            {
+              "title": "G3 meds route paints under bound",
+              "file": "ui-meds.spec.ts",
+              "tests": [
+                {"projectName": "chromium", "results": [{"status": "passed"}]},
+                {"projectName": "chromium", "results": [{"status": "failed"}]},
+                {"projectName": "chromium", "results": [{"status": "passed"}]},
+                {"projectName": "chromium", "results": [{"status": "timedOut"}]}
+              ]
+            },
+            {
+              "title": "G3 never misses",
+              "file": "ui-meds.spec.ts",
+              "tests": [
+                {"projectName": "chromium", "results": [{"status": "passed"}]},
+                {"projectName": "chromium", "results": [{"status": "passed"}]},
+                {"projectName": "chromium", "results": [{"status": "skipped"}]}
+              ]
+            }
+          ],
+          "suites": []
+        }
+      ]
+    }
+  ]
+}
