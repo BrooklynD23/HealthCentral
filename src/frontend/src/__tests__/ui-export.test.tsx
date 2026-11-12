@@ -588,3 +588,120 @@ describe('HC-UIEXP-004: the redaction level is shown as read-only text', () => {
     expect(within(dialog).getByText(REDACTION_COPY)).toHaveAttribute('data-t0');
   });
 });
+
+describe('Copy Text copies what the preview shows (EXPORT-COPY-QUESTIONS)', () => {
+  const QUESTION_LINE = `- ${questionItems[0].question}`;
+  const FINDINGS = summaryResponse.key_findings.join('\n');
+
+  async function copiedText(user: ReturnType<typeof userEvent.setup>): Promise<string> {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    await user.click(screen.getByRole('button', { name: /copy text/i }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    return writeText.mock.calls[0][0] as string;
+  }
+
+  it('HC-ECQ-001: Questions unticked after generating leaves the question lines out of the copy', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await waitFor(() => expect(screen.getByText('Questions for Your Clinician')).toBeInTheDocument());
+    await user.click(toggle('Questions for Clinician'));
+    expect(screen.queryByText('Questions for Your Clinician')).not.toBeInTheDocument();
+
+    const text = await copiedText(user);
+    expect(text).toBe(FINDINGS);
+    expect(text).not.toContain(QUESTION_LINE);
+    expect(text).not.toContain('Questions for your clinician:');
+  });
+
+  it('HC-ECQ-002: Questions ticked copies findings, a blank line, the heading and the question lines', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await waitFor(() => expect(screen.getByText('Questions for Your Clinician')).toBeInTheDocument());
+
+    expect(await copiedText(user)).toBe(`${FINDINGS}\n\nQuestions for your clinician:\n${QUESTION_LINE}`);
+  });
+
+  it('HC-ECQ-003: no questions returned copies the findings only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    const base = vi.mocked(api.apiPost).getMockImplementation()!;
+    vi.mocked(api.apiPost).mockImplementation((url: string, ...rest: unknown[]) =>
+      url === '/export/questions' ? Promise.resolve([]) : (base as (...a: unknown[]) => Promise<unknown>)(url, ...rest)
+    );
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+
+    expect(await copiedText(user)).toBe(FINDINGS);
+  });
+});
+
+describe('Download Summary follows the Questions toggle (EXPORT-DOWNLOAD-QUESTIONS)', () => {
+  const DOWNLOAD_URL = '/export/doctor-summary/summary-123/download';
+
+  async function downloadText(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: /download summary/i }));
+    await waitFor(() => expect(api.apiGetRaw).toHaveBeenCalledTimes(1));
+  }
+
+  it('HC-EDQ-003: Questions unticked after generating asks the download to omit them', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await waitFor(() => expect(screen.getByText('Questions for Your Clinician')).toBeInTheDocument());
+    await user.click(toggle('Questions for Clinician'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text', omit_questions: 'true' });
+  });
+
+  it('HC-EDQ-004: Questions still ticked sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+
+  it('HC-EDQ-005: untick then tick again sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await user.click(toggle('Questions for Clinician'));
+    await user.click(toggle('Questions for Clinician'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+
+  it('HC-EDQ-006: a summary generated without questions sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+});

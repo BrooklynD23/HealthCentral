@@ -566,3 +566,64 @@ def test_hc_expctz_001_summary_prints_recorded_collection_date() -> None:
     body = raw.decode("utf-8")
     assert "[H] - 2026-01-15" in body
     assert "2026-01-14" not in body
+
+
+def _download_with_questions(client: TestClient, fmt: str, **params: str) -> str:
+    created = client.post(
+        "/export/doctor-summary", json={"format": fmt, "include_questions": True}
+    )
+    assert created.status_code == 200, created.text
+    response = client.get(
+        f"/export/doctor-summary/{created.json()['summary_id']}/download",
+        params={"format": fmt, **params},
+    )
+    assert response.status_code == 200, response.text
+    return response.content.decode("utf-8")
+
+
+@pytest.mark.parametrize("fmt", ["text", "html", "pdf"])
+def test_hc_edq_001_omit_questions_drops_generated_questions(
+    fmt: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HC-EDQ-001: a summary generated with questions downloads without them on omit_questions=true.
+
+    The patient unticked Questions after generating; the download must match the page.
+    Everything else (findings, values, strict redaction) stays in the file.
+    """
+    if fmt == "pdf":
+        _install_capturing_weasyprint(monkeypatch)
+    with _export_client() as client:
+        with_questions = _download_with_questions(client, fmt)
+        omitted = _download_with_questions(client, fmt, omit_questions="true")
+    # Not vacuous: the same summary does carry the block without the parameter.
+    marker = "Questions for Your Provider" if fmt != "text" else "QUESTIONS FOR YOUR PROVIDER"
+    assert marker in with_questions
+    assert "QUESTIONS FOR YOUR PROVIDER" not in omitted
+    assert "Questions for Your Provider" not in omitted
+    # Only the questions went: values still print and PHI is still redacted.
+    for clinical in ("glucose", "250.0", "potassium"):
+        assert clinical in omitted
+    for phi in PHI_STRINGS:
+        assert phi not in omitted
+    assert "[NAME-REDACTED]" in omitted
+
+
+def test_hc_edq_002_download_without_parameter_keeps_questions() -> None:
+    """HC-EDQ-002: default download is unchanged: the stored questions are in the text."""
+    with _export_client() as client:
+        body = _download_with_questions(client, "text")
+    assert "QUESTIONS FOR YOUR PROVIDER" in body
+
+
+def test_hc_edq_007_omit_does_not_change_the_stored_summary() -> None:
+    """HC-EDQ-007: omit_questions is render-time only: a later plain download has the questions back."""
+    with _export_client() as client:
+        created = client.post(
+            "/export/doctor-summary", json={"format": "text", "include_questions": True}
+        )
+        url = f"/export/doctor-summary/{created.json()['summary_id']}/download"
+        omitted = client.get(url, params={"format": "text", "omit_questions": "true"})
+        again = client.get(url, params={"format": "text"})
+    assert omitted.status_code == 200 and again.status_code == 200
+    assert "QUESTIONS FOR YOUR PROVIDER" not in omitted.text
+    assert "QUESTIONS FOR YOUR PROVIDER" in again.text

@@ -41,7 +41,7 @@ audit context only — do not treat it as the tracker).
 - Local GGUF via llama-cpp-python is the default and must work offline. External
   LLMs are opt-in, behind model settings AND the redaction gate.
 - Model tiers route by task; keep tier selection in model settings, not hardcoded.
-- Semantic cache keys on `(question, profile_version)` and invalidates when new
+- Semantic cache keys on `(profile_id, normalized_question, profile_version)` (`modules/agent/cache.py`) and invalidates when new
   verified data lands — a stale cached explanation of changed data is a correctness bug.
 - Track per-node timing/tokens and surface p95 in the monitoring dashboard.
 
@@ -50,7 +50,7 @@ audit context only — do not treat it as the tracker).
 Before merge-sensitive work, run the maintained bundle:
 `python3 scripts/repo_hygiene_check.py` · `python3 scripts/docs_lint.py` ·
 frontend type-check (`npx --prefix src/frontend tsc --noEmit ...`) ·
-`PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest <relevant suites>`.
+`cd src/backend && ../../scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest <relevant suites> -p no:cacheprovider -q`.
 Run `git status --short` first; clear local-only scratch (`PLAN.md`, `HANDOFF-*.md`,
 `*_report*.md`, `.bg-shell/`, `.wsl-pytest-venv/`) rather than committing it.
 

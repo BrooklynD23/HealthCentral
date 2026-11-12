@@ -74,7 +74,7 @@ see [`.claude/skills/README.md`](.claude/skills/README.md) and
 
 ```powershell
 .\dev.ps1                                  # full stack; if 8000/3000 are busy it first stops the listeners (UAC retry), then falls back to the next free port
-cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (4993 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
+cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (5114 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e

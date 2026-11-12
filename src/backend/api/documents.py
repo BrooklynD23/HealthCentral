@@ -136,6 +136,19 @@ def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
             _page_image_cache.popitem(last=False)
 
 
+def purge_page_images(profile_id: str) -> int:
+    """Drop every cached page picture of `profile_id` (lock, logout, delete, restore).
+
+    Other profiles' entries stay. Returns how many went. This dereferences the bytes; it
+    does not zero them.
+    """
+    with _page_image_cache_lock:
+        keys = [k for k in _page_image_cache if k[0] == profile_id]
+        for k in keys:
+            del _page_image_cache[k]
+    return len(keys)
+
+
 def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
     """
     Parse a date string from extraction into a datetime object.
@@ -1317,13 +1330,20 @@ async def verify_document(
     )
     observations = result.scalars().all()
     now = utcnow()
+    # VERIFY-NOOP (a): skip rows the patient already checked; their date and
+    # version stay, and the count below is only the rows checked by this request.
+    checked_now = 0
     for obs in observations:
+        if obs.user_verified:
+            continue
         obs.user_verified = True
         obs.verified_at = now
         obs.version += 1
+        checked_now += 1
 
+    if document.status != "verified" or document.verified_at is None:
+        document.verified_at = now
     document.status = "verified"
-    document.verified_at = now
     await profile_db.commit()
 
     await log_document_event(
@@ -1332,13 +1352,13 @@ async def verify_document(
         profile_id=session.profile_id,
         document_id=document_id,
         filename=document.source,
-        details={"verified_count": len(observations)},
+        details={"verified_count": checked_now},
     )
     await master_db.commit()
 
     return DocumentVerifyResponse(
         document=DocumentResponse.from_model(document),
-        verified_count=len(observations),
+        verified_count=checked_now,
     )
 
 

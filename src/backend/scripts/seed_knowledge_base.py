@@ -486,6 +486,76 @@ BIOMARKER_DATA = [
         ]),
     },
     # =========================================================================
+    # ELECTROLYTES (CRIT-DEFAULT-KB-LIMITS; owner answer KB-CONTENT-YES-2)
+    # Critical limits equal InterpretationSafetyGuard.DEFAULT_CRITICAL_THRESHOLDS.
+    # =========================================================================
+    {
+        "analyte_canonical": "potassium",
+        "display_name": "Potassium",
+        "loinc_codes_json": json.dumps(["2823-3", "6298-4"]),
+        "description": "Potassium is an electrolyte in your blood that helps your nerves, muscles, and heart work normally.",
+        "clinical_significance": "Potassium levels are kept in a narrow range. Values far above or below that range can affect the heart's rhythm and muscle function, so results outside the critical limits should be reviewed promptly by a healthcare provider.",
+        "normal_interpretation": "Your potassium is in the typical reference range.",
+        "high_interpretation": "A potassium level above the reference range was reported. Consult your healthcare provider, who can review this result alongside your other results, medications, and health history.",
+        "low_interpretation": "A potassium level below the reference range was reported. Consult your healthcare provider, who can review this result alongside your other results, medications, and health history.",
+        "ref_range_adult_json": json.dumps({
+            "default": {"low": [0, 3.5], "normal": [3.5, 5.0], "high": [5.0, None]},
+            "unit": "mmol/L"
+        }),
+        "common_causes_high_json": json.dumps([
+            "Kidney disease",
+            "Some medications",
+            "Sample handling effects in the lab",
+        ]),
+        "common_causes_low_json": json.dumps([
+            "Fluid losses from vomiting or diarrhea",
+            "Some medications",
+            "Low dietary intake",
+        ]),
+        "critical_low": 2.5,
+        "critical_high": 6.5,
+        "standard_unit": "mmol/L",
+        "unit_conversions_json": json.dumps({"mEq/L": 1.0}),
+        "category": "cmp",
+        "panels_json": json.dumps(["cmp", "bmp"]),
+        "sources_json": json.dumps([
+            {"name": "Asclexis default critical-value table (potassium 2.5 and 6.5 mmol/L)"},
+        ]),
+    },
+    {
+        "analyte_canonical": "sodium",
+        "display_name": "Sodium",
+        "loinc_codes_json": json.dumps(["2951-2", "2947-0"]),
+        "description": "Sodium is an electrolyte in your blood that helps control the body's fluid balance and supports nerve and muscle function.",
+        "clinical_significance": "Sodium levels are kept in a narrow range. Values far above or below that range can affect how cells work, so results outside the critical limits should be reviewed promptly by a healthcare provider.",
+        "normal_interpretation": "Your sodium is in the typical reference range.",
+        "high_interpretation": "A sodium level above the reference range was reported. Consult your healthcare provider, who can review this result alongside your other results, medications, and health history.",
+        "low_interpretation": "A sodium level below the reference range was reported. Consult your healthcare provider, who can review this result alongside your other results, medications, and health history.",
+        "ref_range_adult_json": json.dumps({
+            "default": {"low": [0, 135], "normal": [135, 145], "high": [145, None]},
+            "unit": "mmol/L"
+        }),
+        "common_causes_high_json": json.dumps([
+            "Not drinking enough fluids",
+            "Fluid losses",
+            "Some medications",
+        ]),
+        "common_causes_low_json": json.dumps([
+            "Too much fluid relative to sodium",
+            "Fluid losses",
+            "Some medications",
+        ]),
+        "critical_low": 120,
+        "critical_high": 160,
+        "standard_unit": "mmol/L",
+        "unit_conversions_json": json.dumps({"mEq/L": 1.0}),
+        "category": "cmp",
+        "panels_json": json.dumps(["cmp", "bmp"]),
+        "sources_json": json.dumps([
+            {"name": "Asclexis default critical-value table (sodium 120 and 160 mmol/L)"},
+        ]),
+    },
+    # =========================================================================
     # VITAMINS
     # =========================================================================
     {

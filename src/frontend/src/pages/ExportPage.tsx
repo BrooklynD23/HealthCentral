@@ -175,6 +175,8 @@ export function ExportPage() {
   const [copied, setCopied] = useState(false);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  // Whether the summary on screen was generated with Questions ticked (the download needs it to honour a later untick).
+  const [summaryHadQuestions, setSummaryHadQuestions] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
   // Visit prep packet state (HC-M18)
@@ -212,9 +214,12 @@ export function ExportPage() {
     );
   };
 
+  const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
+
   const handleCopy = async () => {
     if (summary) {
-      const questionLines = questions.map((q) => `- ${q.question}`);
+      // Same rule as the preview: question lines are copied only while the Questions section is ticked.
+      const questionLines = showQuestionsInSummary ? questions.map((q) => `- ${q.question}`) : [];
       const text = [
         ...summary.key_findings,
         ...(questionLines.length
@@ -258,6 +263,7 @@ export function ExportPage() {
       }
       setQuestions(questionsResult);
       setSummary(result);
+      setSummaryHadQuestions(Boolean(includeQuestions));
     } catch (error) {
       console.error('Failed to generate summary:', error);
     }
@@ -265,7 +271,12 @@ export function ExportPage() {
 
   const handleDownloadSummary = () => {
     if (summary) {
-      downloadSummary.mutate({ summaryId: summary.summary_id, format: exportFormat });
+      // Questions unticked after generating with them: ask the download to leave them out, as the preview and Copy Text do.
+      downloadSummary.mutate({
+        summaryId: summary.summary_id,
+        format: exportFormat,
+        omitQuestions: summaryHadQuestions && !showQuestionsInSummary,
+      });
     }
   };
 
@@ -328,8 +339,6 @@ export function ExportPage() {
       downloadFhirExport.mutate(fhirExport.export_id);
     }
   };
-
-  const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
 
   const isLoading =
     exportCSV.isPending ||

@@ -148,6 +148,11 @@ _CELL_COUNT_FACTORS = {
 _MG_DL_UNIT = normalize_unit("mg/dL")
 _MG_DL_FACTORS = {normalize_unit("mg%"): 1.0, normalize_unit("g/L"): 100.0}
 
+# CRIT-DEFAULT-KB-LIMITS: for monovalent ions mEq/L equals mmol/L (a same-unit spelling, factor 1;
+# L0 ruling R-a of CRIT-DEFAULT-UNITS). Only potassium and sodium; normalize.UNIT_CONVERSIONS is
+# not touched (HC-CDU-001 pins them out of it).
+_MEQ_EQUIV_MMOL = {"potassium", "sodium"}
+
 
 def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> Optional[float]:
     """KB-UNIT-BADGE (D1): `value`, reported in `unit`, in the unit the KB's critical limits use.
@@ -170,6 +175,12 @@ def value_in_kb_unit(info: BiomarkerInfo, value: float, unit: Optional[str]) -> 
         return None if factor is None else value * factor
     if standard == _MG_DL_UNIT and reported in _MG_DL_FACTORS:
         return value * _MG_DL_FACTORS[reported]
+    if (
+        info.analyte_canonical in _MEQ_EQUIV_MMOL
+        and standard == normalize_unit("mmol/L")
+        and reported == normalize_unit("mEq/L")
+    ):
+        return value
     converted = convert_to_canonical(info.analyte_canonical, value, unit)
     if converted is None:
         return None
@@ -675,8 +686,14 @@ class InterpretModule:
             db=master_db,
         )
         reported_unit = normalize_unit(observation.unit or "")
+        # CRIT-DEFAULT-KB-LIMITS: a card built before its KB row existed holds no [KB:] marker;
+        # it is re-evaluated even in the KB's own unit, for potassium and sodium only (the two rows this
+        # row added). A card with the marker, or any other analyte, keeps decision (c) and HC-VRC-017.
+        has_kb_marker = "[KB:" in (card.interpretation_text or "")
         if kb_row is not None and (
-            not reported_unit or reported_unit != normalize_unit(kb_row.standard_unit or "")
+            not reported_unit
+            or reported_unit != normalize_unit(kb_row.standard_unit or "")
+            or (not has_kb_marker and kb_row.analyte_canonical in _MEQ_EQUIV_MMOL)
         ):
             in_kb_unit = (
                 None if observation.value is None

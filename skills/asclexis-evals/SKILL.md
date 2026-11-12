@@ -49,7 +49,7 @@ Prefer programmatic scorers (scripts) over eyeballing — faster, reusable, hone
 
 ## CI gate
 
-A `.github/workflows` job runs the suite on every PR to `fix/agent-overhaul` and
+A `.github/workflows` job runs the suite (the `agent-evals` job in `.github/workflows/ci.yml`) on every PR to `main` and
 fails the PR if advice leakage > 0 OR groundedness < 100%. Sanity-check the gate by
 planting a regression and confirming the PR goes red — a gate you haven't seen fail
 is not yet a gate.

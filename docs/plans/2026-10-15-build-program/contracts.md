@@ -1,6 +1,6 @@
 # Build Program 2026-10-15 — Cross-Lane Contracts
 
-**Last Updated:** 2026-11-10 (BATCH-1110A: I-20 gains `session_jti`, `session_exp` and the serving, prune and purge rules from the L0 rulings on #537); 2026-10-22 (§c, R-13: owner OW-W13 merge order recorded); 2026-10-15
+**Last Updated:** 2026-11-11 (BATCH-1111I: the `3b2236c` profile head labelled as a dated record); 2026-11-10 (BATCH-1110A: I-20 gains `session_jti`, `session_exp` and the serving, prune and purge rules from the L0 rulings on #537); 2026-10-22 (§c, R-13: owner OW-W13 merge order recorded); 2026-10-15
 **Owner:** repository owner
 **Status:** PROPOSED (L0 contracts reconciler). Binding on lanes A–F once the owner or L0 adopts this build program. **No owner approval is recorded here.** Every gate named below keeps the state it has in [owner-decisions](../../capstone-report/owner-decisions-2026-09-27.md). Rulings marked **OWNER** need an owner answer; the rest are L0 rulings.
 **Refresh Trigger:** any merge of #95, #97, #99, #82, #84, #74, #72, #94 or #68; any lane-doc edit; a merge of any item named in §a; a new file under `src/backend/migrations/*/versions/`; an owner answer to a gate in §e.
@@ -105,7 +105,7 @@ This extends "Shared files are ordered as follows" in [implementation-program.md
 
 ## c. Migration revision allocation
 
-**Profile chain** (`be/migrations/profile/versions/`). Head on `3b2236c`: `012_pinboards` (verified: `ls` and the 4 literals at `test_care_tasks.py:809,825`, `test_profile_migrations_sqlcipher_fallback.py:41`, `test_source_spans.py:313`). Numbers go by **merge order**, so nothing is reserved. Peers cite slug + "head+1 at final rebase".
+**Profile chain** (`be/migrations/profile/versions/`). Head on `3b2236c` *(dated record, 2026-10; on `main` on 2026-11-11 `ls` shows head `019_export_artifacts`)*: `012_pinboards` (verified: `ls` and the 4 literals at `test_care_tasks.py:809,825`, `test_profile_migrations_sqlcipher_fallback.py:41`, `test_source_spans.py:313`). Numbers go by **merge order**, so nothing is reserved. Peers cite slug + "head+1 at final rebase".
 
 | Slug | Item | Kind | Expected position (illustrative, from [queue.md](queue.md)) |
 |---|---|---|---|
