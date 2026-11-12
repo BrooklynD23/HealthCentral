@@ -403,9 +403,10 @@ def _events(db):
 def sealed_vault(vault):
     """A profile whose primary key is sealed under _OLD_PASS and which holds one
     recovery code. Yields (dek, old_code, profile)."""
-    from core.security import generate_salt, hash_password
-    from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
     import base64
+
+    from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+    from core.security import generate_salt, hash_password
 
     dek = generate_encryption_key()
     sealed, method = seal_key_with_dpapi(dek, fallback_password=_OLD_PASS)
