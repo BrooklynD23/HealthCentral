@@ -54,6 +54,10 @@ test.describe('Medication Detail', () => {
       .locator('a[href^="/medications/"]')
       .first();
 
+    // The list loads after the page paints and isVisible() does not wait, so wait for the seeded link first
+    // (DEMO-E2E-REAL: without this the seeded vault raced into the empty-state branch).
+    await firstMedicationLink.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
+
     const hasMedications = await firstMedicationLink
       .isVisible()
       .catch(() => false);
@@ -109,6 +113,9 @@ test.describe('Medication Detail', () => {
     const firstMedicationLink = page
       .locator('a[href^="/medications/"]')
       .first();
+    // The list loads after the page paints and isVisible() does not wait, so wait for the seeded link first
+    // (DEMO-E2E-REAL: without this the seeded vault raced into the empty-state branch).
+    await firstMedicationLink.waitFor({ state: 'visible', timeout: 15000 }).catch(() => undefined);
     if (!(await firstMedicationLink.isVisible().catch(() => false))) {
       test.skip(true, 'No seeded medications in this vault');
       return;
