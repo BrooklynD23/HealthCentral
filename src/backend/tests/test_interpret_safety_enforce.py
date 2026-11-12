@@ -65,7 +65,7 @@ _FLAG_CASES = (
     ("none", None, False, 15.0),
     ("other", "A", True, 30.0),
 )
-_CASES_PER_PASS = 48  # 12 seeded analytes x 4 flag states
+_CASES_PER_PASS = 56  # 14 seeded analytes x 4 flag states
 
 
 async def _run_every_seeded_card(engine, label: str) -> tuple[int, list[str]]:
