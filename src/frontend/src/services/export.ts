@@ -47,7 +47,6 @@ export interface QuestionItem {
   // Provenance (HC-M17)
   source_kind?: 'observation' | 'trend' | 'care_task' | 'entity' | null;
   source_id?: string | null;
-  source_quote?: string | null;
 }
 
 // Visit-prep packet (HC-M18)

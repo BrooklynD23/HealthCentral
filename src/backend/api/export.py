@@ -334,7 +334,6 @@ class QuestionItem(BaseModel):
     # Provenance (HC-M17). Optional so existing consumers keep working.
     source_kind: Optional[str] = None  # observation | trend | care_task | entity
     source_id: Optional[str] = None
-    source_quote: Optional[str] = None
 
     @classmethod
     def from_prompt(cls, q) -> "QuestionItem":
@@ -345,7 +344,6 @@ class QuestionItem(BaseModel):
             related_analytes=q.related_analytes,
             source_kind=q.source_kind,
             source_id=q.source_id,
-            source_quote=q.source_quote,
         )
 
 

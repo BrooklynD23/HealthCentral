@@ -477,7 +477,7 @@ class ExportModule:
             questions.append(QuestionPrompt(
                 category="abnormal",
                 question=f"I noticed my {obs['analyte_canonical']} was outside the reference range. What might that indicate?",
-                context=f"Value: {obs['value']} {obs.get('unit', '')}, flagged as {obs.get('flag') or 'abnormal'}",
+                context=f"Value: {obs['value']} {obs.get('unit', '')} \u2014 outside the printed range.",
                 related_analytes=[obs["analyte_canonical"]],
                 source_kind="observation",
                 source_id=str(obs.get("id")) if obs.get("id") else None,
