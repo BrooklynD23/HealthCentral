@@ -44,37 +44,37 @@ def _canonical_visit_type(raw: str) -> str:
     return "other"
 
 CHIEF_COMPLAINT_PATTERN = re.compile(
-    r"(?:chief\s+complaint|CC|reason\s+for\s+visit):?\s*(.+?)(?:\n|$)",
+    r"\b(?:chief\s+complaint|CC|reason\s+for\s+visit)\b:?\s*(.+?)(?:\n|$)",
     re.IGNORECASE,
 )
 
 ASSESSMENT_PATTERN = re.compile(
-    r"(?>ASSESSMENT|A/P|ASSESSMENT\s+AND\s+PLAN):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
+    r"(?>\b(?:ASSESSMENT|A/P|ASSESSMENT\s+AND\s+PLAN)\s*+:)\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
 PLAN_PATTERN = re.compile(
-    r"(?>PLAN):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
+    r"(?>\bPLAN\s*+:)\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
 DIAGNOSES_PATTERN = re.compile(
-    r"(?:DIAGNOS[IE]S?|ICD[\-\s]?\d+):?\s*(.+?)(?:\n|$)",
+    r"\b(?:DIAGNOS[IE]S?|ICD[\-\s]?\d+)\b:?\s*(.+?)(?:\n|$)",
     re.IGNORECASE,
 )
 
 PROVIDER_PATTERN = re.compile(
-    r"(?:provider|physician|attending|seen\s+by|signed\s+by):?\s*(.+?)(?:\n|$)",
+    r"\b(?:provider|physician|attending|seen\s+by|signed\s+by)\b:?\s*(.+?)(?:\n|$)",
     re.IGNORECASE,
 )
 
 VISIT_DATE_PATTERN = re.compile(
-    r"(?:date\s+of\s+(?:visit|service)|visit\s+date|encounter\s+date):?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})",
+    r"\b(?:date\s+of\s+(?:visit|service)|visit\s+date|encounter\s+date)\b:?\s*(\d{1,2}[/\-]\d{1,2}[/\-]\d{2,4})",
     re.IGNORECASE,
 )
 
 VITALS_PATTERN = re.compile(
-    r"(?>VITAL\s+SIGNS?|VITALS?):?+\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
+    r"(?>\b(?:VITAL\s+SIGNS?|VITALS?)\s*+:)\s*+((?:\S|[^\S\n]+(?![^\S\n]|\n\s*[A-Z]{2,}|\s*\Z)|(?>[^\S\n]*\n\s*)(?![A-Z]{2,}|\Z))+?)(?=\s*\Z|[^\S\n]*\n\s*[A-Z]{2,})",
     re.DOTALL | re.IGNORECASE,
 )
 
@@ -136,7 +136,7 @@ TEST_ORDERED_PASSIVE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 TESTS_ORDERED_LABEL_PATTERN = re.compile(
-    r"(?:tests?|labs?|imaging|studies)\s+ordered:?\s*(.+?)(?:\n|$)",
+    r"\b(?:tests?|labs?|imaging|studies)\s+ordered\b:?\s*(.+?)(?:\n|$)",
     re.IGNORECASE,
 )
 
@@ -170,7 +170,7 @@ FOLLOW_UP_PATTERNS = (
 
 WARNING_SIGN_PATTERNS = (
     re.compile(
-        r"(?:warning\s+signs?|return\s+precautions|when\s+to\s+(?:call|seek\s+(?:help|care)))"
+        r"\b(?:warning\s+signs?|return\s+precautions|when\s+to\s+(?:call|seek\s+(?:help|care)))"
         r"\s*:\s*([^\n]{3,300})",
         re.IGNORECASE,
     ),
