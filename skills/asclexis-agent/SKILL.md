@@ -61,7 +61,7 @@ states before marking any agent story done.
 
 ## Verify before done
 
-`PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/agent/`;
+`cd src/backend && ../../scripts/pyslot.sh env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/agent/ -p no:cacheprovider -q`;
 audit-emission assertion passes; flag-off regression passes; run log replays.
 
 ## Never
