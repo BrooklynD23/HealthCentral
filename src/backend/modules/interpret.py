@@ -687,12 +687,13 @@ class InterpretModule:
         )
         reported_unit = normalize_unit(observation.unit or "")
         # CRIT-DEFAULT-KB-LIMITS: a card built before its KB row existed holds no [KB:] marker;
-        # it is re-evaluated even in the KB's own unit. A card with the marker keeps decision (c).
+        # it is re-evaluated even in the KB's own unit, for potassium and sodium only (the two rows this
+        # row added). A card with the marker, or any other analyte, keeps decision (c) and HC-VRC-017.
         has_kb_marker = "[KB:" in (card.interpretation_text or "")
         if kb_row is not None and (
             not reported_unit
             or reported_unit != normalize_unit(kb_row.standard_unit or "")
-            or not has_kb_marker
+            or (not has_kb_marker and kb_row.analyte_canonical in _MEQ_EQUIV_MMOL)
         ):
             in_kb_unit = (
                 None if observation.value is None

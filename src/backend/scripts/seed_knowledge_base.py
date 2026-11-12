@@ -519,7 +519,7 @@ BIOMARKER_DATA = [
         "category": "cmp",
         "panels_json": json.dumps(["cmp", "bmp"]),
         "sources_json": json.dumps([
-            {"name": "Asclexis default critical-value table (potassium 2.5 and 6.5 mmol/L)", "type": "clinical_guideline"},
+            {"name": "Asclexis default critical-value table (potassium 2.5 and 6.5 mmol/L)"},
         ]),
     },
     {
@@ -552,7 +552,7 @@ BIOMARKER_DATA = [
         "category": "cmp",
         "panels_json": json.dumps(["cmp", "bmp"]),
         "sources_json": json.dumps([
-            {"name": "Asclexis default critical-value table (sodium 120 and 160 mmol/L)", "type": "clinical_guideline"},
+            {"name": "Asclexis default critical-value table (sodium 120 and 160 mmol/L)"},
         ]),
     },
     # =========================================================================

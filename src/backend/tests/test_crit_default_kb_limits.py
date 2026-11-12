@@ -17,14 +17,18 @@ import json
 from unittest.mock import patch
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+from api.interpretations import router as interpretations_router
+from core.auth import get_profile_db_session
+from models.audit import AuditLog
 from models.knowledge_base import BiomarkerKnowledge
 from modules.interpret_safety import InterpretationSafetyGuard
-from modules.knowledge_loader import KnowledgeLoader
+from modules.knowledge_loader import KnowledgeLoader, get_knowledge_loader
 from scripts import seed_knowledge_base as skb
 from tests import test_kb_canonical_names as _kcn
+from tests.support.routes import route_client
 
 # fixtures + helpers reused as-is (assigned, not imported by name, so the fixture arguments below
 # are not flagged as redefinitions)
@@ -206,3 +210,79 @@ def test_hc_ckb_008_seeded_text_holds_no_prohibited_pattern(analyte):
         result = guard.validate_interpretation(text, require_citations=False)
         failed = [c for c in result.checks_failed if c.startswith("prohibited")]
         assert not failed, (analyte, failed, text)
+
+
+@pytest.mark.asyncio
+async def test_hc_ckb_009_a_marker_less_same_unit_card_of_an_existing_analyte_is_not_rebuilt(
+    master, profile_db
+):
+    """The no-marker re-evaluation is scoped to potassium and sodium: for every other analyte
+    owner decision (c) and HC-VRC-017 stand. No delete, no write, the same card is returned."""
+    _, card = await _interpret_stored(master, profile_db, "glucose", 450.0, 70.0, 100.0, "mg/dL", "H")
+    assert card.severity_level == "critical_high"
+    card.severity_level = "normal"
+    card.interpretation_text = card.interpretation_text.replace("[KB:", "[")
+    assert "[KB:" not in card.interpretation_text
+    await profile_db.commit()
+    saved_id = card.id
+    module, _ = _module()
+    with patch.object(module, "_generate_interpretation", wraps=module._generate_interpretation) as gen:
+        result = await module.interpret_observation(card.observation_id, profile_db, master)
+    gen.assert_not_called()
+    assert result.interpretation.id == saved_id
+    assert result.interpretation.severity_level == "normal"
+
+
+async def _pre_row_card(master, profile_db, analyte, value, lo, hi, unit):
+    """A critical card saved while the analyte had no KB row, then the row is restored."""
+    await master.execute(delete(BiomarkerKnowledge).where(BiomarkerKnowledge.analyte_canonical == analyte))
+    await master.commit()
+    get_knowledge_loader().clear_cache()
+    info, card = await _interpret_stored(master, profile_db, analyte, value, lo, hi, unit, "H")
+    assert info is None and "[KB:" not in card.interpretation_text
+    assert not card.severity_level.startswith("critical")  # the badge disagreed with the banner
+    await _reseed(master)
+    get_knowledge_loader().clear_cache()
+    return card
+
+
+@pytest.mark.asyncio
+async def test_hc_ckb_010_http_get_rebuilds_a_pre_row_potassium_card_as_critical_with_audit(
+    master, profile_db
+):
+    card = await _pre_row_card(master, profile_db, "potassium", 7.0, 3.5, 5.0, "mmol/L")
+    saved_id = card.id
+    with route_client(
+        interpretations_router, "/interpretations", profile_id=_kcn.PROFILE_ID, master_db=master
+    ) as client:
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.get(f"/interpretations/observations/{card.observation_id}/interpretation")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["id"] != saved_id
+    assert body["severity_level"] == "critical_high"
+    assert body["requires_physician_review"] is True
+    assert "[KB:" in body["interpretation_text"]
+    master.expire_all()
+    rows = (await master.execute(select(AuditLog))).scalars().all()
+    types = sorted(r.event_type for r in rows)
+    assert types == ["interpretation.generate", "interpretation.generate", "interpretation.view"], types
+    assert all(r.entity_id == card.observation_id for r in rows)
+
+
+@pytest.mark.asyncio
+async def test_hc_ckb_011_a_pre_row_sodium_meq_card_is_rebuilt_as_critical(master, profile_db):
+    card = await _pre_row_card(master, profile_db, "sodium", 165.0, 135.0, 145.0, "mEq/L")
+    assert card.requires_physician_review is True  # the default-table banner, badge disagreed
+    saved_id = card.id
+    result = await _module()[0].interpret_observation(card.observation_id, profile_db, master)
+    assert result.success
+    assert result.interpretation.id != saved_id
+    assert result.interpretation.severity_level == "critical_high"
+    assert result.interpretation.physician_review_reason == (
+        "Critical high value: 165 mEq/L is above the critical threshold of 160 mEq/L."
+    )
+    assert "[KB:" in result.interpretation.interpretation_text

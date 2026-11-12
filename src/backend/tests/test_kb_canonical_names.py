@@ -914,8 +914,8 @@ BIOMARKER_DIGESTS = {
     "tsh": "cef2ca27e9f3039fe7d04ff392f0305b6806ea6ab43854b1da17eb719bd5d44c",
     "creatinine": "976421e76078ba3d3e83234e08dddac18171da889c60bdb17c878222525d1354",
     "vitamin_d": "7d0e47292cbbd48e5b9e2cfdc522fb1880a71dbb68ff5caac7a0614a8d346742",
-    "potassium": "48da91e2f93a7842243b421338b7afe46b7aa36a24b94542a684036e998d6919",
-    "sodium": "75c6bd040338af690617a7ada3281ddc9c60d9d0b586c3c0927787483a6836a2",
+    "potassium": "280010eaa0a7c18faaf80434069d47164605c74c1a41c9bd155b029a3f251828",
+    "sodium": "dffe20bfeb3d1c2bdd18ebd6ee768c10dcfc89e9490aa3237b7da51ecea2e800",
 }
 INTERVENTION_DIGESTS = {
     ("ldl_cholesterol", "high", "Reduce Saturated Fat Intake"): "b95cc7019077eb8169fd884a63037b24615c6e3c0c9d78a3c4744d7df9094f99",
