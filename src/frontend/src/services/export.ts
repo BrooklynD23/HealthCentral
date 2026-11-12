@@ -146,11 +146,14 @@ async function generateSummary(request: SummaryRequest): Promise<SummaryResponse
 
 async function downloadSummary(
   summaryId: string,
-  format: ExportFormat = 'text'
+  format: ExportFormat = 'text',
+  omitQuestions = false
 ): Promise<{ blob: Blob; contentType: string; extension: string }> {
+  // apiGetRaw takes string params; the backend parses 'true' as a bool.
+  const params: Record<string, string> = omitQuestions ? { format, omit_questions: 'true' } : { format };
   const response = await apiGetRaw(
     `/export/doctor-summary/${summaryId}/download`,
-    { format }
+    params
   );
 
   const contentType = response.headers.get('Content-Type') || 'text/plain';
@@ -280,12 +283,19 @@ export function useGenerateSummary() {
 
 /**
  * Mutation hook for downloading a generated summary.
- * Accepts { summaryId, format } to support text/html/pdf downloads.
+ * Accepts { summaryId, format, omitQuestions? } to support text/html/pdf downloads.
  */
 export function useDownloadSummary() {
   return useMutation({
-    mutationFn: ({ summaryId, format }: { summaryId: string; format: ExportFormat }) =>
-      downloadSummary(summaryId, format),
+    mutationFn: ({
+      summaryId,
+      format,
+      omitQuestions,
+    }: {
+      summaryId: string;
+      format: ExportFormat;
+      omitQuestions?: boolean;
+    }) => downloadSummary(summaryId, format, omitQuestions),
     onSuccess: ({ blob, extension }, { summaryId }) => {
       triggerDownload(blob, `health_summary_${summaryId.substring(0, 8)}${extension}`);
     },

@@ -645,3 +645,63 @@ describe('Copy Text copies what the preview shows (EXPORT-COPY-QUESTIONS)', () =
     expect(await copiedText(user)).toBe(FINDINGS);
   });
 });
+
+describe('Download Summary follows the Questions toggle (EXPORT-DOWNLOAD-QUESTIONS)', () => {
+  const DOWNLOAD_URL = '/export/doctor-summary/summary-123/download';
+
+  async function downloadText(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: /download summary/i }));
+    await waitFor(() => expect(api.apiGetRaw).toHaveBeenCalledTimes(1));
+  }
+
+  it('HC-EDQ-003: Questions unticked after generating asks the download to omit them', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await waitFor(() => expect(screen.getByText('Questions for Your Clinician')).toBeInTheDocument());
+    await user.click(toggle('Questions for Clinician'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text', omit_questions: 'true' });
+  });
+
+  it('HC-EDQ-004: Questions still ticked sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+
+  it('HC-EDQ-005: untick then tick again sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await user.click(toggle('Questions for Clinician'));
+    await user.click(toggle('Questions for Clinician'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+
+  it('HC-EDQ-006: a summary generated without questions sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+});

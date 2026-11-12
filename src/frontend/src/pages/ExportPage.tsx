@@ -175,6 +175,8 @@ export function ExportPage() {
   const [copied, setCopied] = useState(false);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
+  // Whether the summary on screen was generated with Questions ticked (the download needs it to honour a later untick).
+  const [summaryHadQuestions, setSummaryHadQuestions] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
   // Visit prep packet state (HC-M18)
@@ -261,6 +263,7 @@ export function ExportPage() {
       }
       setQuestions(questionsResult);
       setSummary(result);
+      setSummaryHadQuestions(Boolean(includeQuestions));
     } catch (error) {
       console.error('Failed to generate summary:', error);
     }
@@ -268,7 +271,12 @@ export function ExportPage() {
 
   const handleDownloadSummary = () => {
     if (summary) {
-      downloadSummary.mutate({ summaryId: summary.summary_id, format: exportFormat });
+      // Questions unticked after generating with them: ask the download to leave them out, as the preview and Copy Text do.
+      downloadSummary.mutate({
+        summaryId: summary.summary_id,
+        format: exportFormat,
+        omitQuestions: summaryHadQuestions && !showQuestionsInSummary,
+      });
     }
   };
 
