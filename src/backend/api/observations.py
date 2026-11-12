@@ -629,6 +629,61 @@ async def verify_observation(
     return ObservationResponse.from_model(observation)
 
 
+@router.post("/{observation_id}/unverify", response_model=ObservationResponse)
+async def unverify_observation(
+    observation_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Re-open a verified observation (VERIFY-UNDO, flag-only).
+
+    Clears user_verified and verified_at and keeps every edit the user made;
+    original_value_json is not restored (owner answers VERIFY-UNDO and
+    VERIFY-UNDO-SCOPE). A verified parent document drops back to parsed.
+    """
+    validate_uuid(observation_id, "observation_id")
+
+    result = await profile_db.execute(select(Observation).where(Observation.id == observation_id))
+    observation = result.scalar_one_or_none()
+
+    if not observation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found"
+        )
+
+    verify_observation_access(observation, session)
+
+    observation.user_verified = False
+    observation.verified_at = None
+    observation.version += 1
+
+    if observation.doc_id:
+        doc_result = await profile_db.execute(
+            select(Document).where(Document.id == observation.doc_id)
+        )
+        document = doc_result.scalar_one_or_none()
+        if document is not None and document.status == "verified":
+            document.status = "parsed"
+            document.verified_at = None
+
+    await profile_db.commit()
+
+    await log_observation_event(
+        db=master_db,
+        event="unverify",
+        profile_id=observation.profile_id,
+        observation_id=observation_id,
+        analyte=observation.analyte_canonical,
+        # AUDIT-PHI-001: field names only.
+        details={"changed_fields": ["user_verified"]},
+    )
+    await master_db.commit()
+
+    return ObservationResponse.from_model(observation)
+
+
 @router.get("/trends/{analyte}", response_model=TrendResponse)
 async def get_analyte_trend(
     analyte: str,
