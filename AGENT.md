@@ -102,12 +102,16 @@ A task is done when all of the following are true **and you have seen the output
 that proves each one**:
 
 - Tests written or updated, and the new ones observed failing before the fix.
-- `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` shows no new
-  failures against the baseline above. For a diff that `scripts/change_scope.py`
-  reports as `backend=false`, the PR's CI Backend Tests run is the full-suite
-  evidence, unless it also reports `docs_only=true`: then no tracked file under
-  `src/`, `scripts/`, `.github/`, `.claude/mods/` names the changed paths and CI
-  skips Backend Tests by design (owner SPEEDUP-1-3).
+- Backend: the focused tests (every test file the diff adds or changes, plus the
+  plan's acceptance commands) pass locally, and the PR's CI Backend Tests run on
+  the final head SHA, which is the full suite, is SUCCESS (owner WF-FOCUSED-LOCAL).
+  Pending or skipped is not a pass. Running
+  `cd src/backend && python -m pytest tests/ -p no:cacheprovider -q` locally is
+  still allowed and optional. For a diff that `scripts/change_scope.py` reports as
+  `backend=false`, the PR's CI Backend Tests run is the full-suite evidence,
+  unless it also reports `docs_only=true`: then no tracked file under `src/`,
+  `scripts/`, `.github/`, `.claude/mods/` names the changed paths and CI skips
+  Backend Tests by design (owner SPEEDUP-1-3).
 - `cd src/frontend && npx tsc --noEmit` is clean and `npx vitest run` passes.
 - The app boots: `cd src/backend && python -c "from main import app"`.
 - Every hard invariant in [CLAUDE.md](CLAUDE.md) still holds.
