@@ -136,9 +136,10 @@ async def test_hc_vkf_004_resending_same_numbers_keeps_flag(profile_db):
     assert b.flag == "H"
     assert b.is_abnormal is True
 
-    # Case c: a non-number edit (unit, value_text, notes, collected_at) is not
-    # a change to value/ref_low/ref_high, so the printed flag stays.
-    for body in ({"unit": "mg/dL"}, {"value_text": "<0.5"}, {"notes": "n"},
+    # Case c: a non-number edit (unit, notes, collected_at) is not a change to
+    # value/ref_low/ref_high, so the printed flag stays. A value_text-only edit
+    # is no longer one: it replaces the number (HC-LTV-001..006).
+    for body in ({"unit": "mg/dL"}, {"notes": "n"},
                  {"collected_at": "2026-03-02T08:00:00"}):
         c_id = await _seed_obs(profile_db, flag="CRITICAL", is_abnormal=True,
                                value=14.0, ref_low=12.0, ref_high=16.0)
