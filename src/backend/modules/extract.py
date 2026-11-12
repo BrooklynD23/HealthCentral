@@ -1096,6 +1096,12 @@ class ExtractModule:
         re.IGNORECASE,
     )
     _BIRTH_LABEL_WINDOW = 32
+    # Header words that name a (non-birth) date column, and the only other header words
+    # allowed when a DOB header and its row differ in token count (EXTRACT-DOB-MINORS).
+    # "collection" is left out: alone it is as likely "Collection Site".
+    _COLUMN_DATE_LABELS = frozenset({"collected", "received", "reported", "drawn"})
+    _COLUMN_ID_WORDS = frozenset({"patient", "name", "mrn", "id", "sex", "gender", "age"})
+    _PLAIN_WORD_RE = re.compile(r"[A-Za-z][A-Za-z.'-]*")
 
     @classmethod
     def _follows_birth_label(cls, text: str, start: int) -> bool:
@@ -1180,8 +1186,10 @@ class ExtractModule:
         # label (case-insensitive, a trailing ':' ignored) is a header, unless it
         # carries a date token itself. The next line is its data row only when it
         # has the same token count, and the token at the label's index is a DOB
-        # when it is a date. Skipped by character offset, never by value, so the
-        # same date printed elsewhere still counts. In such a data row a birth
+        # when it is a date. On a count mismatch the ordered date-column rule below
+        # pairs the row's dates with the header's date-column labels instead.
+        # Skipped by character offset, never by value, so the same date printed
+        # elsewhere still counts. In such a data row a birth
         # label counts only on its own line: the header's label does not reach
         # into the row's other cells. One split and one pass: linear.
         birth_labels = {"dob", "d.o.b.", "d.o.b", "birthdate"}
@@ -1205,6 +1213,44 @@ class ExtractModule:
                 and self._normalize_date_str(token) is not None
             )
 
+        def _mismatch_birth_cells(header, row):
+            """Birth-label/date-cell pairs for a header and row of different token counts.
+
+            Ordered date-column rule: the k-th date cell belongs to the k-th date-column
+            label. Applies only when every guard holds; otherwise nothing is marked and
+            a DOB may still leak (fails open toward keeping a date).
+            """
+
+            def norm(t) -> str:
+                return t.group().lower().removesuffix(":")
+
+            date_labels = self._COLUMN_DATE_LABELS | birth_labels
+            labels = [t for t in header if norm(t) in date_labels]
+            cells = [t for t in row if _is_date_token(t.group())]
+            # (i) as many date cells as date-column labels.
+            if len(labels) != len(cells):
+                return []
+            # (ii) at least two, one of them a named non-birth column.
+            if len(labels) < 2 or not any(norm(t) in self._COLUMN_DATE_LABELS for t in labels):
+                return []
+            # (iii) no label word and no "label:" token in the row: a labelled line.
+            if any(norm(t) in date_labels or t.group().endswith(":") for t in row):
+                return []
+            # (iv) allowlist: every other header word is a known ID word.
+            others = [t for t in header if norm(t) not in date_labels]
+            if any(norm(t) not in self._COLUMN_ID_WORDS for t in others):
+                return []
+            # (v) the non-date cells are few plain words, none between two date cells.
+            rest = [t for t in row if not _is_date_token(t.group())]
+            if len(rest) > len(others) + 1 or any(
+                self._PLAIN_WORD_RE.fullmatch(t.group()) is None for t in rest
+            ):
+                return []
+            first, last = cells[0].start(), cells[-1].start()
+            if any(first < t.start() < last for t in rest):
+                return []
+            return [(lab, cell) for lab, cell in zip(labels, cells) if norm(lab) in birth_labels]
+
         for i in range(len(lines) - 1):
             header = list(re.finditer(r"\S+", lines[i]))
             if not any(t.group().lower().removesuffix(":") in birth_labels for t in header):
@@ -1212,13 +1258,16 @@ class ExtractModule:
             if any(_is_date_token(t.group()) for t in header):
                 continue
             row = list(re.finditer(r"\S+", lines[i + 1]))
-            if len(header) != len(row):
-                continue
+            if len(header) == len(row):
+                pairs = [
+                    (token, row[col])
+                    for col, token in enumerate(header)
+                    if token.group().lower().removesuffix(":") in birth_labels
+                ]
+            else:
+                pairs = _mismatch_birth_cells(header, row)
             confirmed = False
-            for col, token in enumerate(header):
-                if token.group().lower().removesuffix(":") not in birth_labels:
-                    continue
-                cell = row[col]
+            for _label, cell in pairs:
                 if _is_date_token(cell.group()):
                     confirmed = True
                     cell_start = line_starts[i + 1] + cell.start()
