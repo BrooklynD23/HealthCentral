@@ -7,29 +7,9 @@
  * Plan: docs/plans/2026-10-28-followups-plan.md, section DARK-PRIMITIVE-CONTRAST.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { installMockApi } from './support/mockApi';
-import { setTheme, WCAG_TAGS, type Theme } from './support/gates';
-
-/** Waits until no finite animation runs. Infinite loaders (spinners, pulses) are ignored. */
-async function settleFiniteAnimations(page: Page): Promise<void> {
-  await page.waitForFunction(
-    () =>
-      document.getAnimations().every((animation) => {
-        const iterations = animation.effect?.getComputedTiming().iterations;
-        return iterations === Infinity || animation.playState !== 'running';
-      }),
-    undefined,
-    { timeout: 5000 }
-  );
-}
-
-/** Settles transitions after a theme change, then waits one frame, so the read is never a blend of two themes. */
-async function settleTheme(page: Page, theme: Theme): Promise<void> {
-  await setTheme(page, theme);
-  await settleFiniteAnimations(page);
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-}
+import { settleTheme, WCAG_TAGS } from './support/gates';
 
 /** WCAG 2.x ratio of the element's computed text colour over its computed background, read in the page. */
 async function computedContrast(target: Locator): Promise<number> {

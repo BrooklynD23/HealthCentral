@@ -67,9 +67,61 @@ export interface AxeGateResult {
   blocking: AxeViolation[];
 }
 
-/** Runs axe with the WCAG tags. Pass `theme` to apply it first (G1 runs light and dark). */
+/** Longest a finite CSS transition or animation may run before G1 gives up waiting for it (MEDS-G-FLAKE). */
+export const SETTLE_TIMEOUT_MS = 5000;
+
+/**
+ * Waits until no finite animation or transition runs, bounded by SETTLE_TIMEOUT_MS. Infinite loaders (spinners,
+ * pulses) are ignored. Throws, naming what still runs, when they never settle: a reading is never taken mid-blend.
+ */
+export async function settleFiniteAnimations(page: Page): Promise<void> {
+  try {
+    await page.waitForFunction(
+      () =>
+        document.getAnimations().every((animation) => {
+          const iterations = animation.effect?.getComputedTiming().iterations;
+          return iterations === Infinity || animation.playState !== 'running';
+        }),
+      undefined,
+      { timeout: SETTLE_TIMEOUT_MS }
+    );
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error;
+    const still = await page
+      .evaluate(() =>
+        document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity && animation.playState === 'running')
+          .map((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target;
+            const property = (animation as CSSTransition).transitionProperty ?? (animation as CSSAnimation).animationName ?? '?';
+            return `${target?.tagName.toLowerCase() ?? '?'}.${String(target?.className ?? '').slice(0, 40)} ${property}`;
+          })
+      )
+      .catch(() => ['(could not list them)']);
+    throw new Error(
+      `G1 settle: finite CSS transitions or animations still running after ${SETTLE_TIMEOUT_MS} ms ` +
+        `(a finite animation longer than that fails G1): ${still.slice(0, 5).join('; ')}; ${String(error)}`
+    );
+  }
+}
+
+/** Settles transitions after a theme change, then waits one frame, so the read is never a blend of two themes (HC-DPC-003). */
+export async function settleTheme(page: Page, theme: Theme): Promise<void> {
+  await setTheme(page, theme);
+  await settleFiniteAnimations(page);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
+
+/**
+ * Runs axe with the WCAG tags. Pass `theme` to apply it first (G1 runs light and dark). Axe always waits for running
+ * finite transitions first, also for callers that called setTheme themselves, so colour-contrast never reads a blend
+ * of two themes (MEDS-G-FLAKE). Infinite loaders are ignored.
+ */
 export async function axeGate(page: Page, options: { theme?: Theme } = {}): Promise<AxeGateResult> {
   if (options.theme) await setTheme(page, options.theme);
+  await settleFiniteAnimations(page);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
   return {
     violations: results.violations,
@@ -497,6 +549,10 @@ export interface StillnessReport {
   postTriggerSamples: number;
   /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40, or 70 for a navigation or an overlay open). */
   maxGapMs: number;
+  /** Largest gap over the 20 ms timer samples alone (the old signal); reported, not gated. */
+  timerMaxGapMs: number;
+  /** Largest gap over the animation-frame samples alone; reported, not gated. */
+  rafMaxGapMs: number;
   /** Trigger to the end of the window, in ms (longer on a lazy route). */
   elapsedMs: number;
   /** [data-t0] nodes in the last sample */
@@ -543,6 +599,8 @@ interface RouteSnap {
 }
 
 interface Snap {
+  /** which sampler took this snapshot: the 20 ms interval, or a requestAnimationFrame callback */
+  src: 'timer' | 'raf';
   /** milliseconds on the page clock (performance.now()) */
   t: number;
   pathname: string;
@@ -555,6 +613,7 @@ interface Snap {
 interface SamplerState {
   running: boolean;
   timer: number;
+  raf: number;
   snaps: Snap[];
   lastError: string | null;
 }
@@ -582,8 +641,9 @@ function startSampler(config: { expected: string[]; intervalMs: number }): void 
   if (w.__hcStill) {
     w.__hcStill.running = false;
     window.clearInterval(w.__hcStill.timer);
+    cancelAnimationFrame(w.__hcStill.raf);
   }
-  const state: SamplerState = { running: true, timer: 0, snaps: [], lastError: null };
+  const state: SamplerState = { running: true, timer: 0, raf: 0, snaps: [], lastError: null };
   w.__hcStill = state;
 
   const ids = new WeakMap<Element, number>();
@@ -604,7 +664,7 @@ function startSampler(config: { expected: string[]; intervalMs: number }): void 
     return value;
   };
 
-  const snapshot = (): Snap => {
+  const snapshot = (src: Snap['src']): Snap => {
     // Stamped before the first read: the tick's own style and layout reads then add nothing to the gap.
     const t = Math.round(performance.now());
     const routeEl = document.querySelector('[data-route-container]');
@@ -645,20 +705,28 @@ function startSampler(config: { expected: string[]; intervalMs: number }): void 
       Array.from(document.querySelectorAll(selector)).some((el) => el.matches('[data-t0]'))
     );
 
-    return { t, pathname: location.pathname, route, nodes, expectedHits };
+    return { src, t, pathname: location.pathname, route, nodes, expectedHits };
   };
 
-  const tick = () => {
+  const take = (src: Snap['src']) => {
     if (!state.running) return;
     try {
-      state.snaps.push(snapshot());
+      state.snaps.push(snapshot(src));
     } catch (error) {
       // A selector may be invalid, or the DOM may be mid-update. The next tick retries.
       state.lastError = String(error);
     }
   };
-  tick();
-  state.timer = window.setInterval(tick, config.intervalMs);
+  // Two sources feed one array, in time order (one thread). Never sort it: analyse() reads it in push order.
+  // The timer keeps the old 20 ms signal. The frame callback adds a sample at every point a user could see a new
+  // state, so a timer that runs late behind a render no longer counts as a freeze (MEDS-G-FLAKE).
+  const frame = () => {
+    take('raf');
+    if (state.running) state.raf = requestAnimationFrame(frame);
+  };
+  take('timer');
+  state.timer = window.setInterval(() => take('timer'), config.intervalMs);
+  state.raf = requestAnimationFrame(frame);
 }
 
 /**
@@ -670,6 +738,7 @@ function stopSampler(): SamplerDump | null {
   if (!state) return null;
   state.running = false;
   window.clearInterval(state.timer);
+  cancelAnimationFrame(state.raf);
   return { snaps: state.snaps, lastError: state.lastError };
 }
 
@@ -739,7 +808,11 @@ function analyse(snaps: Snap[], kind: 'interaction' | 'navigation' | 'overlay', 
     if (i0 < 0) {
       fail('no-route', `no new keyed route container for ${last.pathname} appeared (data-route-container must equal the pathname)`);
     } else {
-      t0 = snaps[i0].t;
+      // The fade clock keeps its timer origin (MEDS-G-FLAKE): the first TIMER sample of the new container, as before the
+      // frame samples existed. A frame sample can see the fade's first frame earlier, and a long first frame (HC-UIG-007 c)
+      // then stretches the observed fade; the 240 ms bound was calibrated on the timer origin and does not move.
+      // The fade window still opens at i0, so a frame sample inside the fade is checked against the container's opacity.
+      t0 = (snaps.slice(i0).find((snap) => snap.src === 'timer') ?? snaps[i0]).t;
       let settledAt = -1;
       for (let index = i0; index < snaps.length; index++) {
         const route = snaps[index].route;
@@ -806,6 +879,10 @@ export interface SamplingCheck {
   /** Largest gap between consecutive samples at or after the trigger; the gap that spans the trigger counts. */
   maxGapMs: number;
   postTriggerSamples: number;
+  /** Largest gap over the timer samples alone (the pre-MEDS-G-FLAKE signal); reported, never gated. Only with `sources`. */
+  timerMaxGapMs?: number;
+  /** Largest gap over the animation-frame samples alone; reported, never gated. Only with `sources`. */
+  rafMaxGapMs?: number;
 }
 
 /**
@@ -816,6 +893,12 @@ export interface SamplingCheck {
  * and not the page-change owner. Pure, so the harness tests it on
  * synthetic times. A probe whose sampler stalls or throws fails here instead of
  * passing on the few samples it did take.
+ *
+ * `sources` (MEDS-G-FLAKE) tags each time as taken by the 20 ms timer or by an animation frame. The gap bound
+ * is measured over the union, so it is a coverage check of every point the user could see: the 40 ms bound keeps its
+ * meaning, but a block of about 20-40 ms that the timer alone caught is now judged on frame cadence too (a loosening
+ * of the sampler, not of the bound). The minimum count stays on timer samples (frames alone would make it vacuous),
+ * and a probe that took no frame sample fails, so a dead rAF cannot quietly fall back to timer-only.
  */
 export function checkSampling(
   sampleTimes: number[],
@@ -823,21 +906,38 @@ export function checkSampling(
   windowMs: number,
   lastError: unknown,
   maxGapMs = STILLNESS_MAX_GAP_MS,
-  overlayOpen = false
+  overlayOpen = false,
+  sources?: Array<'timer' | 'raf'>
 ): SamplingCheck {
   const failures: string[] = [];
   let largestGapMs = 0;
   let postTriggerSamples = 0;
+  let timerPost = 0;
+  let rafPost = 0;
+  const lastBy: { timer: number | null; raf: number | null } = { timer: null, raf: null };
+  const gapBy = { timer: 0, raf: 0 };
   sampleTimes.forEach((at, index) => {
+    const src = sources?.[index];
+    if (src && at >= triggeredAt) {
+      if (src === 'timer') timerPost++;
+      else rafPost++;
+      // A source's own gap starts at its last sample before the trigger, like the union's.
+      if (lastBy[src] !== null) gapBy[src] = Math.max(gapBy[src], at - lastBy[src]);
+    }
+    if (src) lastBy[src] = at;
     if (at < triggeredAt) return;
     postTriggerSamples++;
     if (index > 0) largestGapMs = Math.max(largestGapMs, at - sampleTimes[index - 1]);
   });
   const minimum = Math.floor(windowMs / STILLNESS_MAX_GAP_MS);
-  if (postTriggerSamples < minimum) {
+  const counted = sources ? timerPost : postTriggerSamples;
+  if (sources && rafPost === 0) {
+    failures.push('no animation-frame sample after the trigger (the page did not render frames; G10 needs both samplers)');
+  }
+  if (counted < minimum) {
     const detail = lastError === null ? '' : ` (last sampler error: ${String(lastError)})`;
     failures.push(
-      `only ${postTriggerSamples} sample(s) after the trigger; the ${windowMs} ms window needs at least ${minimum} at one per ${STILLNESS_MAX_GAP_MS} ms${detail}`
+      `only ${counted} sample(s) after the trigger; the ${windowMs} ms window needs at least ${minimum} at one per ${STILLNESS_MAX_GAP_MS} ms${detail}`
     );
   }
   if (largestGapMs > maxGapMs) {
@@ -850,7 +950,9 @@ export function checkSampling(
         : `must be <= ${maxGapMs} ms; G10 samples every 16-40 ms`;
     failures.push(`sampling gap of ${largestGapMs} ms (${bound})`);
   }
-  return { failures, maxGapMs: largestGapMs, postTriggerSamples };
+  return sources
+    ? { failures, maxGapMs: largestGapMs, postTriggerSamples, timerMaxGapMs: gapBy.timer, rafMaxGapMs: gapBy.raf }
+    : { failures, maxGapMs: largestGapMs, postTriggerSamples };
 }
 
 interface NetworkTracker {
@@ -1004,7 +1106,8 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
       : kind === 'overlay'
         ? STILLNESS_OVERLAY_MAX_GAP_MS
         : STILLNESS_MAX_GAP_MS,
-    kind === 'overlay'
+    kind === 'overlay',
+    snaps.map((snap) => snap.src)
   );
   const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
   if (failures.length > 0) {
@@ -1015,6 +1118,8 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
     samples: snaps.length,
     postTriggerSamples: sampling.postTriggerSamples,
     maxGapMs: sampling.maxGapMs,
+    timerMaxGapMs: sampling.timerMaxGapMs ?? 0,
+    rafMaxGapMs: sampling.rafMaxGapMs ?? 0,
     elapsedMs,
     nodes: last.nodes.length,
     routeKey: last.route?.key ?? null,
