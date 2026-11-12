@@ -32,7 +32,7 @@ One item loop that **Claude Code, Codex CLI and Devin** run against the same [qu
 | # | Step | Done when | Section |
 |---|---|---|---|
 | 1 | **Claim** the item | your draft PR is the only open PR on `<type>/<id>-*` | §3 |
-| 2 | **Worktree** `git worktree add <repo-parent>/hc-<id> -b <type>/<id>-<slug> origin/main` (part of the claim) | `git -C <wt> status` is clean | §3 |
+| 2 | **Worktree** `git worktree add ~/wt/<id> -b <type>/<id>-<slug> origin/main` (part of the claim) | `git -C <wt> status` is clean | §3 |
 | 3 | **Task 0** checks | every check passes, or the item stops with the failing check in a PR comment | §4 |
 | 4 | **Implement test-first**: RED output captured per new test id, then GREEN, commit by commit as the plan lists, explicit pathspecs | the item's file list covers every changed file | the item's plan |
 | 5 | **Review** (another runtime or session) | `VERDICT: PASS`, at most 3 rounds | §5 |
@@ -40,7 +40,7 @@ One item loop that **Claude Code, Codex CLI and Devin** run against the same [qu
 | 7 | **PR** body filled, title changed from `[claim:…]` to a conventional title, `gh pr ready` unless a merge gate or the parked-draft rule holds it | slot released | §6 |
 | 8 | **Stop.** Humans merge. L0 runs the post-merge batch | — | §7 |
 
-"Item" = one queue row. One item = one worktree = one branch = one PR. `<id>` is the queue ID in lower case (`E-1` → `e-1`, `RAG-RUNTIME-500` → `rag-runtime-500`).
+"Item" = one queue row. One item = one worktree = one branch = one PR. `<id>` is the queue ID in lower case (`E-1` → `e-1`, `RAG-RUNTIME-500` → `rag-runtime-500`). Worktrees live under `~/wt/<id>` on the Linux filesystem, never under `/mnt/e`: `/mnt/e` (the Windows drive through WSL) has slow fsync and file I/O, which slowed Playwright and pytest. The main checkout stays on `/mnt/e` and is never edited; keep `TMPDIR=/dev/shm` for Playwright runs.
 
 ---
 
@@ -80,7 +80,7 @@ SLOTS=$(gh pr list --state open --limit 200 --json title \
 [ -n "$NOSLOT" ] || [ "$SLOTS" -le 11 ] || { echo "no free slot ($SLOTS held)"; exit 1; }
 
 # 3. claim (the push fails if the branch already exists on origin, which aborts the claim)
-BR="$TYPE/$id-$SLUG"; WT="$(dirname "$REPO")/hc-$id"
+BR="$TYPE/$id-$SLUG"; WT="$HOME/wt/$id"
 ! git -C "$REPO" ls-remote --exit-code --heads origin "$BR" >/dev/null || { echo "branch $BR exists"; exit 1; }
 git -C "$REPO" worktree add "$WT" -b "$BR" origin/main
 PUSHED=""   # a failure from here on removes only what this claim created, so a retry starts clean
@@ -232,7 +232,7 @@ Two workflows, explicit models throughout:
     1. **Retitles.** Auto mode denies `gh pr edit` retitles inside build-item subagents. L0 makes them itself from the main session. Until HARNESS-SPEEDUP merges, start the resume as usual; if its Task 0 stops on a denied retitle, retitle the PR to `[claim:claude…] <ID> <slug>` yourself and re-run. After HARNESS-SPEEDUP merges, retitle before the resume and post a comment whose first line is `L0 ruling: preflight retitle` (Task 0 then skips its own retitle and still runs the lock, slot and race checks). On a `[claim:claude]` title, that comment must be the newest comment on the PR before the resume (a #399 resume stopped at Task 0 for this on 2026-11-02). When a build-item result says `retitle: L0 → <title>`, apply that title. **Do this before every resume, not only after a refusal:** #534 was resumed three times (comments 6703861132, 6704842606, 6705496119), and each resume needed L0's retitle to `[claim:claude] <ID> <slug>` and a fresh `L0 ruling: preflight retitle` as the newest comment, because the classifier refuses the build agent's retitle (External System Writes).
     2. **Quiet-run scripts.** For any row that runs Playwright or a quiet-box timing, `test -x scripts/hold_slots.sh && test -x scripts/quiet_run.sh` in the checkout you run from. They live in the repo since HOLD-SLOTS-IN-REPO, so a reboot no longer wipes them (only the lock files in `/tmp/claude-1000`).
     3. **Quiet-box lock.** For a stillness-timing row, L0 holds `/tmp/claude-1000/quiet-box.lock` and no model-host row runs. For any other row, check that no lock is left over from a finished run.
-    4. **Worktree.** `<repo-parent>/hc-<id>` must be absent, or on the item's branch with `git status --short` empty. A dirty worktree stops Task 0. L0 resolves it first (never `reset` or `clean` work that is not yours: ask).
+    4. **Worktree.** `~/wt/<id>` must be absent, or on the item's branch with `git status --short` empty. A dirty worktree stops Task 0. L0 resolves it first (never `reset` or `clean` work that is not yours: ask).
     5. **Workflow-tool needs.** The Workflow tool is not available inside build-item agents. If the row's acceptance needs a Workflow run (for example an `rsi-loop` dry run), L0 runs it from the main session after the PR is pushed and pastes the output on the PR before merge. Alternatively, L0 runs it first and passes the evidence with `l0_note`.
     6. **Workflow `scriptPath`.** The Workflow tool accepts only a `scriptPath` inside the working directory or the session scratchpad; a path under `~/hc-quiet-logs` was refused (#526 resume, 2026-11-06). Copy the script into the repo or scratchpad first.
     7. **Leaked previews after a build.** After each frontend build (before any quiet batch), L0 runs `ss -ltn | grep -E ':(3000|4173|5173|8000)\b'` and expects nothing. #535's UI-PG-SECURITY build left a `vite preview` on :4173 (PID 2198476) and quiet batch 17 exited 75 PORT-LEAK three times; the classifier refused L0's kill then, and since 2026-11-07 the owner's permission rules let L0 kill a leaked preview it has identified (owner-decisions row LO-PERMS-1107). Identify the process by its cwd first; never kill another project's.
