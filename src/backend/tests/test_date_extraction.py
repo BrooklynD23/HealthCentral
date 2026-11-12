@@ -664,6 +664,9 @@ class TestDobHeaderTokenCountMismatch:
         assert _module()._extract_dates(text) == ["2026-03-04", "2026-03-05"]
 
     @pytest.mark.parametrize("text,expected", [
+        # (i) 3 date labels but 2 date cells: pairing would drop a real Collected date.
+        ("Patient DOB Collected Received\nSmith 03/04/2026 03/05/2026\n",
+         ["2026-03-04", "2026-03-05"]),
         # (ii) one date label only: a lone DOB header never claims a row's only date.
         ("Name DOB Sex\nJane Smith F 03/04/2026\n", ["2026-03-04"]),
         # (iii) a row token that is a date-column label is a labelled line, never claimed.
@@ -687,6 +690,7 @@ class TestDobHeaderTokenCountMismatch:
         ("Name    DOB\nJane Smith 03/04/1960\nCollected: 03/10/2026\n",
          ["2026-03-10", "1960-03-04"]),
     ], ids=[
+        "guard-i-label-cell-count",
         "guard-ii-lone-dob-label",
         "guard-iii-label-word-in-row",
         "guard-iii-v-labelled-line",
