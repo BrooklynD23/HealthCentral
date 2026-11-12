@@ -388,7 +388,8 @@ def _observation_dict(obs: Observation) -> dict:
         "id": obs.id, "analyte_canonical": obs.analyte_canonical,
         "analyte_raw": obs.analyte_raw, "value": obs.value,
         "value_text": obs.value_text, "unit": obs.unit, "ref_low": obs.ref_low,
-        "ref_high": obs.ref_high, "flag": obs.flag, "is_abnormal": obs.is_abnormal,
+        "ref_high": obs.ref_high, "ref_range_text": getattr(obs, "ref_range_text", None),
+        "flag": obs.flag, "is_abnormal": obs.is_abnormal,
         "user_verified": obs.user_verified, "collected_at": obs.collected_at,
     }
 
