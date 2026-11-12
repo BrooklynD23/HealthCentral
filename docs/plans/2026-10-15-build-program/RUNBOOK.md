@@ -140,7 +140,7 @@ Run in the worktree after the **final** `git merge origin/main`. Paste every com
    The only allowed failure is the environmental `test_api_rag_index_002b` ([CLAUDE.md](../../../CLAUDE.md) §4). Devin's VM has no flock file; it runs the same command without `flock`.
 3. The collected count, measured with [contracts.md](contracts.md) §d step 2, pasted with its delta. Do not write the slots.
 4. `cd src/backend && ~/venvs/asclexis-311/bin/python -c "from main import app"`.
-5. The frontend, when touched: `npx tsc --noEmit`. `vitest` stalls on `/mnt/c`, so run it from Windows or CI, or record it as skipped with that reason.
+5. The frontend, when touched: `npx tsc --noEmit`. `vitest` stalls on `/mnt/c`, so run it from Windows or CI, or record it as skipped with that reason; on `/mnt/e` it runs (measured 50 s for one file) and the build runner caps it at 600 s, recording a timeout as SKIPPED-STALL.
 6. `git status --short` shows only the item's files.
 
 **PR body** (all sections required, even when the answer is "none"):
