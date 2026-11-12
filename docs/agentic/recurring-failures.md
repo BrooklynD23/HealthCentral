@@ -703,3 +703,11 @@ KV evidence (#298): the model-host `hold_slots.sh` quiet-run wrapper flocks a ha
 The inverse of the leaked-orphan instance under mode 5: there the orphan outlived the batch and held a port or lock; here the orphan makes the caller wait. Reported by another builder: `subprocess.run(..., capture_output=True)` on a command that leaves a background grandchild blocks on pipe EOF until the orphan exits, because the grandchild inherited the stdout/stderr pipe write ends. The test hung with the command already at rc=0; nothing in the output showed a wait on a pipe. (Evidence is the builder's report; not re-reproduced here.)
 
 **Recheck:** a test that runs a command which may background anything redirects the child's stdout/stderr to a file (or `DEVNULL`) instead of pipes, or sets a `timeout=` and kills the process group (`start_new_session=True`, `os.killpg`). When a test hangs at rc=0, list the process's descendants (`pgrep -P`, `ps --forest`) before blaming the code under test.
+
+---
+
+## 22. A fixer and its validator disagree on a threshold
+
+`modules/interpret_safety.py`: `validate_interpretation` requires at least two of the three `REQUIRED_DISCLAIMER_KEYWORDS` groups in interpretation plus advice, but `add_required_disclaimers` treated one group in the interpretation alone as enough and skipped its append. A one-group text ("Ask your doctor what it means for you.") went through add then validate and was withheld with `missing_disclaimers`. Evidence: the probe run on `origin/main` (4d32143e), recorded as the RED output of `HC-DGQ-001`/`002`/`003` in `tests/test_disclaimer_guard_quirk.py`. Two existing withhold tests (`HC-ISE-002`, `HC-IWM-002`) had been using that text as their "production" disclaimer failure, so the quirk read as intended behaviour. Fixed under DISCLAIMER-GUARD-QUIRK by sharing one `_has_required_disclaimers` rule between both sides.
+
+**Recheck:** grep for every fixer/normaliser that feeds a validator (`add_*`, `ensure_*`, `normalize_*` beside a `validate_*`) and compare its "is this already sufficient" test with the validator's pass condition; they must call the same predicate. A test that drives fixer then validator over inputs just below the validator's threshold (0, 1, N-1 of N) would have failed.

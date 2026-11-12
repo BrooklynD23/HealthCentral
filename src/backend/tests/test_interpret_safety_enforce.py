@@ -320,7 +320,9 @@ DOSING_TEXT = (
     "Your LDL is 190 mg/dL [KB:ldl]. You should take 20 mg atorvastatin daily."
 )
 # Cited, names exactly one disclaimer group ("doctor") and gives no advice, so
-# the guard fails it on missing_disclaimers alone (asserted in HC-ISE-002).
+# the validator alone fails it on missing_disclaimers (asserted in HC-ISE-002).
+# add_required_disclaimers now fixes it (DISCLAIMER-GUARD-QUIRK), so the HTTP
+# test must stub the fixer to reach the withhold branch.
 ONE_GROUP_TEXT = (
     "Your LDL Cholesterol result is listed as 120 mg/dL [KB:ldl]. "
     "Ask your doctor what it means for you."
@@ -397,20 +399,25 @@ async def test_hc_ise_001_prohibited_text_is_withheld_over_http(dbs, caplog):
 
 @pytest.mark.asyncio
 async def test_hc_ise_002_disclaimer_only_failure_is_withheld_over_http(dbs, caplog):
+    """Defence-in-depth wiring, not a production path: add_required_disclaimers now
+    fixes one-group text (DISCLAIMER-GUARD-QUIRK), so with the fixer stubbed out, a
+    validator disclaimer failure must still withhold the card and leak no text."""
     caplog.set_level(logging.DEBUG)
     profile_db, master_db, obs_id = dbs
 
-    # Precondition: this exact text is a disclaimer-only failure in the real guard.
-    guard = InterpretationSafetyGuard()
-    final_text, final_advice = guard.add_required_disclaimers(
-        interpretation_text=ONE_GROUP_TEXT, advice_text=None
-    )
-    verdict = guard.validate_interpretation(
-        interpretation_text=final_text, advice_text=final_advice, require_citations=True
+    # Precondition: the validator alone fails this exact text on disclaimers only.
+    verdict = InterpretationSafetyGuard().validate_interpretation(
+        interpretation_text=ONE_GROUP_TEXT, advice_text=None, require_citations=True
     )
     assert verdict.checks_failed == ["missing_disclaimers"], verdict.checks_failed
 
-    with _patch_generated_text(ONE_GROUP_TEXT):
+    no_fix = lambda self, interpretation_text, advice_text=None: (  # noqa: E731
+        interpretation_text,
+        advice_text or "",
+    )
+    with patch.object(
+        InterpretationSafetyGuard, "add_required_disclaimers", no_fix
+    ), _patch_generated_text(ONE_GROUP_TEXT):
         resp = await _post_interpret(profile_db, master_db, obs_id)
     assert resp.status_code == 500, resp.text
     assert resp.json()["detail"] == ESCALATE_TEMPLATE
