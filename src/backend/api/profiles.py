@@ -4,6 +4,7 @@ Profile management API endpoints.
 Handles profile creation, authentication, and access control.
 """
 
+import asyncio
 import base64
 import os
 import uuid
@@ -88,6 +89,16 @@ logger = logging.getLogger(__name__)
 PROFILE_DELETE_CONFIRMATION = "DELETE MY HEALTH DATA"
 
 router = APIRouter()
+
+# PROFILE-NAME-UNIQUE: serialises the duplicate-name check with the insert, so
+# two concurrent creates of one name cannot both pass the check. Process-local:
+# the app runs one backend process per install.
+_profile_create_lock = asyncio.Lock()
+
+
+def _normalise_profile_name(name: str) -> str:
+    """Comparison key for display names: strip, collapse whitespace, casefold."""
+    return " ".join(name.split()).casefold()
 
 
 async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection) -> None:
@@ -354,7 +365,26 @@ async def create_profile(
     - Session token for immediate access
 
     The profile is automatically unlocked after creation.
+
+    A display name equal to an existing one (ignoring case and whitespace) is
+    refused with 409 before anything is written (PROFILE-NAME-UNIQUE).
     """
+    async with _profile_create_lock:
+        return await _create_profile_locked(profile_data, db)
+
+
+async def _create_profile_locked(profile_data: ProfileCreate, db: AsyncSession):
+    wanted = _normalise_profile_name(profile_data.display_name)
+    existing = await db.execute(select(Profile.display_name))
+    if any(_normalise_profile_name(name) == wanted for name in existing.scalars()):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"A profile named {profile_data.display_name} already exists. "
+                "Choose a different name."
+            ),
+        )
+
     profile_id = str(uuid.uuid4())
     encryption_key_id = str(uuid.uuid4())
 

@@ -1,0 +1,519 @@
+@@@ case skip_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest
+
+@pytest.mark.skip(reason="later")
+def test_a():
+    assert 1 == 1
+@@@ case skipif_true_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest
+
+@pytest.mark.skipif(True, reason="later")
+def test_a():
+    assert 1 == 1
+@@@ case xfail_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest
+
+@pytest.mark.xfail(reason="later")
+def test_a():
+    assert 1 == 1
+@@@ case xfail_cond_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest, sys
+
+@pytest.mark.xfail(sys.platform == "win32", reason="later")
+def test_a():
+    assert 1 == 1
+@@@ case it_skip_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test.skip('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ case test_skip_bare_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test('a', async ({ page }) => {
+  test.skip();
+  expect(1).toBe(1);
+});
+@@@ case describe_skip_js src/frontend/src/__tests__/a.test.ts
+@@@ old
+describe('a', () => {
+  it('b', () => {});
+});
+@@@ new
+describe.skip('a', () => {
+  it('b', () => {});
+});
+@@@ case fixme_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test.fixme('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ case xit_js src/frontend/src/__tests__/a.test.ts
+@@@ old
+it('b', () => {});
+@@@ new
+xit('b', () => {});
+@@@ case only_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test.only('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ case only_describe_js src/frontend/src/__tests__/a.test.ts
+@@@ old
+describe('a', () => {
+  it('b', () => {});
+});
+@@@ new
+describe.only('a', () => {
+  it('b', () => {});
+});
+@@@ case retries_added_pw src/frontend/playwright.config.ts
+@@@ old
+export default defineConfig({
+  workers: 1,
+});
+@@@ new
+export default defineConfig({
+  workers: 1,
+  retries: 2,
+});
+@@@ case retries_raised_pw src/frontend/playwright.config.ts
+@@@ old
+export default defineConfig({
+  retries: process.env.CI ? 2 : 0,
+});
+@@@ new
+export default defineConfig({
+  retries: process.env.CI ? 3 : 0,
+});
+@@@ case retries_same_pw src/frontend/playwright.config.ts
+@@@ old
+export default defineConfig({
+  retries: process.env.CI ? 2 : 0,
+});
+@@@ new
+export default defineConfig({
+  workers: 2,
+  retries: process.env.CI ? 2 : 0,
+});
+@@@ case retries_lowered_pw src/frontend/playwright.config.ts
+@@@ old
+export default defineConfig({
+  retries: process.env.CI ? 2 : 0,
+});
+@@@ new
+export default defineConfig({
+  retries: 0,
+});
+@@@ case retries_configure_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test.describe.configure({ retries: 2 });
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ case reruns_toml src/backend/pyproject.toml
+@@@ old
+[tool.pytest.ini_options]
+addopts = "-q"
+@@@ new
+[tool.pytest.ini_options]
+addopts = "-q --reruns 2"
+@@@ case retry_vitest src/frontend/vitest.config.ts
+@@@ old
+export default defineConfig({ test: { globals: true } });
+@@@ new
+export default defineConfig({ test: { globals: true, retry: 2 } });
+@@@ case flaky_mark_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest
+
+@pytest.mark.flaky(reruns=3)
+def test_a():
+    assert 1 == 1
+@@@ case bound_up_gate_js src/frontend/scripts/check-bundle.mjs
+@@@ old
+const B = [{ name: 'main', limitKb: 165 }];
+@@@ new
+const B = [{ name: 'main', limitKb: 200 }];
+@@@ case bound_down_gate_js src/frontend/scripts/check-bundle.mjs
+@@@ old
+const B = [{ name: 'main', limitKb: 165 }];
+@@@ new
+const B = [{ name: 'main', limitKb: 150 }];
+@@@ case bound_lower_gate_py scripts/x_gate.py
+@@@ old
+def check(score):
+    assert score >= 0.7
+@@@ new
+def check(score):
+    assert score >= 0.5
+@@@ case bound_lower_raised_gate_py scripts/x_gate.py
+@@@ old
+def check(score):
+    assert score >= 0.7
+@@@ new
+def check(score):
+    assert score >= 0.9
+@@@ case bound_upper_gate_py scripts/x_gate.py
+@@@ old
+def check(ms):
+    assert ms <= 50
+@@@ new
+def check(ms):
+    assert ms <= 80
+@@@ case bound_eq_gate_py scripts/x_gate.py
+@@@ old
+def check(n):
+    assert n == 74
+@@@ new
+def check(n):
+    assert n == 70
+@@@ case bound_gate_named_test src/backend/tests/test_agent_eval_gate.py
+@@@ old
+def test_count():
+    assert count >= 74
+@@@ new
+def test_count():
+    assert count >= 60
+@@@ case bound_ordinary_test src/backend/tests/test_b.py
+@@@ old
+def test_fast():
+    assert elapsed < 2.0
+@@@ new
+def test_fast():
+    assert elapsed < 5.0
+@@@ case bound_workflow_cov .github/workflows/ci.yml
+@@@ old
+      - run: pytest --cov-fail-under=80
+@@@ new
+      - run: pytest --cov-fail-under=70
+@@@ case bound_unknown_key scripts/x_gate.py
+@@@ old
+VERSION = 3
+@@@ new
+VERSION = 4
+@@@ case bound_comment_only scripts/x_gate.py
+@@@ old
+LIMIT = 5  # was 3
+@@@ new
+LIMIT = 5  # was 9
+@@@ case deleted_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1
+
+
+def test_b():
+    assert 2
+@@@ new
+def test_a():
+    assert 1
+@@@ case deleted_file_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1
+@@@ new
+@@@ absent
+@@@ case renamed_hc_py src/backend/tests/test_a.py
+@@@ old
+def test_hc_abc_001_old_name():
+    assert 1
+@@@ new
+def test_hc_abc_001_new_name():
+    assert 1
+@@@ case split_hc_py src/backend/tests/test_a.py
+@@@ old
+def test_hc_abc_002_both():
+    assert 1
+    assert 2
+@@@ new
+def test_hc_abc_002a():
+    assert 1
+
+
+def test_hc_abc_002b():
+    assert 2
+@@@ case moved_a_py src/backend/tests/test_m1.py
+@@@ old
+def test_x():
+    assert 1
+
+
+def test_y():
+    assert 2
+@@@ new
+def test_x():
+    assert 1
+@@@ case moved_b_py src/backend/tests/test_m2.py
+@@@ old
+@@@ empty
+@@@ new
+def test_y():
+    assert 2
+@@@ case deleted_js src/frontend/src/__tests__/a.test.ts
+@@@ old
+it('keeps a', () => {});
+it('keeps b', () => {});
+@@@ new
+it('keeps a', () => {});
+@@@ case other_prefix_py src/backend/tests/test_a.py
+@@@ old
+def test_hc_abc_003_x():
+    assert 1
+@@@ new
+def test_hc_abc_004_y():
+    assert 1
+@@@ case skipif_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest, sys
+
+@pytest.mark.skipif(sys.platform == "win32", reason="posix")
+def test_a():
+    assert 1 == 1
+@@@ case skip_cond_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test('a', async ({ page, browserName }) => {
+  test.skip(browserName === 'webkit', 'flaky there');
+  expect(1).toBe(1);
+});
+@@@ case inbody_skip_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+import pytest
+
+def test_a():
+    if not HAVE_X:
+        pytest.skip("no x")
+    assert 1 == 1
+@@@ case skipif_vitest_js src/frontend/src/__tests__/a.test.ts
+@@@ old
+it('b', () => {});
+@@@ new
+it.skipIf(process.platform === 'win32')('b', () => {});
+@@@ case assert_eq_in_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert r.status_code == 200
+@@@ new
+def test_a():
+    assert r.status_code in (200, 201)
+@@@ case assert_tobe_truthy_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', () => {
+  expect(x).toBe(true);
+});
+@@@ new
+test('a', () => {
+  expect(x).toBeTruthy();
+});
+@@@ case assert_tobe_defined_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', () => {
+  expect(x).toBe(5);
+});
+@@@ new
+test('a', () => {
+  expect(x).toBeDefined();
+});
+@@@ case assert_toequal_match_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', () => {
+  expect(x).toEqual({ a: 1 });
+});
+@@@ new
+test('a', () => {
+  expect(x).toMatchObject({ a: 1 });
+});
+@@@ case assert_status_set_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', () => {
+  expect(res.status()).toBe(200);
+});
+@@@ new
+test('a', () => {
+  expect([200, 201]).toContain(res.status());
+});
+@@@ case assert_removed_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+    assert 2 == 2
+@@@ new
+def test_a():
+    assert 1 == 1
+@@@ case assert_added_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+def test_a():
+    assert 1 == 1
+    assert 2 == 2
+@@@ case assert_tightened_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert r.status_code in (200, 201)
+@@@ new
+def test_a():
+    assert r.status_code == 200
+@@@ case comments_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+# retries: 3 would be flaky; do not use @pytest.mark.skip here
+
+def test_a():
+    assert 1 == 1
+
+
+def test_retries_on_error():
+    """Docs mention @pytest.mark.xfail and retries: 2."""
+    assert 1 == 1
+@@@ case comments_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+// retries: 3 and test.skip('x') are discussed here
+/* test.only('y');
+   retries: 5 */
+test('retries on failure', async ({ page }) => {
+  expect(1).toBe(1);
+});
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ case string_url_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+const u = 'http://x.test/a'; // test.skip('z')
+@@@ case infra_retry_js src/frontend/e2e/flow.spec.ts
+@@@ old
+test('a', async ({ page }) => {
+  expect(1).toBe(1);
+});
+@@@ new
+async function withInfraRetry(fn) {
+  for (let i = 0; i < 3; i += 1) {
+    try { return await fn(); } catch (e) { /* retry */ }
+  }
+}
+test('a', async ({ page }) => {
+  await withInfraRetry(() => page.goto('/'));
+  expect(1).toBe(1);
+});
+@@@ case infra_retry_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+def with_infra_retry(fn, attempts=3):
+    for _ in range(attempts):
+        try:
+            return fn()
+        except OSError:
+            pass
+
+
+def test_a():
+    assert with_infra_retry(lambda: 1) == 1
+@@@ case product_code_skip_py src/backend/modules/x.py
+@@@ old
+def f():
+    pass
+@@@ new
+import pytest
+
+@pytest.mark.skip
+def f():
+    retries = 5
+@@@ case txt_fixture src/backend/tests/fixtures/agentic_eval/a.txt
+@@@ old
+x
+@@@ new
+@pytest.mark.skip
+test.only('x')
+retries: 4
+@@@ case diff_fixture src/backend/tests/fixtures/agentic_eval/a.diff
+@@@ old
+x
+@@@ new
++test.skip('x')
+@@@ case clean_py src/backend/tests/test_a.py
+@@@ old
+def test_a():
+    assert 1 == 1
+@@@ new
+def test_a():
+    assert 1 == 1
+
+
+def test_b():
+    assert 2 == 2
+@@@ case renamed_title_js src/frontend/src/__tests__/a.test.ts
+@@@ old
+it('moves the fill with scaleX', () => {});
+it('keeps b', () => {});
+@@@ new
+it('reveals the fill with clip-path', () => {});
+it('keeps b', () => {});
+@@@ case retries_flag_zero_yml .github/workflows/n.yml
+@@@ old
+      - run: npx playwright test --workers=1
+@@@ new
+      - run: npx playwright test --retries=0 --workers=1 --repeat-each=10
