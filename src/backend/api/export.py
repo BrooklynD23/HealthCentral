@@ -63,6 +63,9 @@ _fhir_store: dict[str, dict] = {}
 # generation-day footer tests) do not also age the stored entries.
 _EXPORT_TTL = timedelta(minutes=30)
 
+# Title of the trends section ExportModule.generate_doctor_summary adds (modules/export.py).
+TRENDS_SECTION_TITLE = "Notable Trends"
+
 
 def _expired(entry: dict) -> bool:
     # L0 ruling (iii): an entry with no `created_at` counts as FRESH, so
@@ -744,6 +747,9 @@ async def download_summary(
     omit_questions: bool = Query(
         False, description="Leave the questions out (patient unticked them after generating)"
     ),
+    omit_trends: bool = Query(
+        False, description="Leave the trends out (patient unticked them after generating)"
+    ),
     master_db: AsyncSession = Depends(get_db),
     profile_db: ProfileDbSession = None,
 ):
@@ -801,6 +807,19 @@ async def download_summary(
     if omit_questions:
         # Render-time only: the stored summary keeps its questions. Nothing else is dropped.
         summary_data = {**summary_data, "questions": []}
+    if omit_trends:
+        # Render-time only, like omit_questions: match a fresh Generate with Trends off, which has
+        # no trends section and no trend-sourced questions (owner answer EXPORT-TRENDS-QS).
+        summary_data = {
+            **summary_data,
+            "sections": [
+                s for s in summary_data["sections"] if s.get("title") != TRENDS_SECTION_TITLE
+            ],
+            "questions": [
+                q for q in summary_data.get("questions", [])
+                if not (isinstance(q, dict) and q.get("source_kind") == "trend")
+            ],
+        }
 
     if format == "html":
         html_content = export_module.render_html_summary(summary_data)
