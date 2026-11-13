@@ -34,6 +34,7 @@ from .security import (
 )
 from .sqlcipher_driver import is_sqlcipher_available, get_sqlcipher_module
 from .migrations import run_profile_migration_async
+from .vault_conversion import convert_plaintext_vault_if_needed
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +297,10 @@ class PerProfileDatabaseManager:
             # Get database path
             db_path = self._get_profile_db_path(profile_id)
             db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # A plaintext vault from before SQLCipher was installed is converted
+            # once, before any engine or migration touches the file (SQLCIPHER-WHEEL).
+            await asyncio.to_thread(convert_plaintext_vault_if_needed, db_path, hex_key)
 
             # sqlcipher3 for THIS engine only (owner decision SQLITE-MIX). Never
             # patch aiosqlite.core.sqlite3 globally: the master engine would then

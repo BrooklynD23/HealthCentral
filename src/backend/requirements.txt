@@ -29,7 +29,10 @@ aiosqlite>=0.22,<0.23  # core/profile_database.py uses the internal Connection(c
 alembic>=1.13.0
 
 # SQLCipher for encrypted per-profile databases (pre-compiled wheels)
-sqlcipher3-binary>=0.5.0
+# Windows: the official sqlcipher3 wheel, pinned to one hash in requirements-sqlcipher-win.txt
+# (dev.ps1 installs that file first with --require-hashes). Every other platform keeps sqlcipher3-binary.
+sqlcipher3==0.6.5; sys_platform == "win32"
+sqlcipher3-binary>=0.5.0; sys_platform != "win32"
 
 # =============================================================================
 # PDF Processing

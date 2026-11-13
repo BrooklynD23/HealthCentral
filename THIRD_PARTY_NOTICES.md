@@ -83,3 +83,24 @@ converted files:
 
 This notice does not state or imply endorsement by Baidu, the PaddleOCR
 project or RapidOCR (Apache-2.0 grants no right to use their names or marks).
+
+## SQLCipher in the Windows `sqlcipher3` wheel
+
+On Windows, `src/backend/requirements-sqlcipher-win.txt` pins `sqlcipher3==0.6.5`
+(wheel `sqlcipher3-0.6.5-cp311-cp311-win_amd64.whl`, sha256
+`698d58f9ea5d5208bb06ee542678f3aa7921078b3bee8783f7c3fb861910eca6`). The wheel is
+self-contained: it carries SQLCipher 4.20.0 (community edition) and OpenSSL 3.6.0 inside
+its `_sqlite3.cp311-win_amd64.pyd`. Asclexis does not copy these into this repository
+and does not modify them. If Asclexis is ever distributed as an installer that bundles
+this wheel, the installer must ship this file and the three licence texts below.
+
+| Component | Version in the wheel | Licence | Where the text was read |
+| --- | --- | --- | --- |
+| `sqlcipher3` (the Python binding) | 0.6.5 | zlib-style (Gerhard Haering, 2004-2007; the pysqlite licence) | The wheel's own `sqlcipher3-0.6.5.dist-info/licenses/LICENSE`; the upstream `coleifer/sqlcipher3` `LICENSE` on `master` has the same words. |
+| SQLCipher (Zetetic LLC) | 4.20.0 community | BSD-style (3 clauses: keep the notice in source, reproduce it in binary documentation, no use of the Zetetic name for endorsement) | Upstream `sqlcipher/sqlcipher` `LICENSE.md` at tag `v4.12.0`. The wheel bundles 4.20.0; that tag was not read, so the 4.20.0 text is assumed unchanged and is not verified. |
+| OpenSSL | 3.6.0 | Apache-2.0 | Upstream `openssl/openssl` `LICENSE.txt` at tag `openssl-3.6.0`, the version string inside the wheel's binary. |
+
+The wheel ships only the `sqlcipher3` licence file; it does not include the SQLCipher or
+OpenSSL texts. Neither appears in the wheel's `METADATA`. The sqlcipher3 package on PyPI
+has no provenance attestation, so the install is protected by the sha256 pin above.
+

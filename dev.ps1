@@ -468,16 +468,18 @@ $venvPython = Join-Path $VENV_DIR "Scripts\python.exe"
 $venvPip    = Join-Path $VENV_DIR "Scripts\pip.exe"
 
 # ===================================================================
-#  STEP 3  -  Install Python dependencies (with SQLCipher fallback)
+#  STEP 3  -  Install Python dependencies (SQLCipher first; never silently off)
 # ===================================================================
 Write-Status "Installing Python dependencies ..."
 
 # Upgrade pip quietly first
 & $venvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
 
-# Try full install; if it fails (usually because of sqlcipher3-binary on Windows),
-# install everything EXCEPT sqlcipher3-binary and set the env var to skip encryption.
-$sqlcipherAvailable = $true
+# SQLCipher comes first, from one pinned, hash-checked wheel (requirements-sqlcipher-win.txt),
+# and must pass a file probe. If it does not, this launcher stops: it never turns encryption
+# off by itself. HC_ALLOW_UNENCRYPTED=1 is the only override (development only).
+$sqlcipherAvailable = $false
+$allowUnencrypted = ($env:HC_ALLOW_UNENCRYPTED -eq "1")
 $requirementsFile = Join-Path $BACKEND_DIR "requirements.txt"
 
 # llama-cpp-python: install the pinned prebuilt CPU wheel first, so no C++ toolchain is needed.
@@ -525,37 +527,53 @@ if (-not $llamaWheelOk -and -not (Get-Command cl.exe -ErrorAction SilentlyContin
     }
 }
 
+# -- SQLCipher: pinned wheel, hashes required, binary only, then a file probe --
+$sqlcipherReqs = Join-Path $BACKEND_DIR "requirements-sqlcipher-win.txt"
+$probeScript   = Join-Path $ROOT_DIR "scripts\check_sqlcipher.py"
+Write-Status "Installing SQLCipher (encrypted vaults) from the pinned wheel ..."
+$sqlcipherOutput = @(& $venvPip install --only-binary=:all: --no-deps --require-hashes -r $sqlcipherReqs 2>&1)
+$sqlcipherExit   = $LASTEXITCODE
+if ($sqlcipherExit -eq 0) {
+    Write-Status "Checking that SQLCipher really encrypts a file ..."
+    $sqlcipherOutput = @(& $venvPython $probeScript --file-probe 2>&1)
+    $sqlcipherExit   = $LASTEXITCODE
+}
+if ($sqlcipherExit -eq 0) {
+    $sqlcipherAvailable = $true
+    Write-Ok "SQLCipher is ready (file probe passed)"
+} elseif ($allowUnencrypted) {
+    Write-Host ""
+    Write-Host "  ============================================================" -ForegroundColor Red
+    Write-Host "   HC_ALLOW_UNENCRYPTED=1: SQLCipher could not be set up." -ForegroundColor Red
+    Write-Host "   Your health data will NOT be encrypted on this computer." -ForegroundColor Red
+    Write-Host "   Development only. Do not store real patient data." -ForegroundColor Red
+    Write-Host "  ============================================================" -ForegroundColor Red
+    Write-Host ""
+    $filteredReqs = Join-Path $env:TEMP "hc-requirements-nosqlcipher.txt"
+    Get-Content $requirementsFile | Where-Object { $_ -notmatch '^\s*sqlcipher' } | Set-Content $filteredReqs
+    if ($nollamaReqs) { Remove-Item $nollamaReqs -Force -ErrorAction SilentlyContinue }
+    $nollamaReqs = $filteredReqs
+    $requirementsFile = $filteredReqs
+} else {
+    Write-Err "SQLCipher could not be installed or did not pass its check. Last output:"
+    $sqlcipherOutput | Select-Object -Last 12 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkRed }
+    Write-Err "It needs 64-bit Python 3.11 (the pinned wheel is cp311 win_amd64) and access to pypi.org."
+    Write-Err "dev.bat stopped so your health data is never stored unencrypted; .env was not changed."
+    Write-Err "For development only, set HC_ALLOW_UNENCRYPTED=1 to continue without encryption."
+    Read-Host "  Press Enter to exit"
+    exit 1
+}
+
 Push-Location $BACKEND_DIR
 $pipOutput = & $venvPip install -r $requirementsFile 2>&1
 $pipExit   = $LASTEXITCODE
 Pop-Location
 
 if ($pipExit -ne 0) {
-    # Check if sqlcipher was the culprit
-    $sqlcipherFailed = ($pipOutput | Out-String) -match "sqlcipher"
-    if ($sqlcipherFailed) {
-        Write-Warn "SQLCipher is not available on this system (this is normal on Windows)."
-        Write-Status "Installing remaining dependencies without SQLCipher ..."
-        $sqlcipherAvailable = $false
-
-        # Filter out sqlcipher line and install the rest
-        $filteredReqs = Get-Content $requirementsFile |
-            Where-Object { $_ -notmatch "sqlcipher" }
-        $tempReqs = Join-Path $env:TEMP "hc-requirements-filtered.txt"
-        $filteredReqs | Set-Content $tempReqs
-
-        Push-Location $BACKEND_DIR
-        & $venvPip install -r $tempReqs --quiet 2>&1 | Out-Null
-        Pop-Location
-
-        Remove-Item $tempReqs -Force -ErrorAction SilentlyContinue
-        Write-Ok "Python dependencies installed (without SQLCipher)"
-    } else {
-        Write-Err "Failed to install Python dependencies. Output:"
-        $pipOutput | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkRed }
-        Read-Host "  Press Enter to exit"
-        exit 1
-    }
+    Write-Err "Failed to install Python dependencies. Output:"
+    $pipOutput | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkRed }
+    Read-Host "  Press Enter to exit"
+    exit 1
 } else {
     Write-Ok "Python dependencies installed"
 }
@@ -643,21 +661,25 @@ if (-not (Test-Path $ENV_FILE)) {
             "PORT=8000",
             "DATABASE_TYPE=sqlite",
             "DATABASE_ENCRYPTION_ENABLED=true",
-            "DATABASE_ENCRYPTION_REQUIRED=false"
+            "DATABASE_ENCRYPTION_REQUIRED=true"
         )
         $defaultEnv -join "`r`n" | Set-Content $ENV_FILE
         Write-Ok "Created default .env"
     }
 }
 
-# If SQLCipher is not available, make sure encryption is not required
-if (-not $sqlcipherAvailable) {
+# SQLCipher passed its file probe: encryption is required (an older .env may say false).
+# Only HC_ALLOW_UNENCRYPTED=1 (see STEP 3) ever writes false.
+if ($sqlcipherAvailable) {
     $envContent = Get-Content $ENV_FILE -Raw
-    if ($envContent -match "DATABASE_ENCRYPTION_REQUIRED\s*=\s*true") {
-        $envContent = $envContent -replace "DATABASE_ENCRYPTION_REQUIRED\s*=\s*true", "DATABASE_ENCRYPTION_REQUIRED=false"
-        Set-Content $ENV_FILE $envContent -NoNewline
-        Write-Warn "Set DATABASE_ENCRYPTION_REQUIRED=false (SQLCipher not installed)"
+    $wasFalse = ($envContent -match "(?im)^\s*DATABASE_ENCRYPTION_REQUIRED\s*=\s*false")
+    Set-DotEnvKey -FilePath $ENV_FILE -Key "DATABASE_ENCRYPTION_REQUIRED" -Value "true"
+    if ($wasFalse) {
+        Write-Ok "Set DATABASE_ENCRYPTION_REQUIRED=true (SQLCipher file probe passed)"
     }
+} else {
+    Set-DotEnvKey -FilePath $ENV_FILE -Key "DATABASE_ENCRYPTION_REQUIRED" -Value "false"
+    Write-Warn "Set DATABASE_ENCRYPTION_REQUIRED=false (HC_ALLOW_UNENCRYPTED=1): vaults will NOT be encrypted"
 }
 
 # Match backend gate: OCR_ENABLED is meaningful only when an OCR engine exists:
