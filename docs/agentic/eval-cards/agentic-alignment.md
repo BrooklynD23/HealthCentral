@@ -38,19 +38,19 @@ CI: one step in the `docs-lint` job (pull requests only). It runs the base copy 
 
 | Result | Count |
 |---|---|
-| pass | 46 |
+| pass | 47 |
 | WARN only | 9 |
-| FAIL | 5 |
+| FAIL | 4 |
 
 | PR | Verdict | Finding | Explained as |
 |---|---|---|---|
 | #640 | FAIL | `no-queue-id` (title names MEDS-G-FLAKE) | true positive: no queue table row has that id (it is a gate name in prose) |
 | #621 | FAIL | `no-queue-id` (same) | true positive, same cause |
-| #638 | FAIL | `outside-licence` `docs/agentic/recurring-failures.md` | true positive: the row does not name it, though CLAUDE.md asks recurrences be added in the same commit (see blind spots) |
 | #637 | FAIL | `outside-licence` RUNBOOK and `scripts/diag-kit/README.md` | RUNBOOK a true positive; the README is named only as "a README line" in prose (the one arguable miss) |
 | #634 | FAIL | `outside-licence` `scripts/gate_miss_rate.py` | true positive: the row licenses "one new workflow file" |
 
 Owner bar 1c: at most 2 unexplained FAILs over 60 PRs. Unexplained: at most 1 (#637 README). Mode: **fail**.
+First run of this table had 5 FAILs; #638 (a recurring-failures edit) moved to pass once `docs/agentic/recurring-failures.md` became always-licensed (HC-SLG-014).
 Before the `fe/pages/X` short form and the `**Not**` rule were handled the same run gave 13 FAILs; those were parser misses, now covered by HC-SLG-009 and HC-SLG-010.
 Full per-PR output: re-run the command (it needs `gh` and a fetched `origin/main`).
 
@@ -60,7 +60,7 @@ Full per-PR output: re-run the command (it needs `gh` and a fetched `origin/main
 - A row whose `files` cell is prose with no backticks licenses nothing (every file FAILs). Fix the row, not the gate.
 - Stem and basename tokens are loose: a token `redaction` licenses every file named `redaction.*`. Ask-first files still need their owner row.
 - Titles name rows by id; a row never added to the queue table (#640, #621) cannot license anything. PRs with no row fail until a docs batch adds one (owner 1b).
-- `docs/agentic/recurring-failures.md` is not always-licensed, so an honest "add the new failure mode" edit FAILs unless the row names it (#638). Left strict on purpose; widen only on an owner answer.
+- `docs/agentic/recurring-failures.md` is always licensed (CLAUDE.md records a new recurrence in the same commit), so an edit there is never checked; keep it to that purpose.
 - The owner-decisions match needs the queue ID or `#PR` plus the file's basename on one table row. A gate row that names the file only by prose title would not match.
 - Reads live `origin/main`: a gate row merged after the PR was opened counts, one still in the PR does not.
 - Not covered here: whether the PR body told the truth (EVIDENCE row), test weakening inside licensed tests (WEAKEN row), whether the change did what was asked (JUDGE row).

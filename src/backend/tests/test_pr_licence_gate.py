@@ -317,3 +317,13 @@ def test_hc_slg_013_cli_end_to_end_in_a_throwaway_repo(tmp_path):
     _git(repo, "commit", "-q", "-m", "pr2", env=env)
     still = _run_cli(repo, "fix(x): t (NEW-ROW)")
     assert still.returncode == 1 and "no-queue-id" in still.stdout
+
+
+def test_hc_slg_014_recurring_failures_doc_is_always_licensed():
+    # CLAUDE.md: a new recurring-failure instance is recorded in the same commit, so this doc never FAILs
+    rf = "docs/agentic/recurring-failures.md"
+    f = run("fix(x): thing (ROW-ONE)", [("M", "src/backend/api/widgets.py"), ("M", rf)])
+    assert f == []
+    # only that doc is exempt: a sibling doc outside the licence still fails
+    f = run("fix(x): thing (ROW-ONE)", [("M", rf), ("M", "docs/agentic/harness.md")])
+    assert levels(f, "FAIL") == [("outside-licence", "docs/agentic/harness.md")]

@@ -29,7 +29,7 @@ Verdicts, per changed path (added, modified or deleted between --base and --head
 Licence, per queue row id found in the title (union over all ids): backtick tokens from the row's
 `files` and `ask-first` cells, plus backtick tokens from the plan section the row links (a
 `file.md#anchor` link in any cell, resolved against the queue's folder), plus the alias map below, plus
-docs/INDEX.md and docs/_link_graph.json. A token is expanded (be/ -> src/backend/, fe/ -> src/frontend/,
+docs/INDEX.md, docs/_link_graph.json and docs/agentic/recurring-failures.md (CLAUDE.md records a new recurrence in the same commit). A token is expanded (be/ -> src/backend/, fe/ -> src/frontend/,
 e2e/ -> src/frontend/e2e/, {a,b} braces, a :line suffix dropped) and matches a path by exact path, directory
 prefix, trailing path, basename, stem (name without its extension) or glob.
 
@@ -92,7 +92,7 @@ ASK_FIRST_SAMPLES = tuple(
     )
 )
 
-ALWAYS_LICENSED = ("docs/INDEX.md", "docs/_link_graph.json")
+ALWAYS_LICENSED = ("docs/INDEX.md", "docs/_link_graph.json", "docs/agentic/recurring-failures.md")
 # Prose phrases in a files cell that name a file without backticks.
 ALIASES = (
     ("the runbook", "docs/plans/*build-program/RUNBOOK.md"),
