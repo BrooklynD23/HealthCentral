@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -77,6 +79,26 @@ jobs:
       # HARNESS-SPEEDUP: the drift half of HC-AGENTS-008, for PRs where Backend Tests is skipped.
       - name: Harness drift check
         run: python3 scripts/harness_drift_check.py --repo-root .
+
+      # AGENTIC-EVAL-LICENCE: did the PR touch only the files its queue row licenses? The gate and its inputs come from
+      # the BASE side: this runs the base copy of scripts/ (a PR cannot loosen the gate that judges it) and reads the
+      # queue and owner-decisions from live origin/main. Absent on base (the PR that adds it): skipped. The title and
+      # number arrive by env, never through an expression inside run:. LICENCE_GATE_MODE=warn downgrades FAILs.
+      - name: PR scope vs licence gate
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LICENCE_GATE_MODE: fail
+        run: |
+          if ! git cat-file -e HEAD^1:scripts/pr_licence_gate.py 2>/dev/null; then
+            echo "gate absent on base, skipped"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin +main:refs/remotes/origin/main
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive HEAD^1 scripts | tar -x -C "$RUNNER_TEMP/base"
+          python3 "$RUNNER_TEMP/base/scripts/pr_licence_gate.py" --repo-root . --base HEAD^1 --head HEAD --ref origin/main
 
   backend-tests:
     name: Backend Tests
