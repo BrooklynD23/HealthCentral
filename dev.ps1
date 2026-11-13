@@ -849,6 +849,32 @@ if (-not (Test-Path $dataDir)) {
 # ===================================================================
 Write-Host "  --- Checking ports ---" -ForegroundColor DarkGray
 
+# An Asclexis backend or frontend left running from THIS folder (an earlier dev.bat) can hold a
+# profile vault open; moving to the next free port would hide it. Stop and say so. Other
+# programs on these ports keep the free-the-port / next-free-port behaviour below.
+function Find-AsclexisFromThisFolder {
+    $found = @{}
+    $root = $ROOT_DIR.TrimEnd('\').ToLower()
+    foreach ($range in @((8000..8010), (3000..3010))) {
+        foreach ($port in $range) {
+            foreach ($procId in (Get-ListenerPidsForPort -Port $port)) {
+                $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $procId" -ErrorAction SilentlyContinue
+                $cmd = "$($proc.CommandLine)".ToLower()
+                if ($cmd -and $cmd.Contains($root)) { $found[[int]$procId] = $true }
+            }
+        }
+    }
+    return @([int[]]($found.Keys))
+}
+$alreadyRunning = @(Find-AsclexisFromThisFolder)
+if ($alreadyRunning.Count -gt 0) {
+    $firstPid = $alreadyRunning[0]
+    Write-Err "Asclexis is already running from this folder (PID $firstPid). Close it first, or run: taskkill /PID $firstPid /T /F"
+    Write-Err "A leftover copy can keep a profile vault open, so this launcher will not start a second one."
+    Read-Host "  Press Enter to exit"
+    exit 1
+}
+
 if (Test-PortInUse $BACKEND_PORT) {
     Write-Warn "Port $BACKEND_PORT is in use. Trying to free it ..."
     Stop-ProcessOnPort $BACKEND_PORT

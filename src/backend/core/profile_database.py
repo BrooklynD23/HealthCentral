@@ -34,7 +34,7 @@ from .security import (
 )
 from .sqlcipher_driver import is_sqlcipher_available, get_sqlcipher_module
 from .migrations import run_profile_migration_async
-from .vault_conversion import convert_plaintext_vault_if_needed
+from .vault_conversion import convert_plaintext_vault_if_needed, needs_conversion
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +284,22 @@ class PerProfileDatabaseManager:
             KeySealingError: If encryption key cannot be unsealed
             FileNotFoundError: If vault doesn't exist
         """
+        if profile_id in self._connections:
+            logger.debug(f"Reusing existing connection for profile {profile_id}")
+            return self._connections[profile_id]
+
+        # A plaintext vault from before SQLCipher was installed is converted once, before
+        # any engine or migration touches the file (SQLCIPHER-WHEEL). This runs OUTSIDE the
+        # global pool lock: a slow or failing conversion of one profile must never block
+        # another profile's open. vault.convert.lock stops a second conversion of the same
+        # vault; the cheap check keeps the key unseal off the normal login path.
+        pending_path = self._get_profile_db_path(profile_id)
+        if needs_conversion(pending_path):
+            pending_key = await self._load_encryption_key(profile_id, password)
+            await asyncio.to_thread(
+                convert_plaintext_vault_if_needed, pending_path, self._key_to_hex(pending_key)
+            )
+
         async with self._pool_lock:
             # Check if connection already exists
             if profile_id in self._connections:
@@ -297,10 +313,6 @@ class PerProfileDatabaseManager:
             # Get database path
             db_path = self._get_profile_db_path(profile_id)
             db_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # A plaintext vault from before SQLCipher was installed is converted
-            # once, before any engine or migration touches the file (SQLCIPHER-WHEEL).
-            await asyncio.to_thread(convert_plaintext_vault_if_needed, db_path, hex_key)
 
             # sqlcipher3 for THIS engine only (owner decision SQLITE-MIX). Never
             # patch aiosqlite.core.sqlite3 globally: the master engine would then

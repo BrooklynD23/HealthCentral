@@ -50,6 +50,9 @@ MSG_PENDING = (
     "This profile's vault file is missing while a conversion to encrypted storage is pending. "
     "Your data was kept in the profile folder."
 )
+MSG_HELD = (
+    "This profile is open in another Asclexis window or program. Close it, then sign in again."
+)
 MSG_BUSY = "Another conversion of this profile is already running. Try again in a moment."
 MSG_REPLACE_LOST = (
     "The switch to encrypted storage was interrupted. The encrypted copy and your original data "
@@ -58,6 +61,10 @@ MSG_REPLACE_LOST = (
 # The owner decision (SQLCIPHER-WHEEL) is Windows only: elsewhere a plain vault is left as on main.
 _CONVERSION_PLATFORMS = ("win32",)
 _STALE_LOCK_SECONDS = 600.0
+# After a failed conversion, a repeat login within this many seconds fails at once with the
+# same message instead of copying the whole vault again.
+_COOLDOWN_SECONDS = 30.0
+_FAILURES: dict[str, tuple[float, str]] = {}
 _HEX = frozenset("0123456789abcdefABCDEF")
 
 
@@ -74,6 +81,43 @@ def _fail(message: str = FIXED_MESSAGE) -> Exception:
 
 def _current_platform() -> str:
     return sys.platform
+
+
+def _vault_is_held(vault_path: Path) -> bool:
+    """True when another process has the vault file open (Windows only; a no-op elsewhere).
+
+    On Windows the swap (os.replace) fails with PermissionError while any other handle is
+    open, so the whole copy and export would be wasted. CreateFileW with share mode 0 fails
+    with a sharing violation exactly in that case.
+    """
+    if _current_platform() != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateFileW.restype = wintypes.HANDLE
+        kernel32.CreateFileW.argtypes = [
+            wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE,
+        ]
+        handle = kernel32.CreateFileW(str(vault_path), 0xC0000000, 0, None, 3, 0x80, None)
+        if handle in (None, wintypes.HANDLE(-1).value):
+            return ctypes.get_last_error() in (32, 33)  # sharing / lock violation
+        kernel32.CloseHandle(handle)
+        return False
+    except Exception:
+        return False  # cannot tell: let the later steps decide
+
+
+def needs_conversion(vault_path: Path) -> bool:
+    """Cheap check for the caller: would convert_plaintext_vault_if_needed do any work?"""
+    return (
+        _current_platform() in _CONVERSION_PLATFORMS
+        and _sqlcipher_ready()
+        and _needs_work(vault_path)
+    )
 
 
 def _lock_path(vault_path: Path) -> Path:
@@ -331,13 +375,22 @@ def convert_plaintext_vault_if_needed(vault_path: Path, hex_key: str) -> bool:
         return False
     if not _needs_work(vault_path):
         return False
+    key = str(vault_path)
+    recent = _FAILURES.get(key)
+    if recent and time.monotonic() - recent[0] < _COOLDOWN_SECONDS:
+        raise _fail(recent[1])
     try:
         lock = _acquire_lock(vault_path)
     except Exception as exc:
         logger.error("Vault conversion could not start (%s)", type(exc).__name__)
         raise _fail(MSG_BUSY if isinstance(exc, _ConversionFailed) else FIXED_MESSAGE) from None
     try:
-        return _convert_locked(vault_path, hex_key)
+        result = _convert_locked(vault_path, hex_key)
+        _FAILURES.pop(key, None)
+        return result
+    except Exception as exc:
+        _FAILURES[key] = (time.monotonic(), str(exc))
+        raise
     finally:
         lock.unlink(missing_ok=True)
 
@@ -362,6 +415,9 @@ def _convert_locked(vault_path: Path, hex_key: str) -> bool:
             _recover(vault_path, hex_key)
             return False
 
+        step = "held"
+        if _vault_is_held(vault_path):
+            raise _ConversionFailed("vault held by another process")
         step = "checkpoint"
         _checkpoint_plain_wal(vault_path)
         for sidecar in ("-wal", "-journal"):
@@ -400,6 +456,8 @@ def _convert_locked(vault_path: Path, hex_key: str) -> bool:
         logger.error("Vault conversion to encrypted storage failed at step %s (%s)", step, type(exc).__name__)
         if step == "reopen":
             message = MSG_UNVERIFIED
+        elif step == "held":
+            message = MSG_HELD
         elif step == "recover":
             message = MSG_RECOVER
         elif step == "pending-missing":

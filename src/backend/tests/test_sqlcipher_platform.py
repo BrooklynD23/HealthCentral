@@ -89,6 +89,15 @@ def test_hc_sqlc_010_launcher_never_disables_encryption_silently():
     assert dev.index("HC_ALLOW_UNENCRYPTED") < writes[0]
 
 
+def test_hc_sqlc_010b_launcher_stops_on_an_asclexis_already_running_from_this_folder():
+    dev = (REPO / "dev.ps1").read_text(encoding="utf-8")
+    assert "Win32_Process" in dev
+    assert "Asclexis is already running from this folder (PID" in dev
+    assert "taskkill /PID" in dev
+    # the check runs before the launcher picks or frees ports
+    assert dev.index("Asclexis is already running from this folder") < dev.index("Port $BACKEND_PORT is in use")
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="the Windows wheel is installed only on win32")
 def test_hc_sqlc_014_windows_installs_the_pinned_wheel():
     assert importlib.metadata.version("sqlcipher3") == "0.6.5"

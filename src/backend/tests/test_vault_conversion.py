@@ -61,6 +61,7 @@ def _sqlcipher_needed(monkeypatch):
     # The product gate is Windows only; these tests run the conversion on every platform.
     # HC-SQLC-018 puts the real gate back.
     monkeypatch.setattr(_vc(), "_CONVERSION_PLATFORMS", ("win32", "linux", "darwin"), raising=False)
+    monkeypatch.setattr(_vc(), "_FAILURES", {}, raising=False)  # no cooldown carried between tests
 
 
 def _make_plain_vault(path: Path, *, user_version: int = 7) -> None:
@@ -601,7 +602,10 @@ def test_hc_sqlc_019b_login_twice_cannot_delete_the_only_copy(tmp_path):
     k.commit()
     k.close()
     before = copy.read_bytes()
-    _convert(vault)  # login 2: no delete, no matter whether it raises
+    with pytest.raises(ProfileDatabaseEncryptionError):
+        _convert(vault)  # login 2 is inside the cooldown of login 1's failure: fails fast
+    _vc()._FAILURES.clear()
+    _convert(vault)  # and with the cooldown gone: no delete, no matter whether it raises
     assert copy.read_bytes() == before
 
 
@@ -795,3 +799,107 @@ def test_hc_sqlc_023_a_leftover_journal_is_refused_before_the_copy(tmp_path, mon
     assert _sha(vault) == before
     assert not (tmp_path / "vault.plain.bak").exists()
     assert not (tmp_path / "vault.enc-tmp").exists()
+
+
+# -- HC-SQLC-024: a vault held open by another process fails fast, before any copy ----------
+
+
+def test_hc_sqlc_024_held_vault_fails_fast_with_no_copy_written(tmp_path, monkeypatch):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    before = _sha(vault)
+    monkeypatch.setattr(_vc(), "_vault_is_held", lambda path: True, raising=False)
+
+    with pytest.raises(ProfileDatabaseEncryptionError) as info:
+        _convert(vault)
+
+    assert str(info.value) == _vc().MSG_HELD
+    assert "another Asclexis window" in str(info.value)
+    assert _sha(vault) == before
+    assert _leftovers(tmp_path) == [], "no .bak, no temp file"
+
+
+def test_hc_sqlc_024b_the_held_probe_is_a_no_op_off_windows(tmp_path, monkeypatch):
+    vc = _vc()
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    monkeypatch.setattr(vc, "_current_platform", lambda: "linux", raising=False)
+    assert vc._vault_is_held(vault) is False
+
+
+# -- HC-SQLC-025: cooldown after a failure -------------------------------------------------
+
+
+def test_hc_sqlc_025_a_repeat_login_after_a_failure_does_not_copy_again(tmp_path, monkeypatch):
+    vc = _vc()
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    calls = {"export": 0}
+    real_export = vc._export_encrypted_copy
+    real_verify = vc._verify_encrypted_copy
+
+    def counting_export(*args, **kwargs):
+        calls["export"] += 1
+        return real_export(*args, **kwargs)
+
+    monkeypatch.setattr(vc, "_export_encrypted_copy", counting_export)
+    monkeypatch.setattr(
+        vc, "_verify_encrypted_copy", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x"))
+    )
+    with pytest.raises(ProfileDatabaseEncryptionError) as first:
+        _convert(vault)
+    with pytest.raises(ProfileDatabaseEncryptionError) as second:
+        _convert(vault)
+
+    assert str(second.value) == str(first.value)
+    assert calls["export"] == 1, "the second login must not copy and export the vault again"
+    monkeypatch.setattr(vc, "_COOLDOWN_SECONDS", 0.0, raising=False)
+    monkeypatch.setattr(vc, "_verify_encrypted_copy", real_verify)
+    assert _convert(vault) is True, "after the cooldown the conversion is tried again"
+
+
+# -- HC-SQLC-026: one profile's slow conversion never blocks another profile -----------------
+
+
+@pytest.mark.asyncio
+async def test_hc_sqlc_026_a_blocked_conversion_does_not_block_another_profile(manager_env, monkeypatch):
+    import asyncio
+
+    import core.profile_database as pdb
+
+    vault_dir_a, key_a, _hex = manager_env
+    vault_a = vault_dir_a / "vault.db"
+    _migrate_plain_to_head(vault_a, key_a, monkeypatch)
+
+    other = "hc-sqlc-profile-b"
+    vault_dir_b = vault_dir_a.parent / other
+    vault_dir_b.mkdir()
+    key_b = generate_encryption_key()
+    sealed, method = seal_key_with_dpapi(key_b, fallback_password=PASSWORD, force_password=True)
+    (vault_dir_b / "key.bin").write_bytes(sealed)
+    (vault_dir_b / "key.method").write_text(method)
+
+    inside, release = threading.Event(), threading.Event()
+    real = pdb.convert_plaintext_vault_if_needed
+
+    def blocked(path, hex_key):
+        inside.set()
+        assert release.wait(60)
+        return real(path, hex_key)
+
+    monkeypatch.setattr(pdb, "convert_plaintext_vault_if_needed", blocked)
+    manager = get_profile_db_manager()
+    task_a = asyncio.create_task(manager.open_profile_database(PROFILE, PASSWORD))
+    try:
+        for _ in range(300):
+            if inside.is_set():
+                break
+            await asyncio.sleep(0.05)
+        assert inside.is_set(), "profile A's conversion never started"
+        conn_b = await asyncio.wait_for(manager.open_profile_database(other, PASSWORD), timeout=30)
+        assert conn_b is not None
+    finally:
+        release.set()
+        await task_a
+        await manager.close_profile_database(PROFILE)
+        await manager.close_profile_database(other)

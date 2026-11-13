@@ -109,8 +109,11 @@ reopens it with the key, and only then deletes `vault.plain.bak` and any plainte
 `vault.pre017.snapshot*` files. If any check fails, the original stays as it was (or, after the swap, the plain copy
 is kept) and the sign-in fails with a server error (HTTP 500); the cause is one line in
 the app log with no patient data. The conversion runs on Windows only, and only one at a
-time per profile (`vault.convert.lock`). A clear sign-in message is the follow-up
-SQLC-LOGIN-ERROR-MAP. Back the data folder up before the first run on a machine
+time per profile (`vault.convert.lock`). If another Asclexis window or program still has the vault open (for example a backend left
+running by an earlier `dev.bat`), the conversion stops at once without copying anything and
+asks you to close it; `dev.bat` itself refuses to start while Asclexis is already running
+from the same folder. A failed profile is not retried for 30 seconds. A clear sign-in
+message is the follow-up SQLC-LOGIN-ERROR-MAP. Back the data folder up before the first run on a machine
 that has real data.
 
 ## Database migrations
