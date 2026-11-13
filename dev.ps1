@@ -278,8 +278,10 @@ function Start-FrontendDevServer {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
     # Hidden cmd.exe + shell redirect fails silently; launch node directly (Vite logs to stderr).
+    # Windows PowerShell 5.1 joins -ArgumentList items with spaces and does not quote them, so a repo path
+    # with a space ("...\Github Repo\...") reached node as two arguments. Quote the script path.
     return Start-Process -FilePath $NodeExePath `
-        -ArgumentList $FrontendViteScriptPath, "--port", "$Port", "--strictPort" `
+        -ArgumentList "`"$FrontendViteScriptPath`"", "--port", "$Port", "--strictPort" `
         -WorkingDirectory $WorkingDirectory `
         -WindowStyle Hidden `
         -RedirectStandardError $LogPath `
