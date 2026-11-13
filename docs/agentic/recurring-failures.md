@@ -719,3 +719,11 @@ The inverse of the leaked-orphan instance under mode 5: there the orphan outlive
 `scripts/quiet_run.sh` holds `pyslot` slots 1-8 and then waits until no test process is running. A `pyslot.sh` pytest that is only WAITING for a slot counts as a running test process, so `quiet_run` waits for the waiter while the waiter waits for `quiet_run`'s slot: a deadlock until `--max-wait`. Evidence: the #621 diagnosis agent's first `quiet_run` on 2026-11-12 deadlocked against another agent's `pyslot` pytest. The script is not changed in this batch (BATCH-1112B); this entry only records the mode.
 
 **Recheck:** before trusting a `quiet_run` stall, run `pgrep -fa pyslot` and see whether the "busy" process is a slot waiter (a `pyslot.sh` pytest that has not started) rather than a running test. If it is a waiter, the run is deadlocked, not slow: stop it and start the waiter's owner first, or wait for the waiter to finish, instead of sitting to `--max-wait`.
+
+---
+
+## 24. A table-row edit adds cells instead of replacing them
+
+BATCH-1113B (#652) was told to replace the SQLCIPHER-WHEEL row's files and ask-first cells. It inserted the two new cells and kept the old ones, so the row had 11 cells under a 10-column header and every value after the ask-first column shifted right. Markdown still rendered, docs lint passed, and the batch's own licence-gate run passed (it changed no product files). The first PR judged by that row (#653) then failed the live licence gate: `scripts/pr_licence_gate.py` read the three ask-first paths as the files cell and the 16-file licence as `est h`. Fixed in BATCH-1113C by realigning the row.
+
+**Recheck:** after any queue-row edit, parse the row with `scripts/queue_drift.py`'s `parse()` and check that it has exactly the header's cell count and that `c["files"]` / `c["ask-first"]` hold what you meant. Then run the licence gate on the PR that row licenses (`--ref` at your branch) before merging the batch.
