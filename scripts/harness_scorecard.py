@@ -24,6 +24,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from statistics import median
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import evidence_check as ev  # noqa: E402  (pure parser and comparer, AGENTIC-EVAL-EVIDENCE)
+
 REPO = "BrooklynD23/HealthCentral"
 DEFAULT_LEDGER = os.path.expanduser("~/hc-quiet-logs/perf-monitor/l0-corrections.jsonl")
 SMALL_N = 10
@@ -35,6 +38,10 @@ QUERY = (
     "pullRequest(number:$number){commits(first:100){totalCount nodes{commit{oid messageBody}}} "
     "timelineItems(first:100,itemTypes:[RENAMED_TITLE_EVENT,HEAD_REF_FORCE_PUSHED_EVENT]){totalCount nodes{"
     "__typename ... on RenamedTitleEvent{currentTitle} ... on HeadRefForcePushedEvent{afterCommit{oid}}}}}}}"
+)
+EVIDENCE_QUERY = (
+    "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){"
+    "pullRequest(number:$number){body createdAt lastEditedAt headRefOid commits(last:1){nodes{commit{oid committedDate}}}}}}"
 )
 TRAILER_RE = re.compile(r"^Asclexis-Correction:[ \t]*(\S+)", re.I | re.M)
 COSIGN_RE = re.compile(r"^Co-Authored-By:[ \t]*Claude[ \t]+(\w+)", re.I | re.M)
@@ -62,8 +69,8 @@ def _json_stream(text):
     return items if was_list or len(items) != 1 else items[0]
 
 
-def gh(args):
-    """Run gh with retry on rate limit. Returns parsed JSON, or None on failure."""
+def gh(args, raw=False):
+    """Run gh with retry on rate limit. Returns parsed JSON (raw text when raw=True), or None on failure."""
     global CALLS
     cmd = ["gh"] + args
     if args[0] in ("run", "pr"):
@@ -74,6 +81,8 @@ def gh(args):
         p = subprocess.run(cmd, capture_output=True, text=True)
         if p.returncode == 0:
             time.sleep(0.3)
+            if raw:
+                return p.stdout
             return _json_stream(p.stdout) if p.stdout.strip() else None
         err = p.stderr.lower()
         if "rate limit" in err or "403" in err or "502" in err or "503" in err:
@@ -210,12 +219,68 @@ def collect(runner, since, until, ledger):
             "correction_classes": [t["class"] for t in trailers] + [_clean(str(e.get("class", "?"))) for e in extra],
             "cosign_heuristic": cosign_heuristic(commits),
             "retitles": count_retitles(tl),
+            "branch": p["headRefName"],
             "reverted": is_reverted((p.get("mergeCommit") or {}).get("oid"), pr_oids, main_commits),
             # timelineItems.totalCount counts every event type even when filtered (seen live), so use the page size
             "truncated": (pr.get("commits") or {}).get("totalCount", 0) > len(commits) or len(tl) >= 100,
             "no_detail": not pr,
         })
     return records
+
+
+def gh_text(args):
+    return gh(args, raw=True)
+
+
+def _ci_for_head(runner, text_runner, branch, sha):
+    """CI facts for one head: Backend/Frontend log summaries and check conclusions. Empty when no completed run."""
+    ci = {"backend": None, "frontend": None, "checks": {}}
+    runs = runner(["run", "list", "--workflow", "ci.yml", "--event", "pull_request", "--branch", branch, "--json",
+                   "databaseId,headSha,conclusion,status,createdAt", "--limit", "100"]) or []
+    done = [r for r in runs if ev.same_sha(r.get("headSha"), sha) and r.get("status") == "completed"
+            and r.get("conclusion") != "cancelled"]
+    if not done:
+        return ci
+    run = max(done, key=lambda r: r["createdAt"])
+    jobs = ((runner(["run", "view", str(run["databaseId"]), "--json", "jobs"]) or {}).get("jobs")) or []
+    for j in jobs:
+        concl = (j.get("conclusion") or "").upper() or None
+        ci["checks"][j["name"]] = concl
+        if concl is None or j["name"] not in ("Backend Tests", "Frontend Tests"):
+            continue
+        log = text_runner(["api", f"repos/{REPO}/actions/jobs/{j['databaseId']}/logs"]) or ""
+        if j["name"] == "Backend Tests":
+            ci["backend"] = ev.parse_pytest_summary(log)
+        else:
+            ci["frontend"] = ev.parse_vitest_summary(log)
+    return ci
+
+
+def collect_evidence(records, runner, text_runner):
+    """Add record["evidence"] (counts only) to each record. The body is read in memory and never stored or printed."""
+    for r in records:
+        d = runner(["api", "graphql", "-f", f"query={EVIDENCE_QUERY}", "-f", f"owner={REPO.split('/')[0]}",
+                    "-f", f"name={REPO.split('/')[1]}", "-F", f"number={r['number']}"])
+        v = ((d or {}).get("data") or {}).get("repository", {}).get("pullRequest")
+        if not v:
+            r["evidence"] = {"unavailable": True}
+            continue
+        sha, source = ev.choose_head(v.get("body") or "", v.get("headRefOid") or "")
+        pushes = [n["commit"]["committedDate"] for n in (v.get("commits") or {}).get("nodes") or []
+                  if n.get("commit", {}).get("committedDate")]
+        stale = ev.is_stale(v.get("lastEditedAt") or v.get("createdAt"), max(pushes) if pushes else None)
+        ci = _ci_for_head(runner, text_runner, r.get("branch", ""), sha)
+        summary = ev.summarize(ev.compare(ev.parse_claims(v.get("body") or ""), ci))
+        r["evidence"] = dict(summary, stale=stale, head_source=source)
+
+
+def _evidence_cell(r):
+    e = r.get("evidence")
+    if not e:
+        return ""
+    if e.get("unavailable"):
+        return "unavailable"
+    return ev.evidence_cell(e, e["stale"], e["head_source"])
 
 
 def _week(ts):
@@ -244,8 +309,19 @@ def render(records, since, until, cmds, ledger_note=""):
     for r in sorted(records, key=lambda r: r["merged"]):
         a(f"| #{r['number']} | {r['merged'][:10]} | {r['first_ci']} | {r['pushes']} | {r['corrections']} | "
           f"{', '.join(r['correction_classes']) or '-'} | {r['cosign_heuristic']} | {r['retitles']} | "
-          f"{'yes' if r['reverted'] else 'no'} |  |")
+          f"{'yes' if r['reverted'] else 'no'} | {_evidence_cell(r)} |")
     a("")
+    evs = [r["evidence"] for r in records if r.get("evidence") and not r["evidence"].get("unavailable")]
+    if any(r.get("evidence") for r in records):
+        a(f"Evidence: {len(evs)} of {len(records)} PRs read ("
+          f"{sum(e['n'] for e in evs)} claims; {sum(e['comparable'] for e in evs)} comparable, "
+          f"{sum(e['match'] for e in evs)} match, {sum(e['mismatch'] for e in evs)} mismatch, of which CI-quoted claims "
+          f"{sum(e['mismatch_ci_quoted'] for e in evs)} mismatch in {sum(e['comparable_ci_quoted'] for e in evs)} comparable; "
+          f"{sum(e['unverifiable'] for e in evs)} unverifiable, {sum(e['non_comparable'] for e in evs)} non-comparable, "
+          f"{sum(e['no_ci_data'] for e in evs)} without CI data; {sum(e['stale'] for e in evs)} stale bodies). "
+          "Comparable = full-suite or CI-quoted backend counts, collected sums, vitest totals and CI-green claims "
+          "checked against the CI Backend/Frontend Tests log and check conclusions for the stamped (else final) head. "
+          "Recording only; counts, no body text.\n")
     a("## Weekly (ISO week of merge)\n")
     cmd_cell = cmds[0] if cmds else "n/a"
     a("| Week | Window | n PRs | First CI green (of decided) | Superseded | No CI | Pushes after open (median, total) | "
@@ -285,17 +361,22 @@ def render(records, since, until, cmds, ledger_note=""):
     return "\n".join(P) + "\n"
 
 
-def main(argv=None, runner=None):
+def main(argv=None, runner=None, evidence_runners=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--since", required=True)
     ap.add_argument("--until", required=True)
     ap.add_argument("--out")
     ap.add_argument("--ledger", default=DEFAULT_LEDGER)
+    ap.add_argument("--no-evidence", action="store_true", help="skip the PR-body evidence column (saves API calls)")
     a = ap.parse_args(argv)
     since, until = parse_ts(a.since), parse_ts(a.until)
     ledger = load_ledger(a.ledger)
     note = "" if ledger is not None else f"Ledger file `{a.ledger}` not found: only trailer corrections are counted."
     recs = collect(runner or gh, since, until, ledger or [])
+    if not a.no_evidence:
+        pair = evidence_runners or ((gh, gh_text) if runner is None else None)
+        if pair:
+            collect_evidence(recs, *pair)
     cmds = list(CMDS) if runner is None else ["gh pr list --state merged --base main --search merged:<since>..<until>"]
     text = render(recs, since, until, cmds, note or f"Ledger: `{a.ledger}` ({len(ledger)} lines).")
     if a.out:
