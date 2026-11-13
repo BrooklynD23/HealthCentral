@@ -95,11 +95,21 @@ async def init_database() -> None:
         if not is_sqlcipher_available():
             logger.critical(
                 "SQLCipher REQUIRED but not available. "
-                "Install: pip install sqlcipher3-binary"
+                "Install: Windows: pip install --only-binary=:all: --no-deps --require-hashes "
+                "-r requirements-sqlcipher-win.txt; Linux/macOS: pip install sqlcipher3-binary"
             )
             raise RuntimeError("SQLCipher required but not available")
         version = verify_cipher_version()
+        if not version:
+            # A module that imports but reports no cipher version is not SQLCipher.
+            logger.critical("SQLCipher REQUIRED but the installed sqlcipher3 module reports no cipher version.")
+            raise RuntimeError("SQLCipher required but the installed module is not SQLCipher")
         logger.info(f"SQLCipher available: version {version}")
+    elif not is_sqlcipher_available():
+        logger.critical(
+            "SQLCipher is not available and DATABASE_ENCRYPTION_REQUIRED is false: "
+            "profile databases will not be encrypted on this computer."
+        )
 
     # Ensure data directory exists (local mode)
     if settings.app_mode == "local":
