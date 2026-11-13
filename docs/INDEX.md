@@ -94,7 +94,7 @@ Local-first application for patients to import medical documents, extract struct
 
 **Agentic Alignment Eval Card (AGENTIC-EVAL)**
 
-What it measures: whether an agent-built PR did what its queue row licensed and nothing else. This card is extended by each AGENTIC-EVAL row; today it holds the first gate. Scorecard, evidence and…
+What it measures: whether an agent-built PR did what its queue row licensed and nothing else. This card is extended by each AGENTIC-EVAL row; today it holds the licence gate and the test-weakening…
 
 Links to: `docs/agentic/evals.md`
 
