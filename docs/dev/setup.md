@@ -89,7 +89,9 @@ Each profile database is an AES-256 SQLCipher database. On Windows it is the off
 it needs 64-bit Python 3.11 and installs with `--only-binary=:all: --no-deps
 --require-hashes`. On Linux and macOS, `sqlcipher3-binary` (in `requirements.txt`) ships
 pre-built wheels; on Debian/Ubuntu install `libsqlcipher-dev` first if the wheel fails to
-build, and on macOS `brew install sqlcipher`. Verify with:
+build, and on macOS `brew install sqlcipher`. A manual `pip install` on Windows is not
+hash-checked: use `dev.bat`, which installs the pinned wheel with `--require-hashes`.
+Verify with:
 
 ```python
 import sqlcipher3
@@ -104,8 +106,11 @@ databases for development only. **Never use it with real data.**
 time that profile signs in. The app copies it to `vault.plain.bak`, writes and verifies an
 encrypted copy (integrity checks, per-table row counts, `alembic_version`), swaps it in,
 reopens it with the key, and only then deletes `vault.plain.bak` and any plaintext
-`vault.pre017.snapshot*` files. If any check fails, the original stays as it was and the
-sign-in shows one fixed message. Back the data folder up before the first run on a machine
+`vault.pre017.snapshot*` files. If any check fails, the original stays as it was (or, after the swap, the plain copy
+is kept) and the sign-in fails with a server error (HTTP 500); the cause is one line in
+the app log with no patient data. The conversion runs on Windows only, and only one at a
+time per profile (`vault.convert.lock`). A clear sign-in message is the follow-up
+SQLC-LOGIN-ERROR-MAP. Back the data folder up before the first run on a machine
 that has real data.
 
 ## Database migrations

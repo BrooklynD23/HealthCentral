@@ -17,6 +17,7 @@ import importlib
 import logging
 import os
 import sqlite3
+import threading
 from pathlib import Path
 
 import aiosqlite.core
@@ -55,8 +56,11 @@ def _require_sqlcipher() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _sqlcipher_needed():
+def _sqlcipher_needed(monkeypatch):
     _require_sqlcipher()
+    # The product gate is Windows only; these tests run the conversion on every platform.
+    # HC-SQLC-018 puts the real gate back.
+    monkeypatch.setattr(_vc(), "_CONVERSION_PLATFORMS", ("win32", "linux", "darwin"), raising=False)
 
 
 def _make_plain_vault(path: Path, *, user_version: int = 7) -> None:
@@ -75,6 +79,7 @@ def _make_plain_vault(path: Path, *, user_version: int = 7) -> None:
             );
             CREATE INDEX ix_obs_doc ON observations(document_id);
             CREATE VIEW v_obs AS SELECT id, note FROM observations;
+            CREATE TRIGGER trg_obs AFTER INSERT ON observations BEGIN SELECT 1; END;
             CREATE VIRTUAL TABLE search_records_fts USING fts5(title, content);
             INSERT INTO documents VALUES (1, 'a'), (2, 'b'), (3, 'c');
             INSERT INTO observations VALUES (1, 1, '{CANARY}'), (2, 2, 'x'), (3, 3, 'y'), (4, 3, 'z');
@@ -396,10 +401,10 @@ def test_hc_sqlc_012a_crash_after_replace_deletes_the_copy_on_next_open(tmp_path
     """The encrypted vault was moved in; the process died before the copy was deleted."""
     vault = tmp_path / "vault.db"
     _make_plain_vault(vault)
-    shutil_copy = tmp_path / "vault.plain.bak"
-    shutil_copy.write_bytes(vault.read_bytes())
+    original = vault.read_bytes()
     assert _convert(vault) is True  # leaves nothing; recreate the crash state by hand
-    shutil_copy.write_bytes(PLAIN_HEADER + b"stale plaintext copy")
+    shutil_copy = tmp_path / "vault.plain.bak"
+    shutil_copy.write_bytes(original)  # a real copy: same tables and row counts
     snap = tmp_path / "vault.pre017.snapshot"
     snap.write_bytes(PLAIN_HEADER + b"old")
     before = _sha(vault)
@@ -441,11 +446,55 @@ def test_hc_sqlc_012c_unreadable_encrypted_vault_never_loses_its_plain_copy(tmp_
     with pytest.raises(ProfileDatabaseEncryptionError) as info:
         _convert(vault, HEX_KEY)
 
-    assert str(info.value) == FIXED_MESSAGE
+    assert str(info.value) == _vc().MSG_RECOVER
     assert copy.exists() and _sha(vault) == before
 
 
 # -- HC-SQLC-013 ---------------------------------------------------------------------
+
+
+def _insert_real_rows(vault: Path) -> list[str]:
+    """One row into every real table the migrations made that accepts a generated row."""
+    conn = sqlite3.connect(vault)
+    done: list[str] = []
+    try:
+        names = [
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
+                "AND name <> 'alembic_version' AND name NOT LIKE '%\\_fts%' ESCAPE '\\' "
+                "AND sql NOT LIKE 'CREATE VIRTUAL%'"
+            ).fetchall()
+        ]
+        for name in names:
+            cols = conn.execute(f'PRAGMA table_info("{name}")').fetchall()
+            values = []
+            for _cid, col, ctype, notnull, default, pk in cols:
+                if default is not None or (not notnull and not pk):
+                    values.append(None if default is None else None)
+                    continue
+                t = (ctype or "").upper()
+                if "INT" in t or "BOOL" in t:
+                    values.append(1)
+                elif any(k in t for k in ("REAL", "FLOA", "DOUB", "NUMERIC", "DECIMAL")):
+                    values.append(1.5)
+                else:
+                    values.append(f"hc-sqlc-{name}-{col}")
+            names_sql = ", ".join(f'"{c[1]}"' for c, v in zip(cols, values) if v is not None)
+            if not names_sql:
+                continue
+            marks = ", ".join("?" for v in values if v is not None)
+            try:
+                conn.execute(
+                    f'INSERT INTO "{name}" ({names_sql}) VALUES ({marks})', [v for v in values if v is not None]
+                )
+                conn.commit()
+                done.append(name)
+            except sqlite3.Error:
+                conn.rollback()
+    finally:
+        conn.close()
+    return done
 
 
 def test_hc_sqlc_013_real_migrations_to_head_then_convert(tmp_path, monkeypatch):
@@ -458,14 +507,19 @@ def test_hc_sqlc_013_real_migrations_to_head_then_convert(tmp_path, monkeypatch)
     vault = tmp_path / "vault.db"
     _migrate_plain_to_head(vault, key, monkeypatch)
 
+    populated = _insert_real_rows(vault)
+    assert len(populated) >= 5, populated
+
     src = sqlite3.connect(vault)
     try:
         tables = [r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
         counts = {t: src.execute(f'SELECT count(*) FROM "{t}"').fetchone()[0] for t in tables}
         user_version = src.execute("PRAGMA user_version").fetchone()[0]
+        source_fk = sorted(tuple(r) for r in src.execute("PRAGMA foreign_key_check").fetchall())
     finally:
         src.close()
     assert "alembic_version" in tables and len(tables) > 10
+    assert all(counts[t] > 0 for t in populated)
 
     assert _convert(vault, hex_key) is True
 
@@ -476,7 +530,8 @@ def test_hc_sqlc_013_real_migrations_to_head_then_convert(tmp_path, monkeypatch)
         assert after == counts
         assert conn.execute("PRAGMA user_version").fetchone()[0] == user_version
         assert conn.execute("SELECT version_num FROM alembic_version").fetchall() == [(PROFILE_HEAD,)]
-        assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
+        # generated rows are FK orphans: the rule is "same violations as the source"
+        assert sorted(tuple(r) for r in conn.execute("PRAGMA foreign_key_check").fetchall()) == source_fk
     finally:
         conn.close()
     # The real keyed migration runner treats the converted vault as already at head.
@@ -504,3 +559,239 @@ def test_hc_sqlc_008b_source_orphans_do_not_block_conversion(tmp_path):
         assert keyed.execute("SELECT count(*) FROM observations").fetchone()[0] == 5
     finally:
         keyed.close()
+
+
+# -- HC-SQLC-019: never create a vault over a pending conversion ----------------------
+
+
+@pytest.mark.parametrize("leftover", ["vault.plain.bak", "vault.enc-tmp"])
+@pytest.mark.parametrize("vault_bytes", [None, b""])
+def test_hc_sqlc_019_missing_or_empty_vault_with_a_pending_copy_raises_and_keeps_it(
+    tmp_path, leftover, vault_bytes
+):
+    vault = tmp_path / "vault.db"
+    copy = tmp_path / leftover
+    plain = tmp_path / "src.db"
+    _make_plain_vault(plain)
+    copy.write_bytes(plain.read_bytes())
+    if vault_bytes is not None:
+        vault.write_bytes(vault_bytes)
+    before = copy.read_bytes()
+
+    with pytest.raises(ProfileDatabaseEncryptionError) as info:
+        _convert(vault)
+
+    assert str(info.value) == _vc().MSG_PENDING
+    assert copy.read_bytes() == before, "the only data copy must be untouched"
+    assert (not vault.exists()) if vault_bytes is None else vault.read_bytes() == b""
+
+
+def test_hc_sqlc_019b_login_twice_cannot_delete_the_only_copy(tmp_path):
+    """The reviewed data-loss path: login 1 creates an empty keyed vault, login 2 used to
+    verify the EMPTY vault and delete the plain copy."""
+    vault = tmp_path / "vault.db"
+    copy = tmp_path / "vault.plain.bak"
+    _make_plain_vault(copy)
+    with pytest.raises(ProfileDatabaseEncryptionError):
+        _convert(vault)  # login 1: nothing may create a vault
+    assert not vault.exists()
+    # even if something else created an empty keyed vault, the copy must survive
+    k = _open_keyed(vault)
+    k.execute("CREATE TABLE alembic_version (version_num TEXT)")
+    k.commit()
+    k.close()
+    before = copy.read_bytes()
+    _convert(vault)  # login 2: no delete, no matter whether it raises
+    assert copy.read_bytes() == before
+
+
+def test_hc_sqlc_019c_recover_keeps_the_copy_when_the_vault_differs(tmp_path):
+    vault = tmp_path / "vault.db"
+    plain = tmp_path / "src.db"
+    _make_plain_vault(plain)
+    _make_plain_vault(vault)
+    vault.write_bytes(vault.read_bytes())
+    assert _convert(vault) is True
+    conn = _open_keyed(vault)
+    conn.execute("DELETE FROM observations")
+    conn.commit()
+    conn.close()
+    copy = tmp_path / "vault.plain.bak"
+    copy.write_bytes(plain.read_bytes())
+
+    _convert(vault)
+
+    assert copy.exists(), "rows differ, so the plain copy is the only complete data"
+
+
+# -- HC-SQLC-020: a replace that removed the target keeps the temp file --------------------
+
+
+def test_hc_sqlc_020_replace_that_loses_the_target_keeps_the_encrypted_temp(tmp_path, monkeypatch):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    vc = _vc()
+    real_replace = os.replace
+
+    def lossy_replace(src, dst):
+        if str(src).endswith(".enc-tmp"):
+            Path(dst).unlink()
+            raise PermissionError("target removed, then the rename failed")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(vc.os, "replace", lossy_replace)
+    with pytest.raises(ProfileDatabaseEncryptionError) as info:
+        _convert(vault)
+    monkeypatch.undo()
+
+    assert str(info.value) == _vc().MSG_REPLACE_LOST
+    assert (tmp_path / "vault.enc-tmp").exists(), "the temp file is the only encrypted copy"
+    assert (tmp_path / "vault.plain.bak").exists()
+
+
+# -- HC-SQLC-021: verification really verifies ------------------------------------------------
+
+
+def _tamper_temp_before_verify(monkeypatch, sql: str) -> None:
+    vc = _vc()
+    real = vc._verify_encrypted_copy
+
+    def wrapper(tmp, hex_key, source):
+        conn = _open_keyed(tmp, hex_key)
+        conn.execute(sql)
+        conn.commit()
+        conn.close()
+        return real(tmp, hex_key, source)
+
+    monkeypatch.setattr(vc, "_verify_encrypted_copy", wrapper)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "DELETE FROM observations WHERE id = 4",
+        "DROP INDEX ix_obs_doc",
+        "DROP TRIGGER trg_obs",
+        "DROP VIEW v_obs",
+        "PRAGMA user_version = 99",
+        "UPDATE alembic_version SET version_num = '000_other'",
+    ],
+)
+def test_hc_sqlc_021_a_tampered_export_is_refused_and_the_original_is_untouched(tmp_path, monkeypatch, sql):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    before = _sha(vault)
+    _tamper_temp_before_verify(monkeypatch, sql)
+
+    with pytest.raises(ProfileDatabaseEncryptionError) as info:
+        _convert(vault)
+
+    assert str(info.value) == FIXED_MESSAGE
+    assert _sha(vault) == before
+    assert not (tmp_path / "vault.enc-tmp").exists()
+
+
+def test_hc_sqlc_021b_a_vault_that_does_not_reopen_after_the_switch_keeps_the_copy(tmp_path, monkeypatch):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    vc = _vc()
+    real_replace = os.replace
+
+    def replace_then_corrupt(src, dst):
+        real_replace(src, dst)
+        Path(dst).write_bytes(b"\x01" * 4096)
+
+    monkeypatch.setattr(vc.os, "replace", replace_then_corrupt)
+    with pytest.raises(ProfileDatabaseEncryptionError) as info:
+        _convert(vault)
+    monkeypatch.undo()
+
+    assert str(info.value) == _vc().MSG_UNVERIFIED
+    assert (tmp_path / "vault.plain.bak").exists(), "the plain copy must stay when the reopen fails"
+
+
+# -- HC-SQLC-018: Windows only ---------------------------------------------------------------
+
+
+def test_hc_sqlc_018_off_windows_a_plain_vault_is_not_converted(tmp_path, monkeypatch):
+    vc = _vc()
+    monkeypatch.setattr(vc, "_CONVERSION_PLATFORMS", ("win32",))
+    monkeypatch.setattr(vc, "_current_platform", lambda: "linux", raising=False)
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    (tmp_path / "vault.plain.bak").write_bytes(PLAIN_HEADER + b"leftover")
+    before = _sha(vault)
+
+    assert _convert(vault) is False
+
+    assert _sha(vault) == before
+    assert _leftovers(tmp_path) == ["vault.plain.bak"], "nothing created, nothing deleted"
+    monkeypatch.setattr(vc, "_current_platform", lambda: "win32", raising=False)
+    assert _convert(vault) is True, "the same call on win32 converts"
+
+
+# -- HC-SQLC-022: one conversion at a time ---------------------------------------------------
+
+
+def test_hc_sqlc_022_a_second_conversion_is_refused_while_the_first_runs(tmp_path, monkeypatch):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    vc = _vc()
+    inside, release = threading.Event(), threading.Event()
+    real_export = vc._export_encrypted_copy
+
+    def slow_export(*args, **kwargs):
+        inside.set()
+        assert release.wait(30)
+        return real_export(*args, **kwargs)
+
+    monkeypatch.setattr(vc, "_export_encrypted_copy", slow_export)
+    result: dict = {}
+    first = threading.Thread(target=lambda: result.update(first=_convert(vault)))
+    first.start()
+    assert inside.wait(30)
+    try:
+        with pytest.raises(ProfileDatabaseEncryptionError) as info:
+            _convert(vault)
+        assert str(info.value) == vc.MSG_BUSY
+    finally:
+        release.set()
+        first.join(60)
+
+    assert result["first"] is True
+    assert _leftovers(tmp_path) == [], "the lock file is removed"
+
+
+def test_hc_sqlc_022b_a_stale_lock_is_reported_not_deleted(tmp_path, caplog):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    lock = tmp_path / "vault.convert.lock"
+    lock.write_bytes(b"")
+    old = lock.stat().st_mtime - 3600
+    os.utime(lock, (old, old))
+    caplog.set_level(logging.ERROR)
+
+    with pytest.raises(ProfileDatabaseEncryptionError):
+        _convert(vault)
+
+    assert lock.exists()
+    assert "lock is older" in "\n".join(r.getMessage() for r in caplog.records)
+
+
+# -- HC-SQLC-023: a hot journal is resolved or refused ------------------------------------
+
+
+def test_hc_sqlc_023_a_leftover_journal_is_refused_before_the_copy(tmp_path, monkeypatch):
+    vault = tmp_path / "vault.db"
+    _make_plain_vault(vault)
+    (tmp_path / "vault.db-journal").write_bytes(b"\x00" * 512)
+    monkeypatch.setattr(_vc(), "_checkpoint_plain_wal", lambda path: None)
+    before = _sha(vault)
+
+    with pytest.raises(ProfileDatabaseEncryptionError) as info:
+        _convert(vault)
+
+    assert str(info.value) == FIXED_MESSAGE
+    assert _sha(vault) == before
+    assert not (tmp_path / "vault.plain.bak").exists()
+    assert not (tmp_path / "vault.enc-tmp").exists()
