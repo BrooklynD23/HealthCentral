@@ -143,6 +143,8 @@ Run in the worktree after the **final** `git merge origin/main`. Paste every com
 5. The frontend, when touched: `npx tsc --noEmit`. `vitest` stalls on `/mnt/c`, so run it from Windows or CI, or record it as skipped with that reason; on `/mnt/e` it runs (measured 50 s for one file) and the build runner caps it at 600 s, recording a timeout as SKIPPED-STALL.
 6. `git status --short` shows only the item's files.
 
+**Correction trailer** (AGENTIC-EVAL-SCORECARD, owner 2026-11-12, question 2b). L0, or a subagent L0 sends, puts one line `Asclexis-Correction: <class>` in the message of any fix commit made after the builder reports (`<class>` is one short token such as `path-assumption` or `stale-generated-index`; keep it above the Co-Authored-By line). The builder never adds it. `scripts/harness_scorecard.py` counts these commits per PR; corrections made before the trailer existed live in `~/hc-quiet-logs/perf-monitor/l0-corrections.jsonl`. Recording only: it gates nothing.
+
 **PR body** (all sections required, even when the answer is "none"):
 
 | Section | Content |

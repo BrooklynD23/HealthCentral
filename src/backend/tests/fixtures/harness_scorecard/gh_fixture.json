@@ -1,0 +1,54 @@
+{
+  "_note": "Synthetic gh output shaped like the real commands; no real PR text.",
+  "pr_list": [
+    {"number": 101, "headRefName": "feat/a", "baseRefName": "main", "createdAt": "2026-11-05T08:00:00Z", "mergedAt": "2026-11-06T09:00:00Z", "mergeCommit": {"oid": "m101"}},
+    {"number": 102, "headRefName": "feat/b", "baseRefName": "main", "createdAt": "2026-11-06T08:00:00Z", "mergedAt": "2026-11-07T09:00:00Z", "mergeCommit": {"oid": "m102"}},
+    {"number": 103, "headRefName": "feat/c", "baseRefName": "main", "createdAt": "2026-11-08T08:00:00Z", "mergedAt": "2026-11-09T09:00:00Z", "mergeCommit": {"oid": "m103"}},
+    {"number": 104, "headRefName": "feat/d", "baseRefName": "main", "createdAt": "2026-11-09T08:00:00Z", "mergedAt": "2026-11-10T09:00:00Z", "mergeCommit": {"oid": "m104"}},
+    {"number": 105, "headRefName": "docs/e", "baseRefName": "main", "createdAt": "2026-11-10T08:00:00Z", "mergedAt": "2026-11-11T09:00:00Z", "mergeCommit": {"oid": "m105"}},
+    {"number": 106, "headRefName": "feat/old", "baseRefName": "main", "createdAt": "2026-10-01T08:00:00Z", "mergedAt": "2026-10-02T09:00:00Z", "mergeCommit": {"oid": "m106"}}
+  ],
+  "graphql": {
+    "101": {"commits": {"totalCount": 1, "nodes": [
+      {"commit": {"oid": "c101a", "messageBody": "SECRET-BODY-TEXT\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"}}]},
+     "timelineItems": {"totalCount": 20, "nodes": []}},
+    "102": {"commits": {"totalCount": 3, "nodes": [
+      {"commit": {"oid": "c102a", "messageBody": "feat\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"}},
+      {"commit": {"oid": "c102b", "messageBody": "fix after report\n\nAsclexis-Correction: path-assumption\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"}},
+      {"commit": {"oid": "c102c", "messageBody": "fix again\n\nasclexis-correction: stale-index\n"}}]},
+     "timelineItems": {"totalCount": 2, "nodes": [
+      {"__typename": "RenamedTitleEvent", "currentTitle": "[blocked:claude] X-1 SECRET-TITLE-TEXT"},
+      {"__typename": "RenamedTitleEvent", "currentTitle": "feat(x): done SECRET-TITLE-TEXT (X-1)"}]}},
+    "103": {"commits": {"totalCount": 1, "nodes": [
+      {"commit": {"oid": "c103a", "messageBody": "feat\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"}}]},
+     "timelineItems": {"totalCount": 2, "nodes": [
+      {"__typename": "HeadRefForcePushedEvent", "afterCommit": {"oid": "s103b"}},
+      {"__typename": "RenamedTitleEvent", "currentTitle": "[escalated:claude] Y-2 slug"}]}},
+    "104": {"commits": {"totalCount": 1, "nodes": [
+      {"commit": {"oid": "c104a", "messageBody": "feat"}}]},
+     "timelineItems": {"totalCount": 0, "nodes": []}},
+    "105": {"commits": {"totalCount": 2, "nodes": [
+      {"commit": {"oid": "c105a", "messageBody": "docs"}},
+      {"commit": {"oid": "c105b", "messageBody": "This reverts commit c105a."}}]},
+     "timelineItems": {"totalCount": 0, "nodes": []}}
+  },
+  "runs": {
+    "feat/a": [
+      {"databaseId": 1, "headSha": "s101a", "conclusion": "success", "status": "completed", "createdAt": "2026-11-05T08:01:00Z", "attempt": 1}],
+    "feat/b": [
+      {"databaseId": 2, "headSha": "s102a", "conclusion": "failure", "status": "completed", "createdAt": "2026-11-06T08:01:00Z", "attempt": 1},
+      {"databaseId": 3, "headSha": "s102b", "conclusion": "success", "status": "completed", "createdAt": "2026-11-06T10:00:00Z", "attempt": 1},
+      {"databaseId": 4, "headSha": "s102c", "conclusion": "success", "status": "completed", "createdAt": "2026-11-06T12:00:00Z", "attempt": 1}],
+    "feat/c": [
+      {"databaseId": 5, "headSha": "s103a", "conclusion": "cancelled", "status": "completed", "createdAt": "2026-11-08T08:01:00Z", "attempt": 1},
+      {"databaseId": 6, "headSha": "s103b", "conclusion": "success", "status": "completed", "createdAt": "2026-11-08T08:30:00Z", "attempt": 1}],
+    "feat/d": [
+      {"databaseId": 7, "headSha": "s104a", "conclusion": "success", "status": "completed", "createdAt": "2026-11-09T08:01:00Z", "attempt": 2}],
+    "docs/e": []
+  },
+  "main_commits": [
+    {"sha": "r1", "commit": {"message": "Revert \"feat d\"\n\nThis reverts commit m104.\n"}},
+    {"sha": "r2", "commit": {"message": "something else"}},
+    {"sha": "c105b", "commit": {"message": "This reverts commit c105a."}}
+  ]
+}
