@@ -627,3 +627,101 @@ def test_hc_edq_007_omit_does_not_change_the_stored_summary() -> None:
     assert omitted.status_code == 200 and again.status_code == 200
     assert "QUESTIONS FOR YOUR PROVIDER" not in omitted.text
     assert "QUESTIONS FOR YOUR PROVIDER" in again.text
+
+
+# EXPORT-DOWNLOAD-TRENDS: PHI_ROWS has two dated glucose rows with distinct values
+# (100.0 on 2024-01-10, 250.0 on 2024-03-15), so the summary carries a real "up" trend.
+TREND_QUESTION = "My glucose has been up. Should I be concerned?"
+ABNORMAL_QUESTION = "I noticed my glucose was outside the reference range. What might that indicate?"
+
+
+def _trend_markers(fmt: str) -> tuple[str, str]:
+    """(section title, trend question) as each format prints them."""
+    title = "NOTABLE TRENDS" if fmt == "text" else "Notable Trends"
+    return title, TREND_QUESTION
+
+
+@pytest.mark.parametrize("fmt", ["text", "html", "pdf"])
+def test_hc_edt_001_omit_trends_drops_section_and_trend_questions(
+    fmt: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HC-EDT-001: generated with Trends ticked, downloaded with omit_trends=true.
+
+    The patient unticked Trends after generating. The file must match a fresh Generate
+    with Trends off (owner answer EXPORT-TRENDS-QS): no Notable Trends section and no
+    trend-sourced questions. Findings, values, other questions and strict redaction stay.
+    """
+    if fmt == "pdf":
+        _install_capturing_weasyprint(monkeypatch)
+    title, trend_q = _trend_markers(fmt)
+    with _export_client() as client:
+        with_trends = _download_with_questions(client, fmt)
+        omitted = _download_with_questions(client, fmt, omit_trends="true")
+    # Not vacuous: the same summary does carry the section and the trend question.
+    assert title in with_trends
+    assert trend_q in with_trends
+    assert "glucose: up trend" in with_trends
+    assert "NOTABLE TRENDS" not in omitted
+    assert "Notable Trends" not in omitted
+    assert "up trend" not in omitted
+    assert trend_q not in omitted
+    # Only the trends went: findings, other sections, other questions, values stay.
+    assert ABNORMAL_QUESTION in omitted
+    assert ("VALUES OUTSIDE REFERENCE RANGE" if fmt == "text" else "Values Outside Reference Range") in omitted
+    for clinical in ("glucose", "250.0", "potassium", "6.1", "hemoglobin", "sodium"):
+        assert clinical in omitted
+    for phi in PHI_STRINGS:
+        assert phi not in omitted
+    for token in ("[NAME-REDACTED]", "[DOB-REDACTED]", "[MRN-REDACTED]"):
+        assert token in omitted
+
+
+def test_hc_edt_001b_omit_both_drops_trends_and_all_questions() -> None:
+    """HC-EDT-001b: omit_trends and omit_questions together leave neither block."""
+    with _export_client() as client:
+        body = _download_with_questions(client, "text", omit_trends="true", omit_questions="true")
+    assert "NOTABLE TRENDS" not in body
+    assert "QUESTIONS FOR YOUR PROVIDER" not in body
+    assert "VALUES OUTSIDE REFERENCE RANGE" in body
+
+
+def test_hc_edt_002_download_without_parameter_keeps_trends() -> None:
+    """HC-EDT-002: default download is unchanged: trend section and trend question print."""
+    with _export_client() as client:
+        body = _download_with_questions(client, "text")
+    assert "NOTABLE TRENDS" in body
+    assert "glucose: up trend" in body
+    assert TREND_QUESTION in body
+
+
+def test_hc_edt_003_omit_trends_does_not_change_the_stored_summary() -> None:
+    """HC-EDT-003: omit_trends is render-time only: a later plain download has the trends back."""
+    with _export_client() as client:
+        created = client.post(
+            "/export/doctor-summary", json={"format": "text", "include_questions": True}
+        )
+        assert created.status_code == 200, created.text
+        summary_id = created.json()["summary_id"]
+        url = f"/export/doctor-summary/{summary_id}/download"
+        omitted = client.get(url, params={"format": "text", "omit_trends": "true"})
+        again = client.get(url, params={"format": "text"})
+    assert omitted.status_code == 200 and again.status_code == 200
+    assert "NOTABLE TRENDS" not in omitted.text
+    assert TREND_QUESTION not in omitted.text
+    assert "NOTABLE TRENDS" in again.text
+    assert TREND_QUESTION in again.text
+    stored = export_api._summary_store[summary_id]
+    assert any(s["title"] == export_api.TRENDS_SECTION_TITLE for s in stored["sections"])
+    assert any(q.get("source_kind") == "trend" for q in stored["questions"])
+
+
+def test_hc_edt_000_source_kind_survives_redaction() -> None:
+    """HC-EDT-000: the stored, strict-redacted questions keep source_kind (the filter's key)."""
+    with _export_client() as client:
+        created = client.post(
+            "/export/doctor-summary", json={"format": "text", "include_questions": True}
+        )
+        assert created.status_code == 200, created.text
+    stored = export_api._summary_store[created.json()["summary_id"]]
+    kinds = {q.get("source_kind") for q in stored["questions"]}
+    assert {"trend", "observation"} <= kinds

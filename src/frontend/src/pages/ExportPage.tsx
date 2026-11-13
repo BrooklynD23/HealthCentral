@@ -177,6 +177,8 @@ export function ExportPage() {
   const [questions, setQuestions] = useState<QuestionItem[]>([]);
   // Whether the summary on screen was generated with Questions ticked (the download needs it to honour a later untick).
   const [summaryHadQuestions, setSummaryHadQuestions] = useState(false);
+  // Same for Trends: the download leaves the trends out when they are unticked after generating with them.
+  const [summaryHadTrends, setSummaryHadTrends] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
   // Visit prep packet state (HC-M18)
@@ -215,6 +217,7 @@ export function ExportPage() {
   };
 
   const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
+  const showTrendsInSummary = sections.find((s) => s.id === 'trends')?.included ?? false;
 
   const handleCopy = async () => {
     if (summary) {
@@ -264,6 +267,7 @@ export function ExportPage() {
       setQuestions(questionsResult);
       setSummary(result);
       setSummaryHadQuestions(Boolean(includeQuestions));
+      setSummaryHadTrends(Boolean(includeTrends));
     } catch (error) {
       console.error('Failed to generate summary:', error);
     }
@@ -276,6 +280,7 @@ export function ExportPage() {
         summaryId: summary.summary_id,
         format: exportFormat,
         omitQuestions: summaryHadQuestions && !showQuestionsInSummary,
+        omitTrends: summaryHadTrends && !showTrendsInSummary,
       });
     }
   };

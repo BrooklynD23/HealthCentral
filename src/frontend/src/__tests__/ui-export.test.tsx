@@ -705,3 +705,67 @@ describe('Download Summary follows the Questions toggle (EXPORT-DOWNLOAD-QUESTIO
     expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
   });
 });
+
+describe('Download Summary follows the Trends toggle (EXPORT-DOWNLOAD-TRENDS)', () => {
+  const DOWNLOAD_URL = '/export/doctor-summary/summary-123/download';
+
+  async function downloadText(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: /download summary/i }));
+    await waitFor(() => expect(api.apiGetRaw).toHaveBeenCalledTimes(1));
+  }
+
+  it('HC-EDT-004: Trends unticked after generating asks the download to omit them', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await user.click(toggle('Trend Analysis'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text', omit_trends: 'true' });
+  });
+
+  it('HC-EDT-004b: Trends and Questions both unticked after generating asks to omit both', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Questions for Clinician'));
+    await generateSummary(user);
+    await user.click(toggle('Questions for Clinician'));
+    await user.click(toggle('Trend Analysis'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, {
+      format: 'text',
+      omit_questions: 'true',
+      omit_trends: 'true',
+    });
+  });
+
+  it('HC-EDT-005: Trends still ticked, or unticked then ticked again, sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await generateSummary(user);
+    await user.click(toggle('Trend Analysis'));
+    await user.click(toggle('Trend Analysis'));
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+
+  it('HC-EDT-006: a summary generated without trends sends the plain format only', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    await user.click(toggle('Trend Analysis'));
+    await generateSummary(user);
+    await downloadText(user);
+
+    expect(api.apiGetRaw).toHaveBeenCalledWith(DOWNLOAD_URL, { format: 'text' });
+  });
+});
