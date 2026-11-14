@@ -33,6 +33,16 @@ Default URLs: frontend http://localhost:3000, backend http://localhost:8000
 (`/docs` serves the interactive API docs when `DEBUG=true`). If a port is busy,
 use the URLs `dev.ps1` prints. `Ctrl+C` stops both servers.
 
+The backend worker (the process that serves requests) writes its PID, parent PID and start time to
+`logs/dev-backend.pid` and removes the file on a clean shutdown. This is how `dev.bat` finds a worker
+that outlived its window (the venv `python.exe` is a stub, and `uvicorn --reload` starts the worker as
+a child, so closing the window or killing a parent can leave it running with a vault open). On start,
+`dev.bat` refuses with "Asclexis is already running from this folder (PID n)" if that PID is still a
+live Python/uvicorn process created before the file was written; a file whose process is gone, or is
+some other program that reused the PID, is deleted with one info line. On `Ctrl+C` or a backend
+restart, `dev.bat` stops the recorded worker with `taskkill /PID n /T /F` after the same check. The
+file is outside `data/`, so backups never include it. Linux `dev.sh` does not use it.
+
 ## Quick Start on WSL/Linux (`dev.sh`)
 
 Clone into your Linux home (for example `~/HealthCentral`), **not** under `/mnt/c`: the Windows mount is slow, file watching is unreliable, and Windows and Linux cannot share the venv or `node_modules`. `dev.sh` refuses to run from `/mnt/*` unless `HC_ALLOW_WINDOWS_MOUNT=1` is set.

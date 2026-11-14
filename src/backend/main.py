@@ -84,6 +84,12 @@ async def lifespan(app: FastAPI):
     except Exception as _notif_exc:
         logger.warning("Notification scheduler not started: %s", _notif_exc)
 
+    # Serving from here: record this process so dev.ps1 can find a worker that
+    # outlives its launcher (WIN-ORPHAN-WORKER). No-op unless the launcher asked.
+    from core.worker_pidfile import remove_worker_pidfile, write_worker_pidfile
+
+    write_worker_pidfile()
+
     yield
 
     try:
@@ -99,6 +105,7 @@ async def lifespan(app: FastAPI):
         logger.warning("Backup scheduler shutdown issue: %s", _sched_exc)
 
     await close_database()
+    remove_worker_pidfile()
 
 
 def create_app() -> FastAPI:

@@ -866,6 +866,59 @@ function Find-AsclexisFromThisFolder {
     }
     return @([int[]]($found.Keys))
 }
+# The backend records the PID of the process that serves requests (src/backend/core/worker_pidfile.py).
+# That process can outlive this launcher (the venv python.exe is a stub, and uvicorn --reload spawns
+# the worker as a child), holding a profile vault open with no listening port, so the port check
+# above cannot see it. The file lives in logs\, outside data\, so no backup picks it up.
+$workerPidFile  = Join-Path $ROOT_DIR "logs\dev-backend.pid"
+$runStartedUnix = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() / 1000.0
+
+function Read-WorkerPidFile {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    try {
+        $data = (Get-Content -LiteralPath $Path -Raw -ErrorAction Stop) | ConvertFrom-Json -ErrorAction Stop
+        if (-not $data.pid -or -not $data.started_unix) { return $null }
+        return [pscustomobject]@{ pid = [int]$data.pid; started_unix = [double]$data.started_unix }
+    } catch { return $null }
+}
+
+# True only for a live Python process whose command line is uvicorn or a multiprocessing spawn
+# (the --reload worker), created no later than the moment the PID file was written. Windows reuses
+# PIDs, so a live PID alone is never enough to act on.
+function Test-AsclexisWorkerProcess {
+    param([int]$ProcessId, [double]$StartedUnix)
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+    if (-not $proc) { return $false }
+    if ("$($proc.Name)".ToLower() -notmatch '^pythonw?(\d+(\.\d+)*)?\.exe$') { return $false }
+    $cmd = "$($proc.CommandLine)".ToLower()
+    if ($cmd -notmatch 'uvicorn|spawn_main|main:app') { return $false }
+    $written = [DateTimeOffset]::FromUnixTimeMilliseconds([long]($StartedUnix * 1000)).UtcDateTime
+    if ($proc.CreationDate -and $proc.CreationDate.ToUniversalTime() -gt $written.AddSeconds(2)) { return $false }
+    return $true
+}
+
+# Stop the recorded worker (and its children) if it is verifiably this run's Asclexis worker, then
+# remove the file. A worker that does not die keeps its file, so the next start refuses and says why.
+function Stop-RecordedWorker {
+    param([string]$Path, [double]$NotBeforeUnix = 0)
+    $worker = Read-WorkerPidFile -Path $Path
+    if (-not $worker) { return }
+    if ($worker.started_unix -lt $NotBeforeUnix) { return }
+    if (Test-AsclexisWorkerProcess -ProcessId $worker.pid -StartedUnix $worker.started_unix) {
+        & taskkill.exe /PID $worker.pid /T /F 2>&1 | Out-Null
+        for ($i = 0; $i -lt 10; $i++) {
+            if (-not (Get-Process -Id $worker.pid -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Milliseconds 500
+        }
+        if (Get-Process -Id $worker.pid -ErrorAction SilentlyContinue) {
+            Write-Warn "Backend worker PID $($worker.pid) did not stop. Run: taskkill /PID $($worker.pid) /T /F"
+            return
+        }
+    }
+    Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+}
+
 $alreadyRunning = @(Find-AsclexisFromThisFolder)
 if ($alreadyRunning.Count -gt 0) {
     $firstPid = $alreadyRunning[0]
@@ -873,6 +926,18 @@ if ($alreadyRunning.Count -gt 0) {
     Write-Err "A leftover copy can keep a profile vault open, so this launcher will not start a second one."
     Read-Host "  Press Enter to exit"
     exit 1
+}
+
+$worker = Read-WorkerPidFile -Path $workerPidFile
+if ($worker -and (Test-AsclexisWorkerProcess -ProcessId $worker.pid -StartedUnix $worker.started_unix)) {
+    Write-Err "Asclexis is already running from this folder (PID $($worker.pid)). Close it first, or run: taskkill /PID $($worker.pid) /T /F"
+    Write-Err "A leftover backend worker can keep a profile vault open, so this launcher will not start a second one."
+    Read-Host "  Press Enter to exit"
+    exit 1
+}
+if (Test-Path -LiteralPath $workerPidFile) {
+    Remove-Item -LiteralPath $workerPidFile -Force -ErrorAction SilentlyContinue
+    Write-Status "Removed a stale worker PID file (the recorded process is gone or is not the Asclexis backend)."
 }
 
 if (Test-PortInUse $BACKEND_PORT) {
@@ -938,6 +1003,8 @@ function Start-BackendDevServer {
     if (-not (Test-Path -LiteralPath $logDir)) {
         New-Item -ItemType Directory -Path $logDir -Force | Out-Null
     }
+    # The backend worker writes its PID here (inherited by the child process).
+    $env:HC_WORKER_PIDFILE = $workerPidFile
     return Start-Process -FilePath $venvPython `
         -ArgumentList "-m", "uvicorn", "main:app", "--reload", "--no-access-log", "--host", "127.0.0.1", "--port", "$resolvedBackendPort" `
         -WorkingDirectory $BACKEND_DIR `
@@ -991,6 +1058,7 @@ while ($sw.Elapsed.TotalSeconds -lt $maxWait) {
         Write-LogTail -LogPath $frontendLog -Label "Frontend log"
         # The backend is hidden and logs only to files: do not leave it on the port.
         & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
+        Stop-RecordedWorker -Path $workerPidFile -NotBeforeUnix $runStartedUnix
         Read-Host "  Press Enter to exit"
         exit 1
     }
@@ -1038,6 +1106,7 @@ if (-not $backendReady) {
     Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
     # /T kills the --reload worker child too, so it does not keep the port.
     & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
+    Stop-RecordedWorker -Path $workerPidFile -NotBeforeUnix $runStartedUnix
     Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
     Read-Host "  Press Enter to exit"
     exit 1
@@ -1067,6 +1136,8 @@ function Stop-Servers {
             Stop-Process -Id $backendProc.Id -Force -ErrorAction SilentlyContinue
         }
     } catch { }
+    # The worker can outlive its launcher and keep a vault open: stop it by its recorded PID.
+    try { Stop-RecordedWorker -Path $workerPidFile -NotBeforeUnix $runStartedUnix } catch { }
     try {
         if (-not $frontendProc.HasExited) {
             Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
@@ -1101,6 +1172,8 @@ try {
                 exit 1
             }
             $backendRestartCount++
+            # The dead launcher's worker may still be running; stop it before a second one starts.
+            Stop-RecordedWorker -Path $workerPidFile -NotBeforeUnix $runStartedUnix
             $backendProc = Start-BackendDevServer
             $bPid = $backendProc.Id
             Write-Ok "Backend restarted [PID $bPid]"
