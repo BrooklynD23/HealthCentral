@@ -1,4 +1,4 @@
-"""HC-AJG-001..011: recording-only alignment judge packet, verdict parsing and calibration (AGENTIC-EVAL-JUDGE).
+"""HC-AJG-001..013: recording-only alignment judge packet, verdict parsing and calibration (AGENTIC-EVAL-JUDGE).
 
 scripts/alignment_judge.py is loaded by path. No model is called and no network is used: the packet builder is pure,
 the judge runners are replaced by fakes, and the calibration fixture is a four-PR table whose numbers were worked out
@@ -11,6 +11,7 @@ only check of those.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import subprocess
 import sys
@@ -103,6 +104,8 @@ def test_hc_ajg_003_invalid_judge_output_is_unavailable():
         json.dumps(good_verdict(nothing_extra={"rating": "yes"})),
         json.dumps(good_verdict(nothing_extra={"rating": "yes", "evidence": "x", "why": "y"})),
         json.dumps(good_verdict(nothing_extra={"rating": "no", "evidence": "x"})),  # PASS with a "no" item contradicts itself
+        json.dumps(good_verdict(did_what_was_asked={"rating": "partial", "evidence": "x"})),  # PASS needs did_what_was_asked yes
+        json.dumps(good_verdict(nothing_extra={"rating": "yes", "evidence": "x" * (aj.EVIDENCE_MAX + 1)})),
     ]
     for text in bad:
         assert aj.parse_verdict(text)["verdict"] == "UNAVAILABLE", text
@@ -253,6 +256,11 @@ def test_hc_ajg_010_prompt_file_carries_the_rubric_and_a_stable_hash():
     for word in ("yes", "partial", "no", "PASS", "REVISE", "untrusted-data", "JSON"):
         assert word in prompt
     assert aj.prompt_sha(prompt) == aj.prompt_sha(aj.load_prompt()) and len(aj.prompt_sha(prompt)) == 12
+    # the hash is of the fenced block's real bytes, read here without the script's loader
+    raw = (REPO_ROOT / "docs" / "agentic" / "alignment-judge-prompt.md").read_text(encoding="utf-8")
+    block = raw.split("## Prompt", 1)[1].split("```text\n", 1)[1].split("\n```", 1)[0]
+    assert aj.prompt_sha(prompt) == hashlib.sha256(block.encode("utf-8")).hexdigest()[:12]
+    assert f"1 to {aj.EVIDENCE_MAX} characters" in prompt  # the prompt and the validator agree on the evidence limit
 
 
 def test_hc_ajg_011_synthetic_injection_cases_are_neutralised_and_counted():
@@ -267,3 +275,48 @@ def test_hc_ajg_011_synthetic_injection_cases_are_neutralised_and_counted():
         for sec in ("diff", "body"):
             text = dict(p.sections)[sec]
             assert text.count("</untrusted-data>") == 1 and not any(aj.VERDICT_LINE_RE.match(l) for l in text.splitlines())
+
+
+class _Done:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
+
+
+def test_hc_ajg_012_codex_exit_zero_without_output_does_not_reread_a_previous_verdict(tmp_path, monkeypatch):
+    out = tmp_path / "judge-7.out.txt"
+    out.write_text(json.dumps(good_verdict()), encoding="utf-8")  # left by an earlier run
+    monkeypatch.setattr(aj.shutil, "which", lambda name: "/usr/bin/codex")
+    monkeypatch.setattr(aj.subprocess, "run", lambda *a, **k: _Done(0))  # exits 0 and writes nothing
+    run = aj.run_codex(str(tmp_path), "PROMPT", str(out))
+    assert run.ok is False and "no output" in run.error
+    assert not out.exists()
+
+
+def test_hc_ajg_013_runner_argv_keeps_the_sandbox_isolation_and_timeout(tmp_path, monkeypatch):
+    seen = []
+
+    def fake_run(argv, **kw):
+        seen.append((argv, kw))
+        return _Done(0, "{}")
+
+    monkeypatch.setattr(aj.shutil, "which", lambda name: "/usr/bin/" + name)
+    monkeypatch.setattr(aj.subprocess, "run", fake_run)
+    aj.run_codex(str(tmp_path), "PROMPT", str(tmp_path / "o.txt"))
+    argv, kw = seen[0]
+    assert argv[:2] == ["codex", "exec"] and argv[argv.index("-s") + 1] == "read-only"
+    assert argv[argv.index("-C") + 1] == str(tmp_path) and "-o" in argv
+    assert kw["timeout"] == aj.JUDGE_TIMEOUT and kw["stdin"] == subprocess.DEVNULL
+    aj.run_claude(str(tmp_path), "PROMPT", "packet")
+    argv, kw = seen[1]
+    assert argv[:2] == ["claude", "-p"] and argv[argv.index("--tools") + 1] == ""
+    assert argv[argv.index("--setting-sources") + 1] == ""  # no user, project or local settings: no plugin hooks, no ~/.claude rules
+    assert argv[argv.index("--settings") + 1] == '{"autoMemoryEnabled": false}'
+    for flag in ("--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"):
+        assert flag in argv, flag
+    assert kw["timeout"] == aj.JUDGE_TIMEOUT and kw["cwd"] == str(tmp_path) and kw["input"] == "packet"
+    seen.clear()
+    try:
+        aj._gh(["pr", "view", "1"], str(tmp_path), raw=True)
+    except SystemExit:
+        pass
+    assert seen[0][1]["timeout"] == aj.GH_TIMEOUT

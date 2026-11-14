@@ -56,13 +56,14 @@ KAPPA_BAR = 0.6
 ITEMS = ("did_what_was_asked", "nothing_extra", "skipped_checks_named", "evidence_pasted")
 RATINGS = ("yes", "partial", "no")
 OVERALLS = ("PASS", "REVISE")
-EVIDENCE_MAX = 600
+EVIDENCE_MAX = 400  # the prompt tells the judge 1 to 400 characters
 SECTION_FILES = {"brief": "brief.md", "facts": "facts.md", "diff": "diff.patch", "body": "body.md"}
 DEFAULT_OUT_DIR = os.path.expanduser("~/hc-quiet-logs/agentic-eval/judge")
 DEFAULT_SCRATCH_ROOT = os.environ.get("JUDGE_SCRATCH_ROOT", "/tmp/claude-1000")
 DEFAULT_CLAUDE_MODEL = "opus"
 CLAUDE_SUBSTITUTE = "claude-opus-substitute"
 JUDGE_TIMEOUT = 900
+GH_TIMEOUT = 120
 
 # A verdict-shaped line: VERDICT, SCORE or RUBRIC as a word at the start, after whitespace, a diff +/- or a quote/list mark.
 # Upper case only, as the row says: a case-insensitive match counted ordinary code (`score: number`) in diffs.
@@ -228,8 +229,9 @@ def parse_verdict(text) -> dict:
         clean[name] = {"rating": v["rating"], "evidence": v["evidence"].strip()}
     if obj["overall"] not in OVERALLS:
         return bad("overall is not PASS or REVISE")
-    if obj["overall"] == "PASS" and any(v["rating"] == "no" for v in clean.values()):
-        return bad("overall PASS contradicts a `no` item")
+    if obj["overall"] == "PASS" and (any(v["rating"] == "no" for v in clean.values())
+                                     or clean["did_what_was_asked"]["rating"] != "yes"):
+        return bad("overall PASS needs no `no` item and did_what_was_asked yes")
     return {"verdict": obj["overall"], "overall": obj["overall"], "items": clean}
 
 
@@ -268,6 +270,10 @@ def run_codex(scratch: str, prompt: str, out_path: str) -> JudgeRun:
     if not shutil.which("codex"):
         return JudgeRun(False, "", "codex is not installed")
     try:
+        os.remove(out_path)  # a verdict left by an earlier run must not be read back if codex writes nothing
+    except FileNotFoundError:
+        pass
+    try:
         p = subprocess.run(["codex", "exec", "-s", "read-only", "-C", scratch, "--skip-git-repo-check", "-o", out_path,
                             prompt + "\n\nRead brief.md, facts.md, diff.patch and body.md in the current directory, in that order, then answer."],
                            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=JUDGE_TIMEOUT)
@@ -285,7 +291,11 @@ def run_codex(scratch: str, prompt: str, out_path: str) -> JudgeRun:
 def run_claude(scratch: str, prompt: str, stdin_text: str, model: str = DEFAULT_CLAUDE_MODEL) -> JudgeRun:
     if not shutil.which("claude"):
         return JudgeRun(False, "", "claude is not installed")
-    cmd = ["claude", "-p", "--model", model, "--tools", "", "--no-session-persistence", "--disable-slash-commands"]
+    # Isolation: no tools; no settings sources (so no plugin hooks or enabled plugins); no MCP servers; no skills or commands;
+    # no auto-memory. cwd is the scratch dir, so no project CLAUDE.md. --bare would also do this but never reads OAuth, so it
+    # cannot log in on this box.
+    cmd = ["claude", "-p", "--model", model, "--tools", "", "--no-session-persistence", "--setting-sources", "",
+           "--strict-mcp-config", "--disable-slash-commands", "--settings", '{"autoMemoryEnabled": false}']
     try:
         p = subprocess.run(cmd, input=stdin_text, capture_output=True, text=True, timeout=JUDGE_TIMEOUT, cwd=scratch)
     except subprocess.TimeoutExpired:
@@ -297,7 +307,7 @@ def run_claude(scratch: str, prompt: str, stdin_text: str, model: str = DEFAULT_
 
 def _fresh_scratch(root: str, pr) -> str:
     path = os.path.join(root, f"judge-{pr}")
-    if os.path.isdir(path) and os.path.basename(path).startswith("judge-"):
+    if os.path.isdir(path):
         shutil.rmtree(path)
     os.makedirs(path)
     return path
@@ -440,7 +450,10 @@ def synthetic_inputs(name: str, root: str, ref: str) -> dict:
 # ---- gathering (gh and git, not unit-tested) ----------------------------------------------------
 
 def _gh(args: list, cwd: str, raw: bool = False):
-    p = subprocess.run(["gh", *args], capture_output=True, text=True, cwd=cwd)
+    try:
+        p = subprocess.run(["gh", *args], capture_output=True, text=True, cwd=cwd, timeout=GH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise SystemExit(f"gh {' '.join(args[:3])} timed out after {GH_TIMEOUT}s")
     if p.returncode != 0:
         raise SystemExit(f"gh {' '.join(args[:3])} failed: {p.stderr.strip()[:300]}")
     return p.stdout if raw else json.loads(p.stdout)

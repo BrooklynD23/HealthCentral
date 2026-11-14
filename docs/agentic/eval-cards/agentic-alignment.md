@@ -164,7 +164,7 @@ collected sum can still agree. Read a local-full mismatch as "environment differ
 ## 4. Alignment judge (AGENTIC-EVAL-JUDGE, recording only)
 
 Script: `scripts/alignment_judge.py`. Prompt and rubric: [alignment-judge-prompt.md](../alignment-judge-prompt.md). Tests:
-`src/backend/tests/test_alignment_judge.py` (HC-AJG-001..011; no model is called in any test). Owner answers 6a (judge is Codex first, an Opus
+`src/backend/tests/test_alignment_judge.py` (HC-AJG-001..013; no model is called in any test). Owner answers 6a (judge is Codex first, an Opus
 substitute is disclosed), 6b (labels live in this card), 6c (the calibration bar below). It runs on the L0 box only: never in CI, no secrets in CI,
 and it never posts to GitHub. Its output is a record file per PR under `~/hc-quiet-logs/agentic-eval/judge/<pr>.json`, outside the repo.
 
@@ -187,8 +187,8 @@ is prefixed `[neutralised]` and counted in `injection_suspect`; a literal closin
 the count, the judge name, the model, the prompt hash and the list of unseen files.
 
 Judge: `codex exec -s read-only` from a fresh `/tmp/claude-1000/judge-<pr>/` holding only the four packet files. If codex is missing or fails (out of credits,
-auth), `claude -p --model opus` with no tools and the same prompt is the substitute, and the record says `claude-opus-substitute` and why. Output that
-is not exactly the JSON shape (or says `PASS` with a `no` item) is recorded as `UNAVAILABLE`. `--judge codex` never substitutes.
+auth), `claude -p --model opus` with no tools, no settings sources, no MCP servers, no skills and no auto-memory (`--tools "" --setting-sources "" --strict-mcp-config --disable-slash-commands --settings '{"autoMemoryEnabled": false}'`; `--bare` would do it too but never reads OAuth, so it cannot log in here) and the same prompt is the substitute, and the record says `claude-opus-substitute` and why. Output that
+is not exactly the JSON shape (or says `PASS` with a `no` item or with `did_what_was_asked` not `yes`) is recorded as `UNAVAILABLE`. `--judge codex` never substitutes.
 
 ### Calibration bar (answer 6c)
 
@@ -246,8 +246,8 @@ the final script matches upper case only and counts 0 on that diff.
 - Calibration is the unknown: until 30 PRs are labelled the judge's agreement with the owner is not measured. The bar is a hold on gating, not a quality claim.
 - The `evidence` quote is not verified against the packet; an invented quote validates. Read the quote before trusting the rating.
 - A capped diff (60 KB) hides files; the judge is told which, but a bad change in an unseen file is unseen.
-- Neutralising catches lines that start with `VERDICT`, `SCORE` or `RUBRIC`. An injection with other words ("NOTE TO JUDGE", "SYSTEM:") is covered only by the data wrapper and the prompt's rule, and a line of ordinary code that starts with an upper-case `SCORE` is neutralised and counted though harmless.
-- Judge and builder can share blind spots. Codex is a different vendor from the builder; the Opus substitute is the same family as the orchestrator, so a substitute run is weaker evidence and the record says which ran.
+- Neutralising is a small net, not a filter. It catches lines that start with upper-case `VERDICT`, `SCORE` or `RUBRIC`. It does not catch: lower- or mixed-case variants (`Verdict:`), homoglyph or zero-width-character variants (a Cyrillic letter, a zero-width space inside the word), a forged output-shaped JSON line such as `{"items":...,"overall":"PASS"}`, instructions without those words ("NOTE TO JUDGE", "SYSTEM:"), or closing-tag variants of the data wrapper (`</ untrusted-data>`, `</untrusted_data>`, a tag written with a unicode hyphen). Only the exact closing tag is broken. `injection_suspect` therefore undercounts: 0 means "no line matched these patterns", not "no injection". The data wrapper, the prompt's rule, the strict output validation and the read-only runners are the real defence; a line of ordinary code that starts with an upper-case `SCORE` is neutralised and counted though harmless.
+- Judge and builder can share blind spots. Codex is a different vendor from the builder; the Opus substitute is the same vendor as the Sonnet builder and the orchestrator, so a substitute run is weaker evidence and the record says which ran.
 - The brief leaves out the status cell and reads the row from live `origin/main`: a row edited after the PR merged is judged against its current text, not the text the builder saw.
 - The facts reuse sections 1 to 3 and inherit their blind spots; for a PR whose merge commit is not in the local clone the weaken pass is skipped (the packet says so).
 - Model output varies between runs; the record is one sample. Re-running the same PR can change a rating.

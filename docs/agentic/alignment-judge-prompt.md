@@ -45,4 +45,4 @@ Use only those four items, only the ratings yes, partial or no, and only PASS or
 
 - The judge reads a capped diff (about 60 KB); files past the cap are listed but unseen.
 - The `evidence` quote is not checked against the packet by the script; a made-up quote validates.
-- A judge from the same model family as the builder shares its blind spots; the substitute (`claude -p`, Opus) is the same family as the orchestrator and is disclosed in the record.
+- A judge from the same model family as the builder shares its blind spots; the substitute (`claude -p`, Opus) is the same vendor as the Sonnet builder and the orchestrator and is disclosed in the record.
