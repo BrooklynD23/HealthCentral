@@ -3,16 +3,19 @@
  * plan §UI-RIBBON, motion §2.6 M10, data-t0 §2.7).
  *
  * - x is proportional to the date; straight segments between points.
- * - The band is the series-level ref_low..ref_high. TrendPoint carries no
- *   per-report range, and the backend may combine bounds from different reports
- *   (plan gap, escalated to L0). A null bound draws no edge and no triangle.
- * - The band places each point. A printed flag only gives a direction (H, HH,
+ * - The drawn band is the series-level ref_low..ref_high, and the backend may combine bounds from different
+ *   reports (plan gap, escalated to L0). A null bound draws no edge and no triangle.
+ * - TREND-POINT-RANGE: a point that carries its own report's range (ref_low or ref_high, either finite) is placed
+ *   against that range, in "this report's range" words. A point with none is placed against the drawn band, in the
+ *   chart's words. The table header says which. When visible points carry different own ranges, a caption says each
+ *   result is compared with its own report's range and the shaded band is the one this chart uses.
+ * - The range places each point. A printed flag only gives a direction (H, HH,
  *   HIGH above; L, LL, LOW below). A flag that names no direction (null, A, *,
  *   CRITICAL, Normal) leaves the band's call in place. A directional flag that
  *   disagrees with the band, or a directional flag on a point the band calls
  *   within, is a conflict: no triangle and no out-of-range words. is_abnormal is
  *   not read.
- * - With no band on the series, a point gets no range words, whatever its flag.
+ * - With no range for a point (no own range and no band on the series), it gets no range words, whatever its flag.
  * - Unverified points (user_verified is not true, D4) are hollow and dashed;
  *   verified points are filled.
  * - Slider semantics. ← → step and Home/End jump with no transition. A pointer
@@ -74,6 +77,26 @@ const SIDE_WORDS: Record<Side, string> = {
   conflict: "The report's flag and this chart's range disagree",
 };
 
+// A point compared with its own report's range (TREND-POINT-RANGE). 'none' never happens for an own range.
+const OWN_SIDE_WORDS: Record<Side, string> = {
+  above: "Above this report's range",
+  below: "Below this report's range",
+  within: "Within this report's range",
+  none: 'No reference range for this chart',
+  conflict: "The report's flag and its own range disagree",
+};
+
+const OWN_SIDE_PHRASE: Record<Side, string> = {
+  above: "above this report's range",
+  below: "below this report's range",
+  within: "within this report's range",
+  none: '',
+  conflict: "the report's flag and its own range disagree",
+};
+
+const DIFFERENT_RANGES_CAPTION =
+  "Reports gave different ranges. Each result is compared with its own report's range; the shaded band is the range this chart uses.";
+
 const SIDE_PHRASE: Record<Side, string> = {
   above: "above this chart's range",
   below: "below this chart's range",
@@ -124,6 +147,8 @@ interface LayoutPoint {
   confidence: string | null;
   verified: boolean;
   side: Side;
+  /** True when side was read against this point's own report range, not the chart's band. */
+  own: boolean;
   x: number;
   y: number;
 }
@@ -135,6 +160,10 @@ interface Layout {
   highY: number | null;
   lowY: number | null;
   band: { top: number; height: number } | null;
+  /** Some visible point is compared with its own report's range. */
+  anyOwnRange: boolean;
+  /** Two or more visible points carry own ranges that are not all the same. */
+  ownRangesDiffer: boolean;
 }
 
 type BandSide = 'above' | 'below' | 'within' | 'none';
@@ -194,6 +223,16 @@ export function bandOfValue(
   return { value: cleaned, side: bandSideOf(cleaned, finiteOrNull(refLow ?? null), finiteOrNull(refHigh ?? null)) };
 }
 
+/**
+ * A point's own report range (TREND-POINT-RANGE), when it carries one: either bound finite. A bound that is missing
+ * or not finite is null. Null when the point has no own range, and it is then read against the chart's band.
+ */
+export function ownRangeOf(point: TrendPoint): { low: number | null; high: number | null } | null {
+  const low = finiteOrNull(point.ref_low ?? null);
+  const high = finiteOrNull(point.ref_high ?? null);
+  return low === null && high === null ? null : { low, high };
+}
+
 function viewHeightOf(requested: number | undefined): number {
   return typeof requested === 'number' && Number.isFinite(requested) && requested >= MIN_VIEW_H
     ? requested
@@ -234,7 +273,18 @@ function buildLayout(trend: TrendData, requestedHeight?: number, hideUnverified 
       },
     ];
   });
-  if (parsed.length === 0) return { viewHeight, plotBottom, points: [], highY: null, lowY: null, band: null };
+  if (parsed.length === 0) {
+    return {
+      viewHeight,
+      plotBottom,
+      points: [],
+      highY: null,
+      lowY: null,
+      band: null,
+      anyOwnRange: false,
+      ownRangesDiffer: false,
+    };
+  }
   parsed.sort((a, b) => a.time - b.time || a.index - b.index);
 
   const tMin = parsed[0].time;
@@ -256,7 +306,9 @@ function buildLayout(trend: TrendData, requestedHeight?: number, hideUnverified 
   const yOf = (value: number): number =>
     plotBottom - ((value - lo) / (hi - lo)) * (plotBottom - PLOT_TOP);
 
-  const points: LayoutPoint[] = parsed.map((p, order) => ({
+  const points: LayoutPoint[] = parsed.map((p, order) => {
+    const own = ownRangeOf(p.raw);
+    return {
     order,
     label: formatDate(p.parts),
     value: p.value,
@@ -264,10 +316,21 @@ function buildLayout(trend: TrendData, requestedHeight?: number, hideUnverified 
     reported: reportedWords(p.raw.original_value, p.raw.original_unit),
     confidence: readConfidenceWords(p.raw.extraction_confidence),
     verified: p.raw.user_verified === true,
-    side: sideOf(p.value, flagDirectionOf(p.raw.flag), low, high),
+    side: own
+      ? sideOf(p.value, flagDirectionOf(p.raw.flag), own.low, own.high)
+      : sideOf(p.value, flagDirectionOf(p.raw.flag), low, high),
+    own: own !== null,
     x: xOf(p.time),
     y: yOf(p.value),
-  }));
+    };
+  });
+
+  const ownRanges = parsed.flatMap((p) => {
+    const own = ownRangeOf(p.raw);
+    return own ? [`${own.low ?? ''}|${own.high ?? ''}`] : [];
+  });
+  const anyOwnRange = ownRanges.length > 0;
+  const ownRangesDiffer = ownRanges.length > 1 && new Set(ownRanges).size > 1;
 
   const highY = high !== null ? yOf(high) : null;
   const lowY = low !== null ? yOf(low) : null;
@@ -275,7 +338,7 @@ function buildLayout(trend: TrendData, requestedHeight?: number, hideUnverified 
     highY !== null && lowY !== null
       ? { top: Math.min(highY, lowY), height: Math.abs(lowY - highY) }
       : null;
-  return { viewHeight, plotBottom, points, highY, lowY, band };
+  return { viewHeight, plotBottom, points, highY, lowY, band, anyOwnRange, ownRangesDiffer };
 }
 
 // No source rule in the words: the backend prefers one observation with both
@@ -304,9 +367,13 @@ function resultText(point: LayoutPoint): string {
   return [valueLabel(point), ...detailWords(point)].join(' · ');
 }
 
+function sideWordsOf(point: LayoutPoint): string {
+  return point.own ? OWN_SIDE_WORDS[point.side] : SIDE_WORDS[point.side];
+}
+
 function valueTextOf(point: LayoutPoint): string {
   const parts = [`${point.label}: ${valueLabel(point)}`];
-  const phrase = SIDE_PHRASE[point.side];
+  const phrase = point.own ? OWN_SIDE_PHRASE[point.side] : SIDE_PHRASE[point.side];
   if (phrase !== '') parts.push(phrase);
   parts.push(point.verified ? 'checked by you' : 'not yet checked');
   return parts.join(', ');
@@ -570,7 +637,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
               d={triangleD(p.x, p.y, p.side)}
               fill="var(--outside)"
             >
-              <title>{SIDE_WORDS[p.side]}</title>
+              <title>{sideWordsOf(p)}</title>
             </path>
           ) : null
         )}
@@ -596,6 +663,11 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
           trend.unit
         )}
       </figcaption>
+      {layout.ownRangesDiffer && (
+        <p data-different-ranges className="text-sm text-ink-secondary">
+          {DIFFERENT_RANGES_CAPTION}
+        </p>
+      )}
 
       <div className="flex justify-between text-xs text-ink-secondary">
         <span data-axis="first" data-t0>{firstPoint.label}</span>
@@ -609,7 +681,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
         {detailWords(current).map((words) => (
           <span key={words}> · {words}</span>
         ))}
-        {current.side !== 'none' && <span> · {SIDE_WORDS[current.side]}</span>}
+        {current.side !== 'none' && <span> · {sideWordsOf(current)}</span>}
         <span> · {current.verified ? 'Checked by you' : 'Not yet checked'}</span>
       </p>
 
@@ -619,7 +691,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
           <tr className="text-left text-ink-secondary">
             <th data-t0 scope="col" className="font-normal">Date</th>
             <th data-t0 scope="col" className="font-normal">Result</th>
-            <th data-t0 scope="col" className="font-normal">{"Against this chart's range"}</th>
+            <th data-t0 scope="col" className="font-normal">{layout.anyOwnRange ? "Against each report's range" : "Against this chart's range"}</th>
             <th data-t0 scope="col" className="font-normal">Checked</th>
           </tr>
         </thead>
@@ -628,7 +700,7 @@ function RangeChart({ trend, layout }: RangeChartProps): ReactElement {
             <tr key={p.order}>
               <th data-t0 scope="row" className="text-left font-normal">{p.label}</th>
               <td data-t0>{resultText(p)}</td>
-              <td data-t0>{SIDE_WORDS[p.side]}</td>
+              <td data-t0>{sideWordsOf(p)}</td>
               <td data-t0>{p.verified ? 'Checked by you' : 'Not yet checked'}</td>
             </tr>
           ))}
