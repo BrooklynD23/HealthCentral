@@ -90,13 +90,21 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 Local-first application for patients to import medical documents, extract structured information with user verification, visualize trends, and generate grounded explanations and clinician-ready…
 
+## `docs/agentic/alignment-judge-prompt.md`
+
+**Alignment Judge Prompt (AGENTIC-EVAL-JUDGE)**
+
+The fixed prompt for the recording-only alignment judge. `scripts/alignment_judge.py` reads the fenced block under "Prompt" verbatim (`load_prompt()`), sends it with the packet (row brief, facts,…
+
+Links to: `docs/agentic/eval-cards/agentic-alignment.md`
+
 ## `docs/agentic/eval-cards/agentic-alignment.md`
 
 **Agentic Alignment Eval Card (AGENTIC-EVAL)**
 
 What it measures: whether an agent-built PR did what its queue row licensed and nothing else. This card is extended by each AGENTIC-EVAL row; today it holds the licence gate and the test-weakening…
 
-Links to: `docs/agentic/evals.md`
+Links to: `docs/agentic/alignment-judge-prompt.md`, `docs/agentic/evals.md`
 
 ## `docs/agentic/eval-cards/extraction.md`
 
