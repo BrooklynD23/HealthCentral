@@ -191,7 +191,11 @@ def test_hc_wow_004_only_the_serving_process_writes_not_its_reloader_parent(tmp_
     worker_pid, worker_ppid = int(out[0]), int(out[1])
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["pid"] == worker_pid != os.getpid()
-    assert data["ppid"] == worker_ppid == os.getpid()
+    assert data["ppid"] == worker_ppid
+    if sys.platform != "win32":
+        # On Windows the venv python.exe is a stub that starts the real python, so the parent
+        # is the stub, not this pytest process; the file must still match the child's own ppid.
+        assert worker_ppid == os.getpid()
 
 
 def test_hc_wow_004b_an_old_worker_shutting_down_never_deletes_a_newer_workers_file(pidfile):
@@ -229,10 +233,12 @@ def test_hc_wow_005_launcher_reads_pidfile_and_verifies_the_command_line_before_
 
 def test_hc_wow_006_launcher_refuses_to_start_over_a_live_recorded_worker():
     assert "Read-WorkerPidFile" in DEV
-    assert 'Asclexis is already running from this folder (PID $($worker.pid)). Close it first, or run: taskkill /PID $($worker.pid) /T /F' in DEV
+    # one refusal for every leftover, with one taskkill line naming each PID
+    assert "Asclexis is already running from this folder (PID $pidList). Close it first, or run:" in DEV
+    assert 'taskkill $pidArgs /T /F' in DEV or "Format-AsclexisTaskkillLine" in DEV
     # the check runs before ports are picked or freed, and before anything is launched
     assert DEV.index("Read-WorkerPidFile -Path $workerPidFile") < DEV.index("Port $BACKEND_PORT is in use")
-    refuse = DEV[DEV.index('Asclexis is already running from this folder (PID $($worker.pid))'):]
+    refuse = DEV[DEV.index("Asclexis is already running from this folder (PID $pidList)"):]
     assert "exit 1" in refuse.split("Port $BACKEND_PORT is in use")[0]
 
 
@@ -257,3 +263,70 @@ def test_hc_wow_008_shutdown_and_restart_paths_kill_the_recorded_worker_then_rem
 def test_hc_wow_009_backend_is_told_where_to_write_the_file():
     fn = _func("Start-BackendDevServer")
     assert "$env:HC_WORKER_PIDFILE = $workerPidFile" in fn
+
+
+# ---- WIN-ORPHAN-WORKER follow-up (owner Windows re-run 2026-11-14) + WIN-LAUNCHER-LOG ----
+
+
+def test_hc_wow_010_refusal_names_the_backend_tree_root_not_just_the_worker():
+    """taskkill /PID <worker> /T /F left the uvicorn reloader (the worker's parent) listening on 8000."""
+    fn = _func("Get-AsclexisBackendRoot")
+    assert "ParentProcessId" in fn
+    anc = _func("Test-AsclexisBackendAncestor")
+    # a live python parent whose command line is uvicorn / spawn_main / the venv, created no later than
+    # the child (a reused PID is created after it); never cmd, powershell or explorer
+    assert "pythonw?" in anc and "uvicorn" in anc and "spawn_main" in anc and "CreationDate" in anc
+    assert "$Parent.CreationDate -gt $Child.CreationDate" in anc
+    # shutdown kills the root too
+    stop = _func("Stop-RecordedWorker")
+    assert "Get-AsclexisBackendRoot" in stop
+    assert "taskkill.exe /PID $killId /T /F" in stop
+
+
+def test_hc_wow_011_one_refusal_lists_every_leftover_with_one_taskkill_line():
+    fn = _func("Get-AsclexisLeftovers")
+    assert "Get-AsclexisBackendRoot" in fn and "Find-AsclexisFromThisFolder" in fn
+    line = _func("Format-AsclexisTaskkillLine")
+    assert '"/PID $_"' in line and "/T /F" in line
+    # the old two-stage refusals are gone: exactly one "already running" refusal
+    assert DEV.count("Asclexis is already running from this folder") == 1
+
+
+def test_hc_wow_012_launcher_log_is_started_first_stopped_on_every_exit_and_pruned_to_20():
+    start = DEV.index("Start-LauncherLog\n")
+    assert start < DEV.index("function Find-AsclexisFromThisFolder")
+    assert start < DEV.index("Looking for Python 3.11+")
+    fn = _func("Start-LauncherLog")
+    assert "Start-Transcript" in fn and 'logs\\launcher' in DEV and "dev-" in fn and "yyyyMMdd-HHmmss" in fn
+    prune = _func("Remove-OldLauncherLogs")
+    assert "Select-Object -Skip" in prune and "$LAUNCHER_LOG_KEEP" in prune
+    assert "$LAUNCHER_LOG_KEEP = 20" in DEV
+    # the whole script body sits in a try whose finally stops the transcript (exit, Ctrl+C and errors)
+    assert "} finally {\n    Stop-LauncherLog\n}" in DEV
+    assert "Stop-Transcript" in _func("Stop-LauncherLog")
+
+
+def test_hc_wow_013_every_error_exit_prints_the_launcher_log_path():
+    # every "Press Enter to exit" goes through one helper that prints the log path first
+    helper = _func("Read-LauncherExit")
+    assert "Launcher log:" in _func("Write-LauncherLogHint")
+    assert "Write-LauncherLogHint" in helper
+    assert DEV.count('Read-Host "  Press Enter to exit"') == 1  # inside the helper only
+    assert "Launcher log:" in DEV[: DEV.index("function Find-AsclexisFromThisFolder")]
+    # the two exits with no prompt print it too
+    assert DEV.count("Write-LauncherLogHint") >= 3
+
+
+def test_hc_wow_014_refusal_writes_a_process_and_port_snapshot_to_the_log():
+    fn = _func("Write-LauncherSnapshot")
+    assert '"python.exe", "node.exe"' in fn and "tasklist.exe" in fn and "imagename eq $img" in fn
+    assert "CommandLine" in fn and "8000..8010" in fn and "3000..3010" in fn
+    refuse = DEV[DEV.index("Get-AsclexisLeftovers -Worker"):DEV.index("Port $BACKEND_PORT is in use")]
+    assert "Write-LauncherSnapshot" in refuse
+
+
+def test_hc_wow_015_launcher_log_prints_no_env_file_contents():
+    # the launcher prints status lines only; nothing reads .env and echoes it
+    for fn in ("Start-LauncherLog", "Write-LauncherSnapshot", "Write-LauncherLogHint"):
+        body = _func(fn)
+        assert "ENV_FILE" not in body and ".env" not in body and "Get-Content" not in body

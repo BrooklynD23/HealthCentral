@@ -37,11 +37,20 @@ The backend worker (the process that serves requests) writes its PID, parent PID
 `logs/dev-backend.pid` and removes the file on a clean shutdown. This is how `dev.bat` finds a worker
 that outlived its window (the venv `python.exe` is a stub, and `uvicorn --reload` starts the worker as
 a child, so closing the window or killing a parent can leave it running with a vault open). On start,
-`dev.bat` refuses with "Asclexis is already running from this folder (PID n)" if that PID is still a
-live Python/uvicorn process created before the file was written; a file whose process is gone, or is
-some other program that reused the PID, is deleted with one info line. On `Ctrl+C` or a backend
-restart, `dev.bat` stops the recorded worker with `taskkill /PID n /T /F` after the same check. The
-file is outside `data/`, so backups never include it. Linux `dev.sh` does not use it.
+`dev.bat` refuses if anything from this folder is still running: the recorded worker (a live
+Python/uvicorn process created before the file was written) and, walking up from it, the top-most
+uvicorn/venv Python parent (the reloader and the venv stub, which a plain `taskkill /PID <worker> /T`
+leaves behind), plus any frontend `node` still listening on 3000-3010. It prints one line per leftover
+(PID, image, what it is) and one command, for example `taskkill /PID 53176 /PID 10132 /T /F`; run it and
+start again. A file whose process is gone, or is some other program that reused the PID, is deleted
+with one info line. On `Ctrl+C` or a backend restart, `dev.bat` stops the recorded worker's whole tree
+(`taskkill /PID <root> /T /F`) after the same check. The file is outside `data/`, so backups never include it. Linux `dev.sh` does not use it.
+
+Every `dev.bat` run writes a transcript of what its window showed to `logs\launcher\dev-<yyyyMMdd-HHmmss>.log`
+(the newest 20 are kept) and prints "Launcher log: <path>" at the top and again before any error or
+refusal exit. When it refuses to start, the log also holds a snapshot: `tasklist` for `python.exe` and
+`node.exe`, and every listener on 8000-8010 and 3000-3010 with its PID and command line. It holds screen
+output only (no `.env` contents); attach it when reporting a launcher problem. `logs/` is gitignored.
 
 ## Quick Start on WSL/Linux (`dev.sh`)
 

@@ -36,6 +36,66 @@ function Write-Ok      { param($msg) Write-Host "  [+] $msg" -ForegroundColor Gr
 function Write-Warn    { param($msg) Write-Host "  [!] $msg" -ForegroundColor Yellow }
 function Write-Err     { param($msg) Write-Host "  [-] $msg" -ForegroundColor Red }
 
+# ---------------------------------------------------------------------------
+# Launcher log (WIN-LAUNCHER-LOG): every run writes a transcript of what this window showed to
+# logs\launcher\dev-<yyyyMMdd-HHmmss>.log and keeps the newest 20. It holds screen output only
+# (status lines, tool output, log tails), never .env contents. logs\ is gitignored.
+# ---------------------------------------------------------------------------
+$LAUNCHER_LOG_DIR  = Join-Path $ROOT_DIR "logs\launcher"
+$LAUNCHER_LOG_KEEP = 20
+$script:LauncherLogPath = $null
+
+function Remove-OldLauncherLogs {
+    try {
+        @(Get-ChildItem -LiteralPath $LAUNCHER_LOG_DIR -Filter "dev-*.log" -File -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending |
+            Select-Object -Skip $LAUNCHER_LOG_KEEP) |
+            ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+    } catch { }
+}
+
+function Start-LauncherLog {
+    try {
+        New-Item -ItemType Directory -Path $LAUNCHER_LOG_DIR -Force -ErrorAction Stop | Out-Null
+        $path = Join-Path $LAUNCHER_LOG_DIR ("dev-{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+        Start-Transcript -Path $path -ErrorAction Stop | Out-Null
+        $script:LauncherLogPath = $path
+        Remove-OldLauncherLogs
+    } catch {
+        $script:LauncherLogPath = $null   # logging must never stop the launcher
+    }
+}
+
+function Stop-LauncherLog {
+    if (-not $script:LauncherLogPath) { return }
+    try { Stop-Transcript | Out-Null } catch { }
+    $script:LauncherLogPath = $null
+}
+
+function Write-LauncherLogHint {
+    if ($script:LauncherLogPath) { Write-Status "Launcher log: $($script:LauncherLogPath)" }
+}
+
+# Every error exit that waits for a key goes through here so the log path is the last thing shown.
+function Read-LauncherExit {
+    Write-LauncherLogHint
+    Read-Host "  Press Enter to exit"
+}
+
+Start-LauncherLog
+Write-LauncherLogHint
+try {
+    $gitHead = $null
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        $gitHead = "$(& git -C $ROOT_DIR rev-parse --short HEAD 2>$null)".Trim()
+    }
+    if ($gitHead) { Write-Status "Git HEAD: $gitHead" }
+} catch { }
+
+# The rest of the script runs inside this try so the transcript is stopped on every exit
+# (exit, Ctrl+C, an uncaught error). The matching finally is the last statement in the file.
+try {
+
 function Test-PortInUse {
     param([int]$Port)
     $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
@@ -358,13 +418,13 @@ if (-not $pythonCmd) {
     $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
     if (-not $wingetCmd) {
         Write-PythonManualInstallHelp
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
     $answer = Read-Host "  Python 3.11+ was not found. Install Python 3.11 automatically with winget? [Y/n]"
     if ($answer -and $answer.Trim() -match '^[Nn]') {
         Write-PythonManualInstallHelp
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
     Write-Status "Installing Python 3.11 via winget (this may take a few minutes) ..."
@@ -376,7 +436,7 @@ if (-not $pythonCmd) {
             Write-Err "winget install failed (exit code $LASTEXITCODE)."
         }
         Write-PythonManualInstallHelp
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
     Refresh-EnvPathFromRegistry
@@ -388,7 +448,7 @@ if (-not $pythonCmd) {
         Write-Err "winget completed but Python is not visible in this shell."
         Write-Host "    Restart the terminal and run dev.ps1 again, or install manually:" -ForegroundColor White
         Write-PythonManualInstallHelp
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
 }
@@ -426,7 +486,7 @@ if (-not $nodeOk) {
     Write-Host ""
     Write-Host "    Download it from:  https://nodejs.org  (Node.js 24 LTS recommended)" -ForegroundColor White
     Write-Host ""
-    Read-Host "  Press Enter to exit"
+    Read-LauncherExit
     exit 1
 }
 
@@ -437,7 +497,7 @@ try {
     Write-Ok "Found npm v$npmVersion"
 } catch {
     Write-Err "npm is required but not found (it ships with Node.js)."
-    Read-Host "  Press Enter to exit"
+    Read-LauncherExit
     exit 1
 }
 
@@ -456,7 +516,7 @@ if (-not (Test-Path $VENV_DIR)) {
     Pop-Location
     if (-not (Test-Path (Join-Path $VENV_DIR "Scripts\python.exe"))) {
         Write-Err "Failed to create virtual environment."
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
     Write-Ok "Virtual environment created"
@@ -522,7 +582,7 @@ if (-not $llamaWheelOk -and -not (Get-Command cl.exe -ErrorAction SilentlyContin
         Write-Err "Install Visual Studio Build Tools with the 'Desktop development with C++' workload:"
         Write-Err "  https://visualstudio.microsoft.com/visual-cpp-build-tools/"
         Write-Err "Then open a new window and run dev.bat again. Or set LLM_PROVIDER=ollama in src\backend\.env."
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
 }
@@ -560,7 +620,7 @@ if ($sqlcipherExit -eq 0) {
     Write-Err "It needs 64-bit Python 3.11 (the pinned wheel is cp311 win_amd64) and access to pypi.org."
     Write-Err "dev.bat stopped so your health data is never stored unencrypted; .env was not changed."
     Write-Err "For development only, set HC_ALLOW_UNENCRYPTED=1 to continue without encryption."
-    Read-Host "  Press Enter to exit"
+    Read-LauncherExit
     exit 1
 }
 
@@ -572,7 +632,7 @@ Pop-Location
 if ($pipExit -ne 0) {
     Write-Err "Failed to install Python dependencies. Output:"
     $pipOutput | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkRed }
-    Read-Host "  Press Enter to exit"
+    Read-LauncherExit
     exit 1
 } else {
     Write-Ok "Python dependencies installed"
@@ -589,7 +649,7 @@ Pop-Location
 if ($embeddingExit -ne 0) {
     Write-Err "The embedding model is missing and could not be fetched (it needs internet once, about 88 MB)."
     Write-Err "To retry, run from src\backend: $venvPython scripts\download_models.py embedding"
-    Read-Host "  Press Enter to exit"
+    Read-LauncherExit
     exit 1
 }
 Write-Ok "Embedding model is ready"
@@ -825,7 +885,7 @@ if ($installReason -ne "") {
         "lockfile-changed" { Write-Status "Frontend dependencies changed since the last install. Reinstalling ..." }
     }
     if (-not (Install-FrontendDependencies -FrontendDir $FRONTEND_DIR)) {
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
     Write-Ok "Frontend dependencies installed"
@@ -860,11 +920,11 @@ function Find-AsclexisFromThisFolder {
             foreach ($procId in (Get-ListenerPidsForPort -Port $port)) {
                 $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $procId" -ErrorAction SilentlyContinue
                 $cmd = "$($proc.CommandLine)".ToLower()
-                if ($cmd -and $cmd.Contains($root)) { $found[[int]$procId] = $true }
+                if ($cmd -and $cmd.Contains($root)) { $found[[int]$procId] = $port }
             }
         }
     }
-    return @([int[]]($found.Keys))
+    return @($found.Keys | ForEach-Object { [pscustomobject]@{ Pid = [int]$_; Port = [int]$found[$_] } })
 }
 # The backend records the PID of the process that serves requests (src/backend/core/worker_pidfile.py).
 # That process can outlive this launcher (the venv python.exe is a stub, and uvicorn --reload spawns
@@ -898,41 +958,146 @@ function Test-AsclexisWorkerProcess {
     return $true
 }
 
-# Stop the recorded worker (and its children) if it is verifiably this run's Asclexis worker, then
-# remove the file. A worker that does not die keeps its file, so the next start refuses and says why.
+# uvicorn --reload runs the worker as a child of a reloader, and the venv python.exe is a stub that
+# starts the real python, so `taskkill /PID <worker> /T` leaves the reloader (and stub) alive and the
+# reloader keeps the port. Child and Parent are Win32_Process rows. True only for a real parent (its PID
+# is the child's ParentProcessId), a python process whose command line is uvicorn, a multiprocessing
+# spawn or the venv, that was created no later than the child (Windows reuses PIDs, and a reused PID is
+# created after the child). Never cmd, powershell, explorer or anything that is not python.
+function Test-AsclexisBackendAncestor {
+    param($Child, $Parent)
+    if (-not $Child -or -not $Parent) { return $false }
+    if ([int]$Parent.ProcessId -le 4) { return $false }
+    if ([int]$Child.ParentProcessId -ne [int]$Parent.ProcessId) { return $false }
+    if ("$($Parent.Name)".ToLower() -notmatch '^pythonw?(\d+(\.\d+)*)?\.exe$') { return $false }
+    $cmd = "$($Parent.CommandLine)".ToLower()
+    if ($cmd -notmatch 'uvicorn|spawn_main|main:app' -and -not $cmd.Contains($VENV_DIR.TrimEnd('\').ToLower())) { return $false }
+    if (-not $Parent.CreationDate -or -not $Child.CreationDate) { return $false }
+    if ($Parent.CreationDate -gt $Child.CreationDate) { return $false }
+    return $true
+}
+
+# The top-most live ancestor of a verified backend process that Test-AsclexisBackendAncestor accepts
+# (the worker itself when there is none). This is the PID a taskkill /T must target.
+function Get-AsclexisBackendRoot {
+    param([int]$ProcessId)
+    $rootId = $ProcessId
+    $child = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+    $seen = @{}
+    $seen[$ProcessId] = $true
+    for ($depth = 0; $child -and $depth -lt 8; $depth++) {
+        $parentId = [int]$child.ParentProcessId
+        if ($parentId -le 4 -or $seen.ContainsKey($parentId)) { break }
+        $seen[$parentId] = $true
+        $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $parentId" -ErrorAction SilentlyContinue
+        if (-not (Test-AsclexisBackendAncestor -Child $child -Parent $parent)) { break }
+        $rootId = $parentId
+        $child = $parent
+    }
+    return $rootId
+}
+
+function Format-AsclexisTaskkillLine {
+    param([int[]]$ProcessIds)
+    $pidArgs = ($ProcessIds | ForEach-Object { "/PID $_" }) -join " "
+    return "taskkill $pidArgs /T /F"
+}
+
+# Everything left running from this folder: the backend tree root of the verified recorded worker, and
+# each listener on the backend/frontend port ranges that Find-AsclexisFromThisFolder attributes to this
+# folder (a python listener is walked up to its root; node is the frontend). One row per PID.
+function Get-AsclexisLeftovers {
+    param($Worker)
+    $rows = [ordered]@{}
+    function Add-Row {
+        param([int]$ProcessId, [string]$Role)
+        # String keys: an int key on an ordered dictionary is read as a position, not a key.
+        if ($rows.Contains("$ProcessId")) { return }
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+        $rows["$ProcessId"] = [pscustomobject]@{ Pid = $ProcessId; Image = "$($proc.Name)"; Role = $Role }
+    }
+    if ($Worker) {
+        Add-Row -ProcessId (Get-AsclexisBackendRoot -ProcessId $Worker.pid) -Role "backend (uvicorn tree root; worker PID $($Worker.pid))"
+    }
+    foreach ($l in @(Find-AsclexisFromThisFolder)) {
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $($l.Pid)" -ErrorAction SilentlyContinue
+        if ("$($proc.Name)".ToLower() -match '^pythonw?(\d+(\.\d+)*)?\.exe$') {
+            Add-Row -ProcessId (Get-AsclexisBackendRoot -ProcessId $l.Pid) -Role "backend (uvicorn tree root; listening on port $($l.Port))"
+        } elseif ("$($proc.Name)".ToLower() -eq "node.exe") {
+            Add-Row -ProcessId $l.Pid -Role "frontend dev server (listening on port $($l.Port))"
+        } else {
+            Add-Row -ProcessId $l.Pid -Role "listening on port $($l.Port)"
+        }
+    }
+    return @($rows.Values)
+}
+
+# Process and port snapshot for the launcher log, written when the launcher refuses to start: every
+# python.exe and node.exe, and every listener on the backend/frontend port ranges with its owning
+# PID and command line. Best effort: a failure here never changes the refusal.
+function Write-LauncherSnapshot {
+    Write-Host "  --- Process and port snapshot (also in the launcher log) ---" -ForegroundColor DarkGray
+    try {
+        foreach ($img in @("python.exe", "node.exe")) {
+            Write-Host "  tasklist /fi `"imagename eq $img`"" -ForegroundColor DarkGray
+            foreach ($line in @(& tasklist.exe /fi "imagename eq $img" 2>&1)) { Write-Host "    $line" -ForegroundColor DarkGray }
+        }
+        $ports = @(8000..8010) + @(3000..3010)
+        $conns = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ports -contains [int]$_.LocalPort })
+        if ($conns.Count -eq 0) {
+            foreach ($port in $ports) {
+                foreach ($id in (Get-ListenerPidsForPort -Port $port)) { $conns += [pscustomobject]@{ LocalPort = $port; OwningProcess = $id } }
+            }
+        }
+        Write-Host "  listeners on 8000-8010 and 3000-3010:" -ForegroundColor DarkGray
+        if ($conns.Count -eq 0) { Write-Host "    none" -ForegroundColor DarkGray }
+        foreach ($c in ($conns | Sort-Object LocalPort, OwningProcess)) {
+            $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$c.OwningProcess)" -ErrorAction SilentlyContinue
+            Write-Host "    port $($c.LocalPort)  PID $($c.OwningProcess)  $($proc.Name)  $($proc.CommandLine)" -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Host "    (snapshot failed: $($_.Exception.Message))" -ForegroundColor DarkGray
+    }
+}
+
+# Stop the recorded worker's whole tree (its root, found by Get-AsclexisBackendRoot) if the worker is
+# verifiably this run's Asclexis worker, then remove the file. A tree that does not die keeps its file,
+# so the next start refuses and says why.
 function Stop-RecordedWorker {
     param([string]$Path, [double]$NotBeforeUnix = 0)
     $worker = Read-WorkerPidFile -Path $Path
     if (-not $worker) { return }
     if ($worker.started_unix -lt $NotBeforeUnix) { return }
     if (Test-AsclexisWorkerProcess -ProcessId $worker.pid -StartedUnix $worker.started_unix) {
-        & taskkill.exe /PID $worker.pid /T /F 2>&1 | Out-Null
+        $killId = Get-AsclexisBackendRoot -ProcessId $worker.pid
+        & taskkill.exe /PID $killId /T /F 2>&1 | Out-Null
         for ($i = 0; $i -lt 10; $i++) {
-            if (-not (Get-Process -Id $worker.pid -ErrorAction SilentlyContinue)) { break }
+            if (-not (Get-Process -Id $killId -ErrorAction SilentlyContinue) -and
+                -not (Get-Process -Id $worker.pid -ErrorAction SilentlyContinue)) { break }
             Start-Sleep -Milliseconds 500
         }
-        if (Get-Process -Id $worker.pid -ErrorAction SilentlyContinue) {
-            Write-Warn "Backend worker PID $($worker.pid) did not stop. Run: taskkill /PID $($worker.pid) /T /F"
+        if ((Get-Process -Id $killId -ErrorAction SilentlyContinue) -or (Get-Process -Id $worker.pid -ErrorAction SilentlyContinue)) {
+            Write-Warn "Backend worker PID $($worker.pid) did not stop. Run: taskkill /PID $killId /T /F"
             return
         }
     }
     Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
 }
 
-$alreadyRunning = @(Find-AsclexisFromThisFolder)
-if ($alreadyRunning.Count -gt 0) {
-    $firstPid = $alreadyRunning[0]
-    Write-Err "Asclexis is already running from this folder (PID $firstPid). Close it first, or run: taskkill /PID $firstPid /T /F"
-    Write-Err "A leftover copy can keep a profile vault open, so this launcher will not start a second one."
-    Read-Host "  Press Enter to exit"
-    exit 1
-}
-
+# One refusal for everything this folder left running (a backend tree, a frontend node), with one
+# taskkill line. Checked before any port is picked or freed.
 $worker = Read-WorkerPidFile -Path $workerPidFile
-if ($worker -and (Test-AsclexisWorkerProcess -ProcessId $worker.pid -StartedUnix $worker.started_unix)) {
-    Write-Err "Asclexis is already running from this folder (PID $($worker.pid)). Close it first, or run: taskkill /PID $($worker.pid) /T /F"
-    Write-Err "A leftover backend worker can keep a profile vault open, so this launcher will not start a second one."
-    Read-Host "  Press Enter to exit"
+$liveWorker = $null
+if ($worker -and (Test-AsclexisWorkerProcess -ProcessId $worker.pid -StartedUnix $worker.started_unix)) { $liveWorker = $worker }
+$leftovers = @(Get-AsclexisLeftovers -Worker $liveWorker)
+if ($leftovers.Count -gt 0) {
+    Write-LauncherSnapshot
+    $pidList = ($leftovers | ForEach-Object { $_.Pid }) -join ", "
+    Write-Err "Asclexis is already running from this folder (PID $pidList). Close it first, or run:"
+    foreach ($row in $leftovers) { Write-Err "    PID $($row.Pid)  $($row.Image)  $($row.Role)" }
+    Write-Err "  $(Format-AsclexisTaskkillLine -ProcessIds ($leftovers | ForEach-Object { $_.Pid }))"
+    Write-Err "A leftover copy can keep a profile vault open, so this launcher will not start a second one."
+    Read-LauncherExit
     exit 1
 }
 if (Test-Path -LiteralPath $workerPidFile) {
@@ -1059,7 +1224,7 @@ while ($sw.Elapsed.TotalSeconds -lt $maxWait) {
         # The backend is hidden and logs only to files: do not leave it on the port.
         & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
         Stop-RecordedWorker -Path $workerPidFile -NotBeforeUnix $runStartedUnix
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
 
@@ -1069,7 +1234,7 @@ while ($sw.Elapsed.TotalSeconds -lt $maxWait) {
         Write-LogTail -LogPath $backendLog -Label "Backend log"
         Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
         Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
-        Read-Host "  Press Enter to exit"
+        Read-LauncherExit
         exit 1
     }
 
@@ -1108,7 +1273,7 @@ if (-not $backendReady) {
     & taskkill.exe /PID $backendProc.Id /T /F 2>&1 | Out-Null
     Stop-RecordedWorker -Path $workerPidFile -NotBeforeUnix $runStartedUnix
     Stop-Process -Id $frontendProc.Id -Force -ErrorAction SilentlyContinue
-    Read-Host "  Press Enter to exit"
+    Read-LauncherExit
     exit 1
 }
 
@@ -1166,6 +1331,7 @@ try {
             Write-LogTail -LogPath $backendErrLog -Label "Backend error log"
             if ($backendRestartCount -ge 3) {
                 Write-Err "Backend failed repeatedly. See $backendErrLog and $backendLog"
+                Write-LauncherLogHint
                 # exit 1 (not break): break leaves exit code 0, dev.bat then
                 # closes the window before the log tail can be read.
                 # The finally block still runs Stop-Servers.
@@ -1185,6 +1351,7 @@ try {
             $frontendRestartCount++
             if ($frontendRestartCount -ge 3) {
                 Write-Err "Frontend failed repeatedly. See $frontendLog"
+                Write-LauncherLogHint
                 break
             }
             $frontendProc = Start-FrontendDevServer `
@@ -1201,4 +1368,7 @@ try {
     }
 } finally {
     Stop-Servers
+}
+} finally {
+    Stop-LauncherLog
 }
