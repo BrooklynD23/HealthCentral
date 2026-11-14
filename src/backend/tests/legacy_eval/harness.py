@@ -6,6 +6,7 @@ so FastAPI's dependency graph runs. Only these are faked:
   - session / history / memory helpers and the agent flag (forced off, so the
     request takes the legacy rag.query branch);
   - RAGModule.retrieve_context -> the case's fixed chunks;
+  - the local advice judge (B-3) is an AllowJudge fake;
   - the external-runner lookup returns a FakeRunner whose generate_async
     yields the case's model output and finish_reason ("stop" or "timeout").
 RAGModule._generate_with_runner is REAL, including its timeout branch.
@@ -77,6 +78,22 @@ class FakeRunner:
         return self._result
 
 
+class AllowJudge:
+    """Local advice-judge stand-in that always answers ALLOW (B-3, contracts R-2).
+
+    The golden cases test the floor, faithfulness and abstain mapping, not the
+    judge, so the judge is an explicit fake, never a bypass flag. The
+    escalate-prohibited-advice case still escalates through the regex floor,
+    which runs before the judge is asked.
+    """
+
+    def is_available(self) -> bool:
+        return True
+
+    async def generate_async(self, prompt: str, config: object) -> SimpleNamespace:
+        return SimpleNamespace(text="ALLOW", finish_reason="stop")
+
+
 def generated_text(model_output: str, finish_reason: str = "stop") -> str:
     """What the REAL RAGModule._generate_with_runner returns for this runner output."""
     from modules.rag import RAGModule
@@ -122,6 +139,8 @@ def legacy_chat_client(
             )
         )
         stack.enter_context(patch.object(RAGModule, "retrieve_context", AsyncMock(return_value=chunks)))
+        # B-3: the local advice judge is looked up through modules.rag.get_model_runner.
+        stack.enter_context(patch("modules.rag.get_model_runner", return_value=AllowJudge()))
         client = stack.enter_context(route_client(assistant_api.router, "/assistant", master_db=master))
         client.app.dependency_overrides[get_profile_db_session] = _profile_db_override
         yield client, append_turns

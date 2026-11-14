@@ -20,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.legacy_eval.harness import AllowJudge  # B-3 R-2: explicit ALLOW judge fake
+
 # Add backend to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -1119,6 +1121,7 @@ Discuss with your provider for personalized guidance.
                 result = await rag.query(
                     question="What is my cholesterol?",
                     profile_id="test-profile",
+                    judge_runner=AllowJudge(),  # B-3 R-2: explicit judge fake
                 )
 
                 assert result.insufficient_context is False
@@ -1450,6 +1453,7 @@ Always discuss your results with your healthcare provider."""
                     result = await rag.query(
                         question="What is my glucose level?",
                         profile_id="test-profile",
+                        judge_runner=AllowJudge(),  # B-3 R-2: explicit judge fake
                     )
 
                     assert result.insufficient_context is False

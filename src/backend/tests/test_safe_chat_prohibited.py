@@ -29,6 +29,7 @@ from models.chat_session import ChatTurn
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.interpret_safety import InterpretationSafetyGuard
 from modules.rag import RetrievedChunk, VerificationMetadata
+from tests.legacy_eval.harness import AllowJudge
 from tests.support.routes import route_client
 
 MARKER = "SAFECHAT-PROHIBITED-7f3a"
@@ -103,13 +104,15 @@ def _rag(answer: str, verification: VerificationMetadata | None = None):
 
 
 async def _post_chat(
-    answer: str, master, verification: VerificationMetadata | None = None
+    answer: str, master, verification: VerificationMetadata | None = None, judge=None
 ) -> tuple[object, list[ChatTurn]]:
+    """`judge` is the local advice-judge runner (B-3); default is an explicit ALLOW fake (R-2)."""
     profile_id = "profile-a"  # route_client's default session
     profile_db, engine = await _profile_db()
     try:
         with patch.object(A, "get_rag_module", return_value=_rag(answer, verification)), \
-             patch.object(A, "is_agent_enabled", return_value=False):
+             patch.object(A, "is_agent_enabled", return_value=False), \
+             patch("modules.rag.get_model_runner", return_value=judge or AllowJudge()):
             with route_client(
                 assistant_router, "/assistant", profile_id=profile_id, master_db=master
             ) as client:

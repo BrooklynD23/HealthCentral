@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.legacy_eval.harness import AllowJudge  # B-3 R-2: explicit ALLOW judge fake
+
 
 @dataclass(frozen=True)
 class FakeMemoryItem:
@@ -227,6 +229,7 @@ class TestQueryMemoryIntegration:
                 question="What is my hemoglobin?",
                 profile_id="prof-1",
                 use_memory=True,
+                judge_runner=AllowJudge(),  # B-3 R-2: explicit judge fake
             )
         # Should get a valid response (not insufficient context)
         assert result.insufficient_context is False
@@ -267,6 +270,7 @@ class TestQueryMemoryIntegration:
                 question="What is my hemoglobin?",
                 profile_id="prof-1",
                 use_memory=True,
+                judge_runner=AllowJudge(),  # B-3 R-2: explicit judge fake
             )
 
         # The prompt should NOT contain USER PREFERENCES

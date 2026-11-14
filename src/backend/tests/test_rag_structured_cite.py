@@ -20,7 +20,13 @@ import pytest
 
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.rag import RAGModule, _cite_schema
-from tests.legacy_eval.harness import CHAT_PATH, FakeRunner, build_chunks, legacy_chat_client
+from tests.legacy_eval.harness import (
+    CHAT_PATH,
+    AllowJudge,
+    FakeRunner,
+    build_chunks,
+    legacy_chat_client,
+)
 from tests.test_rag_citation_prompt import (
     _CONTEXT_LABELS,
     _citation_format_instructions,
@@ -226,7 +232,7 @@ async def test_hc_lcp_010_prompt_still_has_exactly_one_citation_instruction():
         patch.object(rag, "retrieve_context", new_callable=AsyncMock, return_value=chunks),
         patch.object(rag, "_generate_with_runner", generate),
     ):
-        await rag.query(question="Is my LDL high?", profile_id="prof-1")
+        await rag.query(question="Is my LDL high?", profile_id="prof-1", judge_runner=AllowJudge())
     prompt = generate.call_args.args[0]
     assert generate.call_args.kwargs == {"n_chunks": 1}
     assert "report_facts" in prompt
