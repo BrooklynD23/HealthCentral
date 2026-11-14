@@ -867,9 +867,9 @@ function analyse(snaps: Snap[], kind: 'interaction' | 'navigation' | 'overlay', 
 }
 
 async function waitUntil(predicate: () => boolean, timeoutMs: number, what: string): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
+  const deadline = performance.now() + timeoutMs;
   while (!predicate()) {
-    if (Date.now() > deadline) throw new StillnessError(`timed out waiting for ${what}`);
+    if (performance.now() > deadline) throw new StillnessError(`timed out waiting for ${what}`);
     await sleep(5);
   }
 }
@@ -958,7 +958,7 @@ export function checkSampling(
 interface NetworkTracker {
   /** Requests started and not yet finished or failed. */
   readonly inFlight: Set<Request>;
-  /** Time (ms since epoch) of the last request start, finish or failure. */
+  /** performance.now() reading (ms, monotonic, Node side) at the last request start, finish or failure. */
   lastEventAt: number;
   stop(): void;
 }
@@ -968,13 +968,13 @@ const STREAMING_TYPES = new Set(['eventsource', 'websocket']);
 
 function trackRequests(page: Page): NetworkTracker {
   const inFlight = new Set<Request>();
-  const tracker: NetworkTracker = { inFlight, lastEventAt: Date.now(), stop: () => undefined };
+  const tracker: NetworkTracker = { inFlight, lastEventAt: performance.now(), stop: () => undefined };
   const started = (request: Request) => {
-    tracker.lastEventAt = Date.now();
+    tracker.lastEventAt = performance.now();
     if (!STREAMING_TYPES.has(request.resourceType())) inFlight.add(request);
   };
   const ended = (request: Request) => {
-    tracker.lastEventAt = Date.now();
+    tracker.lastEventAt = performance.now();
     inFlight.delete(request);
   };
   page.on('request', started);
@@ -1009,11 +1009,11 @@ async function settleStartPage(page: Page): Promise<void> {
         .response()
         .catch(() => null)
         .finally(() => {
-          if (network.inFlight.delete(request)) network.lastEventAt = Date.now();
+          if (network.inFlight.delete(request)) network.lastEventAt = performance.now();
         });
     }
-    const quiet = () => network.inFlight.size === 0 && Date.now() - network.lastEventAt >= NETWORK_IDLE_MS;
-    const deadline = Date.now() + LAZY_IDLE_TIMEOUT_MS;
+    const quiet = () => network.inFlight.size === 0 && performance.now() - network.lastEventAt >= NETWORK_IDLE_MS;
+    const deadline = performance.now() + LAZY_IDLE_TIMEOUT_MS;
     let opacity = Number.NaN;
     for (;;) {
       if (quiet()) {
@@ -1026,7 +1026,7 @@ async function settleStartPage(page: Page): Promise<void> {
         );
         if (opacity >= SETTLED_OPACITY && quiet()) return;
       }
-      if (Date.now() >= deadline) break;
+      if (performance.now() >= deadline) break;
       await sleep(20);
     }
     const pending = [...network.inFlight].map((request) => request.url());
@@ -1065,22 +1065,22 @@ export async function stillnessProbe(page: Page, options: StillnessOptions): Pro
     try {
       // Whole milliseconds, like the samples, so the messages read "at 1280 ms" and the gap is integral.
       triggeredAt = await page.evaluate(() => Math.round(performance.now()));
-      const triggeredWall = Date.now();
+      const triggeredWall = performance.now();
       let windowStart = triggeredWall;
       await options.trigger();
       if (network) {
         // A request the trigger starts can begin a few ms later, so the quiet period runs from the trigger.
         // waitForLoadState('networkidle') is not used: it returns at once on a page that was already idle.
         await waitUntil(
-          () => network.inFlight.size === 0 && Date.now() - network.lastEventAt >= NETWORK_IDLE_MS,
+          () => network.inFlight.size === 0 && performance.now() - network.lastEventAt >= NETWORK_IDLE_MS,
           LAZY_IDLE_TIMEOUT_MS,
           'the lazy route to go network idle'
         );
-        windowStart = Date.now();
+        windowStart = performance.now();
       }
       const end = windowStart + windowMs;
-      while (Date.now() < end) await sleep(10);
-      elapsedMs = Date.now() - triggeredWall;
+      while (performance.now() < end) await sleep(10);
+      elapsedMs = Math.round(performance.now() - triggeredWall);
     } finally {
       network?.stop();
     }
