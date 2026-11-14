@@ -698,7 +698,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/architecture-o
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is…
 
-Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/asclexis-showcase-2026-10-22.html`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/fit-decoder-journey.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/asclexis-showcase-2026-10-22.html`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/fit-decoder-journey.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/report-draft.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
 
 ## `docs/capstone-report/architecture-engineering-contract.md`
 
@@ -747,6 +747,38 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
 Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+
+## `docs/capstone-report/phase1/evidence-index.md`
+
+**Senior Report Phase 1 — Evidence Index**
+
+Claim → source table for report-draft.md and presentation-outline.md. Where a claim already has a row in the claims ledger, this index points to that row and does not restate its evidence; the…
+
+Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/report-draft.md`, `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
+
+## `docs/capstone-report/phase1/presentation-outline.md`
+
+**Senior Report Phase 1 — Presentation Outline**
+
+Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Figures marked "showcase" can be lifted from the ledger-gated page…
+
+Links to: `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report/phase1/report-draft.md`
+
+## `docs/capstone-report/phase1/report-draft.md`
+
+**Asclexis — Senior Project Report, Phase 1 Draft**
+
+Companion files: presentation-outline.md (slides) and evidence-index.md (claim → source table, evidence gaps, lineage). Load-bearing claims reuse the rows of the existing claims ledger (cited as…
+
+Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
+
+## `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
+
+**Workflow optimization: the quiet box and long-running tests**
+
+One machine does five jobs: it builds, runs pytest, runs the timing gates, drives Playwright and hosts the local models. The quiet box makes timing measurements trustworthy by stopping everything…
+
+Links to: `docs/capstone-report/phase1/report-draft.md`
 
 ## `docs/capstone-report/report-outline.md`
 
