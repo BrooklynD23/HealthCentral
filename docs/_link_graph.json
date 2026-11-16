@@ -1514,6 +1514,48 @@
     "docs/plans/2026-11-11-batch-1111i-plan.md": [
       "docs/plans/2026-10-15-build-program/queue.md"
     ],
+    "docs/plans/archive/HUMAN-BLOCKERS.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/README.md": [
+      "docs/plans/2026-10-15-build-program/queue.md"
+    ],
+    "docs/plans/archive/plans-1112/agentic-eval-plan.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/plans-1112/planner-summary.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/plans-1113/sqlcipher-wheel-plan.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/plans-1114/rows-1114-plan.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/senior-report-doc/HANDOFF-SENIOR-REPORT-DOC.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/senior-report-doc/STATUS.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/staging-1111a/uidoc006a-diagnosis.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/staging-1111c/meds-g-diagnosis.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/staging-1111i/owner-gates-1111i.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/stillness-nav-late-1107-result.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/stillness-nav-late/RESULT.md": [
+      "docs/plans/archive/README.md"
+    ],
+    "docs/plans/archive/uig006-pass3/RESULT.md": [
+      "docs/plans/archive/README.md"
+    ],
     "docs/plans/implementation-log": [
       "docs/00_architecture_plans_index.md"
     ],
@@ -4020,6 +4062,7 @@
       "docs/plans/2026-11-06-owner-answers-rows-plan.md",
       "docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md",
       "docs/plans/2026-10-23-frontend-revamp-plan.md",
+      "docs/plans/archive/README.md",
       "docs/plans/2026-11-07-seven-rows-plan.md",
       "docs/plans/2026-11-07-six-rows-plan.md",
       "docs/capstone-report/owner-decisions-2026-09-27.md",
@@ -4279,6 +4322,21 @@
     ],
     "docs/plans/2026-11-11-batch-1111a-plan.md": [
       "docs/plans/2026-11-07-three-rows-plan.md"
+    ],
+    "docs/plans/archive/README.md": [
+      "docs/plans/archive/HUMAN-BLOCKERS.md",
+      "docs/plans/archive/plans-1112/agentic-eval-plan.md",
+      "docs/plans/archive/plans-1112/planner-summary.md",
+      "docs/plans/archive/plans-1113/sqlcipher-wheel-plan.md",
+      "docs/plans/archive/plans-1114/rows-1114-plan.md",
+      "docs/plans/archive/staging-1111a/uidoc006a-diagnosis.md",
+      "docs/plans/archive/staging-1111c/meds-g-diagnosis.md",
+      "docs/plans/archive/staging-1111i/owner-gates-1111i.md",
+      "docs/plans/archive/stillness-nav-late/RESULT.md",
+      "docs/plans/archive/stillness-nav-late-1107-result.md",
+      "docs/plans/archive/uig006-pass3/RESULT.md",
+      "docs/plans/archive/senior-report-doc/HANDOFF-SENIOR-REPORT-DOC.md",
+      "docs/plans/archive/senior-report-doc/STATUS.md"
     ],
     "docs/plans/implementation-log/README.md": [
       "docs/plans/implementation-log/2024-12-28_project-structure-setup.md",
