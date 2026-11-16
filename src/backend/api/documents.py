@@ -101,6 +101,10 @@ _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES = 2_000_000  # avoid unbounded memory growth
 _PageImageCacheKey = tuple[str, str, int, int]  # (profile_id, document_id, page_number, resolution)
 _page_image_cache: "OrderedDict[_PageImageCacheKey, tuple[float, bytes]]" = OrderedDict()
 _page_image_cache_lock = threading.Lock()
+# MEM-PURGE-RACE-PAGES: a purge that lands while a page renders must not be undone by that
+# request's put. Both are guarded by `_page_image_cache_lock`.
+_page_image_purge_seq = 0
+_page_image_purged_at: dict[str, int] = {}  # profile_id -> seq of its latest purge
 
 
 def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
@@ -121,11 +125,24 @@ def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
         return value
 
 
-def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
+def _page_image_cache_mark() -> int:
+    """Purge sequence now. Take it before a render; pass it to `_page_image_cache_set`."""
+    with _page_image_cache_lock:
+        return _page_image_purge_seq
+
+
+def _page_image_cache_set(key: _PageImageCacheKey, value: bytes, mark: int | None = None) -> None:
+    """Cache a page picture. With a `mark`, drop it if its profile was purged after the mark.
+
+    No mark stores unchecked (direct callers and tests).
+    """
     if len(value) > _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES:
         return
     now = time.time()
     with _page_image_cache_lock:
+        if mark is not None and _page_image_purged_at.get(key[0], 0) > mark:
+            logger.debug("Page image not cached: its profile was purged during the render")
+            return
         expired = [k for k, (expires_at, _) in _page_image_cache.items() if expires_at <= now]
         for k in expired:
             _page_image_cache.pop(k, None)
@@ -140,9 +157,13 @@ def purge_page_images(profile_id: str) -> int:
     """Drop every cached page picture of `profile_id` (lock, logout, delete, restore).
 
     Other profiles' entries stay. Returns how many went. This dereferences the bytes; it
-    does not zero them.
+    does not zero them. It also marks the profile purged, even with no entries, so a render
+    already in flight does not re-cache its picture (MEM-PURGE-RACE-PAGES).
     """
+    global _page_image_purge_seq
     with _page_image_cache_lock:
+        _page_image_purge_seq += 1
+        _page_image_purged_at[profile_id] = _page_image_purge_seq
         keys = [k for k in _page_image_cache if k[0] == profile_id]
         for k in keys:
             del _page_image_cache[k]
@@ -1814,6 +1835,7 @@ async def get_page_image(
         resolution,
     )
     cached = _page_image_cache_get(cache_key)
+    mark = _page_image_cache_mark()  # before the render: a purge after this drops the put
     content: bytes
     is_freshly_rendered = False
     try:
@@ -1872,7 +1894,7 @@ async def get_page_image(
     )
 
     if is_freshly_rendered:
-        _page_image_cache_set(cache_key, content)
+        _page_image_cache_set(cache_key, content, mark)
 
     return Response(
         content=content,
