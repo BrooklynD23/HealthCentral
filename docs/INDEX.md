@@ -1434,9 +1434,9 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/sca
 
 **Build Program 2026-10-15 — Execution Queue**
 
-- 2026-11-14 (docs batch BATCH-1114B): owner build answer BUILD-1114 (and its trend-row twin BUILD-1114-TPR) recorded in owner-decisions (verbatim: "Start both and the housekeeping batch. Also…
+- 2026-11-16 (docs batch BATCH-1116A): owner answer OFFREPO-ARCHIVE ("Archive plans in a docs batch (Recommended)"): the durable off-repo plans and write-ups cited as `~/hc-quiet-logs/...` are…
 
-Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-seven-rows-plan.md`, `docs/plans/2026-11-07-six-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107e-plan.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/plans/2026-11-08-seven-rows-plan.md`, `docs/plans/2026-11-10-batch-1110c-plan.md`, `docs/plans/2026-11-11-batch-1111a-plan.md`, `docs/plans/2026-11-11-batch-1111c-plan.md`, `docs/plans/2026-11-11-batch-1111g-plan.md`, `docs/plans/2026-11-11-batch-1111i-plan.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-seven-rows-plan.md`, `docs/plans/2026-11-07-six-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107e-plan.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/plans/2026-11-08-seven-rows-plan.md`, `docs/plans/2026-11-10-batch-1110c-plan.md`, `docs/plans/2026-11-11-batch-1111a-plan.md`, `docs/plans/2026-11-11-batch-1111c-plan.md`, `docs/plans/2026-11-11-batch-1111g-plan.md`, `docs/plans/2026-11-11-batch-1111i-plan.md`, `docs/plans/archive/README.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1703,6 +1703,92 @@ Links to: `docs/plans/2026-11-07-three-rows-plan.md`
 **Plans for EXTRACT-DOB-MINORS (re-plan), MEM-PURGE-RACE, MEM-PURGE-RESTORE-FAIL, EXPORT-DOWNLOAD-QUESTIONS, AUDIT-READ-ROUTES Task 3, TEST-RESET-PARTIAL, RECOVER-AUDIT-PRE-ROTATE and DISCLAIMER-GUARD-QUIRK**
 
 **Base measured (planner, 2026-11-11):** `origin/main` **`89c3811ee5fc91da6c27bd26ed78a8000ef37523`** (`89c3811e`, the merge of #620 FLAG-OLD-ON-REWRITE). It was exported with `git archive` to…
+
+## `docs/plans/archive/HUMAN-BLOCKERS.md`
+
+**Human blockers — Asclexis (HealthCentral)**
+
+Owner-only items that L0 deferred. L0 keeps this file updated as new blockers appear. Each item says **why it needs you**, **what unblocks it**, and **the exact command/steps**.
+
+## `docs/plans/archive/README.md`
+
+**Archived Off-Repo Plans (2026-11-16)**
+
+These files are local working notes (plans, diagnoses, owner-gate write-ups, handoffs) that the build program kept outside the repo under `~/hc-quiet-logs/`. Many docs and `queue.md` rows cite them…
+
+Links to: `docs/plans/archive/HUMAN-BLOCKERS.md`, `docs/plans/archive/plans-1112/agentic-eval-plan.md`, `docs/plans/archive/plans-1112/planner-summary.md`, `docs/plans/archive/plans-1113/sqlcipher-wheel-plan.md`, `docs/plans/archive/plans-1114/rows-1114-plan.md`, `docs/plans/archive/senior-report-doc/HANDOFF-SENIOR-REPORT-DOC.md`, `docs/plans/archive/senior-report-doc/STATUS.md`, `docs/plans/archive/staging-1111a/uidoc006a-diagnosis.md`, `docs/plans/archive/staging-1111c/meds-g-diagnosis.md`, `docs/plans/archive/staging-1111i/owner-gates-1111i.md`, `docs/plans/archive/stillness-nav-late-1107-result.md`, `docs/plans/archive/stillness-nav-late/RESULT.md`, `docs/plans/archive/uig006-pass3/RESULT.md`
+
+## `docs/plans/archive/plans-1112/agentic-eval-plan.md`
+
+**AGENTIC-EVAL plan (Opus planner, read-only, main dddf95b5, 2026-11-12) — summary kept by L0**
+
+Order (sequential; shared files): LICENCE (gate1, CI fail) -> SCORECARD (4, L0 script, record) -> EVIDENCE (3, record, scorecard column) -> WEAKEN (gate2, fail/warn table) -> JUDGE (5, L0 box,…
+
+## `docs/plans/archive/plans-1112/planner-summary.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/plans/archive/plans-1113/sqlcipher-wheel-plan.md`
+
+**SQLCIPHER-WHEEL plan (Opus planner, read-only, main after #316 a04ea85f, 2026-11-13) — L0 summary**
+
+Recommendation: Windows uses official `sqlcipher3==0.6.5` (coleifer; same import/API as Linux sqlcipher3-binary; no shim). Wheel sqlcipher3-0.6.5-cp311-cp311-win_amd64.whl sha256…
+
+## `docs/plans/archive/plans-1114/rows-1114-plan.md`
+
+**Rows 1114 plan: SQLC-LOGIN-ERROR-MAP and TREND-POINT-RANGE**
+
+Planner: Opus, 2026-11-14, read-only investigation on origin/main `c60be508`. Owner instruction (BUILD-1114, verbatim, last line of `~/hc-quiet-logs/plans-1112/owner-answers-1112b.md`): "Start both…
+
+## `docs/plans/archive/senior-report-doc/HANDOFF-SENIOR-REPORT-DOC.md`
+
+**HANDOFF — Senior report as a Claude doc (owner task SENIOR-REPORT-DOC, 2026-11-12/13)**
+
+Owner asked: turn the senior report Claude artifact into a Claude doc, and keep drafting it as things worth mentioning land. Blocker (2026-11-12): this needs the first-party Claude Docs connector;…
+
+## `docs/plans/archive/senior-report-doc/STATUS.md`
+
+**STATUS — Senior report Claude doc (SENIOR-REPORT-DOC), 2026-11-14**
+
+Doc: "Asclexis — Senior Report (MVP)" https://claude.ai/artifact/3dmFD3B2zsWcvF2d4J8tEm (doc id [redacted]; tab [redacted]; body node [redacted]; chart widget [redacted]) As-of chip 2026-11-14.…
+
+## `docs/plans/archive/staging-1111a/uidoc006a-diagnosis.md`
+
+**UIDOC-006A-FLAKE Task 1: diagnosis (no fix)**
+
+**Result.** The 42-50 ms sampling gap in HC-UIDOC-006 (a) comes from product work, not from the sampler. The cause is the import-complete React commit in `DocumentInbox`. That one task runs 17-23 ms…
+
+## `docs/plans/archive/staging-1111c/meds-g-diagnosis.md`
+
+**MEDS-G-FLAKE: diagnosis (no fix)**
+
+**Result.** Two separate harness-timing failures share the one test `e2e/ui-meds.spec.ts:254`. Neither is ICU, and neither is a G3 (INP) failure. CI's job is named "G3 on Production Build", but the…
+
+## `docs/plans/archive/staging-1111i/owner-gates-1111i.md`
+
+**Owner gates, wave 1111I (four questions, one AskUserQuestion prompt)**
+
+Plan: `2026-11-11-batch-1111i-plan.md` (same folder). Base `origin/main` `89c3811e`. Each question carries its options; the first option is the Recommended one.
+
+## `docs/plans/archive/stillness-nav-late-1107-result.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/plans/archive/stillness-nav-late/RESULT.md`
+
+**STILLNESS-NAV-LATE quiet-box result (2026-11-13; agent cut off by an API auth error, L0 wrote this from its logs)**
+
+Main abec056f (after #621 per-frame G10 sampler, #640 eager mono font). Spec = verbatim copy of e2e/ui-shell.spec.ts (+1 console.log line, +1 uncounted bare-timer describe), grep "HC-UISH-009: the…
+
+## `docs/plans/archive/uig006-pass3/RESULT.md`
+
+**UIG006-PASS3-FLAKE quiet-box result (2026-11-13)**
+
+**Cause found: the box's wall clock steps back about 1.05 s every ~31 s, and stillnessProbe's lazy-route wait and `elapsedMs` use Node `Date.now()`.** A step that lands inside the probe window…
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
