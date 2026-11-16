@@ -3,7 +3,7 @@
 HC-TPR-001  two reports, two ranges: each point carries its own; the series band is unchanged
 HC-TPR-002  a report with no printed range: that point's bounds are None
 HC-TPR-003  one printed bound only: the other stays None
-HC-TPR-004  unit normalization: bounds are converted with the point; one that cannot convert is None
+HC-TPR-004  unit normalization: bounds are converted with the point (g/L to g/dL); a missing bound is None (002, 003)
 
 All through HTTP (route_client), so the real dependency graph runs.
 """

@@ -7,8 +7,8 @@
  *   reports (plan gap, escalated to L0). A null bound draws no edge and no triangle.
  * - TREND-POINT-RANGE: a point that carries its own report's range (ref_low or ref_high, either finite) is placed
  *   against that range, in "this report's range" words. A point with none is placed against the drawn band, in the
- *   chart's words. The table header says which. When visible points carry different own ranges, a caption says each
- *   result is compared with its own report's range and the shaded band is the one this chart uses.
+ *   chart's words. The table header says which. When any visible own range differs from the series pair the band is
+ *   drawn from, a caption says each result is compared with the range on its own report, not the shaded band.
  * - The range places each point. A printed flag only gives a direction (H, HH,
  *   HIGH above; L, LL, LOW below). A flag that names no direction (null, A, *,
  *   CRITICAL, Normal) leaves the band's call in place. A directional flag that
@@ -77,25 +77,40 @@ const SIDE_WORDS: Record<Side, string> = {
   conflict: "The report's flag and this chart's range disagree",
 };
 
-// A point compared with its own report's range (TREND-POINT-RANGE). 'none' never happens for an own range.
-const OWN_SIDE_WORDS: Record<Side, string> = {
-  above: "Above this report's range",
-  below: "Below this report's range",
-  within: "Within this report's range",
-  none: 'No reference range for this chart',
-  conflict: "The report's flag and its own range disagree",
-};
+// A point compared with its own report's range (TREND-POINT-RANGE). `numbers` is the range as the report printed it
+// ("12-16 g/dL"), so the words name the range the point was compared with. 'none' never happens for an own range.
+function ownSideWords(side: Side, numbers: string): string {
+  switch (side) {
+    case 'above':
+      return `Above this report's range (${numbers})`;
+    case 'below':
+      return `Below this report's range (${numbers})`;
+    case 'within':
+      return `Within this report's range (${numbers})`;
+    case 'conflict':
+      return "This report's flag and its range disagree";
+    default:
+      return SIDE_WORDS.none;
+  }
+}
 
-const OWN_SIDE_PHRASE: Record<Side, string> = {
-  above: "above this report's range",
-  below: "below this report's range",
-  within: "within this report's range",
-  none: '',
-  conflict: "the report's flag and its own range disagree",
-};
+function ownSidePhrase(side: Side, numbers: string): string {
+  switch (side) {
+    case 'above':
+      return `above this report's range (${numbers})`;
+    case 'below':
+      return `below this report's range (${numbers})`;
+    case 'within':
+      return `within this report's range (${numbers})`;
+    case 'conflict':
+      return "this report's flag and its range disagree";
+    default:
+      return '';
+  }
+}
 
 const DIFFERENT_RANGES_CAPTION =
-  "Reports gave different ranges. Each result is compared with its own report's range; the shaded band is the range this chart uses.";
+  'Your reports show different ranges. Each result is compared with the range on its own report, not the shaded band, so a point can be inside the band and still be marked above or below.';
 
 const SIDE_PHRASE: Record<Side, string> = {
   above: "above this chart's range",
@@ -147,8 +162,9 @@ interface LayoutPoint {
   confidence: string | null;
   verified: boolean;
   side: Side;
-  /** True when side was read against this point's own report range, not the chart's band. */
-  own: boolean;
+  /** This point's own report range as printed ("12-16 g/dL", "up to 16 g/dL", "from 12 g/dL"); null when the point was
+   *  read against the chart's band. */
+  ownNumbers: string | null;
   x: number;
   y: number;
 }
@@ -162,7 +178,7 @@ interface Layout {
   band: { top: number; height: number } | null;
   /** Some visible point is compared with its own report's range. */
   anyOwnRange: boolean;
-  /** Two or more visible points carry own ranges that are not all the same. */
+  /** Some visible own range is not the series pair the shaded band is drawn from. */
   ownRangesDiffer: boolean;
 }
 
@@ -319,18 +335,19 @@ function buildLayout(trend: TrendData, requestedHeight?: number, hideUnverified 
     side: own
       ? sideOf(p.value, flagDirectionOf(p.raw.flag), own.low, own.high)
       : sideOf(p.value, flagDirectionOf(p.raw.flag), low, high),
-    own: own !== null,
+    ownNumbers: own ? ownRangeNumbers(own.low, own.high, p.raw.unit) : null,
     x: xOf(p.time),
     y: yOf(p.value),
     };
   });
 
+  const seriesKey = `${low ?? ''}|${high ?? ''}`;
   const ownRanges = parsed.flatMap((p) => {
     const own = ownRangeOf(p.raw);
     return own ? [`${own.low ?? ''}|${own.high ?? ''}`] : [];
   });
   const anyOwnRange = ownRanges.length > 0;
-  const ownRangesDiffer = ownRanges.length > 1 && new Set(ownRanges).size > 1;
+  const ownRangesDiffer = ownRanges.some((key) => key !== seriesKey);
 
   const highY = high !== null ? yOf(high) : null;
   const lowY = low !== null ? yOf(low) : null;
@@ -351,6 +368,14 @@ function rangeCaption(low: number | null, high: number | null, unit: string): st
   return 'No reference range on the reports';
 }
 
+// A point's own range as the page prints a range elsewhere ("Reference range used for this chart: 12-16 g/dL").
+function ownRangeNumbers(low: number | null, high: number | null, unit: string): string {
+  const suffix = unit.trim() === '' ? '' : ` ${unit}`;
+  if (low !== null && high !== null) return `${low}-${high}${suffix}`;
+  if (high !== null) return `up to ${high}${suffix}`;
+  return `from ${low}${suffix}`;
+}
+
 function valueLabel(point: LayoutPoint): string {
   return [point.value, point.unit].filter((part) => part !== '').join(' ');
 }
@@ -368,12 +393,13 @@ function resultText(point: LayoutPoint): string {
 }
 
 function sideWordsOf(point: LayoutPoint): string {
-  return point.own ? OWN_SIDE_WORDS[point.side] : SIDE_WORDS[point.side];
+  return point.ownNumbers !== null ? ownSideWords(point.side, point.ownNumbers) : SIDE_WORDS[point.side];
 }
 
 function valueTextOf(point: LayoutPoint): string {
   const parts = [`${point.label}: ${valueLabel(point)}`];
-  const phrase = point.own ? OWN_SIDE_PHRASE[point.side] : SIDE_PHRASE[point.side];
+  const phrase =
+    point.ownNumbers !== null ? ownSidePhrase(point.side, point.ownNumbers) : SIDE_PHRASE[point.side];
   if (phrase !== '') parts.push(phrase);
   parts.push(point.verified ? 'checked by you' : 'not yet checked');
   return parts.join(', ');
