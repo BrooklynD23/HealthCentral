@@ -38,6 +38,10 @@ async function verifyObservation(
   );
 }
 
+async function unverifyObservation(observationId: string): Promise<Observation> {
+  return apiPost<Observation>(`/observations/${observationId}/unverify`, {});
+}
+
 async function fetchTrend(
   analyte: string,
   fromDate?: string,
@@ -96,6 +100,23 @@ export function useVerifyObservation() {
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
+  });
+}
+
+/** Undo for a Verify (VERIFY-UNDO, flag-only). It refreshes what Verify refreshes. */
+export function useUnverifyObservation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (observationId: string) => unverifyObservation(observationId),
+    // Returned, so the call resolves once the lists have refetched: the page lets go of its held copy of the row
+    // only then, and the row never drops out of the list in between.
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: ['documents'] }),
+        queryClient.invalidateQueries({ queryKey: ['timeline'] }),
+      ]),
   });
 }
 

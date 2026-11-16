@@ -591,16 +591,17 @@ describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the ch
   });
 
   // Blind spot: the mocked notify records the call. That sonner renders it with M0 is UI-PRIM-FEEDBACK's test.
-  it('shows a still toast that names the value and its date, with no Undo', async () => {
+  it('shows a still toast that names the value and its date, with an Undo', async () => {
     const user = userEvent.setup();
     renderWorkbench();
     await screen.findByText('Glucose');
     await verifyGlucose(user);
     await waitFor(() => expect(notify).toHaveBeenCalledTimes(1));
-    // toEqual: an `action` key (Undo) would fail it, and so would a missing `still`.
+    // toEqual: a missing `action` (Undo) would fail it, and so would a missing `still`. What Undo does is HC-VUU-002.
     expect(vi.mocked(notify).mock.calls[0][0]).toEqual({
       message: 'Glucose, Apr 10, 2026 is now marked as checked',
       still: true,
+      action: { label: 'Undo', onClick: expect.any(Function) },
     });
   });
 
@@ -616,6 +617,7 @@ describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the ch
     expect(vi.mocked(notify).mock.calls[0][0]).toEqual({
       message: 'Glucose is now marked as checked',
       still: true,
+      action: { label: 'Undo', onClick: expect.any(Function) },
     });
   });
 

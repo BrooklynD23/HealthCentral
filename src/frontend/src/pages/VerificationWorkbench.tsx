@@ -15,7 +15,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { notify } from '@/components/ui/toast';
 import { cn } from '@/utils/cn';
-import { useObservations, useVerifyObservation } from '@/services/observations';
+import { useObservations, useVerifyObservation, useUnverifyObservation } from '@/services/observations';
 import {
   useDocuments,
   useVerifyDocument,
@@ -129,12 +129,16 @@ function formatCollectedDate(raw: string | null): string | null {
   });
 }
 
-/** The Ink confirmation. It names a value and a date (T0), so it is still. No Undo: the API cannot unverify. */
-function announceChecked(observation: Observation) {
+/**
+ * The Ink confirmation. It names a value and a date (T0), so it is still. Its Undo calls the unverify route
+ * (VERIFY-UNDO, flag-only); `onUndo` is the page's handler.
+ */
+function announceChecked(observation: Observation, onUndo: () => Promise<void>) {
   const date = formatCollectedDate(observation.collected_at);
   notify({
     message: `${observation.analyte_raw}${date ? `, ${date}` : ''} is now marked as checked`,
     still: true,
+    action: { label: 'Undo', onClick: onUndo },
   });
 }
 
@@ -421,7 +425,14 @@ export function VerificationWorkbench() {
   const focusEditAfterVerifyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!justChecked) return;
-    announceChecked(justChecked);
+    const checked = justChecked;
+    // One Undo per toast. Latched after a success too: a click after the row is unchecked would only meet the server's 409.
+    let used = false;
+    announceChecked(checked, async () => {
+      if (used) return;
+      used = true;
+      if (!(await latestRef.current.undoChecked(checked))) used = false;
+    });
     if (focusEditAfterVerifyRef.current === justChecked.id) {
       focusEditAfterVerifyRef.current = null;
       const rowElement = document.getElementById(`observation-row-${justChecked.id}`);
@@ -457,6 +468,7 @@ export function VerificationWorkbench() {
   });
 
   const verifyMutation = useVerifyObservation();
+  const unverifyMutation = useUnverifyObservation();
   const verifyDocumentMutation = useVerifyDocument();
   const reprocessMutation = useReprocessDocument();
   // Reprocessing deletes the document's rows and makes new ones, so nothing held here describes the record any more.
@@ -523,6 +535,25 @@ export function VerificationWorkbench() {
     }
   };
 
+  /** Undo on the checked toast. True when the server unchecked the row. */
+  const undoChecked = async (observation: Observation): Promise<boolean> => {
+    const date = formatCollectedDate(observation.collected_at);
+    try {
+      // mutateAsync, not a per-call onSuccess: that fires only for the latest call (recurring-failures 17).
+      await unverifyMutation.mutateAsync(observation.id);
+    } catch {
+      notify({ message: `Could not undo. ${observation.analyte_raw} is still marked as checked.` });
+      return false;
+    }
+    // The lists have refetched, so the row now comes back unverified. Let go of the held copy, or it stays ink.
+    setHeld((prev) => ({ ...prev, rows: prev.rows.filter((entry) => entry.observation.id !== observation.id) }));
+    notify({
+      message: `${observation.analyte_raw}${date ? `, ${date}` : ''} is no longer marked as checked`,
+      still: true,
+    });
+    return true;
+  };
+
   const handleMarkAllVerifiedClick = async () => {
     if (selectedDocId) {
       await verifyDocumentMutation.mutateAsync(selectedDocId);
@@ -547,9 +578,9 @@ export function VerificationWorkbench() {
   }, []);
 
   // The rows are memoised, so what they are handed must not change on every render. These read the latest handlers.
-  const latestRef = useRef({ handleVerify, holdChecked });
+  const latestRef = useRef({ handleVerify, holdChecked, undoChecked });
   useLayoutEffect(() => {
-    latestRef.current = { handleVerify, holdChecked };
+    latestRef.current = { handleVerify, holdChecked, undoChecked };
   });
   const verifyRow = useCallback((observation: Observation) => latestRef.current.handleVerify(observation), []);
   const holdFromSheet = useCallback((observation: Observation, saved: Observation, index: number, key: string) => {
