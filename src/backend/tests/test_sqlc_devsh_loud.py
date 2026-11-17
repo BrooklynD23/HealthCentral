@@ -79,7 +79,13 @@ def _run_dev_sh(tmp_path: Path, *, pip_fail=False, probe_fail=False, override=Fa
     root = tmp_path / "repo"
     (root / "src" / "backend").mkdir(parents=True)
     (root / "config").mkdir()
-    shutil.copy(DEV_SH, root / "dev.sh")
+    # The sandbox copy (never the real file) also records the flag STEP 4 branches on, just before
+    # the HC_DEV_STOP_AFTER_DEPS exit, so a test can see it without running the rest of dev.sh.
+    text = DEV_SH.read_text(encoding="utf-8")
+    anchor = '[ "${HC_DEV_STOP_AFTER_DEPS:-}" != "1" ]'
+    assert text.count(anchor) == 1, "dev.sh stop-after-deps line moved"
+    text = text.replace(anchor, 'echo "flag SQLCIPHER_AVAILABLE=$SQLCIPHER_AVAILABLE" >> "$HC_TEST_RECORD"\n' + anchor)
+    (root / "dev.sh").write_text(text, encoding="utf-8")
     (root / "src" / "backend" / "requirements.txt").write_text("fastapi\nsqlcipher3-binary\n")
     (root / "config" / ".env.example").write_text("LLM_PROVIDER=ollama\n")
     env_path = root / "src" / "backend" / ".env"
@@ -127,6 +133,13 @@ def _requirements_installed(record: str) -> list[str]:
     return [b.split("REQ-END")[0] for b in record.split("REQ-BEGIN\n")[1:]]
 
 
+def _flag(record: str) -> str:
+    """The SQLCIPHER_AVAILABLE value dev.sh held when it left the dependency step."""
+    flags = [line for line in record.splitlines() if line.startswith("flag SQLCIPHER_AVAILABLE=")]
+    assert len(flags) == 1, record
+    return flags[0].split("=", 1)[1]
+
+
 def _probe_calls(record: str) -> list[str]:
     return [line for line in record.splitlines() if line.startswith("probe ")]
 
@@ -152,6 +165,7 @@ def test_hc_sdl_002_pip_sqlcipher_failure_with_override_continues_without_sqlcip
     assert "fastapi" in reqs[1]
     assert BANNER in output, output
     assert _probe_calls(record) == []
+    assert _flag(record) == "0", "STEP 4 must see SQLCipher as unavailable"
 
 
 def test_hc_sdl_003_probe_failure_stops_without_override(tmp_path):
@@ -171,6 +185,7 @@ def test_hc_sdl_004_probe_failure_with_override_continues_with_banner(tmp_path):
     assert rc == 0, output
     assert len(_probe_calls(record)) == 1, record
     assert BANNER in output, output
+    assert _flag(record) == "0", "a failed probe must leave SQLCIPHER_AVAILABLE=0 so STEP 4 writes REQUIRED=false"
 
 
 def test_hc_sdl_005_probe_runs_and_passes_quietly(tmp_path):
@@ -181,6 +196,7 @@ def test_hc_sdl_005_probe_runs_and_passes_quietly(tmp_path):
     assert BANNER not in output
     assert NEVER_UNENCRYPTED not in output
     assert len(_requirements_installed(record)) == 1
+    assert _flag(record) == "1"
 
 
 # --- STEP 4: the real .env block ------------------------------------------------
