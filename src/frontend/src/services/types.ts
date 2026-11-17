@@ -209,6 +209,11 @@ export interface TrendPoint {
   // KEPT-FLAG-DISAGREES: this point's printed flag disagrees with its own report's printed range.
   // Optional like user_verified: a missing field is read as false (`=== true`).
   flag_range_disagree?: boolean;
+  // TREND-POINT-RANGE: this point's own report range, in the point's unit. Optional and nullable:
+  // a missing or null bound is read as "this report printed none"; the point then falls back to the
+  // series band (TrendData.ref_low / ref_high).
+  ref_low?: number | null;
+  ref_high?: number | null;
 }
 
 export interface TrendData {
