@@ -479,21 +479,31 @@ def test_hc_recov_028_failed_second_commit_keeps_the_new_password(sealed_vault, 
 
 def test_hc_recov_029_happy_path_orders_audit_rows_and_commits_twice(sealed_vault):
     """Both audit rows are written, `recovered` before `recovery_code_generated`,
-    in two commits; the response carries the new code and the old one is dead.
-    The post-commit vault open and FK cleanup are stubbed (unchanged steps)."""
+    in two commits, then the vault opens, then a third commit sets the unlock flag
+    (LOGIN-OPEN-ORDER). The response carries the new code and the old one is dead.
+    The vault open and FK cleanup are stubbed; the open records the commit count
+    and the lock flag at call time, which proves the open sits between the
+    rotation commit and the unlock commit."""
     from unittest.mock import AsyncMock
 
     dek, old_code, profile = sealed_vault
     db = _FaultDb(profile)
+    at_open: dict = {}
 
-    with patch.object(profiles_api, "open_profile_database_on_login", AsyncMock()), \
+    async def _open(*_args, **_kwargs):
+        at_open["commit_calls"] = db.commit_calls
+        at_open["is_locked"] = profile.is_locked
+
+    with patch.object(profiles_api, "open_profile_database_on_login", _open), \
          patch.object(profiles_api, "_audit_fk_orphan_cleanup", AsyncMock()):
         response = _recover(db, old_code)
 
     assert response.status_code == 200
     new_code = response.json()["recovery_code"]
     assert _events(db) == ["profile.recovered", "profile.recovery_code_generated"]
-    assert db.commit_calls == 2
+    assert at_open == {"commit_calls": 2, "is_locked": True}
+    assert db.commit_calls == 3
+    assert profile.is_locked is False
     assert profiles_api._unseal_dek_with_recovery_code("profile-a", new_code) == dek
     with pytest.raises(KeySealingError):
         profiles_api._unseal_dek_with_recovery_code("profile-a", old_code)
