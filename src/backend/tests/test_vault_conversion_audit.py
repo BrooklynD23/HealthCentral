@@ -335,3 +335,31 @@ def test_hc_vca_008_an_audit_failure_on_the_failure_path_still_yields_the_origin
     }
     assert _conversion_rows(master) == []
     assert "profile.login" not in _events(master)
+
+
+def test_hc_vca_009_recover_on_a_plain_vault_writes_the_converted_row_after_the_rotation_rows(
+    env, monkeypatch
+):
+    vault_dir, key, _hex, master = env
+    vault = _plain_vault(vault_dir, key, monkeypatch)
+    code = profiles_api._issue_recovery_code(PROFILE_ID, key)
+
+    with route_client(profiles_api.router, "/profiles") as client:
+        use_master(client, master)
+        response = client.post(
+            f"/profiles/{PROFILE_ID}/recover",
+            json={"recovery_code": code, "new_password": "Brand-New-Pass-77"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert vault.read_bytes()[:16] != PLAIN_HEADER
+    rows = _conversion_rows(master)
+    assert len(rows) == 1
+    assert json.loads(rows[0].details_json) == {"status": "converted"}
+    # The open runs after the credential change and the rotation (RECOVER-ORDER-COMMIT).
+    assert _events(master) == [
+        "profile.recovered",
+        "profile.recovery_code_generated",
+        EVENT,
+    ]
+    assert profile_row(master, PROFILE_ID).is_locked is False

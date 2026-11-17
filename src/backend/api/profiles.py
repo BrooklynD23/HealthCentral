@@ -158,10 +158,14 @@ async def _audit_vault_conversion(db: AsyncSession, profile_id: str) -> None:
 async def _open_vault_for_sign_in(db: AsyncSession, profile_id: str, password: str):
     """Open the vault for login, unlock or recover and audit any conversion it ran.
 
-    A conversion row is written before the sign-in row. If the open fails, the
-    failed-conversion row is written and the original HTTPException is re-raised;
-    an audit error on that path is logged by class and never replaces it.
+    Returns ``(connection, opened_here)``. ``opened_here`` is False when the vault
+    was already open before this request, so a later rollback never closes a
+    session another request is using. A conversion row is written before the
+    sign-in row. If the open fails, the failed-conversion row is written and the
+    original HTTPException is re-raised; an audit error on that path is logged by
+    class and never replaces it.
     """
+    opened_here = get_profile_db_manager().get_connection(profile_id) is None
     try:
         connection = await open_profile_database_on_login(profile_id, password)
     except HTTPException:
@@ -176,21 +180,25 @@ async def _open_vault_for_sign_in(db: AsyncSession, profile_id: str, password: s
         raise
     try:
         await _audit_vault_conversion(db, profile_id)
-    except Exception:
-        await _close_vault_after_failed_commit(profile_id)
+    except BaseException:
+        await _close_vault_after_failed_commit(profile_id, opened_here)
         raise
-    return connection
+    return connection, opened_here
 
 
-async def _close_vault_after_failed_commit(profile_id: str) -> None:
-    """Close the vault just opened when the master commit that marks the sign-in fails.
+async def _close_vault_after_failed_commit(profile_id: str, opened_here: bool) -> None:
+    """Close the vault this request opened when the master commit that marks the sign-in fails.
 
     The vault must not stay open while the master row still says locked
-    (LOGIN-OPEN-ORDER). A failed close is logged by class and swallowed so the
-    caller can re-raise the original commit error.
+    (LOGIN-OPEN-ORDER). A vault that was already open before the request is left
+    alone. The close goes through ``close_profile_database_on_logout`` so the
+    notification-scheduler registration is removed too. A failed close is logged
+    by class and swallowed so the caller can re-raise the original error.
     """
+    if not opened_here:
+        return
     try:
-        await get_profile_db_manager().close_profile_database(profile_id)
+        await close_profile_database_on_logout(profile_id)
     except Exception as exc:
         logger.error(
             "Could not close the vault after a failed sign-in commit for %s (%s)",
@@ -573,7 +581,9 @@ async def login(
     # Phase 3: Open the per-profile encrypted database first. A vault that cannot
     # be opened must not leave the master record saying "login" with the profile
     # unlocked (LOGIN-OPEN-ORDER).
-    connection = await _open_vault_for_sign_in(db, profile.id, login_data.password)
+    connection, opened_here = await _open_vault_for_sign_in(
+        db, profile.id, login_data.password
+    )
 
     try:
         # Update profile state
@@ -589,8 +599,8 @@ async def login(
         )
 
         await db.commit()
-    except Exception:
-        await _close_vault_after_failed_commit(profile.id)
+    except BaseException:
+        await _close_vault_after_failed_commit(profile.id, opened_here)
         raise
 
     logger.info(f"Profile logged in: {profile.id}")
@@ -997,7 +1007,9 @@ async def recover_profile(
     )
     await db.commit()
 
-    connection = await _open_vault_for_sign_in(db, profile_id, payload.new_password)
+    connection, opened_here = await _open_vault_for_sign_in(
+        db, profile_id, payload.new_password
+    )
 
     # The credential change and the rotation above really happened, so their rows
     # stay. Only the unlock flag waits for a vault that opened (LOGIN-OPEN-ORDER).
@@ -1005,8 +1017,8 @@ async def recover_profile(
         profile.is_locked = False
         profile.last_accessed_at = utcnow()
         await db.commit()
-    except Exception:
-        await _close_vault_after_failed_commit(profile_id)
+    except BaseException:
+        await _close_vault_after_failed_commit(profile_id, opened_here)
         raise
 
     await _audit_fk_orphan_cleanup(db, profile_id, connection)
@@ -1353,7 +1365,9 @@ async def unlock_profile(
     # Phase 3: Re-open the per-profile encrypted database first, so a vault that
     # cannot be opened leaves the profile locked with no "unlock" row
     # (LOGIN-OPEN-ORDER).
-    connection = await _open_vault_for_sign_in(db, profile_id, unlock_data.password)
+    connection, opened_here = await _open_vault_for_sign_in(
+        db, profile_id, unlock_data.password
+    )
 
     try:
         profile.is_locked = False
@@ -1367,8 +1381,8 @@ async def unlock_profile(
         )
 
         await db.commit()
-    except Exception:
-        await _close_vault_after_failed_commit(profile_id)
+    except BaseException:
+        await _close_vault_after_failed_commit(profile_id, opened_here)
         raise
 
     await _audit_fk_orphan_cleanup(db, profile_id, connection)

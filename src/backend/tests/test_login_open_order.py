@@ -17,6 +17,7 @@ master DB said at the moment of the open, which is what these tests assert on.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from types import SimpleNamespace
 
@@ -53,9 +54,13 @@ class _Manager:
         self.opened: list[dict] = []
         self.closed: list[str] = []
         self.after_open = None
+        self.already_open = False
 
     def __getattr__(self, name):
         return getattr(get_profile_db_manager(), name)
+
+    def get_connection(self, profile_id):
+        return SimpleNamespace(fk_cleanup_counts={}) if self.already_open else None
 
     async def open_profile_database(self, profile_id, password):
         row = profile_row(self.master, profile_id)
@@ -267,3 +272,115 @@ def test_hc_loo_008_master_commit_failure_after_open_closes_the_vault(master, mo
     assert manager.closed == [PROFILE_ID]
     assert profile_row(master, PROFILE_ID).is_locked is True
     assert "profile.login" not in _events(master)
+
+
+def _arm_failing_commit(monkeypatch, manager, error: BaseException) -> dict:
+    """Make the first master commit after the vault open raise `error`."""
+    real_commit = AsyncSession.commit
+    state = {"armed": False, "raised": 0}
+
+    async def flaky_commit(self):
+        if state["armed"] and not state["raised"]:
+            state["raised"] += 1
+            raise error
+        return await real_commit(self)
+
+    monkeypatch.setattr(AsyncSession, "commit", flaky_commit)
+    manager.after_open = lambda: state.update(armed=True)
+    return state
+
+
+def _call(client, route: str, manager):
+    if route == "login":
+        return _login(client)
+    if route == "unlock":
+        return _unlock(client)
+    return _recover(client, _recovery_code(manager))
+
+
+def test_hc_loo_009_unlock_commit_failure_after_open_closes_the_vault(master, monkeypatch):
+    manager = _install(monkeypatch, master)
+    state = _arm_failing_commit(monkeypatch, manager, RuntimeError("master commit failed"))
+    with route_client(profiles_api.router, "/profiles", raise_server_exceptions=False) as client:
+        use_master(client, master)
+        response = _unlock(client)
+
+    assert state["raised"] == 1
+    assert response.status_code == 500, response.text
+    assert manager.closed == [PROFILE_ID]
+    assert profile_row(master, PROFILE_ID).is_locked is True
+    assert "profile.unlock" not in _events(master)
+
+
+def test_hc_loo_010_recover_commit_failure_after_open_closes_the_vault(master, monkeypatch):
+    manager = _install(monkeypatch, master)
+    code = _recovery_code(manager)
+    state = _arm_failing_commit(monkeypatch, manager, RuntimeError("master commit failed"))
+    with route_client(profiles_api.router, "/profiles", raise_server_exceptions=False) as client:
+        use_master(client, master)
+        response = _recover(client, code)
+
+    assert state["raised"] == 1
+    assert response.status_code == 500, response.text
+    assert manager.closed == [PROFILE_ID]
+    row = profile_row(master, PROFILE_ID)
+    assert row.is_locked is True
+    # The credential change and the rotation committed before the open.
+    assert verify_password(NEW_PASSWORD, row.password_hash)
+    assert "profile.recovered" in _events(master)
+
+
+@pytest.mark.parametrize("route", ["login", "unlock", "recover"])
+def test_hc_loo_011_a_vault_that_was_already_open_is_not_closed_on_commit_failure(
+    master, monkeypatch, route
+):
+    manager = _install(monkeypatch, master)
+    manager.already_open = True
+    _arm_failing_commit(monkeypatch, manager, RuntimeError("master commit failed"))
+    with route_client(profiles_api.router, "/profiles", raise_server_exceptions=False) as client:
+        use_master(client, master)
+        response = _call(client, route, manager)
+
+    assert response.status_code == 500, response.text
+    assert manager.closed == []
+
+
+@pytest.mark.parametrize("route", ["login", "unlock", "recover"])
+def test_hc_loo_012_the_close_goes_through_the_logout_path_that_stops_the_scheduler(
+    master, monkeypatch, route
+):
+    """`close_profile_database_on_logout` unregisters the notification scheduler first."""
+    manager = _install(monkeypatch, master)
+    logout_calls: list[str] = []
+
+    async def spy(profile_id):
+        logout_calls.append(profile_id)
+
+    monkeypatch.setattr(profiles_api, "close_profile_database_on_logout", spy)
+    _arm_failing_commit(monkeypatch, manager, RuntimeError("master commit failed"))
+    with route_client(profiles_api.router, "/profiles", raise_server_exceptions=False) as client:
+        use_master(client, master)
+        _call(client, route, manager)
+
+    assert logout_calls == [PROFILE_ID]
+
+
+@pytest.mark.parametrize("route", ["login", "unlock", "recover"])
+def test_hc_loo_013_cancellation_after_open_still_closes_the_vault(master, monkeypatch, route):
+    manager = _install(monkeypatch, master)
+    _arm_failing_commit(monkeypatch, manager, asyncio.CancelledError())
+    code = _recovery_code(manager) if route == "recover" else None
+    with route_client(profiles_api.router, "/profiles", raise_server_exceptions=False) as client:
+        use_master(client, master)
+        try:
+            if route == "login":
+                _login(client)
+            elif route == "unlock":
+                _unlock(client)
+            else:
+                _recover(client, code)
+        except BaseException:  # noqa: BLE001 - the harness may surface the cancel
+            pass
+
+    assert manager.closed == [PROFILE_ID]
+    assert profile_row(master, PROFILE_ID).is_locked is True
