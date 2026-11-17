@@ -125,6 +125,10 @@ class PerProfileDatabaseManager:
         # Lock for connection pool access
         self._pool_lock = asyncio.Lock()
 
+        # What a plaintext-vault conversion did at the last open, per profile:
+        # "converted" or "failed". The login routes pop it to write one audit row.
+        self._conversion_outcomes: dict[str, str] = {}
+
         self._initialized = True
 
     @classmethod
@@ -296,9 +300,15 @@ class PerProfileDatabaseManager:
         pending_path = self._get_profile_db_path(profile_id)
         if needs_conversion(pending_path):
             pending_key = await self._load_encryption_key(profile_id, password)
-            await asyncio.to_thread(
-                convert_plaintext_vault_if_needed, pending_path, self._key_to_hex(pending_key)
-            )
+            try:
+                converted = await asyncio.to_thread(
+                    convert_plaintext_vault_if_needed, pending_path, self._key_to_hex(pending_key)
+                )
+            except ProfileDatabaseEncryptionError:
+                self._conversion_outcomes[profile_id] = "failed"
+                raise
+            if converted:
+                self._conversion_outcomes[profile_id] = "converted"
 
         async with self._pool_lock:
             # Check if connection already exists
@@ -445,6 +455,10 @@ class PerProfileDatabaseManager:
 
         async with engine.begin() as conn:
             await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+
+    def pop_conversion_outcome(self, profile_id: str) -> str | None:
+        """Return and clear the last conversion outcome for a profile, or None."""
+        return self._conversion_outcomes.pop(profile_id, None)
 
     async def close_profile_database(self, profile_id: str) -> None:
         """

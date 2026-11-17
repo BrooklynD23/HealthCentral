@@ -132,6 +132,56 @@ async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection
         raise
 
 
+async def _audit_vault_conversion(db: AsyncSession, profile_id: str) -> None:
+    """Write one master audit row when opening the vault converted it, or failed to.
+
+    The manager records ``"converted"`` or ``"failed"`` for a plaintext-vault
+    conversion and this pops it, so a later login writes nothing
+    (VAULT-CONVERSION-AUDIT). The row holds that one word: no path, message
+    text, step name or profile name.
+    """
+    outcome = get_profile_db_manager().pop_conversion_outcome(profile_id)
+    if outcome is None:
+        return
+    await create_audit_log(
+        db=db,
+        event_type="profile.vault_conversion",
+        action="profile.vault_conversion",
+        profile_id=profile_id,
+        entity_type="profile",
+        entity_id=profile_id,
+        details={"status": outcome},
+    )
+    await db.commit()
+
+
+async def _open_vault_for_sign_in(db: AsyncSession, profile_id: str, password: str):
+    """Open the vault for login, unlock or recover and audit any conversion it ran.
+
+    A conversion row is written before the sign-in row. If the open fails, the
+    failed-conversion row is written and the original HTTPException is re-raised;
+    an audit error on that path is logged by class and never replaces it.
+    """
+    try:
+        connection = await open_profile_database_on_login(profile_id, password)
+    except HTTPException:
+        try:
+            await _audit_vault_conversion(db, profile_id)
+        except Exception as exc:
+            logger.error(
+                "Could not audit a failed vault conversion for %s (%s)",
+                profile_id,
+                type(exc).__name__,
+            )
+        raise
+    try:
+        await _audit_vault_conversion(db, profile_id)
+    except Exception:
+        await _close_vault_after_failed_commit(profile_id)
+        raise
+    return connection
+
+
 async def _close_vault_after_failed_commit(profile_id: str) -> None:
     """Close the vault just opened when the master commit that marks the sign-in fails.
 
@@ -523,7 +573,7 @@ async def login(
     # Phase 3: Open the per-profile encrypted database first. A vault that cannot
     # be opened must not leave the master record saying "login" with the profile
     # unlocked (LOGIN-OPEN-ORDER).
-    connection = await open_profile_database_on_login(profile.id, login_data.password)
+    connection = await _open_vault_for_sign_in(db, profile.id, login_data.password)
 
     try:
         # Update profile state
@@ -947,7 +997,7 @@ async def recover_profile(
     )
     await db.commit()
 
-    connection = await open_profile_database_on_login(profile_id, payload.new_password)
+    connection = await _open_vault_for_sign_in(db, profile_id, payload.new_password)
 
     # The credential change and the rotation above really happened, so their rows
     # stay. Only the unlock flag waits for a vault that opened (LOGIN-OPEN-ORDER).
@@ -1303,7 +1353,7 @@ async def unlock_profile(
     # Phase 3: Re-open the per-profile encrypted database first, so a vault that
     # cannot be opened leaves the profile locked with no "unlock" row
     # (LOGIN-OPEN-ORDER).
-    connection = await open_profile_database_on_login(profile_id, unlock_data.password)
+    connection = await _open_vault_for_sign_in(db, profile_id, unlock_data.password)
 
     try:
         profile.is_locked = False
