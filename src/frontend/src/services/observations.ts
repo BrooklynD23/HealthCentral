@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost } from './api';
+import { apiGet, apiPost, ApiError } from './api';
 import type { Observation, ObservationVerify, TrendData, Panel, ObservationFilters } from './types';
 
 const QUERY_KEY = 'observations';
@@ -106,17 +106,20 @@ export function useVerifyObservation() {
 /** Undo for a Verify (VERIFY-UNDO, flag-only). It refreshes what Verify refreshes. */
 export function useUnverifyObservation() {
   const queryClient = useQueryClient();
+  // Returned, so the call settles once the lists have refetched: the page lets go of its held copy of the row
+  // only then, and the row never drops out of the list in between.
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
+      queryClient.invalidateQueries({ queryKey: ['documents'] }),
+      queryClient.invalidateQueries({ queryKey: ['timeline'] }),
+    ]);
 
   return useMutation({
     mutationFn: (observationId: string) => unverifyObservation(observationId),
-    // Returned, so the call resolves once the lists have refetched: the page lets go of its held copy of the row
-    // only then, and the row never drops out of the list in between.
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: [QUERY_KEY] }),
-        queryClient.invalidateQueries({ queryKey: ['documents'] }),
-        queryClient.invalidateQueries({ queryKey: ['timeline'] }),
-      ]),
+    onSuccess: refresh,
+    // 409: the row is already not verified (VERIFY-NOOP), so what this page shows is stale. Refresh it too.
+    onError: (error) => (error instanceof ApiError && error.status === 409 ? refresh() : undefined),
   });
 }
 

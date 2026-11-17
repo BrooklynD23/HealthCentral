@@ -420,22 +420,23 @@ export function VerificationWorkbench() {
   );
   // The confirmation waits for the commit that flips the row, so the toast never says "checked" over a row that
   // still reads "Not yet checked".
-  const [justChecked, setJustChecked] = useState<Observation | null>(null);
+  // `edited`: the checked value came from Save & verify, so its Undo says the edit is kept.
+  const [justChecked, setJustChecked] = useState<{ observation: Observation; edited: boolean } | null>(null);
   // The row whose Verify button just left the DOM with its commit: focus would fall to <body> (finding 7).
   const focusEditAfterVerifyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!justChecked) return;
-    const checked = justChecked;
-    // One Undo per toast. Latched after a success too: a click after the row is unchecked would only meet the server's 409.
+    const { observation: checked, edited } = justChecked;
+    // One Undo per toast, latched after any answer: sonner closes the toast on the click, so there is no retry from it.
     let used = false;
     announceChecked(checked, async () => {
       if (used) return;
       used = true;
-      if (!(await latestRef.current.undoChecked(checked))) used = false;
+      await latestRef.current.undoChecked(checked, edited);
     });
-    if (focusEditAfterVerifyRef.current === justChecked.id) {
+    if (focusEditAfterVerifyRef.current === justChecked.observation.id) {
       focusEditAfterVerifyRef.current = null;
-      const rowElement = document.getElementById(`observation-row-${justChecked.id}`);
+      const rowElement = document.getElementById(`observation-row-${justChecked.observation.id}`);
       const active = document.activeElement;
       // Only when focus was lost with the button. A user who moved on during the save keeps their place.
       if (rowElement && (!active || active === document.body || rowElement.contains(active))) {
@@ -517,8 +518,8 @@ export function VerificationWorkbench() {
   };
 
   /** The server said yes: hold the row, then say so once the commit has flipped it. */
-  const markChecked = (observation: Observation, saved: Observation | undefined) => {
-    setJustChecked(holdChecked(observation, saved));
+  const markChecked = (observation: Observation, saved: Observation | undefined, edited = false) => {
+    setJustChecked({ observation: holdChecked(observation, saved), edited });
   };
 
   const handleVerify = async (observation: Observation) => {
@@ -535,23 +536,31 @@ export function VerificationWorkbench() {
     }
   };
 
-  /** Undo on the checked toast. True when the server unchecked the row. */
-  const undoChecked = async (observation: Observation): Promise<boolean> => {
+  /** Undo on the checked toast. */
+  const undoChecked = async (observation: Observation, edited: boolean) => {
     const date = formatCollectedDate(observation.collected_at);
+    const label = `${observation.analyte_raw}${date ? `, ${date}` : ''}`;
+    const letGoOfHeldRow = () =>
+      setHeld((prev) => ({ ...prev, rows: prev.rows.filter((entry) => entry.observation.id !== observation.id) }));
     try {
       // mutateAsync, not a per-call onSuccess: that fires only for the latest call (recurring-failures 17).
       await unverifyMutation.mutateAsync(observation.id);
-    } catch {
-      notify({ message: `Could not undo. ${observation.analyte_raw} is still marked as checked.` });
-      return false;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // Already not verified (VERIFY-NOOP). The hook has refreshed the lists, so the row comes back as it is.
+        letGoOfHeldRow();
+        notify({ message: `${label} is already not marked as checked.`, still: true });
+      } else {
+        notify({ message: `Could not undo. ${label} is still marked as checked.`, still: true });
+      }
+      return;
     }
     // The lists have refetched, so the row now comes back unverified. Let go of the held copy, or it stays ink.
-    setHeld((prev) => ({ ...prev, rows: prev.rows.filter((entry) => entry.observation.id !== observation.id) }));
+    letGoOfHeldRow();
     notify({
-      message: `${observation.analyte_raw}${date ? `, ${date}` : ''} is no longer marked as checked`,
+      message: `${label} is no longer marked as checked${edited ? '. Your edit was kept.' : ''}`,
       still: true,
     });
-    return true;
   };
 
   const handleMarkAllVerifiedClick = async () => {
@@ -633,7 +642,7 @@ export function VerificationWorkbench() {
             ? { value: parsedEdit.value }
             : { value_text: parsedEdit.text },
       });
-      markChecked(editingObservation, saved);
+      markChecked(editingObservation, saved, true);
       closeEdit();
     } catch (err) {
       setSaveError(
