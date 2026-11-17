@@ -132,6 +132,23 @@ async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection
         raise
 
 
+async def _close_vault_after_failed_commit(profile_id: str) -> None:
+    """Close the vault just opened when the master commit that marks the sign-in fails.
+
+    The vault must not stay open while the master row still says locked
+    (LOGIN-OPEN-ORDER). A failed close is logged by class and swallowed so the
+    caller can re-raise the original commit error.
+    """
+    try:
+        await get_profile_db_manager().close_profile_database(profile_id)
+    except Exception as exc:
+        logger.error(
+            "Could not close the vault after a failed sign-in commit for %s (%s)",
+            profile_id,
+            type(exc).__name__,
+        )
+
+
 _SYNTHETIC_E2E_PROFILE_PREFIX = "Playwright E2E"
 
 # Profile tables wiped by POST /profiles/test/reset. The vault runs with
@@ -503,24 +520,31 @@ async def login(
 
     auth_rate_limiter.reset(rate_key)
 
-    # Update profile state
-    profile.is_locked = False
-    profile.last_accessed_at = utcnow()
+    # Phase 3: Open the per-profile encrypted database first. A vault that cannot
+    # be opened must not leave the master record saying "login" with the profile
+    # unlocked (LOGIN-OPEN-ORDER).
+    connection = await open_profile_database_on_login(profile.id, login_data.password)
 
-    # Create audit log
-    await log_profile_event(
-        db=db,
-        event="login",
-        profile_id=profile.id,
-        profile_name=profile.display_name,
-    )
+    try:
+        # Update profile state
+        profile.is_locked = False
+        profile.last_accessed_at = utcnow()
 
-    await db.commit()
+        # Create audit log
+        await log_profile_event(
+            db=db,
+            event="login",
+            profile_id=profile.id,
+            profile_name=profile.display_name,
+        )
+
+        await db.commit()
+    except Exception:
+        await _close_vault_after_failed_commit(profile.id)
+        raise
 
     logger.info(f"Profile logged in: {profile.id}")
 
-    # Phase 3: Open the per-profile encrypted database
-    connection = await open_profile_database_on_login(profile.id, login_data.password)
     await _audit_fk_orphan_cleanup(db, profile.id, connection)
 
     return create_session_token(profile)
@@ -898,8 +922,6 @@ async def recover_profile(
 
     profile.password_hash = hash_password(payload.new_password)
     profile.password_salt = base64.b64encode(generate_salt()).decode("ascii")
-    profile.is_locked = False
-    profile.last_accessed_at = utcnow()
 
     recovery_rate_limiter.reset(rate_key)
 
@@ -926,6 +948,17 @@ async def recover_profile(
     await db.commit()
 
     connection = await open_profile_database_on_login(profile_id, payload.new_password)
+
+    # The credential change and the rotation above really happened, so their rows
+    # stay. Only the unlock flag waits for a vault that opened (LOGIN-OPEN-ORDER).
+    try:
+        profile.is_locked = False
+        profile.last_accessed_at = utcnow()
+        await db.commit()
+    except Exception:
+        await _close_vault_after_failed_commit(profile_id)
+        raise
+
     await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     logger.info("Profile access recovered with a recovery code")
@@ -1267,20 +1300,27 @@ async def unlock_profile(
 
     auth_rate_limiter.reset(rate_key)
 
-    profile.is_locked = False
-    profile.last_accessed_at = utcnow()
-
-    await log_profile_event(
-        db=db,
-        event="unlock",
-        profile_id=profile_id,
-        profile_name=profile.display_name,
-    )
-
-    await db.commit()
-
-    # Phase 3: Re-open the per-profile encrypted database
+    # Phase 3: Re-open the per-profile encrypted database first, so a vault that
+    # cannot be opened leaves the profile locked with no "unlock" row
+    # (LOGIN-OPEN-ORDER).
     connection = await open_profile_database_on_login(profile_id, unlock_data.password)
+
+    try:
+        profile.is_locked = False
+        profile.last_accessed_at = utcnow()
+
+        await log_profile_event(
+            db=db,
+            event="unlock",
+            profile_id=profile_id,
+            profile_name=profile.display_name,
+        )
+
+        await db.commit()
+    except Exception:
+        await _close_vault_after_failed_commit(profile_id)
+        raise
+
     await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     logger.info(f"Profile unlocked: {profile_id}")
