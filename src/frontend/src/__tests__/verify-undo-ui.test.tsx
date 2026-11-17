@@ -157,7 +157,7 @@ beforeEach(() => {
   mockApi();
 });
 
-describe('HC-VUU-001: the checked toast offers Undo', () => {
+describe('HC-VUU-001: the checked toast offers Undo, and stays 10 s so there is time to use it', () => {
   // Blind spot: the mocked notify records the call. That sonner draws the action as a button is UI-PRIM-FEEDBACK's test.
   it('notify gets a still message and an Undo action', async () => {
     const user = userEvent.setup();
@@ -168,6 +168,7 @@ describe('HC-VUU-001: the checked toast offers Undo', () => {
       message: 'Glucose, Apr 10, 2026 is now marked as checked',
       still: true,
       action: { label: 'Undo', onClick: expect.any(Function) },
+      duration: 10_000,
     });
   });
 });

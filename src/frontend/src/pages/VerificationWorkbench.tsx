@@ -129,6 +129,8 @@ function formatCollectedDate(raw: string | null): string | null {
   });
 }
 
+const UNDO_TOAST_MS = 10_000;
+
 /**
  * The Ink confirmation. It names a value and a date (T0), so it is still. Its Undo calls the unverify route
  * (VERIFY-UNDO, flag-only); `onUndo` is the page's handler.
@@ -139,6 +141,8 @@ function announceChecked(observation: Observation, onUndo: () => Promise<void>) 
     message: `${observation.analyte_raw}${date ? `, ${date}` : ''} is now marked as checked`,
     still: true,
     action: { label: 'Undo', onClick: onUndo },
+    // Longer than sonner's 4 s: Undo is a button to find and press, not a message to read.
+    duration: UNDO_TOAST_MS,
   });
 }
 

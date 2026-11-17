@@ -602,6 +602,7 @@ describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the ch
       message: 'Glucose, Apr 10, 2026 is now marked as checked',
       still: true,
       action: { label: 'Undo', onClick: expect.any(Function) },
+      duration: 10_000,
     });
   });
 
@@ -618,6 +619,7 @@ describe('HC-UIREV-002: verifying flips the marker from pencil to ink and the ch
       message: 'Glucose is now marked as checked',
       still: true,
       action: { label: 'Undo', onClick: expect.any(Function) },
+      duration: 10_000,
     });
   });
 
