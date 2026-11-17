@@ -40,6 +40,8 @@ CASES = [
     ("text_flag_no_value", "abnormal-text", True, None, 70.0, 100.0),
     ("none_no_value", None, False, None, 70.0, 100.0),
     ("none_300_no_range", None, False, 300.0, None, None),
+    ("none_300_high_only_100", None, False, 300.0, None, 100.0),
+    ("none_50_high_only_100", None, False, 50.0, None, 100.0),
 ]
 
 
@@ -130,6 +132,7 @@ async def test_hc_var_001_verify_all_matches_single_verify_per_case(profile_db, 
     flags = {n: (await _obs(profile_db, i)).flag for n, i in a_ids.items()}
     assert flags["none_300_in_70_100"] == "H" and flags["none_50_in_70_100"] == "L"
     assert flags["N_300_in_70_100"] == "H" and flags["WNL_50_in_70_open"] == "L"
+    assert flags["none_300_high_only_100"] == "H" and flags["none_50_high_only_100"] is None
     assert flags["H_80_in_70_100_kept"] == "H" and flags["HIGH_50_in_70_100_kept"] == "HIGH"
 
 
@@ -186,3 +189,26 @@ async def test_hc_var_005_second_verify_all_changes_nothing(profile_db, master):
         o = await _obs(profile_db, i)
         second.append((_state(o), o.version, o.verified_at))
     assert second == first
+
+
+@pytest.mark.asyncio
+async def test_hc_var_006_verify_all_keeps_an_existing_original_value_json(profile_db, master):
+    """Verify, then Undo (which keeps original_value_json), then Verify all: the stored
+    printed state must not be overwritten by the already-recalculated flag."""
+    doc_id = await _seed_doc(profile_db)
+    obs_id = await _seed_obs(profile_db, doc_id, CASES[0])
+    assert _verify_one(profile_db, master, obs_id).status_code == 200
+    with route_client(obs_api.router, "/observations", profile_id=PROFILE) as client:
+        async def _p():
+            return profile_db
+        client.app.dependency_overrides[get_profile_db_session] = _p
+        use_master(client, master)
+        assert client.post(f"/observations/{obs_id}/unverify").status_code == 200
+    reopened = await _obs(profile_db, obs_id)
+    assert reopened.user_verified is False and reopened.flag == "H"
+    before = json.loads(reopened.original_value_json)
+    assert before["flag"] is None and before["is_abnormal"] is False
+    assert _verify_all(profile_db, master, doc_id).status_code == 200
+    after = await _obs(profile_db, obs_id)
+    assert after.user_verified is True
+    assert json.loads(after.original_value_json) == before
