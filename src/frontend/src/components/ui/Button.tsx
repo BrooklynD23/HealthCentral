@@ -69,7 +69,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const Comp = asChild ? Slot : 'button';
-    // After {...props} so a caller's onClickCapture cannot undo the block.
+    // After {...props}, so props passed to Button cannot undo the block. The child's own props still win
+    // in Slot (e.g. aria-disabled={false} on the child), and its own onClickCapture still runs.
     const blockedWhileLoading =
       asChild && loading
         ? {

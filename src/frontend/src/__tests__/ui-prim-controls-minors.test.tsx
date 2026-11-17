@@ -65,6 +65,20 @@ describe('UI-PRIM-CONTROLS-MINORS IconButton', () => {
   });
 });
 
+describe('UI-PRIM-CONTROLS-MINORS IconButton asChild', () => {
+  it('HC-UPCM-011: IconButton does not accept asChild and always renders a <button>', () => {
+    render(
+      // @ts-expect-error asChild is omitted from IconButtonProps (tsc covers this file).
+      <IconButton asChild loading aria-label="Go">
+        <a href="/x">Go</a>
+      </IconButton>
+    );
+    // Even if a JS caller forces the prop through, the caller's <a> is not swapped for the spinner.
+    expect(screen.getByRole('button', { name: 'Go' })).toBeDisabled();
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+});
+
 describe('UI-PRIM-CONTROLS-MINORS Button asChild', () => {
   it('HC-UPCM-003: asChild + loading blocks the click and marks the anchor busy and aria-disabled', () => {
     const spy = vi.fn();
@@ -104,6 +118,33 @@ describe('UI-PRIM-CONTROLS-MINORS Button asChild', () => {
     await user.click(screen.getByRole('link', { name: 'Go next' }));
     expect(screen.queryByText('Next page')).toBeNull();
     expect(screen.getByRole('link', { name: 'Go next' })).toBeInTheDocument();
+  });
+
+  it('HC-UPCM-012: Enter on a busy asChild link does not follow it', async () => {
+    const user = userEvent.setup();
+    const spy = vi.fn();
+    render(
+      <MemoryRouter initialEntries={['/start']}>
+        <Routes>
+          <Route
+            path="/start"
+            element={
+              <Button asChild loading>
+                <Link to="/next" onClick={spy}>
+                  Go next
+                </Link>
+              </Button>
+            }
+          />
+          <Route path="/next" element={<p>Next page</p>} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const link = screen.getByRole('link', { name: 'Go next' });
+    link.focus();
+    await user.keyboard('{Enter}');
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.queryByText('Next page')).toBeNull();
   });
 
   it('HC-UPCM-005: asChild not loading lets the click through, with no aria-disabled', async () => {
@@ -207,6 +248,14 @@ describe('UI-PRIM-CONTROLS-MINORS Select', () => {
     expect(onValueChange).toHaveBeenCalledTimes(1);
     expect(onValueChange).toHaveBeenCalledWith('b');
     expect(screen.getByRole('combobox', { name: 'Category' })).toHaveTextContent('Beta');
+  });
+
+  it('HC-UPCM-013: Space opens the Select', async () => {
+    const user = userEvent.setup();
+    render(<Pick onValueChange={vi.fn()} />);
+    screen.getByRole('combobox', { name: 'Category' }).focus();
+    await user.keyboard(' ');
+    expect(await screen.findByRole('option', { name: 'Alpha' })).toBeInTheDocument();
   });
 
   it('HC-UPCM-010: disabled blocks opening by click, Enter and Space', async () => {
