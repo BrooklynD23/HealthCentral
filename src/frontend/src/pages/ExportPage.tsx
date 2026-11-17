@@ -179,6 +179,10 @@ export function ExportPage() {
   const [summaryHadQuestions, setSummaryHadQuestions] = useState(false);
   // Same for Trends: the download leaves the trends out when they are unticked after generating with them.
   const [summaryHadTrends, setSummaryHadTrends] = useState(false);
+  // Questions are "loaded" once the last generate ticked Questions and /export/questions answered (an empty list counts).
+  // Until then the Questions box is locked while a summary is on screen: the preview must show what the download carries.
+  const [questionsLoaded, setQuestionsLoaded] = useState(false);
+  const [questionsLoadFailed, setQuestionsLoadFailed] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
   // Visit prep packet state (HC-M18)
@@ -218,11 +222,15 @@ export function ExportPage() {
 
   const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
   const showTrendsInSummary = sections.find((s) => s.id === 'trends')?.included ?? false;
+  // Mirrors the download's omit_trends: trend-sourced questions go when Trends is unticked.
+  const visibleQuestions = showTrendsInSummary
+    ? questions
+    : questions.filter((q) => q.source_kind !== 'trend');
 
   const handleCopy = async () => {
     if (summary) {
       // Same rule as the preview: question lines are copied only while the Questions section is ticked.
-      const questionLines = showQuestionsInSummary ? questions.map((q) => `- ${q.question}`) : [];
+      const questionLines = showQuestionsInSummary ? visibleQuestions.map((q) => `- ${q.question}`) : [];
       const text = [
         ...summary.key_findings,
         ...(questionLines.length
@@ -257,14 +265,25 @@ export function ExportPage() {
       // Also generate questions if enabled. Await them before showing the summary so the preview does not
       // grow when they arrive; a questions failure must not hide the summary.
       let questionsResult: QuestionItem[] = [];
+      let loaded = false;
+      let loadFailed = false;
       if (includeQuestions) {
         try {
           questionsResult = await generateQuestions.mutateAsync();
+          loaded = true;
         } catch (questionsError) {
           console.error('Failed to generate questions:', questionsError);
+          loadFailed = true;
+          // The preview never showed these questions, so the download must not carry them: untick Questions, and
+          // the existing omit_questions rule (summaryHadQuestions && !ticked) leaves them out.
+          setSections((prev) =>
+            prev.map((s) => (s.id === 'questions' ? { ...s, included: false } : s))
+          );
         }
       }
       setQuestions(questionsResult);
+      setQuestionsLoaded(loaded);
+      setQuestionsLoadFailed(loadFailed);
       setSummary(result);
       setSummaryHadQuestions(Boolean(includeQuestions));
       setSummaryHadTrends(Boolean(includeTrends));
@@ -467,7 +486,7 @@ export function ExportPage() {
                       <div className="min-w-0 space-y-6">
                         <SummaryBody
                           summary={summary}
-                          questions={questions}
+                          questions={visibleQuestions}
                           showQuestions={showQuestionsInSummary}
                         />
                         <RedactionNote className="border-t border-black/8 pt-4" />
@@ -493,7 +512,7 @@ export function ExportPage() {
               ) : summary ? (
                 <SummaryBody
                   summary={summary}
-                  questions={questions}
+                  questions={visibleQuestions}
                   showQuestions={showQuestionsInSummary}
                 />
               ) : (
@@ -768,6 +787,7 @@ export function ExportPage() {
                     id={`export-section-${section.id}`}
                     checked={section.included}
                     onCheckedChange={() => handleToggleSection(section.id)}
+                    disabled={section.id === 'questions' && summary !== null && !questionsLoaded}
                   />
                   <label
                     htmlFor={`export-section-${section.id}`}
@@ -780,6 +800,12 @@ export function ExportPage() {
                   </label>
                 </div>
               ))}
+              {/* Questions is the last row, so this line sits directly under it. */}
+              {questionsLoadFailed && (
+                <p data-t0 role="status" className="px-3 text-xs text-ink-secondary leading-relaxed">
+                  Questions could not be loaded, so they are left out of the download.
+                </p>
+              )}
             </CardContent>
           </Card>
 

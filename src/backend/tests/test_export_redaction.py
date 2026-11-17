@@ -150,6 +150,17 @@ def _override_profile_db_for(rows: tuple):
 
 
 @contextmanager
+def _no_question_sources() -> Iterator[None]:
+    """EXPORT-QUESTIONS-PARITY: the summary now reads care tasks and visit-note entities like the
+    preview does. This fake vault answers every query with observation rows and has neither, so
+    those two reads are stubbed empty. tests/test_export_questions_parity.py seeds them."""
+    with patch.object(export_api, "_fetch_care_task_dicts", AsyncMock(return_value=[])), patch.object(
+        export_api, "_fetch_question_entity_dicts", AsyncMock(return_value=[])
+    ):
+        yield
+
+
+@contextmanager
 def _export_client(
     profile_id: str = PROFILE_A,
     rows: tuple = PHI_ROWS,
@@ -168,6 +179,7 @@ def _export_client(
         stack.enter_context(
             patch.object(export_api, "profile_timezone_name", AsyncMock(return_value=tz))
         )
+        stack.enter_context(_no_question_sources())
         if master_db is None:
             stack.enter_context(
                 patch.object(export_api, "log_export_event", AsyncMock(return_value=object()))
@@ -455,7 +467,7 @@ def test_hc_expr_003_doctor_summary_route_over_http(master_audit_db) -> None:
     session, sync_engine = master_audit_db
     with patch.object(
         export_api, "profile_timezone_name", AsyncMock(return_value="UTC")
-    ), route_client(
+    ), _no_question_sources(), route_client(
         export_api.router, "/export", profile_id=PROFILE_A, master_db=session
     ) as client:
         client.app.dependency_overrides[get_profile_db_session] = _override_profile_db_for(PHI_ROWS)
