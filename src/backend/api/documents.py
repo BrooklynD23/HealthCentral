@@ -100,7 +100,8 @@ _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES = 2_000_000  # avoid unbounded memory growth
 
 _PageImageCacheKey = tuple[str, str, int, int]  # (profile_id, document_id, page_number, resolution)
 _page_image_cache: "OrderedDict[_PageImageCacheKey, tuple[float, bytes]]" = OrderedDict()
-_page_image_cache_lock = threading.Lock()
+# Reentrant: `_page_image_cache_set_if_fresh` holds it across its check and the public store.
+_page_image_cache_lock = threading.RLock()
 # MEM-PURGE-RACE-PAGES: a purge that lands while a page renders must not be undone by that
 # request's put. Both are guarded by `_page_image_cache_lock`.
 _page_image_purge_seq = 0
@@ -131,18 +132,11 @@ def _page_image_cache_mark() -> int:
         return _page_image_purge_seq
 
 
-def _page_image_cache_set(key: _PageImageCacheKey, value: bytes, mark: int | None = None) -> None:
-    """Cache a page picture. With a `mark`, drop it if its profile was purged after the mark.
-
-    No mark stores unchecked (direct callers and tests).
-    """
+def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
     if len(value) > _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES:
         return
     now = time.time()
     with _page_image_cache_lock:
-        if mark is not None and _page_image_purged_at.get(key[0], 0) > mark:
-            logger.debug("Page image not cached: its profile was purged during the render")
-            return
         expired = [k for k, (expires_at, _) in _page_image_cache.items() if expires_at <= now]
         for k in expired:
             _page_image_cache.pop(k, None)
@@ -151,6 +145,19 @@ def _page_image_cache_set(key: _PageImageCacheKey, value: bytes, mark: int | Non
         _page_image_cache.move_to_end(key)
         while len(_page_image_cache) > _PAGE_IMAGE_CACHE_MAX_ENTRIES:
             _page_image_cache.popitem(last=False)
+
+
+def _page_image_cache_set_if_fresh(key: _PageImageCacheKey, value: bytes, mark: int) -> None:
+    """Cache a page picture unless its profile was purged after `mark` (MEM-PURGE-RACE-PAGES).
+
+    The check and the store run under one lock hold, so a purge cannot land between them.
+    The store goes through the module-level `_page_image_cache_set`, looked up at call time.
+    """
+    with _page_image_cache_lock:
+        if _page_image_purged_at.get(key[0], 0) > mark:
+            logger.debug("Page image not cached: its profile was purged during the render")
+            return
+        _page_image_cache_set(key, value)
 
 
 def purge_page_images(profile_id: str) -> int:
@@ -1894,7 +1901,7 @@ async def get_page_image(
     )
 
     if is_freshly_rendered:
-        _page_image_cache_set(cache_key, content, mark)
+        _page_image_cache_set_if_fresh(cache_key, content, mark)
 
     return Response(
         content=content,

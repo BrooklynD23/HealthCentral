@@ -1,4 +1,4 @@
-"""MEM-PURGE-RACE-PAGES (HC-MPRP-001..006): a page picture rendered across a profile purge is
+"""MEM-PURGE-RACE-PAGES (HC-MPRP-001..007): a page picture rendered across a profile purge is
 not cached. `get_page_image` misses, renders (slow), audits, then puts; a lock or logout that runs
 `purge_page_images` in between must not be undone by the put (mirror of MEM-PURGE-RACE, #629, for
 the answer cache). The racing request still gets its picture: it was authorized and audited
@@ -166,7 +166,19 @@ def test_hc_mprp_005_dropped_put_does_not_poison_the_next_request(sessions, rend
     assert KEY in docs_api._page_image_cache
 
 
-def test_hc_mprp_006_set_without_a_mark_stores_even_after_a_purge():
+def test_hc_mprp_006_plain_set_is_unchecked_and_keeps_its_two_arguments():
     docs_api.purge_page_images(A)
     docs_api._page_image_cache_set(KEY, b"PNG")  # fail-open: existing callers pass no mark
     assert docs_api._page_image_cache_get(KEY) == b"PNG"
+
+
+def test_hc_mprp_007_a_patched_two_argument_store_still_switches_caching_off(
+    sessions, renders, monkeypatch
+):
+    """test_ocr_rapid.py's probe replaces `_page_image_cache_set` with a two-argument lambda."""
+    monkeypatch.setattr(docs_api, "_page_image_cache_set", lambda key, value: None)
+    with _client(sessions) as client:
+        _get(client)
+        _get(client)
+    assert renders.count == 2
+    assert not docs_api._page_image_cache
