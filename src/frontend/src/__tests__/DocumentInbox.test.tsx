@@ -293,12 +293,19 @@ describe('DocumentInbox row actions on touch and keyboard', () => {
     expect(ungated).toEqual([]);
   });
 
-  it('FE-TW4-HOVER-002: reveals row actions when a keyboard user focuses into them', async () => {
+  it('FE-TW4-HOVER-002: row actions are always visible and reachable by Tab', async () => {
     const user = userEvent.setup();
     render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
 
     const container = actionsContainer();
-    expect(container.className.split(/\s+/)).toContain('focus-within:opacity-100');
+    // The container and every ancestor up to the row carry no hiding token, gated or not.
+    const row = container.closest('[data-inbox-row]');
+    expect(row).not.toBeNull();
+    const hiding: string[] = [];
+    for (let el: HTMLElement | null = container; el; el = el === row ? null : el.parentElement) {
+      hiding.push(...el.className.split(/\s+/).filter((t) => /(^|:)(opacity-0|invisible|hidden)$/.test(t)));
+    }
+    expect(hiding).toEqual([]);
     for (let i = 0; i < 50 && !container.contains(document.activeElement); i++) {
       await user.tab();
     }

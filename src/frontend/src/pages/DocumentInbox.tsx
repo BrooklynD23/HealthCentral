@@ -622,9 +622,8 @@ export function DocumentInbox() {
                     </div>
                   </div>
 
-                  {/* Always visible and reachable by Tab (HC-UIDOC-001). focus-within:opacity-100 no longer does
-                      anything: it stays only because FE-TW4-HOVER-002 asserts the token. */}
-                  <div className="ml-auto flex items-center gap-1 focus-within:opacity-100">
+                  {/* Always visible and reachable by Tab (HC-UIDOC-001). */}
+                  <div className="ml-auto flex items-center gap-1">
                     <AddToPinboardButton items={[{ item_type: 'document', item_id: doc.id }]} />
                     <Button
                       type="button"

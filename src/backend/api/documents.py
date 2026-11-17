@@ -100,7 +100,12 @@ _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES = 2_000_000  # avoid unbounded memory growth
 
 _PageImageCacheKey = tuple[str, str, int, int]  # (profile_id, document_id, page_number, resolution)
 _page_image_cache: "OrderedDict[_PageImageCacheKey, tuple[float, bytes]]" = OrderedDict()
-_page_image_cache_lock = threading.Lock()
+# Reentrant: `_page_image_cache_set_if_fresh` holds it across its check and the public store.
+_page_image_cache_lock = threading.RLock()
+# MEM-PURGE-RACE-PAGES: a purge that lands while a page renders must not be undone by that
+# request's put. Both are guarded by `_page_image_cache_lock`.
+_page_image_purge_seq = 0
+_page_image_purged_at: dict[str, int] = {}  # profile_id -> seq of its latest purge
 
 
 def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
@@ -121,6 +126,12 @@ def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
         return value
 
 
+def _page_image_cache_mark() -> int:
+    """Purge sequence now. Take it before any await of a request; pass it to `_page_image_cache_set_if_fresh`."""
+    with _page_image_cache_lock:
+        return _page_image_purge_seq
+
+
 def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
     if len(value) > _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES:
         return
@@ -136,13 +147,30 @@ def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
             _page_image_cache.popitem(last=False)
 
 
+def _page_image_cache_set_if_fresh(key: _PageImageCacheKey, value: bytes, mark: int) -> None:
+    """Cache a page picture unless its profile was purged after `mark` (MEM-PURGE-RACE-PAGES).
+
+    The check and the store run under one lock hold, so a purge cannot land between them.
+    The store goes through the module-level `_page_image_cache_set`, looked up at call time.
+    """
+    with _page_image_cache_lock:
+        if _page_image_purged_at.get(key[0], 0) > mark:
+            logger.debug("Page image not cached: its profile was purged during the render")
+            return
+        _page_image_cache_set(key, value)
+
+
 def purge_page_images(profile_id: str) -> int:
     """Drop every cached page picture of `profile_id` (lock, logout, delete, restore).
 
     Other profiles' entries stay. Returns how many went. This dereferences the bytes; it
-    does not zero them.
+    does not zero them. It also marks the profile purged, even with no entries, so a render
+    already in flight does not re-cache its picture (MEM-PURGE-RACE-PAGES).
     """
+    global _page_image_purge_seq
     with _page_image_cache_lock:
+        _page_image_purge_seq += 1
+        _page_image_purged_at[profile_id] = _page_image_purge_seq
         keys = [k for k in _page_image_cache if k[0] == profile_id]
         for k in keys:
             del _page_image_cache[k]
@@ -1787,6 +1815,8 @@ async def get_page_image(
 
     OCR-BOX-001: Returns the page as image/png for visual provenance display.
     """
+    # First, before any await: a purge during the document lookup or the render drops the put.
+    mark = _page_image_cache_mark()
     validate_uuid(document_id, "document_id")
 
     result = await profile_db.execute(select(Document).where(Document.id == document_id))
@@ -1872,7 +1902,7 @@ async def get_page_image(
     )
 
     if is_freshly_rendered:
-        _page_image_cache_set(cache_key, content)
+        _page_image_cache_set_if_fresh(cache_key, content, mark)
 
     return Response(
         content=content,
