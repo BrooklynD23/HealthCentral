@@ -52,6 +52,8 @@ const exportSections = [
   { id: 'questions', label: 'Questions for Clinician', included: false },
 ];
 
+const QUESTIONS_NOTE_ID = 'export-questions-note';
+
 const visitPrepSectionDefaults = [
   { id: 'medications', label: 'Current medications', included: true },
   { id: 'labs', label: 'Recent abnormal verified labs', included: true },
@@ -179,6 +181,10 @@ export function ExportPage() {
   const [summaryHadQuestions, setSummaryHadQuestions] = useState(false);
   // Same for Trends: the download leaves the trends out when they are unticked after generating with them.
   const [summaryHadTrends, setSummaryHadTrends] = useState(false);
+  // Questions are "loaded" once the last generate ticked Questions and /export/questions answered (an empty list counts).
+  // Until then the Questions box is locked while a summary is on screen: the preview must show what the download carries.
+  const [questionsLoaded, setQuestionsLoaded] = useState(false);
+  const [questionsLoadFailed, setQuestionsLoadFailed] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>('text');
 
   // Visit prep packet state (HC-M18)
@@ -218,11 +224,24 @@ export function ExportPage() {
 
   const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
   const showTrendsInSummary = sections.find((s) => s.id === 'trends')?.included ?? false;
+  // Mirrors the download's omit_trends: trend-sourced questions go when Trends is unticked, and stay gone when the
+  // summary was generated without trends (ticking Trends afterwards cannot add them to a stored summary).
+  const visibleQuestions =
+    summaryHadTrends && showTrendsInSummary
+      ? questions
+      : questions.filter((q) => q.source_kind !== 'trend');
+  // The Questions box is locked while a summary is on screen and its questions did not load (failed, or not asked for).
+  const questionsLocked = summary !== null && !questionsLoaded;
+  const questionsNote = questionsLocked
+    ? questionsLoadFailed
+      ? 'Questions could not be loaded, so they are left out of the download. Reload the page to try again.'
+      : 'Questions were not included when this summary was made.'
+    : null;
 
   const handleCopy = async () => {
     if (summary) {
       // Same rule as the preview: question lines are copied only while the Questions section is ticked.
-      const questionLines = showQuestionsInSummary ? questions.map((q) => `- ${q.question}`) : [];
+      const questionLines = showQuestionsInSummary ? visibleQuestions.map((q) => `- ${q.question}`) : [];
       const text = [
         ...summary.key_findings,
         ...(questionLines.length
@@ -257,14 +276,25 @@ export function ExportPage() {
       // Also generate questions if enabled. Await them before showing the summary so the preview does not
       // grow when they arrive; a questions failure must not hide the summary.
       let questionsResult: QuestionItem[] = [];
+      let loaded = false;
+      let loadFailed = false;
       if (includeQuestions) {
         try {
           questionsResult = await generateQuestions.mutateAsync();
+          loaded = true;
         } catch (questionsError) {
           console.error('Failed to generate questions:', questionsError);
+          loadFailed = true;
+          // The preview never showed these questions, so the download must not carry them: untick Questions, and
+          // the existing omit_questions rule (summaryHadQuestions && !ticked) leaves them out.
+          setSections((prev) =>
+            prev.map((s) => (s.id === 'questions' ? { ...s, included: false } : s))
+          );
         }
       }
       setQuestions(questionsResult);
+      setQuestionsLoaded(loaded);
+      setQuestionsLoadFailed(loadFailed);
       setSummary(result);
       setSummaryHadQuestions(Boolean(includeQuestions));
       setSummaryHadTrends(Boolean(includeTrends));
@@ -467,7 +497,7 @@ export function ExportPage() {
                       <div className="min-w-0 space-y-6">
                         <SummaryBody
                           summary={summary}
-                          questions={questions}
+                          questions={visibleQuestions}
                           showQuestions={showQuestionsInSummary}
                         />
                         <RedactionNote className="border-t border-black/8 pt-4" />
@@ -493,7 +523,7 @@ export function ExportPage() {
               ) : summary ? (
                 <SummaryBody
                   summary={summary}
-                  questions={questions}
+                  questions={visibleQuestions}
                   showQuestions={showQuestionsInSummary}
                 />
               ) : (
@@ -768,18 +798,37 @@ export function ExportPage() {
                     id={`export-section-${section.id}`}
                     checked={section.included}
                     onCheckedChange={() => handleToggleSection(section.id)}
+                    disabled={section.id === 'questions' && questionsLocked}
+                    aria-describedby={
+                      section.id === 'questions' && questionsNote ? QUESTIONS_NOTE_ID : undefined
+                    }
                   />
                   <label
                     htmlFor={`export-section-${section.id}`}
                     className={cn(
-                      'min-w-0 flex-1 cursor-pointer break-words py-3 text-sm font-medium',
-                      section.included ? 'text-accent' : 'text-ink-secondary'
+                      'min-w-0 flex-1 break-words py-3 text-sm font-medium',
+                      section.id === 'questions' && questionsLocked
+                        ? 'text-ink-tertiary'
+                        : cn('cursor-pointer', section.included ? 'text-accent' : 'text-ink-secondary')
                     )}
                   >
                     {section.label}
                   </label>
                 </div>
               ))}
+              {/* Questions is the last row, so this line sits directly under it. The live region is always in the
+                  page, so its text is announced when it arrives. */}
+              <div role="status" data-questions-note-region>
+                {questionsNote && (
+                  <p
+                    id={QUESTIONS_NOTE_ID}
+                    data-t0
+                    className="px-3 text-xs text-ink-secondary leading-relaxed"
+                  >
+                    {questionsNote}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 

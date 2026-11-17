@@ -11,7 +11,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -608,6 +608,31 @@ def _compute_trends(observations: list[dict]) -> list[dict]:
     return trends
 
 
+async def _generate_question_items(
+    profile_db: AsyncSession,
+    observations: list[dict],
+    local_today: date,
+) -> list:
+    """The one source of discussion questions (EXPORT-QUESTIONS-PARITY).
+
+    POST /export/questions (the preview) and generate_doctor_summary (the stored, downloaded
+    questions) both call this, so the download carries what the preview showed. Trends are always
+    computed here; a caller with Trends off drops source_kind == "trend" itself. Redaction is NOT
+    done here: the stored copy goes through ExportModule.redact_summary_data (D3) in the caller.
+    """
+    trends = _compute_trends(observations)
+    # HC-M17 sources: accepted care tasks + verified visit-note entities.
+    care_tasks = await _fetch_care_task_dicts(profile_db)
+    entities = await _fetch_question_entity_dicts(profile_db)
+    return ExportModule().generate_questions(
+        observations=observations,
+        trends=trends,
+        care_tasks=care_tasks,
+        entities=entities,
+        today=local_today,
+    )
+
+
 @router.post("/doctor-summary", response_model=SummaryResponse)
 async def generate_doctor_summary(
     request: SummaryRequest,
@@ -646,13 +671,16 @@ async def generate_doctor_summary(
 
     questions: list[QuestionItem] = []
     if request.include_questions:
-        export_module = ExportModule()
-        generated_questions = export_module.generate_questions(
-            observations=observations,
-            trends=trends,
-            today=local_today,
+        # Same questions as POST /export/questions (the preview). Trends off drops the trend-sourced
+        # ones, like the download's omit_trends (owner answer EXPORT-TRENDS-QS).
+        generated_questions = await _generate_question_items(
+            profile_db, observations, local_today
         )
-        questions = [QuestionItem.from_prompt(q) for q in generated_questions]
+        questions = [
+            QuestionItem.from_prompt(q)
+            for q in generated_questions
+            if request.include_trends or q.source_kind != "trend"
+        ]
 
     # Generate summary using ExportModule
     export_module = ExportModule()
@@ -935,22 +963,7 @@ async def generate_questions(
         to_date=to_date,
     )
 
-    # Compute trends
-    trends = _compute_trends(observations)
-
-    # HC-M17 sources: accepted care tasks + verified visit-note entities.
-    care_tasks = await _fetch_care_task_dicts(profile_db)
-    entities = await _fetch_question_entity_dicts(profile_db)
-
-    # Generate questions using ExportModule
-    export_module = ExportModule()
-    questions = export_module.generate_questions(
-        observations=observations,
-        trends=trends,
-        care_tasks=care_tasks,
-        entities=entities,
-        today=local_today,
-    )
+    questions = await _generate_question_items(profile_db, observations, local_today)
 
     # Log generation
     await audit_and_commit(
