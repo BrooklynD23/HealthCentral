@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.observations import observation_range_status, status_is_abnormal
+from api.observations import _NORMAL_FLAGS, observation_range_status, status_is_abnormal
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import ProfileDbSession, RequireAuth, Session
 from core.config import compute_ocr_effective, settings, user_ocr_preference_enabled
@@ -1334,6 +1334,30 @@ async def reprocess_document(
     )
 
 
+def _plain_verify_recalc(obs: Observation) -> None:
+    """Recalculate flag/is_abnormal for a row checked by Verify all, as a plain single Verify does.
+
+    VERIFY-ALL-RECALC. Source of truth: the no-edit branch of
+    `api/observations.py::verify_observation` (a plain Verify has no real number
+    change, so the recalculation runs only for a row with no flag or a normal word,
+    `_NORMAL_FLAGS`, and only when it has a value). Any other stored flag is kept
+    with its is_abnormal. Parity with that route is pinned by
+    `tests/test_verify_all_recalc.py::test_hc_var_001`. Keep the two in step.
+    """
+    keeps_flag = obs.flag is not None and obs.flag.strip().upper() not in _NORMAL_FLAGS
+    if keeps_flag or obs.value is None:
+        return
+    if obs.ref_low is not None and obs.value < obs.ref_low:
+        obs.is_abnormal = True
+        obs.flag = "L"
+    elif obs.ref_high is not None and obs.value > obs.ref_high:
+        obs.is_abnormal = True
+        obs.flag = "H"
+    else:
+        obs.is_abnormal = False
+        obs.flag = None
+
+
 @router.post("/{document_id}/verify", response_model=DocumentVerifyResponse)
 async def verify_document(
     document_id: str,
@@ -1364,6 +1388,20 @@ async def verify_document(
     for obs in observations:
         if obs.user_verified:
             continue
+        # VERIFY-ALL-RECALC: same stored original and recalculation as a plain
+        # single Verify (api/observations.py::verify_observation), before the flag changes.
+        if not obs.original_value_json:
+            obs.original_value_json = json.dumps({
+                "value": obs.value,
+                "value_text": obs.value_text,
+                "unit": obs.unit,
+                "ref_low": obs.ref_low,
+                "ref_high": obs.ref_high,
+                "collected_at": obs.collected_at.isoformat() if obs.collected_at else None,
+                "flag": obs.flag,
+                "is_abnormal": obs.is_abnormal,
+            })
+        _plain_verify_recalc(obs)
         obs.user_verified = True
         obs.verified_at = now
         obs.version += 1
