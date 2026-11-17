@@ -46,7 +46,8 @@ const questionItems = [
   { category: 'clarification', question: TASK_Q, context: 'c3', related_analytes: [], source_kind: 'care_task', source_id: 't1' },
 ];
 
-const LOAD_FAILED_LINE = /Questions could not be loaded, so they are left out of the download\./;
+const LOAD_FAILED_LINE = /Questions could not be loaded, so they are left out of the download\. Reload the page to try again\./;
+const NOT_INCLUDED_LINE = 'Questions were not included when this summary was made.';
 const DOWNLOAD_URL = '/export/doctor-summary/summary-123/download';
 
 type PostImpl = (url: string, ...rest: unknown[]) => Promise<unknown>;
@@ -160,6 +161,7 @@ describe('a failed questions load leaves the questions out of the download', () 
     expect(questionsBox()).toBeDisabled();
     expect(questionsBox()).not.toBeChecked();
     expect(screen.queryByText(LOAD_FAILED_LINE)).not.toBeInTheDocument();
+    expect(screen.getByText(NOT_INCLUDED_LINE)).toBeInTheDocument();
     await user.click(questionsBox()); // a click on a disabled box changes nothing
     expect(questionsBox()).not.toBeChecked();
     expect(screen.queryByText(ABNORMAL_Q)).not.toBeInTheDocument();
@@ -232,5 +234,102 @@ describe('HC-EQP-FE-004: Trends unticked after generating hides trend questions 
     expect(within(dialog).queryByText(TREND_Q)).not.toBeInTheDocument();
     expect(within(dialog).getByText(ABNORMAL_Q)).toBeInTheDocument();
     expect(within(dialog).getByText(TASK_Q)).toBeInTheDocument();
+  });
+});
+
+describe('HC-EQP-FE-006: a summary generated without Trends keeps its trend questions hidden whatever the Trends box says', () => {
+  it('Trends off + Questions on, then Trends ticked: the preview, Full Preview and Copy Text still have no trend question', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderPage();
+
+    await user.click(trendsBox()); // Trends off
+    await user.click(questionsBox()); // Questions on
+    await generate(user);
+    expect(await screen.findByText(ABNORMAL_Q)).toBeInTheDocument();
+    expect(screen.queryByText(TREND_Q)).not.toBeInTheDocument();
+
+    await user.click(trendsBox()); // Trends ticked after generating without them
+
+    expect(screen.queryByText(TREND_Q)).not.toBeInTheDocument();
+    expect(screen.getByText(ABNORMAL_Q)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /copy text|copied/i }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText.mock.calls[0][0]).not.toContain(TREND_Q);
+    expect(writeText.mock.calls[0][0]).toContain(`- ${ABNORMAL_Q}`);
+
+    await user.click(screen.getByRole('button', { name: /full preview/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Full summary preview' });
+    expect(within(dialog).queryByText(TREND_Q)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(ABNORMAL_Q)).toBeInTheDocument();
+  });
+});
+
+describe('HC-EQP-FE-007: the lock explains itself to assistive tech', () => {
+  const region = () => document.querySelector('[data-questions-note-region]') as HTMLElement | null;
+
+  it('the live region is in the page before its text arrives, and stays the same node', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+
+    const before = region();
+    expect(before).not.toBeNull();
+    expect(before).toHaveAttribute('role', 'status');
+    expect(before).toBeEmptyDOMElement();
+    expect(questionsBox()).not.toHaveAttribute('aria-describedby');
+
+    await generate(user);
+    expect(region()).toBe(before);
+    expect(before).toHaveTextContent(NOT_INCLUDED_LINE);
+  });
+
+  it('the disabled box points at the explanation line: not included, then (after a remount) failed to load', async () => {
+    const user = userEvent.setup();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    setupApi();
+    const first = renderPage();
+    await generate(user);
+    const describedBy = questionsBox().getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    expect(document.getElementById(describedBy as string)).toHaveTextContent(NOT_INCLUDED_LINE);
+    first.unmount();
+
+    setupApi({ questionsFail: true });
+    renderPage();
+    await user.click(questionsBox());
+    await generate(user);
+    const failedId = questionsBox().getAttribute('aria-describedby');
+    expect(failedId).toBeTruthy();
+    expect(document.getElementById(failedId as string)).toHaveTextContent(LOAD_FAILED_LINE);
+    expect(region()).toContainElement(document.getElementById(failedId as string));
+    consoleError.mockRestore();
+  });
+
+  it('a box whose questions loaded stays enabled, with no aria-describedby and its pointer cursor', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+    const label = () => document.querySelector('label[for="export-section-questions"]') as HTMLElement;
+    expect(label().className).toContain('cursor-pointer');
+
+    await user.click(questionsBox());
+    await generate(user);
+    expect(questionsBox()).toBeEnabled();
+    expect(questionsBox()).not.toHaveAttribute('aria-describedby');
+    expect(label().className).toContain('cursor-pointer');
+  });
+
+  it('a disabled Questions row: no cursor-pointer on its label, ink-tertiary text', async () => {
+    const user = userEvent.setup();
+    setupApi();
+    renderPage();
+    const label = () => document.querySelector('label[for="export-section-questions"]') as HTMLElement;
+    await generate(user);
+    expect(questionsBox()).toBeDisabled();
+    expect(label().className).not.toContain('cursor-pointer');
+    expect(label().className).toContain('text-ink-tertiary');
   });
 });

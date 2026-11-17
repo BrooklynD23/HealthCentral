@@ -52,6 +52,8 @@ const exportSections = [
   { id: 'questions', label: 'Questions for Clinician', included: false },
 ];
 
+const QUESTIONS_NOTE_ID = 'export-questions-note';
+
 const visitPrepSectionDefaults = [
   { id: 'medications', label: 'Current medications', included: true },
   { id: 'labs', label: 'Recent abnormal verified labs', included: true },
@@ -222,10 +224,19 @@ export function ExportPage() {
 
   const showQuestionsInSummary = sections.find((s) => s.id === 'questions')?.included ?? false;
   const showTrendsInSummary = sections.find((s) => s.id === 'trends')?.included ?? false;
-  // Mirrors the download's omit_trends: trend-sourced questions go when Trends is unticked.
-  const visibleQuestions = showTrendsInSummary
-    ? questions
-    : questions.filter((q) => q.source_kind !== 'trend');
+  // Mirrors the download's omit_trends: trend-sourced questions go when Trends is unticked, and stay gone when the
+  // summary was generated without trends (ticking Trends afterwards cannot add them to a stored summary).
+  const visibleQuestions =
+    summaryHadTrends && showTrendsInSummary
+      ? questions
+      : questions.filter((q) => q.source_kind !== 'trend');
+  // The Questions box is locked while a summary is on screen and its questions did not load (failed, or not asked for).
+  const questionsLocked = summary !== null && !questionsLoaded;
+  const questionsNote = questionsLocked
+    ? questionsLoadFailed
+      ? 'Questions could not be loaded, so they are left out of the download. Reload the page to try again.'
+      : 'Questions were not included when this summary was made.'
+    : null;
 
   const handleCopy = async () => {
     if (summary) {
@@ -787,25 +798,37 @@ export function ExportPage() {
                     id={`export-section-${section.id}`}
                     checked={section.included}
                     onCheckedChange={() => handleToggleSection(section.id)}
-                    disabled={section.id === 'questions' && summary !== null && !questionsLoaded}
+                    disabled={section.id === 'questions' && questionsLocked}
+                    aria-describedby={
+                      section.id === 'questions' && questionsNote ? QUESTIONS_NOTE_ID : undefined
+                    }
                   />
                   <label
                     htmlFor={`export-section-${section.id}`}
                     className={cn(
-                      'min-w-0 flex-1 cursor-pointer break-words py-3 text-sm font-medium',
-                      section.included ? 'text-accent' : 'text-ink-secondary'
+                      'min-w-0 flex-1 break-words py-3 text-sm font-medium',
+                      section.id === 'questions' && questionsLocked
+                        ? 'text-ink-tertiary'
+                        : cn('cursor-pointer', section.included ? 'text-accent' : 'text-ink-secondary')
                     )}
                   >
                     {section.label}
                   </label>
                 </div>
               ))}
-              {/* Questions is the last row, so this line sits directly under it. */}
-              {questionsLoadFailed && (
-                <p data-t0 role="status" className="px-3 text-xs text-ink-secondary leading-relaxed">
-                  Questions could not be loaded, so they are left out of the download.
-                </p>
-              )}
+              {/* Questions is the last row, so this line sits directly under it. The live region is always in the
+                  page, so its text is announced when it arrives. */}
+              <div role="status" data-questions-note-region>
+                {questionsNote && (
+                  <p
+                    id={QUESTIONS_NOTE_ID}
+                    data-t0
+                    className="px-3 text-xs text-ink-secondary leading-relaxed"
+                  >
+                    {questionsNote}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
