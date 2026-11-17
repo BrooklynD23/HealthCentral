@@ -64,6 +64,7 @@ git clone <repo-url> ~/HealthCentral && cd ~/HealthCentral
 It mirrors `dev.ps1`, with these differences:
 - Uses its own venv at `src/backend/.venv-linux` (never the Windows `src/backend/venv`).
 - Never installs system packages; it prints an install hint when Python 3.11+, Node.js 22.12+, `tesseract` or `pdftoppm` is missing.
+- Stops the same way `dev.bat` does when SQLCipher cannot be installed or fails `scripts/check_sqlcipher.py --file-probe`: it prints an install hint (`sudo apt install libsqlcipher-dev` on Debian/Ubuntu) and leaves `.env` unchanged. The only override is `HC_ALLOW_UNENCRYPTED=1` (development only), which prints a banner and writes `DATABASE_ENCRYPTION_REQUIRED=false`. When the probe passes, it sets `DATABASE_ENCRYPTION_REQUIRED=true`.
 - Picks the next free port when 8000/3000 are busy, but does not stop the process holding them.
 - Binds both servers to `127.0.0.1`, writes `logs/dev-backend.log` and `logs/dev-frontend.log`, does not open a browser and does not restart a crashed server.
 
