@@ -8,8 +8,11 @@
 # Windows mount is slow, file watching is unreliable, and Windows and Linux
 # cannot share the venv or node_modules. Set HC_ALLOW_WINDOWS_MOUNT=1 to override.
 # Set HC_SKIP_OCR_SETUP=1 to leave OCR_ENABLED in src/backend/.env untouched.
-# Set HC_DEV_STOP_AFTER_DEPS=1 to exit 0 right after the Python dependency step
-# (test hook; nothing after pip runs).
+# Set HC_ALLOW_UNENCRYPTED=1 to keep going when SQLCipher cannot be installed or fails its
+# file probe (development only, like dev.ps1). Without it dev.sh stops, so health data is
+# never stored unencrypted.
+# Set HC_DEV_STOP_AFTER_DEPS=1 to exit 0 right after the Python dependency step and the
+# SQLCipher file probe (test hook; nothing after them runs).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -26,6 +29,14 @@ status() { printf '  [*] %s\n' "$*"; }
 ok()     { printf '  [+] %s\n' "$*"; }
 warn()   { printf '  [!] %s\n' "$*" >&2; }
 die()    { printf '  [-] %s\n' "$*" >&2; exit 1; }
+# Same wording as dev.ps1's red banner (HC_ALLOW_UNENCRYPTED=1 only).
+unencrypted_banner() {
+  printf '\n  ============================================================\n' >&2
+  printf '   HC_ALLOW_UNENCRYPTED=1: SQLCipher could not be set up.\n' >&2
+  printf '   Your health data will NOT be encrypted on this computer.\n' >&2
+  printf '   Development only. Do not store real patient data.\n' >&2
+  printf '  ============================================================\n\n' >&2
+}
 
 # Same contract as dev.ps1 Set-DotEnvKey: replace the first KEY= line, drop
 # duplicates, append (after a blank line) when absent.
@@ -148,10 +159,17 @@ fi
 status "Installing Python dependencies (log: logs/dev-pip.log) ..."
 "$VENV_PY" -m pip install --upgrade pip --quiet >/dev/null 2>&1 || true
 SQLCIPHER_AVAILABLE=1
+ALLOW_UNENCRYPTED=0
+[ "${HC_ALLOW_UNENCRYPTED:-}" != "1" ] || ALLOW_UNENCRYPTED=1
 PIP_LOG="$LOG_DIR/dev-pip.log"
 if ! "$VENV_PY" -m pip install -r "$REQ_FILE" >"$PIP_LOG" 2>&1; then
   if grep -qi sqlcipher "$PIP_LOG"; then
-    warn "SQLCipher could not be installed (Debian/Ubuntu: sudo apt install libsqlcipher-dev, then re-run)."
+    if [ "$ALLOW_UNENCRYPTED" != "1" ]; then
+      [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
+      tail -n 15 "$PIP_LOG" >&2
+      die "SQLCipher could not be installed (Debian/Ubuntu: sudo apt install libsqlcipher-dev; macOS: brew install sqlcipher). dev.sh stopped so your health data is never stored unencrypted; .env was not changed. For development only, set HC_ALLOW_UNENCRYPTED=1 to continue without encryption."
+    fi
+    unencrypted_banner
     status "Installing remaining dependencies without SQLCipher ..."
     SQLCIPHER_AVAILABLE=0
     FILTERED="$(mktemp)"
@@ -168,6 +186,21 @@ else
   ok "Python dependencies installed"
 fi
 [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
+# A module can import and still not encrypt: prove it writes ciphertext (same probe as dev.ps1).
+# Inside an if, so a failing probe reaches the branch and not set -e.
+if [ "$SQLCIPHER_AVAILABLE" = "1" ]; then
+  status "Checking that SQLCipher really encrypts a file (log: logs/dev-sqlcipher-probe.log) ..."
+  PROBE_LOG="$LOG_DIR/dev-sqlcipher-probe.log"
+  if "$VENV_PY" "$ROOT_DIR/scripts/check_sqlcipher.py" --file-probe >"$PROBE_LOG" 2>&1; then
+    ok "SQLCipher is ready (file probe passed)"
+  elif [ "$ALLOW_UNENCRYPTED" = "1" ]; then
+    unencrypted_banner
+    SQLCIPHER_AVAILABLE=0
+  else
+    tail -n 12 "$PROBE_LOG" >&2
+    die "SQLCipher is installed but did not pass its file probe (log: $PROBE_LOG). dev.sh stopped so your health data is never stored unencrypted; .env was not changed. For development only, set HC_ALLOW_UNENCRYPTED=1 to continue without encryption."
+  fi
+fi
 [ "${HC_DEV_STOP_AFTER_DEPS:-}" != "1" ] || { status "HC_DEV_STOP_AFTER_DEPS=1 set; stopping after dependencies."; exit 0; }
 
 # --- STEP 3a: embedding model (document chunks need it) ----------------------
@@ -201,12 +234,20 @@ if [ ! -f "$ENV_FILE" ]; then
     ok "Created default .env"
   fi
 fi
-# Same as dev.ps1: only when SQLCipher failed to install, flip REQUIRED=true to false.
-if [ "$SQLCIPHER_AVAILABLE" = "0" ] && grep -Eiq 'DATABASE_ENCRYPTION_REQUIRED[[:space:]]*=[[:space:]]*true' "$ENV_FILE"; then
-  TMP_ENV="$(mktemp)"
-  sed -E 's/[Dd][Aa][Tt][Aa][Bb][Aa][Ss][Ee]_[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn]_[Rr][Ee][Qq][Uu][Ii][Rr][Ee][Dd][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee]/DATABASE_ENCRYPTION_REQUIRED=false/g' "$ENV_FILE" >"$TMP_ENV"
-  cat "$TMP_ENV" >"$ENV_FILE" && rm -f "$TMP_ENV"
-  warn "Set DATABASE_ENCRYPTION_REQUIRED=false (SQLCipher not installed)"
+# Same as dev.ps1: the file probe passed, so encryption is required (an older dev.sh may have
+# left false). Only HC_ALLOW_UNENCRYPTED=1 (see STEP 3) ever writes false.
+if [ "$SQLCIPHER_AVAILABLE" = "1" ]; then
+  WAS_FALSE=0
+  if grep -Eiq '^[[:space:]]*DATABASE_ENCRYPTION_REQUIRED[[:space:]]*=[[:space:]]*false' "$ENV_FILE"; then WAS_FALSE=1; fi
+  set_env_key "$ENV_FILE" DATABASE_ENCRYPTION_REQUIRED true
+  if [ "$WAS_FALSE" = "1" ]; then ok "Set DATABASE_ENCRYPTION_REQUIRED=true (SQLCipher file probe passed)"; fi
+else
+  if grep -Eiq 'DATABASE_ENCRYPTION_REQUIRED[[:space:]]*=[[:space:]]*true' "$ENV_FILE"; then
+    TMP_ENV="$(mktemp)"
+    sed -E 's/[Dd][Aa][Tt][Aa][Bb][Aa][Ss][Ee]_[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn]_[Rr][Ee][Qq][Uu][Ii][Rr][Ee][Dd][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee]/DATABASE_ENCRYPTION_REQUIRED=false/g' "$ENV_FILE" >"$TMP_ENV"
+    cat "$TMP_ENV" >"$ENV_FILE" && rm -f "$TMP_ENV"
+    warn "Set DATABASE_ENCRYPTION_REQUIRED=false (HC_ALLOW_UNENCRYPTED=1): vaults will NOT be encrypted"
+  fi
 fi
 if [ "${HC_SKIP_OCR_SETUP:-}" != "1" ]; then
   # RapidOCR ships in the backend venv and is read first; Tesseract is the fallback.
