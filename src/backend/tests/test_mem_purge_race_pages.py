@@ -1,4 +1,4 @@
-"""MEM-PURGE-RACE-PAGES (HC-MPRP-001..007): a page picture rendered across a profile purge is
+"""MEM-PURGE-RACE-PAGES (HC-MPRP-001..008): a page picture rendered across a profile purge is
 not cached. `get_page_image` misses, renders (slow), audits, then puts; a lock or logout that runs
 `purge_page_images` in between must not be undone by the put (mirror of MEM-PURGE-RACE, #629, for
 the answer cache). The racing request still gets its picture: it was authorized and audited
@@ -182,3 +182,24 @@ def test_hc_mprp_007_a_patched_two_argument_store_still_switches_caching_off(
         _get(client)
     assert renders.count == 2
     assert not docs_api._page_image_cache
+
+
+def test_hc_mprp_008_purge_during_the_document_lookup_drops_the_put(sessions, renders, monkeypatch):
+    """The mark is taken before the first await, so a purge during the lookup is caught too."""
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    real_execute = AsyncSession.execute
+    purged: list[int] = []
+
+    async def _purge_then_execute(self, *args, **kwargs):
+        if not purged:
+            purged.append(docs_api.purge_page_images(A))
+        return await real_execute(self, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncSession, "execute", _purge_then_execute)
+    with _client(sessions) as client:
+        _get(client)
+        assert purged == [0]
+        assert not docs_api._page_image_cache
+        _get(client)  # nothing was cached: renders again
+    assert renders.count == 2

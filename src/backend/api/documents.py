@@ -127,7 +127,7 @@ def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
 
 
 def _page_image_cache_mark() -> int:
-    """Purge sequence now. Take it before a render; pass it to `_page_image_cache_set`."""
+    """Purge sequence now. Take it before any await of a request; pass it to `_page_image_cache_set_if_fresh`."""
     with _page_image_cache_lock:
         return _page_image_purge_seq
 
@@ -1815,6 +1815,8 @@ async def get_page_image(
 
     OCR-BOX-001: Returns the page as image/png for visual provenance display.
     """
+    # First, before any await: a purge during the document lookup or the render drops the put.
+    mark = _page_image_cache_mark()
     validate_uuid(document_id, "document_id")
 
     result = await profile_db.execute(select(Document).where(Document.id == document_id))
@@ -1842,7 +1844,6 @@ async def get_page_image(
         resolution,
     )
     cached = _page_image_cache_get(cache_key)
-    mark = _page_image_cache_mark()  # before the render: a purge after this drops the put
     content: bytes
     is_freshly_rendered = False
     try:
