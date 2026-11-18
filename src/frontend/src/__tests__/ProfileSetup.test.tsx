@@ -488,6 +488,28 @@ describe('ProfileSetup', () => {
       expect(mockNavigate).not.toHaveBeenCalled();
     });
 
+    it('HC-SRE-007b: a 503 vault message from the backend is shown as written, not as a wrong password', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      // core/vault_conversion.py MSG_HELD (SQLC-LOGIN-ERROR-MAP).
+      const held =
+        'This profile is open in another Asclexis window or program. Close it, then sign in again.';
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(503, 'Service Unavailable', held)
+      );
+      renderWithProviders(<ProfileSetup />);
+
+      await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(held);
+      expect(alert).not.toHaveTextContent('Incorrect password');
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().token).toBeNull();
+      expect(screen.getByLabelText('Unlock password')).toHaveValue('');
+    });
+
     it('HC-SRE-008: unlocking clears the query cache so no other profile\'s data survives', async () => {
       const user = userEvent.setup();
       mockOneProfile();
