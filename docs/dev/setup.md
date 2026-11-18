@@ -23,7 +23,7 @@ Windows is the native development environment. From the repository root:
 
 `dev.ps1`:
 - checks for Python and Node.js;
-- creates the backend virtual environment at `src/backend/venv` if needed and installs `requirements.txt`. **If `sqlcipher3-binary` cannot be installed, it installs the rest, sets `DATABASE_ENCRYPTION_REQUIRED=false` in `src/backend/.env` and warns: profile databases are then unencrypted, so do not use real data** (see [SQLCipher Setup](#sqlcipher-setup));
+- creates the backend virtual environment at `src/backend/venv` if needed, installs the pinned, hash-checked `sqlcipher3` wheel from `src/backend/requirements-sqlcipher-win.txt`, proves with `scripts/check_sqlcipher.py --file-probe` that it writes ciphertext, then installs `requirements.txt`. **If SQLCipher cannot be installed or fails the probe, `dev.bat` stops ("dev.bat stopped so your health data is never stored unencrypted; .env was not changed") and never switches encryption off by itself.** The only override is `HC_ALLOW_UNENCRYPTED=1` (development only): it prints a red banner and writes `DATABASE_ENCRYPTION_REQUIRED=false`. When the probe passes, `dev.ps1` sets `DATABASE_ENCRYPTION_REQUIRED=true` (see [SQLCipher Setup](#sqlcipher-setup));
 - runs `npm ci` when `src/frontend/package-lock.json` changes;
 - creates the data directory structure and `.env`;
 - resolves the next free backend/frontend ports if 8000/3000 are busy and syncs `src/frontend/.env.local` with the resolved API URL;
@@ -32,6 +32,25 @@ Windows is the native development environment. From the repository root:
 Default URLs: frontend http://localhost:3000, backend http://localhost:8000
 (`/docs` serves the interactive API docs when `DEBUG=true`). If a port is busy,
 use the URLs `dev.ps1` prints. `Ctrl+C` stops both servers.
+
+The backend worker (the process that serves requests) writes its PID, parent PID and start time to
+`logs/dev-backend.pid` and removes the file on a clean shutdown. This is how `dev.bat` finds a worker
+that outlived its window (the venv `python.exe` is a stub, and `uvicorn --reload` starts the worker as
+a child, so closing the window or killing a parent can leave it running with a vault open). On start,
+`dev.bat` refuses if anything from this folder is still running: the recorded worker (a live
+Python/uvicorn process created before the file was written) and, walking up from it, the top-most
+uvicorn/venv Python parent (the reloader and the venv stub, which a plain `taskkill /PID <worker> /T`
+leaves behind), plus any frontend `node` still listening on 3000-3010. It prints one line per leftover
+(PID, image, what it is) and one command, for example `taskkill /PID 53176 /PID 10132 /T /F`; run it and
+start again. A file whose process is gone, or is some other program that reused the PID, is deleted
+with one info line. On `Ctrl+C` or a backend restart, `dev.bat` stops the recorded worker's whole tree
+(`taskkill /PID <root> /T /F`) after the same check. The file is outside `data/`, so backups never include it. Linux `dev.sh` does not use it.
+
+Every `dev.bat` run writes a transcript of what its window showed to `logs\launcher\dev-<yyyyMMdd-HHmmss>.log`
+(the newest 20 are kept) and prints "Launcher log: <path>" at the top and again before any error or
+refusal exit. When it refuses to start, the log also holds a snapshot: `tasklist` for `python.exe` and
+`node.exe`, and every listener on 8000-8010 and 3000-3010 with its PID and command line. It holds screen
+output only (no `.env` contents); attach it when reporting a launcher problem. `logs/` is gitignored.
 
 ## Quick Start on WSL/Linux (`dev.sh`)
 
@@ -45,6 +64,7 @@ git clone <repo-url> ~/HealthCentral && cd ~/HealthCentral
 It mirrors `dev.ps1`, with these differences:
 - Uses its own venv at `src/backend/.venv-linux` (never the Windows `src/backend/venv`).
 - Never installs system packages; it prints an install hint when Python 3.11+, Node.js 22.12+, `tesseract` or `pdftoppm` is missing.
+- Stops the same way `dev.bat` does when SQLCipher cannot be installed or fails `scripts/check_sqlcipher.py --file-probe`: it prints an install hint (`sudo apt install libsqlcipher-dev` on Debian/Ubuntu) and leaves `.env` unchanged. The only override is `HC_ALLOW_UNENCRYPTED=1` (development only), which prints a banner and writes `DATABASE_ENCRYPTION_REQUIRED=false`. When the probe passes, it sets `DATABASE_ENCRYPTION_REQUIRED=true`.
 - Picks the next free port when 8000/3000 are busy, but does not stop the process holding them.
 - Binds both servers to `127.0.0.1`, writes `logs/dev-backend.log` and `logs/dev-frontend.log`, does not open a browser and does not restart a crashed server.
 
@@ -84,10 +104,14 @@ Configuration lives in `src/backend/.env`, created from
 
 ## SQLCipher Setup
 
-Each profile database is an AES-256 SQLCipher database. `sqlcipher3-binary`
-(in `requirements.txt`) ships pre-built wheels; on Debian/Ubuntu install
-`libsqlcipher-dev` first if the wheel fails to build, and on macOS
-`brew install sqlcipher`. Verify with:
+Each profile database is an AES-256 SQLCipher database. On Windows it is the official
+`sqlcipher3` wheel, pinned to `0.6.5` with one sha256 (`requirements-sqlcipher-win.txt`):
+it needs 64-bit Python 3.11 and installs with `--only-binary=:all: --no-deps
+--require-hashes`. On Linux and macOS, `sqlcipher3-binary` (in `requirements.txt`) ships
+pre-built wheels; on Debian/Ubuntu install `libsqlcipher-dev` first if the wheel fails to
+build, and on macOS `brew install sqlcipher`. A manual `pip install` on Windows is not
+hash-checked: use `dev.bat`, which installs the pinned wheel with `--require-hashes`.
+Verify with:
 
 ```python
 import sqlcipher3
@@ -96,6 +120,21 @@ print(sqlcipher3.connect(":memory:").execute("PRAGMA cipher_version").fetchone()
 
 `DATABASE_ENCRYPTION_REQUIRED=false` in `.env` allows unencrypted profile
 databases for development only. **Never use it with real data.**
+
+**Vaults saved before SQLCipher was installed.** A profile vault written as plain SQLite
+(an earlier `dev.bat` run without the wheel) is converted to an encrypted vault the next
+time that profile signs in. The app copies it to `vault.plain.bak`, writes and verifies an
+encrypted copy (integrity checks, per-table row counts, `alembic_version`), swaps it in,
+reopens it with the key, and only then deletes `vault.plain.bak` and any plaintext
+`vault.pre017.snapshot*` files. If any check fails, the original stays as it was (or, after the swap, the plain copy
+is kept) and the sign-in fails with a server error (HTTP 500); the cause is one line in
+the app log with no patient data. The conversion runs on Windows only, and only one at a
+time per profile (`vault.convert.lock`). If another Asclexis window or program still has the vault open (for example a backend left
+running by an earlier `dev.bat`), the conversion stops at once without copying anything and
+asks you to close it; `dev.bat` itself refuses to start while Asclexis is already running
+from the same folder. A failed profile is not retried for 30 seconds. A clear sign-in
+message is the follow-up SQLC-LOGIN-ERROR-MAP. Back the data folder up before the first run on a machine
+that has real data.
 
 ## Database migrations
 

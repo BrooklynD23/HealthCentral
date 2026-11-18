@@ -50,7 +50,7 @@ Stored in master database (not encrypted by default).
 | Mode | Protection |
 |------|------------|
 | Local mode | Localhost binding only (127.0.0.1) — no network exposure |
-| Server mode | HTTPS required (HSTS enforced), TLS 1.2+ |
+| Server mode | The app sends `Strict-Transport-Security: max-age=31536000; includeSubDomains` and CSP only when `APP_MODE=server` (`security/security_headers.py:26`, `main.py:150`). It does not terminate TLS, redirect to HTTPS or pin a TLS version; HTTPS and the TLS floor are the deployment proxy's job |
 
 ## Data Retention
 

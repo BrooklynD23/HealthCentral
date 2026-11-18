@@ -556,4 +556,64 @@ describe('ProfileSetup', () => {
       expect(screen.queryByRole('button', { name: /create your profile/i })).not.toBeInTheDocument();
     });
   });
+  describe('PROFILE-NAME-UNIQUE: duplicate display names', () => {
+    it('HC-PNU-FE-001: a 409 shows the message in the setup form and keeps the typed input', async () => {
+      const user = userEvent.setup();
+      const message =
+        'A profile named Maria Lopez already exists. Choose a different name.';
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(409, 'Conflict', message)
+      );
+      renderWithProviders(<ProfileSetup />);
+
+      const nameInput = await screen.findByLabelText('Profile Name');
+      await user.type(nameInput, 'Maria Lopez');
+      const passwordInput = screen.getByPlaceholderText('Create a secure password');
+      await user.type(passwordInput, 'SecurePass123');
+      await user.click(screen.getByRole('button', { name: /create your profile/i }));
+
+      const alert = await screen.findByText(message);
+      expect(alert).toHaveAttribute('role', 'alert');
+      // The message belongs to the name field, so it is announced with it.
+      expect(screen.getByLabelText('Profile Name')).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByLabelText('Profile Name')).toHaveAttribute(
+        'aria-describedby',
+        alert.id
+      );
+      expect(screen.getByLabelText('Profile Name')).toHaveValue('Maria Lopez');
+      expect(screen.getByPlaceholderText('Create a secure password')).toHaveValue(
+        'SecurePass123'
+      );
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // Editing the name clears the stale message.
+      await user.type(screen.getByLabelText('Profile Name'), ' B');
+      expect(screen.queryByText(message)).not.toBeInTheDocument();
+    });
+
+    it('HC-PNU-FE-002: the picker shows created dates only for profiles that share a name', async () => {
+      const profiles = [
+        { id: 'p-1', display_name: 'Maria Lopez', is_locked: true,
+          created_at: '2026-03-04T12:00:00Z', last_accessed_at: null },
+        { id: 'p-2', display_name: '  maria   LOPEZ', is_locked: true,
+          created_at: '2026-05-06T12:00:00Z', last_accessed_at: null },
+        { id: 'p-3', display_name: 'Sam Chen', is_locked: true,
+          created_at: '2026-07-08T12:00:00Z', last_accessed_at: null },
+      ];
+      vi.mocked(api.apiGet).mockResolvedValue(profiles);
+      renderWithProviders(<ProfileSetup />);
+
+      await screen.findByText('Unlock your profile');
+      const options = screen.getAllByRole('option').map((o) => o.textContent);
+      const created = (iso: string) =>
+        new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      expect(options).toEqual([
+        `Maria Lopez (created ${created(profiles[0].created_at)})`,
+        `  maria   LOPEZ (created ${created(profiles[1].created_at)})`,
+        'Sam Chen',
+      ]);
+      expect(options[0]).not.toEqual(options[1]);
+      expect(options[0]).toContain('2026');
+    });
+  });
 });

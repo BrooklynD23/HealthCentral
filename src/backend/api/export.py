@@ -63,6 +63,9 @@ _fhir_store: dict[str, dict] = {}
 # generation-day footer tests) do not also age the stored entries.
 _EXPORT_TTL = timedelta(minutes=30)
 
+# Title of the trends section ExportModule.generate_doctor_summary adds (modules/export.py).
+TRENDS_SECTION_TITLE = "Notable Trends"
+
 
 def _expired(entry: dict) -> bool:
     # L0 ruling (iii): an entry with no `created_at` counts as FRESH, so
@@ -85,7 +88,16 @@ async def purge_profile_exports(profile_id: str) -> int:
     If no connection is open there is no vault session to delete through (the
     vault cannot serve a download either); that is logged, never silent. A
     delete that raises is not caught: the lock, logout or delete fails loudly.
+
+    Also drops that profile's cached page pictures and assistant answers from memory
+    (MEM-PURGE). That runs first, so it holds when no vault is open. The return value
+    still counts exports only.
     """
+    from api.documents import purge_page_images
+    from modules.agent.cache import purge_profile
+
+    images, answers = purge_page_images(profile_id), purge_profile(profile_id)
+    logger.debug("Memory purge: %d page images, %d cached answers dropped", images, answers)
     removed = 0
     for store in (_summary_store, _packet_store, _fhir_store):
         for key in [k for k, v in store.items() if v.get("profile_id") == profile_id]:
@@ -334,7 +346,6 @@ class QuestionItem(BaseModel):
     # Provenance (HC-M17). Optional so existing consumers keep working.
     source_kind: Optional[str] = None  # observation | trend | care_task | entity
     source_id: Optional[str] = None
-    source_quote: Optional[str] = None
 
     @classmethod
     def from_prompt(cls, q) -> "QuestionItem":
@@ -345,7 +356,6 @@ class QuestionItem(BaseModel):
             related_analytes=q.related_analytes,
             source_kind=q.source_kind,
             source_id=q.source_id,
-            source_quote=q.source_quote,
         )
 
 
@@ -734,6 +744,12 @@ async def download_summary(
     summary_id: str,
     session: RequireAuth,
     format: str = Query("text", description="Download format: text, html, or pdf"),
+    omit_questions: bool = Query(
+        False, description="Leave the questions out (patient unticked them after generating)"
+    ),
+    omit_trends: bool = Query(
+        False, description="Leave the trends out (patient unticked them after generating)"
+    ),
     master_db: AsyncSession = Depends(get_db),
     profile_db: ProfileDbSession = None,
 ):
@@ -787,6 +803,23 @@ async def download_summary(
 
     export_module = ExportModule()
     short_id = summary_id[:8]
+
+    if omit_questions:
+        # Render-time only: the stored summary keeps its questions. Nothing else is dropped.
+        summary_data = {**summary_data, "questions": []}
+    if omit_trends:
+        # Render-time only, like omit_questions: match a fresh Generate with Trends off, which has
+        # no trends section and no trend-sourced questions (owner answer EXPORT-TRENDS-QS).
+        summary_data = {
+            **summary_data,
+            "sections": [
+                s for s in summary_data["sections"] if s.get("title") != TRENDS_SECTION_TITLE
+            ],
+            "questions": [
+                q for q in summary_data.get("questions", [])
+                if not (isinstance(q, dict) and q.get("source_kind") == "trend")
+            ],
+        }
 
     if format == "html":
         html_content = export_module.render_html_summary(summary_data)

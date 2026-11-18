@@ -217,12 +217,14 @@ export function ResultsPage() {
     panel: string;
     data: PanelInterpretationResponse;
   } | null>(null);
-  const [grounded, setGrounded] = useState<{
-    observationId: string;
-    summary: string;
-    isValid: boolean;
-    score: number;
-  } | null>(null);
+  // Keyed by result, so an answer that lands while another result is on screen (or after another result's answer) is
+  // still there when its own result is selected again.
+  const [grounded, setGrounded] = useState<
+    Record<string, { summary: string; isValid: boolean; score: number }>
+  >({});
+  // The results whose grounded POST is still in flight: one per result, so a result's own Generate stays disabled even
+  // after another result's Generate has started (the mutation's isPending and variables follow the latest call only).
+  const [interpInFlight, setInterpInFlight] = useState<ReadonlySet<string>>(() => new Set());
   const [withheldNotice, setWithheldNotice] = useState<{
     observationId: string;
     message: string;
@@ -349,32 +351,44 @@ export function ResultsPage() {
   const handleGenerateInterpretation = (force = false) => {
     if (!effectiveObservation) return;
     const observationId = effectiveObservation.id;
-    generateInterpretation.mutate(
-      { observationId, forceRegenerate: force },
-      {
-        onSuccess: (data) => {
-          if (data.withheld) {
-            // INTERP-WITHHOLD-MSG: show the escalation message, never a grounded card.
-            setWithheldNotice({
-              observationId,
-              message: data.full_response,
-              physicianReview: data.withheld_physician_review === true,
-            });
-            setGrounded((current) => (current?.observationId === observationId ? null : current));
-            return;
-          }
-          // Only this result's own notice goes, so another result's withheld message stays while it is on screen again.
-          // There is one notice slot: a second withheld result replaces the first one's.
-          setWithheldNotice((current) => (current?.observationId === observationId ? null : current));
-          setGrounded({
+    if (interpInFlight.has(observationId)) return;
+    setInterpInFlight((current) => new Set(current).add(observationId));
+    // Not a per-call onSuccess on mutate: that fires only for the latest call, so with a Generate on another result
+    // still in flight the earlier result's answer or withheld notice would be lost (RESULTS-GENERATE-PENDING).
+    generateInterpretation
+      .mutateAsync({ observationId, forceRegenerate: force })
+      .then((data) => {
+        if (data.withheld) {
+          // INTERP-WITHHOLD-MSG: show the escalation message, never a grounded card.
+          setWithheldNotice({
             observationId,
+            message: data.full_response,
+            physicianReview: data.withheld_physician_review === true,
+          });
+          setGrounded(({ [observationId]: _dropped, ...others }) => others);
+          return;
+        }
+        // Only this result's own notice goes, so another result's withheld message stays while it is on screen again.
+        // There is one notice slot: a second withheld result replaces the first one's.
+        setWithheldNotice((current) => (current?.observationId === observationId ? null : current));
+        setGrounded((current) => ({
+          ...current,
+          [observationId]: {
             summary: data.full_response,
             isValid: data.is_valid,
             score: data.verification.faithfulness_score,
-          });
-        },
-      }
-    );
+          },
+        }));
+      })
+      // The failure is on the mutation's own state (the 409 is read from it below); nothing more to do here.
+      .catch(() => {})
+      .finally(() =>
+        setInterpInFlight((current) => {
+          const next = new Set(current);
+          next.delete(observationId);
+          return next;
+        })
+      );
   };
 
   // The panel is interpreted for the day the panel itself is from (the route matches observations of that day), never
@@ -404,11 +418,13 @@ export function ResultsPage() {
   const panelShown = panelInterpretation?.panel === activeTab ? panelInterpretation : null;
   const panelPending = generatePanelInterp.isPending && askedPanel === activeTab;
   const panelFailed = generatePanelInterp.isError && askedPanel === activeTab;
+  // The grounded POST is likewise one object for every result: it is pending here only while this result's own is.
+  const interpPending = effectiveObservation ? interpInFlight.has(effectiveObservation.id) : false;
   // The ribbon is on the page: nothing to download before it is, and nothing is selected on an empty or loading panel.
   // With the mode on, the unchecked values are not drawn, so a chart with only those has nothing to download.
   const plottedCount = (trendData?.data_points.length ?? 0) - (strictSafetyMode ? unverifiedPointCount : 0);
   const chartReady = effectiveAnalyte !== undefined && !trendLoading && !trendError && plottedCount > 0;
-  const groundedShown = grounded && grounded.observationId === effectiveObservation?.id ? grounded : null;
+  const groundedShown = effectiveObservation ? (grounded[effectiveObservation.id] ?? null) : null;
   // The 409 for the result on screen: from its stored GET, or from the grounded POST asked for it.
   const verifyFirstShown =
     isVerifyFirst(interpError) ||
@@ -777,7 +793,7 @@ export function ResultsPage() {
                   refLow={effectiveObservation?.ref_low}
                   refHigh={effectiveObservation?.ref_high}
                   onRegenerate={() => handleGenerateInterpretation(true)}
-                  isRegenerating={generateInterpretation.isPending}
+                  isRegenerating={interpPending}
                   observation={effectiveObservation ?? undefined}
                   alwaysShowSources={strictSafetyMode}
                 />
@@ -794,10 +810,10 @@ export function ResultsPage() {
                       </div>
                       <Button
                         onClick={() => handleGenerateInterpretation()}
-                        disabled={generateInterpretation.isPending}
+                        disabled={interpPending}
                         className="gap-2"
                       >
-                        {generateInterpretation.isPending ? (
+                        {interpPending ? (
                           <Loader2 className="h-4 w-4 motion-safe:animate-spin" />
                         ) : (
                           <Sparkles className="h-4 w-4" />

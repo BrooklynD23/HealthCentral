@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes } from 'react';
+import { forwardRef, type ButtonHTMLAttributes, type MouseEvent } from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Loader2 } from 'lucide-react';
@@ -56,7 +56,9 @@ export interface ButtonProps
   /**
    * Sets aria-busy and disables the button, and shows a spinner before the
    * label. With asChild the spinner is not added (Slot takes one child);
-   * aria-busy and disabled still apply.
+   * aria-busy and disabled still apply. An <a> or a router Link ignores
+   * `disabled`, so asChild also sets aria-disabled and data-loading and
+   * cancels the click in the capture phase (before the child's own onClick).
    */
   loading?: boolean;
 }
@@ -67,6 +69,19 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const Comp = asChild ? Slot : 'button';
+    // After {...props}, so props passed to Button cannot undo the block. The child's own props still win
+    // in Slot (e.g. aria-disabled={false} on the child), and its own onClickCapture still runs.
+    const blockedWhileLoading =
+      asChild && loading
+        ? {
+            'aria-disabled': true as const,
+            'data-loading': '',
+            onClickCapture: (event: MouseEvent<HTMLElement>) => {
+              event.preventDefault();
+              event.stopPropagation();
+            },
+          }
+        : undefined;
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
@@ -74,6 +89,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         disabled={disabled || loading}
         {...props}
+        {...blockedWhileLoading}
       >
         {loading && !asChild ? (
           <>

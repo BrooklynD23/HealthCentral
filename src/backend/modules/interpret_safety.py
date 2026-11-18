@@ -113,6 +113,10 @@ class InterpretationSafetyGuard:
             for pattern in self.REQUIRED_DISCLAIMER_KEYWORDS
         ]
 
+    def _has_required_disclaimers(self, text: str) -> bool:
+        """The validator's disclaimer rule: at least two of the three keyword groups."""
+        return sum(1 for pattern in self._compiled_required if pattern.search(text)) >= 2
+
     def validate_interpretation(
         self,
         interpretation_text: str,
@@ -148,12 +152,7 @@ class InterpretationSafetyGuard:
             result.checks_passed.append("no_prohibited_content")
 
         # Check for required disclaimers
-        disclaimers_found = 0
-        for pattern in self._compiled_required:
-            if pattern.search(full_text):
-                disclaimers_found += 1
-
-        if disclaimers_found >= 2:
+        if self._has_required_disclaimers(full_text):
             result.checks_passed.append("has_required_disclaimers")
         else:
             result.passed = False
@@ -282,14 +281,6 @@ class InterpretationSafetyGuard:
                 disclaimer_present = True
                 break
 
-        if not disclaimer_present:
-            # Add standard disclaimer to end of interpretation
-            disclaimer = (
-                "\n\nThis information is for educational purposes only. "
-                "Please consult your healthcare provider for personalized medical advice."
-            )
-            interpretation_text = interpretation_text + disclaimer
-
         # Ensure advice has disclaimer if present
         if advice_text:
             advice_disclaimer_present = False
@@ -304,6 +295,21 @@ class InterpretationSafetyGuard:
                     "any changes to your diet, exercise, or lifestyle."
                 )
                 advice_text = advice_text + advice_disclaimer
+
+        # The text the validator will see (interpretation + advice, as appended above).
+        full_text = interpretation_text
+        if advice_text:
+            full_text = f"{interpretation_text}\n{advice_text}"
+
+        # First condition keeps every already-passing card byte-identical; the second
+        # appends where the validator would otherwise withhold (DISCLAIMER-GUARD-QUIRK).
+        if not disclaimer_present or not self._has_required_disclaimers(full_text):
+            # Add standard disclaimer to end of interpretation
+            disclaimer = (
+                "\n\nThis information is for educational purposes only. "
+                "Please consult your healthcare provider for personalized medical advice."
+            )
+            interpretation_text = interpretation_text + disclaimer
 
         return interpretation_text, advice_text or ""
 

@@ -8,6 +8,10 @@ import '@fontsource-variable/fraunces';
 import '@fontsource-variable/source-sans-3';
 import '@fontsource/jetbrains-mono';
 
+// Load the mono face now, not when the first font-mono value renders. A lazy load lays that text out in the
+// fallback font for a frame, then swaps, so every value on /verify jumps about 1 px and grows 2 px (MEDS-G-FLAKE, G10).
+void document.fonts?.load('1em "JetBrains Mono"');
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MotionProvider>

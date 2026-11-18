@@ -180,8 +180,8 @@ def build_environment_diagnostics() -> list[dict[str, Any]]:
         detail = "sqlcipher3 not available."
         if is_windows:
             detail += (
-                " PyPI publishes Linux wheels only for sqlcipher3-binary, so pip usually cannot "
-                "install it on Windows; the backend falls back to plain SQLite."
+                " On Windows the pinned sqlcipher3 wheel (Python 3.11, 64-bit) provides it; "
+                "dev.bat installs it. Without it the backend falls back to plain SQLite."
             )
         if req:
             detail += " Encryption is required in this configuration."
@@ -190,18 +190,19 @@ def build_environment_diagnostics() -> list[dict[str, Any]]:
             sqlcipher_fixes = [
                 _action(
                     action_type="copy_command",
-                    label="Local dev only (plain SQLite vaults)",
+                    label="Install the pinned Windows wheel",
                     command=(
-                        "# In .env — development only; do not use in production:\n"
-                        "DATABASE_ENCRYPTION_REQUIRED=false"
+                        "# In the backend venv, from src\\backend:\n"
+                        "pip install --only-binary=:all: --no-deps --require-hashes "
+                        "-r requirements-sqlcipher-win.txt"
                     ),
                 ),
                 _action(
                     action_type="copy_command",
-                    label="SQLCipher: run API on Linux or WSL",
+                    label="Local dev only (plain SQLite vaults)",
                     command=(
-                        "# On Linux/WSL in your venv:\n"
-                        "pip install sqlcipher3-binary"
+                        "# In .env — development only; do not use in production:\n"
+                        "DATABASE_ENCRYPTION_REQUIRED=false"
                     ),
                 ),
             ]

@@ -174,6 +174,9 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "background download task; settings write is part of start_model_download (C)",
     "api/model_settings.py::set_llm_provider::asyncio.to_thread(reset_provider)":
         "unloads the in-memory LLM provider in a thread; no session",
+    "core/profile_database.py::PerProfileDatabaseManager.open_profile_database::asyncio.to_thread(convert_plaintext_vault_if_needed)":
+        "one-time plaintext-to-SQLCipher file conversion (core/vault_conversion.py, SQLCIPHER-WHEEL) in a "
+        "thread: raw sqlcipher3 file I/O on the vault path, no SQLAlchemy session, no commit, no audit row",
     "api/model_settings.py::get_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
         "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
         "hits three sites: backup_scheduler.run_due_backups, "

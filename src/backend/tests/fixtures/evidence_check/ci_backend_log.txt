@@ -1,0 +1,4 @@
+2026-11-12T10:00:00.0000000Z collected 5167 items
+2026-11-12T10:09:50.0000000Z TOTAL    41000   9000    78%
+2026-11-12T10:09:51.0000000Z [32m5164 passed[0m, 3 skipped, 1732 warnings in 590.02s (0:09:50)
+2026-11-12T10:09:52.0000000Z Required test coverage of 74% reached.

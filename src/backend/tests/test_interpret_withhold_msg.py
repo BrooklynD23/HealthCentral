@@ -52,7 +52,9 @@ DOSING_TEXT = (
     "Your LDL is 190 mg/dL [KB:ldl]. You should take 20 mg atorvastatin daily."
 )
 # Cited, names exactly one disclaimer group ("doctor") and gives no advice, so
-# the guard fails it on missing_disclaimers alone (asserted in HC-IWM-002).
+# the validator alone fails it on missing_disclaimers (asserted in HC-IWM-002).
+# add_required_disclaimers now fixes it (DISCLAIMER-GUARD-QUIRK), so HC-IWM-002
+# stubs the fixer to reach the withhold branch.
 ONE_GROUP_TEXT = (
     "Your LDL Cholesterol result is listed as 120 mg/dL [KB:ldl]. "
     "Ask your doctor what it means for you."
@@ -231,12 +233,22 @@ async def test_hc_iwm_001_grounded_route_answers_withheld_card_with_message(dbs,
 
 @pytest.mark.asyncio
 async def test_hc_iwm_002_grounded_route_disclaimer_only_failure_is_withheld(dbs, caplog):
+    """Defence-in-depth wiring, not a production path: with the fixer stubbed out
+    (it now fixes one-group text, DISCLAIMER-GUARD-QUIRK), a validator disclaimer
+    failure must still withhold and leak no text."""
     caplog.set_level(logging.DEBUG)
     profile_db, master_db, obs_id = dbs
-    # Precondition (HC-ISE-002): this exact text is a disclaimer-only failure.
-    assert _guard_verdict(ONE_GROUP_TEXT).checks_failed == ["missing_disclaimers"]
+    # Precondition (HC-ISE-002): the validator alone fails this text on disclaimers only.
+    assert InterpretationSafetyGuard().validate_interpretation(
+        interpretation_text=ONE_GROUP_TEXT, advice_text=None, require_citations=True
+    ).checks_failed == ["missing_disclaimers"]
 
-    resp, rag = _grounded_withheld(dbs, ONE_GROUP_TEXT)
+    no_fix = lambda self, interpretation_text, advice_text=None: (  # noqa: E731
+        interpretation_text,
+        advice_text or "",
+    )
+    with patch.object(InterpretationSafetyGuard, "add_required_disclaimers", no_fix):
+        resp, rag = _grounded_withheld(dbs, ONE_GROUP_TEXT)
     _assert_withheld_answer(resp, rag)
     assert await _cards(profile_db) == []
     assert "what it means for you" not in resp.text

@@ -561,6 +561,8 @@ matcher take the oldest tied revision so later data steps still run.
 
 A 2026-11-06 instance, "a guard that only looks at handlers that commit", found by DOCS-AUDIT-1106 and closed by AUDIT-READ-ROUTES. CLAUDE.md requires an audit row on every route that touches documents, observations or profile data. HC-AUD-ORD-030 (`tests/test_audit_order_guard.py`) enforces the order of audit and commit, but it only scans handlers from which a `.commit()` is reachable. A read handler that never commits is outside that set, so it was invisible to the guard, and eight vault reads shipped with no audit row: the chat session list and history, the assistant memory setting, the feedback stats, and the medication list, detail, schedules and doses. Every one had a green test, because no test asked whether a GET writes a row. HC-ARR-011 (`tests/test_audit_read_routes.py`) now guards the class: every handler in `api/` reaches an audit sink or is named in `UNAUDITED_ROUTES` with a reason, and a stale entry fails. Its blind spot is written in the test docstring (the graph links calls by name; it sees handlers, not paths, so a handler that audits on one branch passes). Recheck: when a guard is scoped to a subset of handlers (the ones that commit), list the handlers outside the subset and say what covers them; run one new handler outside the subset through the guard and confirm it is reported.
 
+A 2026-11-16 instance, "a purge race closed for the answer cache and left open for the page cache", closed by MEM-PURGE-RACE-PAGES. #629 (MEM-PURGE-RACE) stopped the assistant answer cache re-filling after a lock or logout purge, with a purge sequence mark taken at get and checked at put. The page picture cache in `api/documents.py` has the same shape (miss, slow render, audit, put) and `purge_page_images` runs on the same events, but `get_page_image` still put after the render with no check, so a lock mid-render re-inserted the decrypted page for up to 300 s (`_PAGE_IMAGE_CACHE_TTL_SECONDS`). The purge tests seeded the cache and purged; none purged during a request, so they could not see it. HC-MPRP-001 now does, over HTTP. Recheck: when a race is closed for one in-memory store, list every store that `purge_profile_exports` clears and confirm each put is checked against a purge mark, not only the one that was reported.
+
 ---
 
 ## 10. A fully unit-tested feature that was never started
@@ -703,3 +705,27 @@ KV evidence (#298): the model-host `hold_slots.sh` quiet-run wrapper flocks a ha
 The inverse of the leaked-orphan instance under mode 5: there the orphan outlived the batch and held a port or lock; here the orphan makes the caller wait. Reported by another builder: `subprocess.run(..., capture_output=True)` on a command that leaves a background grandchild blocks on pipe EOF until the orphan exits, because the grandchild inherited the stdout/stderr pipe write ends. The test hung with the command already at rc=0; nothing in the output showed a wait on a pipe. (Evidence is the builder's report; not re-reproduced here.)
 
 **Recheck:** a test that runs a command which may background anything redirects the child's stdout/stderr to a file (or `DEVNULL`) instead of pipes, or sets a `timeout=` and kills the process group (`start_new_session=True`, `os.killpg`). When a test hangs at rc=0, list the process's descendants (`pgrep -P`, `ps --forest`) before blaming the code under test.
+
+---
+
+## 22. A fixer and its validator disagree on a threshold
+
+`modules/interpret_safety.py`: `validate_interpretation` requires at least two of the three `REQUIRED_DISCLAIMER_KEYWORDS` groups in interpretation plus advice, but `add_required_disclaimers` treated one group in the interpretation alone as enough and skipped its append. A one-group text ("Ask your doctor what it means for you.") went through add then validate and was withheld with `missing_disclaimers`. Evidence: the probe run on `origin/main` (4d32143e), recorded as the RED output of `HC-DGQ-001`/`002`/`003` in `tests/test_disclaimer_guard_quirk.py`. Two existing withhold tests (`HC-ISE-002`, `HC-IWM-002`) had been using that text as their "production" disclaimer failure, so the quirk read as intended behaviour. Fixed under DISCLAIMER-GUARD-QUIRK by sharing one `_has_required_disclaimers` rule between both sides.
+
+**Recheck:** grep for every fixer/normaliser that feeds a validator (`add_*`, `ensure_*`, `normalize_*` beside a `validate_*`) and compare its "is this already sufficient" test with the validator's pass condition; they must call the same predicate. A test that drives fixer then validator over inputs just below the validator's threshold (0, 1, N-1 of N) would have failed.
+
+---
+
+## 23. quiet_run counts slot waiters as busy
+
+`scripts/quiet_run.sh` holds `pyslot` slots 1-8 and then waits until no test process is running. A `pyslot.sh` pytest that is only WAITING for a slot counts as a running test process, so `quiet_run` waits for the waiter while the waiter waits for `quiet_run`'s slot: a deadlock until `--max-wait`. Evidence: the #621 diagnosis agent's first `quiet_run` on 2026-11-12 deadlocked against another agent's `pyslot` pytest. The script is not changed in this batch (BATCH-1112B); this entry only records the mode.
+
+**Recheck:** before trusting a `quiet_run` stall, run `pgrep -fa pyslot` and see whether the "busy" process is a slot waiter (a `pyslot.sh` pytest that has not started) rather than a running test. If it is a waiter, the run is deadlocked, not slow: stop it and start the waiter's owner first, or wait for the waiter to finish, instead of sitting to `--max-wait`.
+
+---
+
+## 24. A table-row edit adds cells instead of replacing them
+
+BATCH-1113B (#652) was told to replace the SQLCIPHER-WHEEL row's files and ask-first cells. It inserted the two new cells and kept the old ones, so the row had 11 cells under a 10-column header and every value after the ask-first column shifted right. Markdown still rendered, docs lint passed, and the batch's own licence-gate run passed (it changed no product files). The first PR judged by that row (#653) then failed the live licence gate: `scripts/pr_licence_gate.py` read the three ask-first paths as the files cell and the 16-file licence as `est h`. Fixed in BATCH-1113C by realigning the row.
+
+**Recheck:** after any queue-row edit, parse the row with `scripts/queue_drift.py`'s `parse()` and check that it has exactly the header's cell count and that `c["files"]` / `c["ask-first"]` hold what you meant. Then run the licence gate on the PR that row licenses (`--ref` at your branch) before merging the batch.

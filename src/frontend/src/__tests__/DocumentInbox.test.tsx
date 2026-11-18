@@ -293,12 +293,19 @@ describe('DocumentInbox row actions on touch and keyboard', () => {
     expect(ungated).toEqual([]);
   });
 
-  it('FE-TW4-HOVER-002: reveals row actions when a keyboard user focuses into them', async () => {
+  it('FE-TW4-HOVER-002: row actions are always visible and reachable by Tab', async () => {
     const user = userEvent.setup();
     render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
 
     const container = actionsContainer();
-    expect(container.className.split(/\s+/)).toContain('focus-within:opacity-100');
+    // The container and every ancestor up to the row carry no hiding token, gated or not.
+    const row = container.closest('[data-inbox-row]');
+    expect(row).not.toBeNull();
+    const hiding: string[] = [];
+    for (let el: HTMLElement | null = container; el; el = el === row ? null : el.parentElement) {
+      hiding.push(...el.className.split(/\s+/).filter((t) => /(^|:)(opacity-0|invisible|hidden)$/.test(t)));
+    }
+    expect(hiding).toEqual([]);
     for (let i = 0; i < 50 && !container.contains(document.activeElement); i++) {
       await user.tab();
     }
@@ -343,6 +350,7 @@ describe('DocumentInbox scanned-page notice', () => {
     mutateAsync
       .mockResolvedValueOnce(importResponse('scan-one', 'one-scan.pdf', [2]))
       .mockResolvedValueOnce(importResponse('scan-two', 'two-scan.pdf', [2, 3]))
+      .mockResolvedValueOnce(importResponse('scan-three', 'three-scan.pdf', [2, 3, 4]))
       .mockResolvedValueOnce(importResponse('text-only', 'text.pdf', []));
     render(<BrowserRouter><DocumentInbox /></BrowserRouter>);
     const input = screen.getByLabelText(/upload medical documents/i);
@@ -358,6 +366,11 @@ describe('DocumentInbox scanned-page notice', () => {
       'Pages 2 and 3 have no readable text, so their values were not read. Check the original report.'
     );
     expect(plural).toHaveAttribute('role', 'status');
+
+    await user.upload(input, new File(['%PDF-1.4 d'], 'three-scan.pdf', { type: 'application/pdf' }));
+    await screen.findByText(
+      'Pages 2, 3 and 4 have no readable text, so their values were not read. Check the original report.'
+    );
 
     await user.upload(input, new File(['%PDF-1.4 c'], 'text.pdf', { type: 'application/pdf' }));
     await waitFor(() => {

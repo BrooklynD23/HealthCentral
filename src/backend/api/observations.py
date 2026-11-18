@@ -521,6 +521,9 @@ async def verify_observation(
             "ref_low": observation.ref_low,
             "ref_high": observation.ref_high,
             "collected_at": observation.collected_at.isoformat() if observation.collected_at else None,
+            # FLAG-OLD-ON-REWRITE: the printed flag survives a recalculation.
+            "flag": observation.flag,
+            "is_abnormal": observation.is_abnormal,
         }
         observation.original_value_json = json.dumps(original)
 
@@ -607,6 +610,7 @@ async def verify_observation(
     has_range = observation.ref_low is not None or observation.ref_high is not None
     recalculate = (numbers_changed and has_range) or not keeps_flag
     if recalculate and observation.value is not None:
+        old_flag, old_abnormal = observation.flag, observation.is_abnormal
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"
@@ -616,6 +620,11 @@ async def verify_observation(
         else:
             observation.is_abnormal = False
             observation.flag = None
+        # The audit records every field the route changed (L0 ruling R14).
+        if observation.flag != old_flag and "flag" not in changes:
+            changes["flag"] = {"old": old_flag, "new": observation.flag}
+        if observation.is_abnormal != old_abnormal and "is_abnormal" not in changes:
+            changes["is_abnormal"] = {"old": old_abnormal, "new": observation.is_abnormal}
 
     await profile_db.flush()
 
@@ -679,6 +688,14 @@ async def unverify_observation(
         )
 
     verify_observation_access(observation, session)
+
+    # VERIFY-UNDO-NOOP (owner answer VERIFY-NOOP): an empty undo is refused, with
+    # no version bump, no audit row and no write.
+    if observation.user_verified is not True:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Observation is not verified",
+        )
 
     observation.user_verified = False
     observation.verified_at = None
@@ -924,7 +941,7 @@ async def get_analyte_trend(
         log_observation_event,
         event="view",
         profile_id=profile_id,
-        observation_id=analyte,
+        observation_id="all",
         analyte=analyte,
         details={"action": "trend", "count": len(data_points)},
     )
@@ -1012,7 +1029,7 @@ async def get_panel(
         log_observation_event,
         event="view",
         profile_id=profile_id,
-        observation_id=panel_id.lower(),
+        observation_id="all",
         analyte=panel_def["name"],
         details={"action": "panel", "count": len(obs_responses)},
     )

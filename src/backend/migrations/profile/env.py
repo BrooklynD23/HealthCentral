@@ -125,7 +125,8 @@ def run_migrations_online() -> None:
     if settings.database_encryption_required and not is_sqlcipher_available():
         raise RuntimeError(
             "SQLCipher is required but not available. "
-            "Install: pip install sqlcipher3-binary"
+            "Install: Windows: pip install --only-binary=:all: --no-deps --require-hashes "
+            "-r requirements-sqlcipher-win.txt; Linux/macOS: pip install sqlcipher3-binary"
         )
 
     # Convert key to hex format for PRAGMA key

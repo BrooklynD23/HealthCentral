@@ -29,6 +29,7 @@ import { useCreateProfile, useLogin, useProfiles } from '@/services';
 import { ApiError } from '@/services/api';
 import { takeRestoreNotice } from '@/services/backup';
 import { RecoveryCodeCard } from '@/components/profile/RecoveryCodeCard';
+import type { Profile } from '@/services/types';
 
 const features = [
   {
@@ -149,6 +150,25 @@ function startLift(panel: HTMLElement | null, reduced: boolean): void {
 }
 
 const UNLOCK_EMPTY_MESSAGE = 'Enter your password';
+
+/** PROFILE-NAME-UNIQUE: the backend's comparison key (strip, collapse whitespace, casefold). */
+function nameKey(name: string): string {
+  return name.trim().split(/\s+/).join(' ').toLowerCase();
+}
+
+/**
+ * Picker label. Older profiles can share a name (the create gate only stops new ones), so where two or more share
+ * one, each shows its created date and time, which is already in the list response.
+ */
+function pickerLabel(profile: Profile, all: Profile[]): string {
+  const key = nameKey(profile.display_name);
+  if (all.filter((p) => nameKey(p.display_name) === key).length < 2) return profile.display_name;
+  const created = new Date(profile.created_at).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  return `${profile.display_name} (created ${created})`;
+}
 
 export function ProfileSetup() {
   const navigate = useNavigate();
@@ -283,6 +303,12 @@ export function ProfileSetup() {
       setIsCreating(false);
     } catch (err) {
       createProfile.reset();
+      setIsCreating(false);
+      // PROFILE-NAME-UNIQUE: a taken name is a problem with the name field. Keep what was typed so it can be edited.
+      if (err instanceof ApiError && err.status === 409) {
+        setFormErrors({ displayName: err.message });
+        return;
+      }
       const raw = err instanceof Error ? err.message : String(err);
       const timedOut =
         raw.toLowerCase().includes('aborted') ||
@@ -395,7 +421,7 @@ export function ProfileSetup() {
                   >
                     {unlockProfiles!.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.display_name}
+                        {pickerLabel(p, unlockProfiles!)}
                       </option>
                     ))}
                   </select>

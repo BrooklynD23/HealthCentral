@@ -1218,7 +1218,8 @@ async def test_hc_vrc_016_question_context_says_abnormal(dbs):
     assert abnormal, resp.text
     for q in abnormal:
         _no_none(q["context"] + " | " + q["question"])
-        assert "flagged as abnormal" in q["context"], q["context"]
+        assert q["context"].endswith("outside the printed range."), q["context"]
+        assert "flagged" not in q["context"]
 
 
 @pytest.mark.asyncio
@@ -1231,7 +1232,9 @@ async def test_hc_vrc_016_a_printed_flag_still_prints_as_before(dbs):
     assert resp.status_code == 200, resp.text
     assert any("(H)" in line for line in resp.json()["key_findings"]), resp.text
     q = _call(profile_db, master_db, export_api.router, "/export", "POST", "/export/questions")
-    assert "flagged as H" in next(x for x in q.json() if x["category"] == "abnormal")["context"]
+    ctx = next(x for x in q.json() if x["category"] == "abnormal")["context"]
+    assert "300.0" in ctx and ctx.endswith("outside the printed range."), ctx
+    assert "flagged as H" not in ctx
 
 
 # ── HC-VRC-017 to 027: saved template cards and panels are rebuilt on read ───

@@ -16,7 +16,7 @@ Windows is the native development environment. From the repository root:
 .\dev.bat        # one-click launcher (or .\dev.ps1)
 ```
 
-On WSL/Linux, clone into your Linux home (not under `/mnt/c`) and run `./dev.sh`.
+On WSL/Linux, clone into your Linux home (not under `/mnt/c`) and run `./dev.sh`. The launchers install llama-cpp-python from a prebuilt wheel at `https://abetlen.github.io/llama-cpp-python/whl/cpu`, so no C++ compiler is needed unless no wheel matches your platform or `CMAKE_ARGS` is set.
 
 Prerequisites, what the launchers do, model setup, SQLCipher, migrations, tests and manual development are in **[`docs/dev/setup.md`](docs/dev/setup.md)**. End-user instructions are in [`docs/user/getting-started.md`](docs/user/getting-started.md); contributor workflow is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 

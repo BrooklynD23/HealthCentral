@@ -1655,6 +1655,13 @@ async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatRes
         .limit(50)
     )
     tasks = result.scalars().all()
+    total = (
+        await profile_db.execute(
+            select(func.count(CarePlanTask.id)).where(
+                CarePlanTask.status.in_(["open", "needs_review"])
+            )
+        )
+    ).scalar_one()
 
     citations: list[Citation] = []
     lines: list[str] = []
@@ -1674,8 +1681,10 @@ async def _build_care_task_fallback(request: ChatRequest, profile_db) -> ChatRes
             relevance_score=1.0,
         ))
 
-    plural = "s" if len(tasks) != 1 else ""
-    header = f"You have {len(tasks)} open follow-up item{plural}."
+    plural = "s" if total != 1 else ""
+    header = f"You have {total} open follow-up item{plural}."
+    if total > len(tasks):
+        header += " Showing the 50 most recent."
     content = header + ("\n" + "\n".join(lines) if lines else "")
 
     segments = [
@@ -1724,6 +1733,16 @@ async def _build_med_change_fallback(request: ChatRequest, profile_db) -> ChatRe
         .limit(50)
     )
     rows = result.all()
+    total = (
+        await profile_db.execute(
+            select(func.count(DocumentEntity.id))
+            .join(Document, DocumentEntity.doc_id == Document.id)
+            .where(
+                DocumentEntity.entity_type == "medication_change",
+                DocumentEntity.verified_by_user == True,  # noqa: E712
+            )
+        )
+    ).scalar_one()
 
     citations: list[Citation] = []
     lines: list[str] = []
@@ -1746,8 +1765,10 @@ async def _build_med_change_fallback(request: ChatRequest, profile_db) -> ChatRe
             relevance_score=1.0,
         ))
 
-    plural = "s" if len(rows) != 1 else ""
-    header = f"You have {len(rows)} recorded medication change{plural}."
+    plural = "s" if total != 1 else ""
+    header = f"You have {total} recorded medication change{plural}."
+    if total > len(rows):
+        header += " Showing the 50 most recent."
     content = header + ("\n" + "\n".join(lines) if lines else "")
 
     segments = [

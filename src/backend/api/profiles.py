@@ -4,6 +4,7 @@ Profile management API endpoints.
 Handles profile creation, authentication, and access control.
 """
 
+import asyncio
 import base64
 import os
 import uuid
@@ -88,6 +89,16 @@ logger = logging.getLogger(__name__)
 PROFILE_DELETE_CONFIRMATION = "DELETE MY HEALTH DATA"
 
 router = APIRouter()
+
+# PROFILE-NAME-UNIQUE: serialises the duplicate-name check with the insert, so
+# two concurrent creates of one name cannot both pass the check. Process-local:
+# the app runs one backend process per install.
+_profile_create_lock = asyncio.Lock()
+
+
+def _normalise_profile_name(name: str) -> str:
+    """Comparison key for display names: strip, collapse whitespace, casefold."""
+    return " ".join(name.split()).casefold()
 
 
 async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection) -> None:
@@ -354,7 +365,26 @@ async def create_profile(
     - Session token for immediate access
 
     The profile is automatically unlocked after creation.
+
+    A display name equal to an existing one (ignoring case and whitespace) is
+    refused with 409 before anything is written (PROFILE-NAME-UNIQUE).
     """
+    async with _profile_create_lock:
+        return await _create_profile_locked(profile_data, db)
+
+
+async def _create_profile_locked(profile_data: ProfileCreate, db: AsyncSession):
+    wanted = _normalise_profile_name(profile_data.display_name)
+    existing = await db.execute(select(Profile.display_name))
+    if any(_normalise_profile_name(name) == wanted for name in existing.scalars()):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"A profile named {profile_data.display_name} already exists. "
+                "Choose a different name."
+            ),
+        )
+
     profile_id = str(uuid.uuid4())
     encryption_key_id = str(uuid.uuid4())
 
@@ -618,10 +648,13 @@ async def reset_synthetic_test_profile(
         await profile_db.commit()
     except Exception as exc:
         await profile_db.rollback()
-        logger.exception("Synthetic profile reset failed for %s", session.profile_id)
+        # Type name only: the message and traceback can carry SQL or path detail.
+        logger.error(
+            "Synthetic profile reset failed for %s: %s", session.profile_id, type(exc).__name__
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Synthetic profile reset failed: {exc}",
+            detail="Synthetic profile reset failed.",
         ) from exc
     # AUD-02: written only after the vault commit, so a failed reset leaves no
     # row claiming it happened (HC-PAUD-004). Outside the try: an audit failure
@@ -743,7 +776,6 @@ async def issue_recovery_code(
             key_path.read_bytes(), method, fallback_password=payload.password
         )
         had_previous = manager.has_recovery_key(profile_id)
-        code = _issue_recovery_code(profile_id, dek)
     except KeySealingError as exc:
         logger.error("Recovery code generation failed for a profile")
         raise HTTPException(
@@ -759,6 +791,19 @@ async def issue_recovery_code(
         details={"trigger": "user_request" if had_previous else "backfill"},
     )
     await db.commit()
+
+    # Commit before rotation (RECOVER-ORDER-COMMIT): a failed commit leaves the
+    # existing recovery file untouched. The code is returned only once the new
+    # seal is on disk. A crash between the commit and this write leaves the old
+    # code valid and an audit row for a rotation that did not happen.
+    try:
+        code = _issue_recovery_code(profile_id, dek)
+    except KeySealingError as exc:
+        logger.error("Recovery code generation failed for a profile")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not generate a recovery code",
+        ) from exc
 
     return RecoveryCodeResponse(recovery_code=code, replaced_existing=had_previous)
 
@@ -782,6 +827,12 @@ async def recover_profile(
     hash with a new-password seal — login fails cleanly and the recovery code
     still works. The inverse order would leave auth accepting a password that
     cannot open the vault.
+
+    The recovery code is rotated only after that commit (RECOVER-ORDER-COMMIT),
+    then a second commit records the rotation. A crash in any window leaves at
+    least one working credential: the old recovery code before the first commit,
+    the new password after it. A crash between the rotation and the second
+    commit loses only the ``recovery_code_generated`` audit row.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
@@ -850,13 +901,6 @@ async def recover_profile(
     profile.is_locked = False
     profile.last_accessed_at = utcnow()
 
-    # Rotate the recovery code rather than invalidating it: plain invalidation
-    # would leave the user with *no* recovery until they remember to generate
-    # one, a durability regression in the feature whose whole point is
-    # durability. Rotation gives one-time-use semantics and keeps the invariant
-    # "there is always exactly one valid recovery code".
-    new_code = _issue_recovery_code(profile_id, dek)
-
     recovery_rate_limiter.reset(rate_key)
 
     await log_profile_event(
@@ -864,6 +908,16 @@ async def recover_profile(
         profile_name=profile.display_name,
         details={"password_reset": True, "recovery_rotated": True},
     )
+    await db.commit()
+
+    # Rotate the recovery code rather than invalidating it: plain invalidation
+    # would leave the user with *no* recovery until they remember to generate
+    # one, a durability regression in the feature whose whole point is
+    # durability. Rotation gives one-time-use semantics and keeps the invariant
+    # "there is always exactly one valid recovery code". It runs only after the
+    # credential commit above (RECOVER-ORDER-COMMIT).
+    new_code = _issue_recovery_code(profile_id, dek)
+
     await log_profile_event(
         db=db, event="recovery_code_generated", profile_id=profile_id,
         profile_name=profile.display_name,

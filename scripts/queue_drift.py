@@ -61,7 +61,7 @@ def column(header: list[str], name: str, exact: bool = True) -> int | None:
 
 
 def parse(text: str) -> list[dict]:
-    """Return one dict per table row: i id, l lane, k kind, s section, t status."""
+    """Return one dict per table row: i id, l lane, k kind, s section, t status, c {lowercase header: cell}."""
     rows: list[dict] = []
     section, header = "", None
     lines = text.splitlines()
@@ -89,6 +89,7 @@ def parse(text: str) -> list[dict]:
                 k=c[kind] if kind is not None else "",
                 s=section,
                 t=c[st],
+                c={h: c[j] for j, h in enumerate(header) if j < len(c)},
             )
         )
     return rows
