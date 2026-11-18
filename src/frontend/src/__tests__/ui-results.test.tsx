@@ -1870,6 +1870,17 @@ describe('HC-UIRES-026 the Normal Range badge', () => {
     expect(screen.queryByText('Flagged on the report')).toBeNull();
   });
 
+  it('HC-UIRES-026: a latest point with its own report range is judged against it, not the chart band (TREND-POINT-RANGE)', async () => {
+    // Own range 12-16 holds 15.5; the chart band 16-20 would put it below. The badge follows the point's own range.
+    await open((canonical) => ({
+      ...withLatest(15.5, { ref_low: 16, ref_high: 20 })(canonical),
+      data_points: [trendPoint('2026-01-10T00:00:00', 15.5, { ref_low: 12, ref_high: 16 })],
+    }));
+    await screen.findByText(/Latest value: 15.5/);
+    expect(await screen.findByText('Normal Range')).toBeInTheDocument();
+    expect(screen.queryByText('Outside Range')).toBeNull();
+  });
+
   it('HC-UIRES-026: a flag pointing the other way still shows Outside Range alone (the badge reads the band; the ribbon says they disagree)', async () => {
     await open((canonical) => ({
       ...withLatest(130, { ref_low: 70, ref_high: 99 })(canonical),

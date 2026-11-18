@@ -57,7 +57,7 @@ import { findActiveMedications } from '@/utils/correlation';
 import { MedicationOverlay } from '@/components/MedicationOverlay';
 import { UnverifiedTrendNote } from '@/components/TrendVerificationMarkers';
 import { ExternalApiBreakGlassWarning } from '@/components/settings/ExternalApiBreakGlassWarning';
-import { RangeRibbon, bandOfValue, pointDateLabel, serializeRangeRibbonSvg } from '@/components/results/RangeRibbon';
+import { RangeRibbon, bandOfValue, ownRangeOf, pointDateLabel, serializeRangeRibbonSvg } from '@/components/results/RangeRibbon';
 import { DisclaimerBanner } from '@/components/lab-interpreter/DisclaimerBanner';
 import { InterpretedResultCard } from '@/components/lab-interpreter/InterpretedResultCard';
 import { PanelInterpretationDashboard } from '@/components/lab-interpreter/PanelInterpretationDashboard';
@@ -300,8 +300,13 @@ export function ResultsPage() {
   // report's own flag where the band does not bear it out, so it is never hidden. The badge reads the band alone, so a flag
   // pointing the other way still gets "Outside Range" while the ribbon says the flag and the range disagree.
   // The band is read by the ribbon's own helper, on the same cleaned number the ribbon draws.
+  // TREND-POINT-RANGE: when the latest point carries its own report's range, the badge reads that, as the ribbon's
+  // readout does for the same point; otherwise the chart's band.
+  const latestOwnRange = latestValue ? ownRangeOf(latestValue) : null;
   const latestBand = latestValue
-    ? bandOfValue(latestValue.value, trendData?.ref_low, trendData?.ref_high)
+    ? latestOwnRange
+      ? bandOfValue(latestValue.value, latestOwnRange.low, latestOwnRange.high)
+      : bandOfValue(latestValue.value, trendData?.ref_low, trendData?.ref_high)
     : null;
   const latestPlace = !latestBand || latestBand.side === 'none' ? 'unknown' : latestBand.side === 'within' ? 'inside' : 'outside';
   const latestInsideRange = latestPlace === 'inside' && !latestValue?.is_abnormal;

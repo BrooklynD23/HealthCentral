@@ -232,6 +232,11 @@ class TrendPoint(BaseModel):
     # (observation_range_status == "disagrees"). Read from the row's raw value and bounds, not
     # the converted point value or the chart's combined band. Defaults to False.
     flag_range_disagree: bool = False
+    # TREND-POINT-RANGE: this point's own report bounds, in the point's unit (converted with
+    # the point under unit normalization; a bound that does not convert is None). The series
+    # ref_low/ref_high on TrendResponse stay the chart's one band.
+    ref_low: Optional[float] = None
+    ref_high: Optional[float] = None
 
 
 class TrendResponse(BaseModel):
@@ -726,6 +731,14 @@ async def unverify_observation(
     return ObservationResponse.from_model(observation)
 
 
+def _own_bound(analyte_key: str, bound: Optional[float], unit: Optional[str]) -> Optional[float]:
+    """One reference-range bound in the analyte's canonical unit, or None if it cannot convert."""
+    if bound is None:
+        return None
+    converted = convert_to_canonical(analyte_key, bound, unit)
+    return converted.canonical_value if converted is not None else None
+
+
 @router.get("/trends/{analyte}", response_model=TrendResponse)
 async def get_analyte_trend(
     analyte: str,
@@ -823,6 +836,12 @@ async def get_analyte_trend(
                     ref_high_source = obs
 
             if obs.collected_at and obs.value is not None:
+                point_ref_low, point_ref_high = obs.ref_low, obs.ref_high
+                if normalize_units:
+                    # Convert each bound in the row's own unit; one that does not convert
+                    # is dropped, never shown in another unit.
+                    point_ref_low = _own_bound(analyte_key, obs.ref_low, obs.unit)
+                    point_ref_high = _own_bound(analyte_key, obs.ref_high, obs.unit)
                 data_points.append(TrendPoint(
                     date=obs.collected_at.isoformat(),
                     value=point_value,
@@ -838,6 +857,8 @@ async def get_analyte_trend(
                         obs.flag, obs.value, obs.ref_low, obs.ref_high,
                         bool((obs.ref_range_text or "").strip()),
                     ) == "disagrees",
+                    ref_low=point_ref_low,
+                    ref_high=point_ref_high,
                 ))
             elif obs.value is not None:
                 # Has a value but no date — count it so the summary is accurate
