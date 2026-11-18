@@ -635,8 +635,9 @@ test('UI-PG-REVIEW Ink: the marker goes from pencil to ink with the chip, and a 
 
   const toast = page.locator('[data-sonner-toast]');
   await expect(toast).toContainText('Glucose, Apr 10, 2026 is now marked as checked');
-  // The API has no unverify endpoint, so the toast has no action button.
-  await expect(toast.getByRole('button')).toHaveCount(0);
+  // The toast carries one button, Undo (VERIFY-UNDO-UI).
+  await expect(toast.getByRole('button')).toHaveCount(1);
+  await expect(toast.getByRole('button', { name: 'Undo' })).toBeVisible();
 });
 
 // The default /verify asks for needs_verification=true, so the API drops a row once it is verified. The row

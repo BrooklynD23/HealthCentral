@@ -76,6 +76,7 @@ export {
   useObservations,
   useObservation,
   useVerifyObservation,
+  useUnverifyObservation,
   useTrend,
   usePanel,
   useAnalyteList,
