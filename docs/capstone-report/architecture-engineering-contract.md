@@ -280,6 +280,8 @@ This contract turns the repo's invariants into rules a reviewer can check. Curre
 - **On violation:** —.
 - **Owner:** Engineering.
 
+*Superseded 2026-11-06 (BATCH-1106C; the dated record is not rewritten):* C-MIG-1's "Enforced at: convention" and its heads (master `002_backup_schedules`, profile `012_pinboards`, dated 2026-09-27) are as of 2026-09-27, and C-MIG-2's "PROPOSED" label is stale: the profile chain now has 18 revisions with head `018_ocr_opt_in` (`ls src/backend/migrations/profile/versions/`); `tests/test_migration_heads.py` (HC-MIGHEAD-001…003) enforces one head per chain; and an unversioned profile vault is matched to the oldest tied revision and then upgraded, not stamped to head (`core/migrations.py:651`, R2, #512).
+
 **C-MIG-3 · PROPOSED** (owner-approved D5; the pragma listener sits in `core/profile_database.py` beside the SQLCipher key hook, so ask first). The owner approved the blast radius on 2026-09-08 (agent-recorded, branch-only). D5 decided 2026-09-27 ("Approve all four", `owner-decisions-2026-09-27.md:14`): P14/P15 CASCADE, P16/P17 SET NULL, pragma ON for both engines; the owner still reviews the orphan report before migration.
 - **Rule:** `PRAGMA foreign_keys=ON` MUST be set once per new physical DBAPI connection on the master engine and the profile engine, after profile migration 013 realigns P14/P15 → CASCADE and P16/P17 → SET NULL. Migration engines and `scripts/backup.py` raw `sqlite3` connections MUST stay pragma-OFF. A constraint MUST NOT be relaxed to get a green suite.
 - **Enforced at:** — (plan 06).

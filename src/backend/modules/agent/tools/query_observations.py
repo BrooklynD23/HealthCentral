@@ -33,6 +33,13 @@ class ObservationRow(ToolOutput):
     unit: str | None = None
     collected_at: datetime
     verified: Literal[True]  # only verified rows are ever emitted
+    # ADVICE-CLASSIFIER-FIX: the row's own printed range and flag, so a range question can be
+    # read with api.observations.observation_range_status. ref_range_text is never parsed or
+    # carried; only whether it is non-blank.
+    ref_low: float | None = None
+    ref_high: float | None = None
+    flag: str | None = None
+    has_range_text: bool = False
 
 
 class QueryObservationsOutput(ToolOutput):
@@ -128,6 +135,10 @@ class QueryObservationsTool:
                 unit=row.unit,
                 collected_at=row.collected_at,
                 verified=True,
+                ref_low=row.ref_low,
+                ref_high=row.ref_high,
+                flag=row.flag,
+                has_range_text=bool((row.ref_range_text or "").strip()),
             )
             for row in obs_rows
         ]

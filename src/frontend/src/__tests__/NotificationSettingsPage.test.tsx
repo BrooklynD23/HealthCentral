@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { NotificationSettings } from '@/pages/NotificationSettings';
+import { RemindersPanel } from '@/components/medication-coach/RemindersPanel';
 import * as medicationService from '@/services/medications';
 import * as notificationService from '@/services/notifications';
 
@@ -27,7 +27,7 @@ vi.mock('@/services/notifications', () => ({
 function renderPage() {
   return render(
     <BrowserRouter>
-      <NotificationSettings />
+      <RemindersPanel />
     </BrowserRouter>
   );
 }

@@ -223,6 +223,18 @@ _RULES: tuple[RedactionRule, ...] = (
         replacement="[DATE-REDACTED]",
         policy_levels=frozenset({"strict"}),
     ),
+    # Last on purpose: (?!\[) then defers to every other rule that hid the value.
+    RedactionRule(
+        name="name_guard_tail",
+        pattern=re.compile(
+            r"\[NAME-REDACTED\][^\S\n]+(?i:medical|patient|name|id|dob|date|ssn|address|phone|dr|mr|mrs|ms)"
+            r"(?![\w\u0300-\u036f-])"
+            r"(?![^\S\n]*(?:(?i:id|name|legal)\b|(?i:no)\.)|[^\S\n]*[(:#])"
+            r"[^\S\n]+(?!\[)(?!(?i:patient|name|dr|mr|mrs|ms|mrn|record|rec)\b)[^\s,.;:]+"
+        ),
+        replacement="[NAME-REDACTED] [ID-REDACTED]",
+        policy_levels=frozenset({"strict"}),
+    ),
 )
 
 # Valid policy levels

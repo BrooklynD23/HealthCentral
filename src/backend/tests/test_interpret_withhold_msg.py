@@ -1,0 +1,580 @@
+"""INTERP-WITHHOLD-MSG: a withheld lab card is recorded and the grounded route
+answers with the escalation message instead of a bare 500.
+
+Plan: docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md,
+"Delta 2026-10-31 (INTERP-WITHHOLD-MSG: show the withheld message)", Task 1.
+Signed gate: INTERP-ENFORCE-DIFF ("Merge, then show message").
+
+HC-IWM-001/002/005: grounded route, 201 withheld answer (no card, no rag.query).
+HC-IWM-003/004: plain route, unchanged 500 plus one `interpretation.withheld` row.
+HC-IWM-006: `checks_failed` survives the audit allowlist, prose does not.
+HC-IWM-007: Task 3 (signed gate OQ-IWM-CRIT), a withheld critical card keeps the
+physician-review flag; the value and its reason string are never sent or audited.
+HC-IWM-008: positive control, a non-withheld failure keeps the 500 mapping.
+
+Every route test goes through HTTP via tests/support/routes.py::route_client
+with a real in-memory master DB (audit rows) and profile DB.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+import uuid
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+import pytest_asyncio
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import StaticPool
+
+import api.interpretations as I
+import models  # noqa: F401  register every table on both bases
+from api.interpretations import router as interpretations_router
+from core.audit import _scrub_details
+from core.auth import get_profile_db_session
+from core.database import Base
+from core.profile_database import ProfileDatabaseBase
+from models import LabInterpretation, Observation
+from models.audit import AuditLog
+from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+from modules.interpret import InterpretationResult, InterpretModule
+from modules.interpret_safety import InterpretationSafetyGuard
+from tests.support.routes import route_client
+
+PROFILE_ID = "profile-a"  # route_client's default session profile_id
+ANALYTE = "ldl"
+COLLECTED = datetime(2026, 3, 1, 9, 0, 0)
+DOSING_TEXT = (
+    "Your LDL is 190 mg/dL [KB:ldl]. You should take 20 mg atorvastatin daily."
+)
+# Cited, names exactly one disclaimer group ("doctor") and gives no advice, so
+# the validator alone fails it on missing_disclaimers (asserted in HC-IWM-002).
+# add_required_disclaimers now fixes it (DISCLAIMER-GUARD-QUIRK), so HC-IWM-002
+# stubs the fixer to reach the withhold branch.
+ONE_GROUP_TEXT = (
+    "Your LDL Cholesterol result is listed as 120 mg/dL [KB:ldl]. "
+    "Ask your doctor what it means for you."
+)
+
+
+async def _engine_session(base):
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(base.metadata.create_all)
+    return AsyncSession(engine, expire_on_commit=False), engine
+
+
+@pytest_asyncio.fixture
+async def dbs():
+    profile_db, p_engine = await _engine_session(ProfileDatabaseBase)
+    master_db, m_engine = await _engine_session(Base)
+    obs = Observation(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, doc_id=str(uuid.uuid4()),
+        analyte_canonical=ANALYTE, analyte_raw="LDL Cholesterol", value=120.0,
+        unit="mg/dL", ref_low=0.0, ref_high=130.0, collected_at=COLLECTED,
+    )
+    profile_db.add(obs)
+    await profile_db.commit()
+    try:
+        yield profile_db, master_db, obs.id
+    finally:
+        await profile_db.close()
+        await master_db.close()
+        await p_engine.dispose()
+        await m_engine.dispose()
+
+
+# Copied from tests/test_safe_interp_grounded.py (not imported across modules).
+def _call(profile_db, master_db, method: str, url: str, **kwargs):
+    with route_client(
+        interpretations_router, "/interpretations", profile_id=PROFILE_ID, master_db=master_db
+    ) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        return client.request(method, url, **kwargs)
+
+
+async def _audit_rows(master_db) -> list[AuditLog]:
+    master_db.expire_all()
+    return list((await master_db.execute(select(AuditLog))).scalars().all())
+
+
+def _row_blob(row: AuditLog) -> str:
+    return " ".join(str(getattr(row, c.name)) for c in row.__table__.columns)
+
+
+async def _cards(profile_db) -> list[LabInterpretation]:
+    profile_db.expire_all()
+    return list((await profile_db.execute(select(LabInterpretation))).scalars().all())
+
+
+def _patch_generated_text(text: str):
+    return patch.object(
+        InterpretModule, "_generate_interpretation", AsyncMock(return_value=(text, None))
+    )
+
+
+def _guard_verdict(text: str):
+    """The guard's own verdict for `text`, computed the way the module computes it."""
+    guard = InterpretationSafetyGuard()
+    final_text, final_advice = guard.add_required_disclaimers(
+        interpretation_text=text, advice_text=None
+    )
+    return guard.validate_interpretation(
+        interpretation_text=final_text, advice_text=final_advice, require_citations=True
+    )
+
+
+def _rag_spy():
+    """A stand-in RAG module whose query must never run for a withheld card."""
+    rag = MagicMock()
+    rag.query = AsyncMock()
+    return rag
+
+
+def _grounded_url(obs_id: str, query: str = "") -> str:
+    return f"/interpretations/observations/{obs_id}/interpret-grounded{query}"
+
+
+def _plain_url(obs_id: str, query: str = "") -> str:
+    return f"/interpretations/observations/{obs_id}/interpret{query}"
+
+
+def _grounded_withheld(dbs_tuple, text: str, caplog=None):
+    profile_db, master_db, obs_id = dbs_tuple
+    rag = _rag_spy()
+    with _patch_generated_text(text), \
+            patch.object(I, "get_rag_module", return_value=rag), \
+            patch.object(I, "get_strict_rag_module", return_value=rag):
+        resp = _call(profile_db, master_db, "POST", _grounded_url(obs_id))
+    return resp, rag
+
+
+def _assert_withheld_answer(resp, rag):
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["withheld"] is True
+    assert body["interpretation"] is None
+    assert body["full_response"] == ESCALATE_TEMPLATE
+    assert [(s["segment_type"], s["content"]) for s in body["grounded_segments"]] == [
+        ("uncertainty", ESCALATE_TEMPLATE)
+    ]
+    assert body["is_valid"] is False
+    rag.query.assert_not_awaited()
+
+
+def _assert_withheld_row(
+    row: AuditLog, obs_id: str, expected_checks: list[str], status: str | None = None
+):
+    """Ids and check type names only, no prose. `status` is "completed" when the
+    row closes a regenerate's `started` row, and absent on a first generate."""
+    assert row.event_type == "interpretation.withheld"
+    assert row.profile_id == PROFILE_ID
+    assert row.entity_type == "observation"
+    assert row.entity_id == obs_id
+    expected = {
+        "reason": "safety_check_failed", "decision": "escalate", "checks_failed": expected_checks,
+    }
+    if status is not None:
+        expected["status"] = status
+    assert json.loads(row.details_json) == expected
+    blob = _row_blob(row).lower()
+    for leaked in ("atorvastatin", "ldl", "cholesterol", "mg/dl", "120.0", "20 mg", "ask your doctor"):
+        assert leaked not in blob, leaked
+
+
+async def _assert_one_withheld_row(master_db, obs_id: str, expected_checks: list[str]):
+    """First generate writes no `started` row, so the withheld row stands alone."""
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    _assert_withheld_row(rows[0], obs_id, expected_checks)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-001 / HC-IWM-002: grounded route answers 201 with the escalation message
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_001_grounded_route_answers_withheld_card_with_message(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    resp, rag = _grounded_withheld(dbs, DOSING_TEXT)
+    _assert_withheld_answer(resp, rag)
+    assert await _cards(profile_db) == []
+    assert "atorvastatin" not in resp.text.lower()
+    assert "atorvastatin" not in caplog.text.lower()
+    await _assert_one_withheld_row(master_db, obs_id, _guard_verdict(DOSING_TEXT).checks_failed)
+
+    # Same withhold decision at the model-path site (no route caller today):
+    # the result must carry withheld=True there too (recurring-failures #9).
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": DOSING_TEXT}]})
+    model_result = await InterpretModule(model_selector=selector).interpret_with_model(
+        observation_id=obs_id, profile_id=PROFILE_ID,
+        profile_db=profile_db, master_db=master_db,
+    )
+    selector.run_inference.assert_awaited()
+    assert model_result.success is False
+    assert model_result.withheld is True
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_002_grounded_route_disclaimer_only_failure_is_withheld(dbs, caplog):
+    """Defence-in-depth wiring, not a production path: with the fixer stubbed out
+    (it now fixes one-group text, DISCLAIMER-GUARD-QUIRK), a validator disclaimer
+    failure must still withhold and leak no text."""
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    # Precondition (HC-ISE-002): the validator alone fails this text on disclaimers only.
+    assert InterpretationSafetyGuard().validate_interpretation(
+        interpretation_text=ONE_GROUP_TEXT, advice_text=None, require_citations=True
+    ).checks_failed == ["missing_disclaimers"]
+
+    no_fix = lambda self, interpretation_text, advice_text=None: (  # noqa: E731
+        interpretation_text,
+        advice_text or "",
+    )
+    with patch.object(InterpretationSafetyGuard, "add_required_disclaimers", no_fix):
+        resp, rag = _grounded_withheld(dbs, ONE_GROUP_TEXT)
+    _assert_withheld_answer(resp, rag)
+    assert await _cards(profile_db) == []
+    assert "what it means for you" not in resp.text
+    assert "what it means for you" not in caplog.text
+    await _assert_one_withheld_row(master_db, obs_id, ["missing_disclaimers"])
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-003 / HC-IWM-004: plain route keeps its 500 and writes the audit row
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_003_plain_route_500_unchanged_and_one_withheld_audit_row(dbs):
+    profile_db, master_db, obs_id = dbs
+    expected = _guard_verdict(DOSING_TEXT).checks_failed
+    assert expected, "precondition: the guard must fail the dosing text"
+
+    with _patch_generated_text(DOSING_TEXT):
+        resp = _call(profile_db, master_db, "POST", _plain_url(obs_id))
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    (row,) = rows
+    assert row.profile_id == PROFILE_ID
+    assert row.entity_type == "observation"
+    assert row.entity_id == obs_id
+    assert json.loads(row.details_json) == {
+        "reason": "safety_check_failed", "decision": "escalate", "checks_failed": expected,
+    }
+    blob = _row_blob(row).lower()
+    for leaked in ("atorvastatin", "ldl", "cholesterol", "mg/dl", "120.0", "20 mg"):
+        assert leaked not in blob, leaked
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_004_plain_regenerate_withhold_closes_the_started_row(dbs):
+    profile_db, master_db, obs_id = dbs
+    first = _call(profile_db, master_db, "POST", _plain_url(obs_id))
+    assert first.status_code == 201, first.text
+    (old,) = await _cards(profile_db)
+    old_id, old_text, old_count = old.id, old.interpretation_text, old.regeneration_count
+    before = len(await _audit_rows(master_db))
+
+    with _patch_generated_text(DOSING_TEXT):
+        resp = _call(profile_db, master_db, "POST", _plain_url(obs_id, "?force_regenerate=true"))
+    assert resp.status_code == 500, resp.text
+    assert resp.json()["detail"] == ESCALATE_TEMPLATE
+
+    rows = (await _audit_rows(master_db))[before:]
+    assert [(r.event_type, json.loads(r.details_json)["status"]) for r in rows] == [
+        ("interpretation.generate", "started"),
+        ("interpretation.withheld", "completed"),
+    ]
+    _assert_withheld_row(
+        rows[1], obs_id, _guard_verdict(DOSING_TEXT).checks_failed, status="completed"
+    )
+    (kept,) = await _cards(profile_db)
+    assert (kept.id, kept.interpretation_text, kept.regeneration_count) == (
+        old_id, old_text, old_count,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-005: grounded regenerate closes the started row too
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_005_grounded_regenerate_withhold_closes_the_started_row(dbs):
+    profile_db, master_db, obs_id = dbs
+    first = _call(profile_db, master_db, "POST", _plain_url(obs_id))
+    assert first.status_code == 201, first.text
+    (old,) = await _cards(profile_db)
+    old_id, old_text = old.id, old.interpretation_text
+    before = len(await _audit_rows(master_db))
+
+    rag = _rag_spy()
+    with _patch_generated_text(DOSING_TEXT), \
+            patch.object(I, "get_rag_module", return_value=rag), \
+            patch.object(I, "get_strict_rag_module", return_value=rag):
+        resp = _call(profile_db, master_db, "POST", _grounded_url(obs_id, "?force_regenerate=true"))
+    _assert_withheld_answer(resp, rag)
+
+    rows = (await _audit_rows(master_db))[before:]
+    assert [(r.event_type, json.loads(r.details_json)["status"]) for r in rows] == [
+        ("interpretation.grounded", "started"),
+        ("interpretation.withheld", "completed"),
+    ]
+    _assert_withheld_row(
+        rows[1], obs_id, _guard_verdict(DOSING_TEXT).checks_failed, status="completed"
+    )
+    (kept,) = await _cards(profile_db)
+    assert (kept.id, kept.interpretation_text) == (old_id, old_text)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-006: the audit allowlist keeps check type names and nothing else
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def test_hc_iwm_006_checks_failed_survives_scrub_but_prose_does_not():
+    kept = _scrub_details(
+        {"checks_failed": ["prohibited_dosing_recommendation", "missing_disclaimers"]}
+    )
+    assert kept == {"checks_failed": ["prohibited_dosing_recommendation", "missing_disclaimers"]}
+
+    dropped = _scrub_details({"checks_failed": ["take 500 mg daily"]})
+    assert dropped == {"_scrubbed": 1}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-007: a withheld card still reports "a clinician should review this"
+# ──────────────────────────────────────────────────────────────────────────────
+
+# potassium's default critical_high is 6.5 (InterpretationSafetyGuard). The value
+# strings cannot occur in the analyte name, the fixed text or the escalation text.
+CRITICAL_VALUE = 7.35
+NORMAL_VALUE = 4.15
+
+
+async def _make_potassium(profile_db, obs_id: str, value: float) -> None:
+    obs = (
+        await profile_db.execute(select(Observation).where(Observation.id == obs_id))
+    ).scalar_one()
+    obs.analyte_canonical = "potassium"
+    obs.analyte_raw = "Potassium"
+    obs.value = value
+    obs.unit = "mmol/L"
+    obs.ref_low = 3.5
+    obs.ref_high = 5.0
+    await profile_db.commit()
+
+
+def _value_re(value: float) -> re.Pattern:
+    """The value as a whole number token: no digit or "." before it, only zeros
+    (4.150 is still 4.15) and no digit after it. "54.151537" does not match 4.15."""
+    return re.compile(r"(?<![\d.])" + re.escape(str(value)) + r"0*(?!\d)")
+
+
+def _assert_row_has_no_value(row: AuditLog, value: float) -> None:
+    """Search every audit column for the value. The one datetime column
+    (timestamp) cannot hold text, so it is skipped, and exactly one may be."""
+    pattern = _value_re(value)
+    skipped = []
+    for column in row.__table__.columns:
+        cell = getattr(row, column.name)
+        if isinstance(cell, datetime):
+            assert column.name == "timestamp", column.name
+            skipped.append(column.name)
+            continue
+        assert not pattern.search(str(cell)), column.name
+    assert skipped == ["timestamp"], skipped
+
+
+def _assert_value_and_reason_not_sent(resp, rows: list[AuditLog], caplog, value: float):
+    value_str = str(value)
+    pattern = _value_re(value)
+    assert value_str not in ESCALATE_TEMPLATE
+    assert value_str not in DOSING_TEXT
+    assert not pattern.search(resp.text)
+    for phrase in ("Critical high value", "Critical low value", "critical threshold", "threshold of"):
+        assert phrase.lower() not in resp.text.lower(), phrase
+    for row in rows:
+        _assert_row_has_no_value(row, value)
+        blob = _row_blob(row)
+        for phrase in ("Critical high value", "Critical low value", "threshold of"):
+            assert phrase.lower() not in blob.lower(), phrase
+    for record in caplog.records:
+        assert not pattern.search(record.getMessage())
+        assert not pattern.search(str(record.args))
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_007_withheld_critical_card_keeps_the_physician_review_flag(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    await _make_potassium(profile_db, obs_id, CRITICAL_VALUE)
+    caplog.clear()  # the seeding UPDATE's own driver DEBUG line carries the value
+
+    resp, rag = _grounded_withheld(dbs, DOSING_TEXT)
+    _assert_withheld_answer(resp, rag)
+    assert resp.json().get("withheld_physician_review") is True
+    assert await _cards(profile_db) == []
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    _assert_withheld_row_ids_only(rows[0], obs_id)
+    _assert_value_and_reason_not_sent(resp, rows, caplog, CRITICAL_VALUE)
+
+    # The model-path site (no route caller today) reorders the same check.
+    selector = MagicMock()
+    selector.get_model_for_inference = AsyncMock(return_value=(object(), "standard"))
+    selector.run_inference = AsyncMock(return_value={"choices": [{"text": DOSING_TEXT}]})
+    model_result = await InterpretModule(model_selector=selector).interpret_with_model(
+        observation_id=obs_id, profile_id=PROFILE_ID,
+        profile_db=profile_db, master_db=master_db,
+    )
+    selector.run_inference.assert_awaited()
+    assert model_result.withheld is True
+    assert model_result.safety_validation.requires_physician_review is True
+    assert await _cards(profile_db) == []
+    for record in caplog.records:
+        assert not _value_re(CRITICAL_VALUE).search(record.getMessage())
+        assert not _value_re(CRITICAL_VALUE).search(str(record.args))
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_007_withheld_non_critical_card_has_no_physician_review_flag(dbs, caplog):
+    caplog.set_level(logging.DEBUG)
+    profile_db, master_db, obs_id = dbs
+    await _make_potassium(profile_db, obs_id, NORMAL_VALUE)
+    caplog.clear()
+
+    resp, rag = _grounded_withheld(dbs, DOSING_TEXT)
+    _assert_withheld_answer(resp, rag)
+    assert resp.json().get("withheld_physician_review") is False
+    rows = await _audit_rows(master_db)
+    assert [r.event_type for r in rows] == ["interpretation.withheld"]
+    _assert_value_and_reason_not_sent(resp, rows, caplog, NORMAL_VALUE)
+
+
+def _assert_withheld_row_ids_only(row: AuditLog, obs_id: str):
+    assert row.event_type == "interpretation.withheld"
+    assert row.entity_id == obs_id
+    assert set(json.loads(row.details_json)) == {"reason", "decision", "checks_failed"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-008: positive control, only a withheld result gets the new answer
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_hc_iwm_008_non_withheld_failure_keeps_the_500_mapping(dbs):
+    profile_db, master_db, obs_id = dbs
+    # "boom" is an ordinary failure; the second message is the escalation string
+    # on a result that is NOT flagged withheld: the route keys on the flag, never
+    # on the error_message string.
+    for message in ("boom", ESCALATE_TEMPLATE):
+        failed = InterpretationResult(success=False, error_message=message)
+        rag = _rag_spy()
+        with patch.object(InterpretModule, "interpret_observation", AsyncMock(return_value=failed)), \
+                patch.object(I, "get_rag_module", return_value=rag), \
+                patch.object(I, "get_strict_rag_module", return_value=rag):
+            resp = _call(profile_db, master_db, "POST", _grounded_url(obs_id))
+        assert resp.status_code == 500, (message, resp.text)
+        assert resp.json()["detail"] == message
+        rag.query.assert_not_awaited()
+        assert "interpretation.withheld" not in [
+            r.event_type for r in await _audit_rows(master_db)
+        ]
+
+    # Same control on the plain route: an unflagged failure, even one carrying
+    # the escalation string, keeps its 500 and writes no withheld row.
+    for message in ("boom", ESCALATE_TEMPLATE):
+        failed = InterpretationResult(success=False, error_message=message)
+        with patch.object(InterpretModule, "interpret_observation", AsyncMock(return_value=failed)):
+            resp = _call(profile_db, master_db, "POST", _plain_url(obs_id))
+        assert resp.status_code == 500, (message, resp.text)
+        assert resp.json()["detail"] == message
+        assert "interpretation.withheld" not in [
+            r.event_type for r in await _audit_rows(master_db)
+        ]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# HC-IWM-009 / HC-IWM-010 (IWM-007-TIMESTAMP-FLAKE): the leak check matches the
+# value as a whole number, per audit column, so a microsecond timestamp such as
+# "...:54.151537" (which holds the digits "4.15") cannot fail it by chance.
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _audit_row(**over) -> AuditLog:
+    base = dict(
+        id=str(uuid.uuid4()), profile_id=PROFILE_ID, event_type="interpretation.withheld",
+        action="withheld", entity_type="observation", entity_id=str(uuid.uuid4()),
+        details_json="{}", client_info="ua", timestamp=datetime(2026, 11, 10, 10, 27, 54, 151537),
+    )
+    base.update(over)
+    return AuditLog(**base)
+
+
+def test_hc_iwm_009_value_matcher_is_exact_and_the_column_walk_is_total():
+    hits = ["4.15", "4.150", "=4.15,", '"4.15"', "value 4.15.", "(4.15)"]
+    misses = ["2026-11-10 10:27:54.151537", "14.15", "4.153", "24.15", "4.1"]
+    for text in hits:
+        assert _value_re(4.15).search(text), text
+    for text in misses:
+        assert not _value_re(4.15).search(text), text
+    assert _value_re(7.35).search("7.35") and _value_re(7.35).search("x 7.350 y")
+    assert not _value_re(7.35).search("2026-11-10 10:27:07.351000")
+    assert not _value_re(7.35).search("17.35")
+
+    # A value-bearing timestamp alone passes; the value in any text column is caught.
+    _assert_row_has_no_value(_audit_row(), NORMAL_VALUE)
+    for column in ("action", "details_json", "client_info"):
+        with pytest.raises(AssertionError):
+            _assert_row_has_no_value(_audit_row(**{column: "x 4.15 y"}), NORMAL_VALUE)
+
+
+class _FixedDT(datetime):
+    fixed: datetime
+
+    @classmethod
+    def now(cls, tz=None):
+        return cls.fixed if tz is not None else cls.fixed.replace(tzinfo=None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stamp", [
+    datetime(2026, 11, 10, 10, 27, 54, 151537, tzinfo=timezone.utc),  # holds "4.15"
+    datetime(2026, 11, 10, 10, 27, 7, 351000, tzinfo=timezone.utc),   # holds "7.35"
+])
+async def test_hc_iwm_010_both_iwm_007_scenarios_pass_with_a_value_bearing_audit_clock(
+    dbs, caplog, monkeypatch, stamp
+):
+    import core.time
+
+    _FixedDT.fixed = stamp
+    monkeypatch.setattr(core.time, "datetime", _FixedDT)
+    await test_hc_iwm_007_withheld_critical_card_keeps_the_physician_review_flag(dbs, caplog)
+    caplog.clear()
+    profile_db, master_db, _ = dbs
+    # the critical run left its withheld row; the non-critical run asserts exactly one
+    await master_db.execute(AuditLog.__table__.delete())
+    await master_db.commit()
+    await test_hc_iwm_007_withheld_non_critical_card_has_no_physician_review_flag(dbs, caplog)

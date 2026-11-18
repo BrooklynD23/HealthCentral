@@ -46,6 +46,8 @@ scanners with `|| true`, so a scanner that crashes leaves no exit code and no
 usable report. Every step is green and nothing was scanned. A gate that cannot
 distinguish "clean" from "did not run" is not a gate.
 
+*Superseded 2026-11-06 (BATCH-1106C; the instance above is a dated record and is not rewritten):* fixed on `main`. `scripts/security_gate.py:45-85` now raises `ReportError` on a missing or unparsable report and `main()` returns exit code 2 (`:156-158`); `ci.yml:191-220` is exit-code-aware (bandit exit 2 or more fails the build); the two `|| true` lines at `ci.yml:92,95` are gone (the one remaining `|| true`, at `ci.yml:425`, is inside a `trap` that stops the preview server).
+
 A 2026-09-29 instance in the agent answer cache (S-CACHE). `modules/agent/cache.py`
 keyed `CacheKey` on `(normalized_question, profile_version)` — no profile id — and
 `_cache` was a module-level dict shared by every profile in the process. The
@@ -108,6 +110,18 @@ the exit commit never runs under test, and a failed exit commit could never turn
 into a 500. `tests/test_audit_order.py` HC-AUD-ORD-060 went red on both cases
 (200 instead of 5xx; `assert 0 == 1` rows) until `chat` committed explicitly.
 
+A 2026-10-31 instance in RAPIDOCR-BUNDLE (cross-ref §9, §3). The local-first
+test patched Python's `socket.connect` and saw nothing, while onnxruntime 1.31.0's
+native OneCollector telemetry client (static libcurl, mobile.events.data.microsoft.com)
+opened its own socket from a native thread about 9 s after the first session. A
+Python socket guard cannot see a native library. The plan's claim that an
+`LD_PRELOAD` probe had shown no traffic was never measured (§3). Opt-out is
+`ORT_DISABLE_TELEMETRY=1` before the first onnxruntime import. HC-OCR-001 and
+HC-OCR-015 now poll the process's real sockets in `/proc` and assert an empty-HOME
+tree; HC-OCR-017 keeps any other module from importing onnxruntime first.
+Recheck for a "no network" claim: a `/proc/net` socket poll after a wait longer
+than the library's first-upload delay, plus an empty-HOME file assert.
+
 **Recheck:** ask what your test would *fail to notice*. Then break the code on
 purpose and confirm the test goes red. For any gate that parses a report another
 step produced, delete the report and confirm the gate goes RED, not green —
@@ -124,6 +138,8 @@ contract that does not exist. When a check stubs an external tool (`npm`,
 `git`, a scanner), run the real call at least once and paste its output; for
 a DOM-shape assertion, confirm against the real layout that the shape it
 looks for can occur at all.
+
+A 2026-11-09 instance, a test that never reached the route (VERIFY-NONFINITE; sub-orchestrator review of `build/verify-nonfinite`). httpx 0.28 refuses `NaN` and `Infinity` in `json=` on the client ("Out of range float values are not JSON compliant") before any request is made, so a test that posted `json={"value": float("nan")}` could not fail whatever the route did: the exception came from the test client, not from the handler. The plan's HC-VNF cases were written that way. Recheck: for a test whose input the client library may refuse (NaN, Infinity, an oversized body), send the body as raw text (`content='{"value": NaN}'` with a JSON content type), keep one finite `json=` case as the control, and show the case RED against `main` with a status code from the route, not a client exception. The plan text is corrected in BATCH-1110A. It is recorded as an instance of this mode, not a new mode.
 
 ---
 
@@ -151,6 +167,43 @@ plan was written from the delete path alone; the reprocess path had a second,
 unrelated reason to need that column. Reading the consumer before editing the
 producer is what caught it.
 
+A 2026-11-03 instance in UI-PG-REVIEW (#452): the Source Trace sheet's "It
+matches, mark as checked" verified through the sheet's own mutation, so the
+page's `markChecked` (the hold and the ink) never ran, and the refetch dropped
+the row and unmounted the open sheet. Nothing in the diff touched that path; it
+was found only because the implementer listed it as a known unknown and
+measured it on the default `/verify`, where it failed. Recheck: when a page
+adds behaviour to one way of doing an action, list every other component that
+performs the same action and run each.
+
+A 2026-11-04 instance in KB-CANONICAL-NAMES (#486): renaming the seeded
+`glucose_fasting` entry to `glucose` fixed the mismatch for "Glucose" and
+"Fasting Glucose", but `normalize.py:153` maps "fasting glucose" and not
+"glucose fasting", so a "Glucose Fasting" row is still stored as
+`glucose_fasting`, which no seeded entry matched any more. The unrenamed seed
+had matched it, so the rename lost that row's critical flag. A reviewer caught
+it as the round 1 BLOCKER; the tests had not covered that label. Recheck: when a
+rename moves the key a lookup uses, run every spelling the normalizer can
+produce for the old key, not only the new one.
+
+A 2026-11-05 instance in KB-UNIT-BADGE (#486), and this one was L0's own. L0's
+first licence (D1, ruling 6673478599) said "anything `convert_to_canonical`
+returns None for, or a missing unit: no critical", and compared a converted
+value only when the KB unit normalised to the table's canonical unit. That
+rule was too narrow. The Opus safety review at `2d406d48` (2 BLOCKER, 1 MAJOR)
+found it would have dropped correct criticals that main shows today: TSH
+(the KB unit `mIU/L` is a listed variant of the table entry, not its
+canonical unit), WBC and platelets (the extractor writes `x10E3/uL`, `K/uL`,
+`cells/uL`, which the table omits on purpose), and the D3 rebuild would then
+have rewritten saved correct criticals into non-critical cards (ruling
+6675742258, "L0's own D1 licence was too narrow"). The fix to one wrong alarm
+had created the missing-alarm bug one layer over. Recheck: before licensing a
+"no critical when it cannot convert" rule, list the analytes whose correct
+alarms main shows today, with the unit spellings the extractor writes for each
+(`extract.py`), and run each through the new rule; every one that fires on
+main must still fire, or the loss is named as a known limit and the owner is
+told.
+
 **Recheck:** after fixing anything in a multi-step flow, re-walk the *whole*
 round trip — create → verify → download → restore → prune — not just the diff.
 Ask what every other caller of the thing you changed now believes. Before
@@ -173,6 +226,12 @@ like dead provenance to one path is often a key to another.
 **Recheck:** any number in a doc, brief, or commit message is a claim and needs
 the command that produced it. Overriding a plan's figure with a "correction" is
 itself a claim — it does not get a pass because it came from the orchestrator.
+
+A 2026-11-09 instance, a provenance claim in a model-written data file (MED-NAME-LIST). The header of `rxnorm_names.txt` said the 461 names were "selected by hand from the public-domain NLM RxNorm vocabulary". A model had written the list; nothing was extracted from RxNorm. The plan had said "RxNorm-derived" first, and the file repeated it. The sub-orchestrator reworded the header (`0da251fb`), and the owner answered "Hold for RxNorm" (2026-11-10): the row stays unmerged until a real extract exists. Recheck: a source, date or "derived from" statement in a data file or its plan is a claim and needs the command or the extract that produced it; when a model wrote the content, the header says so. A probe of the list against the classifier (vitamin D questions moving from none to medication) is the kind of measurement the header did not have.
+
+A 2026-11-10 instance, a cause named to the owner without a measurement (OCR-COPY-ENGINE, #542; gate OCR-HEIGHT-SHORTEN). L0 attributed the 18 px HC-UISET-005 overflow (Settings > Advanced expanded 1814 px against the 1800 px bound; `main` 1796 px) to the longer `tesseract_missing` sentence wrapping to a second line, and put that to the owner without measuring the height with and without the sentence. The owner approved shortening it (OCR-HEIGHT-SHORTEN, "Shorten the sentence (Recommended)"); CI on `7ea39dde` still measured 1814 px. Recheck: before naming the cause of a height or timing overflow to the owner, measure it by bisecting reverts (revert one candidate change at a time on a clean copy and paste each height); a cause that has not moved the number is a hypothesis, and the question says so. It is recorded as an instance of this mode, not a new mode.
+
+A 2026-11-11 follow-up to that instance (OCR-COPY-ENGINE, #542): the first fix could not have worked. Quiet batch 22 measured the real cause: the new OCR card description wraps to 5 lines where main's Tesseract wording takes 4; putting main's text back gives exactly 1796 px. The `tesseract_missing` sentence the owner had shortened never renders in that test, because the fixture sets `ocr_blockers: []` (`src/frontend/e2e/support/mockApi.ts:229-231`), so no blocker label is on the page at all. The owner then answered OCR-DESC-TIGHTEN "Tighter sentence (Recommended)" and OCR-BLOCKER-KEEP-SHORT "Keep the short one (Recommended)". Recheck: before naming a cause, check that the element you blame actually renders in the test's fixture (read the fixture, or look for the node in the failing run's DOM); a sentence that is not on the page cannot be what moved the number. Same mode, not a new one. CI on #542 (`371350a1`) measured HC-UISET-005 advanced at 1796 px after OCR-DESC-TIGHTEN, which confirms the bisect.
 
 ---
 
@@ -197,6 +256,14 @@ whether another environment produces a different one. Prefer numbers that do not
 vary — collected counts over pass counts — and when quoting a collected count,
 say whether `sentence-transformers` was installed.
 
+A 2026-11-09 instance, an environment assumption that passes alone and fails in the full suite (CRIT-LOG-ROUNDED and DOC-EXC-LOGGING; SUBORCH-2026-11-09). A test that read a process-wide value, the log record's `correlation_id` set from a static environment, passed on its own and failed after other tests had set it first. Recheck: run a new test file alone and again inside the full suite; a test that depends on module or environment state sets that state itself (`monkeypatch`) and never reads the default.
+
+A second 2026-11-09 instance, wall-clock and load flakes on `main`. `test_hc_vrc_030` failed once in the full run of the ANALYTE-NAME-SWEEP branch at load about 9 and passed alone three times, though the branch does not touch it. `test_hc_edf_004` flaked the same way (KV-LEFTOVERS already carries it as item 22), and on #537 the three HC-ENL-001 cases failed at load 20 on `/mnt/e` and gave `38 passed in 22.05s` from a `git archive` copy in `/dev/shm`. Recheck: for a failure in a file the branch does not touch, re-run it alone and from a `/dev/shm` copy, paste the load average (`uptime`) with each result, and never move a limit or a threshold to make it pass. Report it as a flake with the evidence, not as a pass.
+
+A 2026-11-10 instance, the same test failing on GitHub CI rather than under local load. `test_hc_edf_004` (the date regex must parse a 50,000-space header in under 1.0 s) failed on #541 three times (1.09 s, 1.04 s, 1.01 s) and on `main`'s own CI, and blocked every backend PR though none of them touch date extraction. The owner chose best of 3 (EDF-004-BEST-OF-3): the same input, the same 1.0 s bound, the fastest of three timed runs asserted, so a truly quadratic regex is still caught. The bound did not move. Recheck: a wall-clock test that fails on CI at a margin of 1 to 9 percent over its bound is a noisy bound, not a slow product; take the fastest of several runs and keep the limit, and never raise it.
+
+A 2026-11-11 instance, a wall-clock perf pin that flakes under parallel pytest slots (KV-LEFTOVERS; reported by another builder). `test_date_extraction.py::test_hc_edf_004_dob_inputs_stay_linear_with_new_tail_regex` pins each DOB input to under 1.0 s. It flaked when run beside other pytest slots and passed in isolation, so a red result there can be machine load, not a regex regression. (Evidence is the builder's report; the pin's 1.0 s bound is verified in the test file, the flake is not re-reproduced here.) Recheck: on a failure of a wall-clock pin, re-run that test alone on a quiet box (`scripts/pyslot.sh` with no other slots busy) before changing code, and report both timings. Do not raise the bound to make it pass (CLAUDE.md section 3); if a pin must survive load, make it measure work (call counts, input-size scaling ratio) instead of seconds, as its own row. Same mode, not a new one.
+
 ---
 
 ## 5. Gates run in a contaminated tree
@@ -214,15 +281,31 @@ next full run. `docs_lint.py` does not check whether the generated index is
 current; only the pytest suite does. The documented command and the actual gate
 were two different things, and the passing one was the one that got run.
 
+**Box instance (2026-10-29, #410; queue bullet FOREIGN-CHROMIUM-ON-BOX).** The contaminant was the box, not the tree.
+- A stillness timing run's quiet-box precheck was `pgrep -fa "playwright|vitest|pytest"`.
+- Another repo's session was driving its own Chromium (`shoot.mjs`) on the same box at the time. The pattern could not see it.
+- The check also could never print nothing. Run from an agent's Bash tool, `pgrep -f` matches the agent's own `bash -c` command line, which contains the pattern (planner check, 2026-10-30). So every agent was already judging by eye which lines were its own.
+- The precheck now lives once, in [RUNBOOK](../plans/2026-10-15-build-program/RUNBOOK.md) §10.1, in bracket form (`[p]laywright|…`, which does not match itself), with Chromium, Rust and port checks added.
+
 **Recheck:** when anything else is editing the tree, verify commit-level gates in
 a throwaway `git worktree` detached at HEAD, not in place. Related: parallel
 agents running `git add` sweep each other's staged work — commit with explicit
 pathspecs (`git commit -m … -- <paths>`), and never `git reset` to clean up.
 And for **any** docs change, `scripts/docs_lint.py` passing is not sufficient —
 run `python3 scripts/generate_docs_index.py && python3 scripts/docs_lint.py
---link-graph`, or run the backend suite, which is the only place the freshness of
-those two generated files is actually asserted. A docs-only diff is not a reason
-to skip the suite; it is the case where the relevant check is least obvious.
+--link-graph`. CI no longer runs Backend Tests on a docs-only PR (path-scoped CI,
+#442), so see what it will do:
+`git diff --name-only origin/main...HEAD | python3 scripts/change_scope.py --repo-root .`
+(the Change Scope job's output). `docs_only=false` means a code path mentions one
+of your docs, a docs↔test coupling, and the full suite runs; run it locally too.
+
+A 2026-11-06 instance, a leaked preview server (#514 quiet-box batch; queue candidate PREVIEW-KILL-CHILD). The environment the next run started in was not the one the script thought it had left. The RED batch left a `vite preview` on :4173 (pid 1716032, an orphan whose cwd was the #514 worktree); `quiet_run` then refused to start the GREEN batch for 20 minutes and more, and the agent's own attempt to kill it was denied by the permission classifier, so L0 verified the pid and killed it. The second leak was the script's own: `batch514.sh:28` stopped the preview with `kill $P`, where the preview had been started as `bash -c "cd ... && vite preview &"`. `$P` was the `bash -c` wrapper, so the kill ended the wrapper and left the node child on :4173 (pid 1738555), which stalled the llama-bench prechecks for 1061 s with the pytest slots held. L0 patched the script to `pkill -P $P` first. Nothing in either run's output said a process was still alive: the batch exited, its results printed, and the next run was the one that stalled. An earlier case of the same shape held a pyslot lock for 4 hours (a leaked vite; the model-host notes name it). Recheck: after any batch that starts a server, before reading its results or starting the next run, list what still listens (`ss -ltnp | grep -E ':(4173|5173|3000|8000)\b'`, `pgrep -af 'vite|node'`) and expect nothing from your worktree. Stop a server by its process group or its children (`pkill -P "$P"` first, or `setsid` and `kill -- -"$PGID"`), never by the `$!` of a wrapper, and put the stop in a `trap ... EXIT` so every exit path runs it. It is recorded as an instance of this mode, not a nineteenth mode: the shape is the same (a gate run in an environment other work left dirty) and CLAUDE.md names the count of modes.
+
+A 2026-11-06 instance, a worktree that measured taller than the same code (#523, SETTINGS-EXTAPI-PENDING; queue label WORKTREE-ENV-HEIGHT). The `hc-settings-extapi-pending` worktree measured every Settings section taller than a clean copy of the same code: Advanced 1874 px against 1796, Security 1296 against 1276, Assistant & privacy 1650 against 1573. `src`, `node_modules`, fonts and the lockfile were identical; moving `node_modules/.vite` aside changed nothing. The cause is unknown. The first reading was that the code had grown the page (the row's 1800 px bound), and the build was resumed to shrink it. Recheck: measure acceptance (heights, G10) from a clean copy of the head (for example `/dev/shm/hc523`), and A/B the worktree against that copy before blaming the code; paste both. It is recorded as an instance of this mode, not a nineteenth mode: the shape is the same (a gate run in a tree that is not the one the claim is about) and CLAUDE.md names the count of modes.
+
+A 2026-11-07 instance of the leaked preview, again (#535, UI-PG-SECURITY; RUNBOOK §10.1 preflight item 7). The build agent's frontend build left a `vite preview` on :4173 (PID 2198476). Quiet batch 17 exited 75 PORT-LEAK three times, nothing ran, and the permission classifier refused L0's kill; the owner killed it. The 11-06 fix (the script's own `pkill -P`) covered L0's batches, not a build agent's. Recheck: after any frontend build, before a quiet batch, list the listeners (`ss -ltn | grep -E ':(3000|4173|5173|8000)\b'`) and expect nothing. Same mode, not a nineteenth.
+
+A 2026-11-07 instance, a worktree that rendered a different font (#538, SAFETY-MODE-VERIFIED-FE; queue label WORKTREE-ENV, fonts; L0 ruling 6718736151). `node_modules` in the build worktree was a symlink into another worktree. Vite dev refused the `.woff2` files (403, outside `fs.allow`), so the fallback face rendered, the Safety Mode note measured 5 lines and 80 px, and L0's first ruling (6718543811) sized the box for that. With the loaded Source Sans 3, which patients get and CI measures, the note is 4 lines and overflows 64 px by about 1 px; the ruling was replaced by `lg:h-[66px]` (6718736151). Recheck: before measuring layout in a worktree, `ls -ld node_modules` must not show a symlink (`npm ci` for a real install), and a `.woff2` request to the dev server must return 200; paste both. It is recorded as an instance of this mode, not a new mode.
 
 ---
 
@@ -249,6 +332,8 @@ call exited 126, `Permission denied` (measured 2026-10-20; fixed by #220).
 directory the surrounding text implies. A planner checks every path it cites
 with `git ls-files <path>` on the base it plans from. Inherited-from-`main` is not a reason to
 skip it — it is a reason it survived this long.
+
+A 2026-11-09 instance, quiet-box helpers that lived only in `/tmp`. The box rebooted at about 22:06 on 2026-11-09 and wiped `/tmp/claude-1000`, where `quiet_run.sh`, `hold_slots.sh` and the CR-stripped `pyslot` copy lived. RUNBOOK §10.1 quotes those paths, so every documented quiet-box command would have failed until they were recreated (L0's notes record it). Copies are now kept in `~/hc-quiet-logs/tools/` (copy them back to `/tmp/claude-1000` after a reboot). Recheck: before a quiet run, `for f in quiet_run.sh hold_slots.sh; do test -x /tmp/claude-1000/$f || echo missing $f; done`, and after any reboot (`uptime`) assume they are gone. RUNBOOK §10.1 preflight item 2 now names the copy.
 
 ---
 
@@ -306,6 +391,20 @@ latest-vs-prior comparison"), so the answer names two different rules, and the
 CHAT-TREND-DEF plan had to ask again (gate CTD-DEF). A cited line proves the
 code exists, not that the feature runs it.
 
+*Drifted cite, 2026-11-06 (BATCH-1106C; the instance above is a dated record and is not rewritten):* the `first_val` / `last_val` comparison it cites as `api/observations.py:660-671` is at `api/observations.py:755-760` on `origin/main` `d944b38b`.
+
+A 2026-11-02 instance in VERIFY-KEEPS-FLAG (#463): the comment in
+`modules/fhir_export.py` called `flag` a "short coded flag" while the flag was
+stored as printed, free text of up to 2000 characters from import. The comment
+read as authority and the line went out unredacted; it was exposed only once
+Verify stopped erasing free-text flags. Recheck: when a comment states the
+shape of a field, find where the field is written before relying on it.
+
+A 2026-11-05 instance in KB-CANONICAL-NAMES (#486): the row's "`:392` is dead"
+and "never loaded" were false for `glucose_fasting`, and hid the `Glucose
+Fasting` regression that ruling 6651067212 fixed. Recheck: run the old key
+through the lookup before calling a line dead or a row never loaded.
+
 **Recheck:** a written decision is evidence about what someone believed, not
 proof that it was true. When a doc gives a *reason*, check the reason. When a
 ticket asserts an *absence* ("no X exists", "zero Y today"), grep for X before
@@ -313,6 +412,10 @@ planning against it — absence claims age faster than anything else in a tracke
 An agent's report — including a reviewer's — is a lead, not a finding. Before
 applying a defensive transform, check whether the defense already exists
 somewhere better, and ask what the transform destroys when it fires.
+
+A 2026-11-07 instance, a build agent's "all checks pass" (#533, AUDIT-CHAT-LEGACY). The agent reported every check passing and the PR looked ready, but CI Backend Lint was red: I001 (import order) at line 19 of #533's new audit test file, job 128338185595. The report was a statement about what the agent ran, not about what CI ran. A narrow Sonnet agent fixed the imports only (head `9826f92c`). Recheck: before asking the owner to ready a PR, read its CI yourself (`gh pr checks <n>`), and run the CI's own lint command, not a nearby one. It is recorded as an instance of this mode, not a nineteenth mode.
+
+A 2026-11-09 instance, a scan lead that read a status without the later ruling (RULES-RANGE-VALUE; SUBORCH-2026-11-09). A Haiku scan flagged the row as an unanswered owner gate because its plan and queue status said "gated, unanswered". The gate RULES-VERIFIER-ASKFIRST had been answered the same day in the L0 rulings (batch 5, "narrow to measured values"), so the row was licensed. The scan's report was a lead, not a finding (CLAUDE.md §1), and the sub-orchestrator caught it by reading the rulings file. Recheck: before reporting a gate unanswered or a row blocked, grep the owner-decisions record, the L0 rulings and the PR comments for the gate's name, and cite the newest hit; a status cell is a claim that may predate the answer. BATCH-1110A rewrites the stale status.
 
 ---
 
@@ -394,7 +497,19 @@ instead.
 The class is now a test
 (`test_hc_aud_ord_030_c_and_a2_handlers_reach_an_audit_call`), so a new
 unaudited `"C"` or `"A2"` row fails CI.
+The dynamic-call rule had the same gap: it flagged a def passed as a bare name or `self.<def>` but not a bound method of any other object (`asyncio.to_thread(selector.detect_hardware_tier)`), so that edge left the guard without a named key until AUDIT-GUARD-ATTR-DYNAMIC widened the rule.
 
+
+A 2026-10-31 instance in RAPIDOCR-BUNDLE (cross-ref §2). PDFium accepts one
+thread at a time (pypdfium2 METADATA). The rule was enforced at one site,
+`_ocr_pdf_pages` (`_PDFIUM_LOCK`), and not at the other caller in the same class,
+`api/documents.py::get_page_image`, which renders with pdfplumber `to_image` on the
+event-loop thread. Importing a scan while the viewer fetched a page image segfaulted
+the process in 4 of 8 probe runs (PR #421 comment 6547136926). The first fix, a lock
+held across the OCR call as well, fixed one site and nested two locks. HC-OCR-016
+now runs the real `get_page_image` against four OCR workers (exit -11 before the
+lock, 6 of 6 clean after). Recheck: `grep -rn "to_image(\|pypdfium2\|PdfDocument"
+src/backend` and confirm every hit is inside `_PDFIUM_LOCK`.
 
 **Recheck:** when a comment or doc justifies a deletion with a reason that names
 a *category* ("verbatim document text", "credential material", "anything
@@ -404,6 +519,49 @@ that the rule spread on its own. New features inherit schemas, not invariants.
 And where cleanup depends on ORM cascade, `grep -n "delete(" src/backend/api/*.py`
 finds the core statements that silently skip it. When a parent's ORM cascade is
 relied on, walk every grandchild with a NOT NULL FK.
+
+A 2026-11-05 instance, "clinical check unit-blind on main", found while
+planning KB-UNIT-BADGE (#486, ruling 6673478599). Observations are stored as the
+lab printed them with their unit (`models/observation.py:61-63`), but both
+critical checks compare the bare number with a limit in one fixed unit: the
+badge in `_classify_severity` (`modules/interpret.py:894-897`) and the review
+banner, which passes the raw value to `check_critical_value`
+(`modules/interpret.py:246-255`; defaults at `modules/interpret_safety.py:82-90`,
+glucose 50 and 400). A glucose of **7.0 mmol/L**, a normal result, got a
+`critical_low` badge and the banner "Critical low value: 7.0 is below critical
+threshold of 50.0". The rule "critical limits are in this unit" held at the
+tests' own values (same unit) and nowhere else. A first fix covered the badge
+and the banner for rows with a knowledge-base entry; the path with none
+(potassium, sodium) still compares raw values against the default table
+(queue bullet CRIT-DEFAULT-TABLE-UNITS). Recheck: for any threshold check on a
+lab value, list every call site that compares a number with a limit, name the
+unit each number is in and the unit each limit is in, and run one value in a
+different unit through each site, not only the site you edited.
+
+A 2026-11-06 instance, "the unversioned-vault matcher assumes every revision
+changes the schema", found while planning OCR-OPT-IN-MIGRATION (L0 ruling R2,
+`docs/plans/2026-11-06-owner-answers-rows-plan.md`), before any code was
+written. `_match_unversioned_vault` (`core/migrations.py:631-657`) identifies an
+unversioned vault by a fingerprint of tables, columns and foreign-key actions
+(`_schema_fingerprint`, `:568`) and returns the newest match; HC-FKB-001
+(`test_fk_migration_017.py:2495-2506`) asserts "one fingerprint per revision".
+That rule held for all 17 existing revisions because each one changes the
+schema, and nowhere else. A planner probe added a throwaway data-only `018`
+(one `UPDATE`) to a scratch copy and ran `migrations._reference_fingerprints()`:
+18 revisions, 17 distinct fingerprints, tie `018` / `017`. So HC-FKB-001 would go
+RED, and an unversioned vault with the 017 schema would be stamped `018` and
+skip the `UPDATE` that makes OCR opt-in. Neither the matcher nor its test could
+have noticed: both pass until the first revision that does not touch the
+schema. Recheck: before adding a revision that changes no schema, run
+`_reference_fingerprints()` with it in place and list every tied pair; name each
+data-only revision in the guard test instead of loosening it, and make the
+matcher take the oldest tied revision so later data steps still run.
+
+*Superseded 2026-11-06 (BATCH-1106C; the instance above is a dated record and is not rewritten):* it was fixed by #512. `_match_unversioned_vault` now takes the oldest tied revision (`core/migrations.py:651`, "oldest first"), so "returns the newest match" no longer holds; the chain has 18 revisions, not 17 (head `018_ocr_opt_in`, `ls src/backend/migrations/profile/versions/`); and `tests/test_migration_heads.py` (HC-MIGHEAD-001…003) enforces one head per chain.
+
+A 2026-11-06 instance, "a guard that only looks at handlers that commit", found by DOCS-AUDIT-1106 and closed by AUDIT-READ-ROUTES. CLAUDE.md requires an audit row on every route that touches documents, observations or profile data. HC-AUD-ORD-030 (`tests/test_audit_order_guard.py`) enforces the order of audit and commit, but it only scans handlers from which a `.commit()` is reachable. A read handler that never commits is outside that set, so it was invisible to the guard, and eight vault reads shipped with no audit row: the chat session list and history, the assistant memory setting, the feedback stats, and the medication list, detail, schedules and doses. Every one had a green test, because no test asked whether a GET writes a row. HC-ARR-011 (`tests/test_audit_read_routes.py`) now guards the class: every handler in `api/` reaches an audit sink or is named in `UNAUDITED_ROUTES` with a reason, and a stale entry fails. Its blind spot is written in the test docstring (the graph links calls by name; it sees handlers, not paths, so a handler that audits on one branch passes). Recheck: when a guard is scoped to a subset of handlers (the ones that commit), list the handlers outside the subset and say what covers them; run one new handler outside the subset through the guard and confirm it is reported.
+
+A 2026-11-16 instance, "a purge race closed for the answer cache and left open for the page cache", closed by MEM-PURGE-RACE-PAGES. #629 (MEM-PURGE-RACE) stopped the assistant answer cache re-filling after a lock or logout purge, with a purge sequence mark taken at get and checked at put. The page picture cache in `api/documents.py` has the same shape (miss, slow render, audit, put) and `purge_page_images` runs on the same events, but `get_page_image` still put after the render with no check, so a lock mid-render re-inserted the decrypted page for up to 300 s (`_PAGE_IMAGE_CACHE_TTL_SECONDS`). The purge tests seeded the cache and purged; none purged during a request, so they could not see it. HC-MPRP-001 now does, over HTTP. Recheck: when a race is closed for one in-memory store, list every store that `purge_profile_exports` clears and confirm each put is checked against a purge mark, not only the one that was reported.
 
 ---
 
@@ -427,6 +585,15 @@ before trusting its unit tests as a completeness signal. A module that is
 fully testable in isolation is not evidence it is reachable from `main.py` or
 any other entry point — check the call site, not just the callee.
 
+**Frontend instance (2026-10-29, #407 review; queue bullet SOURCE-TRACE-UNWIRED).**
+- The Source Trace sheet (`src/frontend/src/components/results/SourceTrace.tsx`, UI-PROVENANCE) has unit tests.
+- `CitationTooltip` renders the "Open source" button and the sheet only when it gets a `source` prop.
+- Neither call site passes one: `InterpretedResultCard.tsx:122` and `PanelInterpretationDashboard.tsx:110`.
+- The `/interpret` e2e mock has only a `knowledge_base` citation.
+- So the sheet cannot be reached in the browser, and a plan (#407's first draft) chose it as a test host.
+
+**Recheck for components:** for an optional prop that gates a feature, grep every call site of the component for that prop. Confirm that some e2e path renders the gated branch before you treat the component as shipped, or use it as a test host.
+
 ---
 
 ## 11. Harness rule text broader than the plan it summarises
@@ -442,3 +609,123 @@ The queue row for E-3a, written by the orchestrator, told implementers to run `r
 E-3-T7 (#160) added the Backend Lint gate to CI. #156 and #165 were built before it existed and merged in the same group without being run against it. Each passed the checks it had been given, but the gate was new, so neither had ever seen it. Main's lint went red on `d427868` with 5 `I001` (unsorted import) errors, and #171 fixed it afterwards. Every PR in the group was green on its own head; the failure existed only in the combination, and nothing in the merge step asked whether the new gate held on the merged tree.
 
 **Recheck:** after merging a PR that adds a gate (a CI job, a lint rule, a guard test), run that gate on `origin/main` before merging the rest of the group, and rebase or fix the remaining PRs on it. Do not read "each PR was green" as "main will be green": `git log --oneline -- .github/workflows/ci.yml` shows which gates are new, and a PR whose base predates one has not been checked against it.
+
+---
+
+## 13. An agent returns while its own background RED/mutation run is still editing the worktree
+
+Two rows returned while a background RED or mutation run was still in their worktree. UI-TOKENS (PR #356): three product files were left staged at origin/main's versions, and L0 restored them from HEAD. UI-PRIM-CONTROLS (PR #365): `src/frontend/src/components/ui/Button.tsx` was left mutated, and L0 restored it from the run's byte snapshot. A result read from a worktree that a background job is still writing to says nothing about the files as they stand.
+
+**Recheck:** run RED and mutation evidence in a separate scratch worktree, or run the snapshot/restore script in the foreground to completion and compare every snapshot file before returning. Never return while a background job writes to the worktree.
+
+---
+
+## 14. A probe that charges its own work to the thing it measures
+
+UI-SHELL (PR #370) failed CI's E2E job on twelve routes with stillness sampling gaps of 44-155 ms against the 40 ms G10 bound, and the 2026-10-25 handoff read it as load flake. On one production build, L0 timed the same navigations with a bare 20 ms `setInterval`: 20-30 ms on main and on the branch, apart from `/settings` on the branch (47-48 ms). `stillnessProbe` stamped each sample with `performance.now()` after reading every `[data-t0]` node's style and rect (`src/frontend/e2e/support/gates.ts`, `snapshot()`), so each gap included the probe's own forced layout. Moving the stamp to the start of `snapshot()` kept every HC-UIG-006 self-test result, and most route gaps fell under 40 ms. The same pass turned up a real defect that both readings had hidden behind the flake label: the Safety Mode note's rect changes on every navigation (376.8 → 307 px wide, about 40 ms in).
+
+**Recheck:** before ruling a timing failure "flake" or "load", time the same action with a bare instrument (a plain timer, a `PerformanceObserver` for `longtask`) on main and on the branch, using the same build. When a probe's result is a duration, find where it reads the clock relative to its own work. Read the probe's other failure lines too: a timing failure can hide a real one in the same run.
+
+A 2026-11-05 instance in UI-PG-SETTINGS (PR #488, G10 on `Show advanced settings`, L0 comment 6665469225): CI failed three attempts at 59, 67 and 61 ms with no colour, rect or opacity lines. A CDP trace of the production build showed no single long task, but four to five short tasks after the click (skeleton layout, then panel layout) holding the sampler back, the largest gap 48.5 ms. A bare 20 ms `setInterval` with no probe also exceeded 40 ms in 3 of 15 runs (47, 55 and 73 ms), so it was app work and not the probe alone; the gap was real, and the fix went into the app. Recheck, widened: when a bare timer is clean on main and not clean on the branch, trace what runs between the click and the next sample before choosing between the probe and the app.
+
+A second finding in the same PR (#488, 2026-11-05, rounds 1 and 2 of the fix for the instance above): round 1 moved the settings and tiers reads to section mount, so the loading state was gone, and a click then mounted the whole panel synchronously inside the click handler. G10 on dev went from 4 misses in 10 to 10 misses in 10, because a render started by a discrete event (a click) cannot yield to the sampler. Round 2 gave the panel a `useDeferredValue` and then rendered the cards in three idle-gated commits, and G10 `Show advanced settings` passed 30 of 30 on production (19 of 30 before; L0 comment 6669591593, `a3878571`). The recheck lesson: after a change removes a loading state (a skeleton, a spinner, a wait), trace where the work moved. Work that used to wait for data now runs at the moment of the event. Re-measure the gap the change was meant to close before calling it closed, on the same build and the same line.
+
+---
+
+## 15. A test runner returns while its command is still queued or running, and the result reads as a test failure
+
+On 2026-11-02 PRs #398, #454 (C-P6), #457 and #399 each stopped with "tests failing" while no test had failed. The Haiku runner backgrounded the full suite, reported `exit_code -1` or NOT RUN, and `all_passed: false` sent the row to a stop. Slots can be held for over an hour by a quiet-box run, so a runner that does not wait for its command reports the queue as the result.
+
+Related trap, same day: a named workflow loads from the session's main checkout, so a session on an old branch runs an old `build-item.js`. That session ran a 366-line copy against main's 481 lines, without HARNESS-SPEEDUP's scope gating, so frontend-only rows ran the full backend suite. Ask whether a harness change you are relying on is in the copy this session actually runs.
+
+Second cause, same day: #399 (twice) and #454 stopped as "incomplete" with no failing test. In the #454 implementer's transcript (workflow run wf_33290fe3-3f3) the agent started commands with `run_in_background`, then sent the text-only message "Waiting for the background events." The harness replied `[structured-output-enforce] You MUST call the StructuredOutput tool`, so the run ended, and the background-command notice says such a command "is terminated when you give your final answer". The WAIT FOR EVERY COMMAND sentence reached only the runner prompts and said to keep checking, not how. `build-item.js` STYLE, which is appended to every agent prompt, now carries a HOW TO WAIT rule: a foreground `timeout 580 bash -c 'until grep -q "^EXIT=" <file>; do sleep 5; done'` loop (exit 124 only means not yet).
+
+**Recheck:** the runner prompt says to wait for every command, and a result with `exit_code -1` is never a finding. Before relying on a merged harness change, `diff` the session's `.claude/workflows/<name>.js` against origin/main, and use `scriptPath` with a copy of main's file if they differ. A stop that says a command had not finished is read in the agent's transcript, not in the stop text: a `[structured-output-enforce]` line right after a text-only message means the agent ended its own turn.
+
+---
+
+## 16. A deliberate break that never reached the code the test loaded
+
+UI-PG-DOCUMENTS (PR #464, 2026-11-03): to show HC-UIPAL-005 can still fail after the route-fade wait, the implementer added a slide to a palette option in `CommandPalette.tsx` and ran the cold test. It passed. The worktree is on `/mnt/e` (WSL drvfs), where `vite` gets no file-change events, so the dev server went on serving the module it had cached before the edit; `curl http://127.0.0.1:3101/src/components/layout/CommandPalette.tsx | grep -c translateX` printed 0. Restarted with `CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=300`, the same break failed the test with six lines naming the moved rects. A RED-by-break that is green is the same failure as mode 1, with a different cause: the break was real, and the test never saw it.
+
+**Recheck:** after a deliberate break, before running the test, fetch the served module and grep it for a string only the break contains (`curl -s <dev server>/<path> | grep -c <string>`). A break that passes is evidence about the server until the grep says the server has it. On `/mnt/e`, start `vite` with `CHOKIDAR_USEPOLLING=1`, or use `vite build` and `vite preview`.
+
+---
+
+## 17. A fixture that answers every call the same way hides the second event
+
+UI-PG-DOCUMENTS (PR #464, review round 1, 2026-11-03): the HC-UIDOC-006 jump tests for an import ran one import, against a mock (`mockDocuments`, `e2e/ui-documents.spec.ts`) that answered every `POST /documents/import` with the same document id. The import card committed with its row, the tests were green, and a second import in one visit still moved the rows three times (1091.5 -> 959.1 -> 1214.7 px on a production build): the old card left when the import resolved, and the new card and row arrived with the list. A retry after a failed import did the same with the alert (944.3 -> 835.8 -> 1091.5). The first event has no previous card or alert to leave, so no test of it could see the split. Same class, one cause: the fixture could only produce the first event, so the test could only fail on the first event.
+
+**Recheck:** for every UI state that a new event replaces (a card, an alert, a warning, a selection), the test runs the event twice in one visit, and the fixture gives the second answer its own id and name. A jump or flicker test that runs a state's first event alone is not a test of the state's replacement. Ask what the second and the retry would do, then make the mock able to ask it.
+
+Round 2 (same PR, 2026-11-03) found the same class one event later. The round-1 fix made an import "ready" only while its row was in the list or the list was not fetching. After a Remove, the removed import's row never comes back, so on the next refresh it was not ready again: the card of an older import, or the "Import failed" alert of a file the retry had already imported, returned for the length of the fetch. Rows held three positions in four sequences: import A, import B, Remove B, Remove an old row (735.1 -> 867.5 -> 734.8 px); the same, then import C (959.1 -> 1091.5 -> 1214.7); fail, retry, Remove, Remove an old row (835.8 -> 944.3 -> 712.6); fail, retry, Remove, import C (835.8 -> 944.3 -> 1091.5). Every one of these passed the tests that ran the event, then Remove, and stopped. The fix is in `importReady` (`removedIds`); the tests are HC-UIDOC-006 (q) to (t).
+
+**Recheck, widened:** after the replacement test passes, run the chain event, Remove of what the event made, then a refresh of the list (another Remove, another import). A state that depends on "is its row in the list" changes meaning when the row has been removed.
+
+Round 3 (same PR, 2026-11-03) found the class again, with two events that overlap in time. Round 2's chain ran Remove once, alone. A second Remove sent while the first DELETE was still in flight lost the first's record of the removed document: `confirmDelete` passed `onSuccess` to `mutate`, and a per-call `onSuccess` fires only for the observer's latest call (query-core `mutationObserver.ts`). The card and the "3 values ready to review" link stayed for a deleted document: `{"card":"Document imported: private-fresh.pdf","link":"3 values ready to review","rows":[]}`. The fix records the removal from `mutateAsync(id).then(...)`; the tests are HC-UIDOC-018 (vitest, and e2e with `holdDelete()` on the mock, RED at fb6e7ef2: the card count stayed 1). The same round added a 3 s timer that marks an import ready when the list refresh never settles. A timer is an event too: it fires after the Remove, and a fix that put it before the `removedIds` check brought the removed card and the retry alert back (HC-UIDOC-017 fails with that break: 2 failed of 2).
+
+**Recheck, widened again:** the chain also runs the events overlapping, not only in sequence: two Removes with the first held, a second import while the first is still in flight. Hold the first request, send the second, release both, and read the settled page for the state the first event owned. And any callback passed per call to a React Query `mutate` is read as "fires only for the latest call": state that must survive overlap goes in `mutateAsync(...).then`, or in the hook's own options. A timer or any deferred effect joins the chain: fire it after the Remove, not before.
+
+---
+
+## 18. A batch that reports done while most of its lines never ran
+
+L0's quiet-box batch on 2026-11-05 printed ALL-DONE and exited 0 with only 5 of 18 lines run. A `run()` helper assigned the global `L` that the script also used as the log directory, so every later redirect failed before its command started. Those 13 failed to start and left no log, so nothing in the output said they had not run: the exit status and the final line both read as success.
+
+**Recheck:** before reading results, count the logs against the lines the batch was meant to run (`ls <logdir> | wc -l` against the number of lines), and read each log's own exit line. Make a batch exit non-zero when a line could not start (`set -u`, no helper that reuses a global the script also uses, and a check that every line left a log). A batch that prints "done" is evidence about the script, not about the lines.
+
+
+---
+
+## 19. Acceptance scoped to the row's own spec misses the spec that shares the component
+
+UI-PG-SECURITY (#535, 2026-11-07): the quiet batch ran only the row's own spec. CI's run of another spec — one that renders the same settings components — failed on a regression the batch never exercised. The owner's same-day analysis counted the class four ways: status cells that lag merges (UISET-013-TEST already done inside #523, STILLNESS-NAV-LATE Task 3 already merged, each wrong start a burned run), plans older than the code (C-GC1's 2026-10-06 plan never learned #334's 2026-10-24 expiry and logout purges), file lists that name no test that breaks (a migration guard compares every table at the newest migration), and the narrow acceptance above.
+
+**Recheck:** the planner greps `e2e/` for every spec that renders a changed component (selectors and testids, not only file names) and lists them all in the row's acceptance; the gate re-runs the grep on the final head. Before a build, `git log --since=<plan date> --oneline origin/main -- <files>`: any commit means re-plan. Before starting a row, check `gh pr view` and `git log origin/main` for the merge itself, not the status cell. The four fixes are RUNBOOK §10.1 planner checklist items 4-7.
+
+Three 2026-11-09 instances found by the sub-orchestrator's diff review (SUBORCH-2026-11-09), all of the "file lists that name no test that breaks" and "plans older than the code" kinds.
+- **A plan that omits an assertion an owner answer forces.** SAFETY-MODE-DUPROW's plan said the existing assertions in `test_safety_mode_setting.py` stay unedited and listed only new HC-SMS-008 cases. The owner's any-ON answer forces HC-SMS-004's shared-vault tail (profile B's GET reads True, not False), and HC-SMS-008c asserts the same thing. The build had to edit it, and L0 licensed that after the fact (ruling R1, 2026-11-10). RUNBOOK §10.1 planner checklist item 1 exists for this (grep the tests for each file the row touches); it was not run against the assertion the owner answer changes. Recheck: when an owner answer changes a behaviour, grep the tests for assertions of the old behaviour and list each one that must flip in the row's file list, with the answer's name beside it.
+- **A stale plan fact.** ANALYTE-NAME-SWEEP's step 2 said `plan.py` mapped "cholesterol" to a name that is never stored. `query_observations.py:69` already canonicalizes "Cholesterol" to `total_cholesterol` (CHAT-FACT-ROUTING), so the planned test (HC-ANS-003) could not fail. The Phase A build replaced it with a DB-backed planner-to-tool test whose mutation turns RED. Recheck: for each planner step that claims a defect, run the cheap RED on `main` before the row is ready (checklist item 3) and paste it.
+- **A plan that contradicts an owner answer, and a ruling that contradicts its own pinned tests.** The f-3 plan for RECOVER-ORDER said `issue_recovery_code` was out of scope and that no owner gate applied; the owner then answered RECOVER-ORDER-COMMIT with the same reorder for `issue_recovery_code`. Separately, L0's ruling 6732000906 item 5 (prune every row in the vault on save) contradicted HC-EXPA-028 and HC-EXPA-032, which the same ruling kept unedited, and L0 withdrew that half (6734556486). Four rows (FIT-REPORT-SECTION, RECOVER-ORDER, FALLBACK-COUNT-50, TEST-RESET-ROUTE) were each planned twice, which meant two sets of test ids. Recheck: before publishing a plan or a ruling, compare it with every owner answer on the row and with the tests it declares unedited; keep one plan section per row (BATCH-1110A reconciled the four).
+All three are recorded as instances of this mode, not new modes.
+---
+
+## 20. A hold-everything wrapper that enumerates fewer locks than the pool it excludes
+
+KV evidence (#298): the model-host `hold_slots.sh` quiet-run wrapper flocks a hard-coded list of `hc-pytest` slot locks (`for i in 1 2 3 4 5 6 7 8`, lock files `/tmp/claude-1000/hc-pytest.$i.lock`) while `scripts/pyslot.sh` hands out slots `1..PYSLOTS` (`n="${PYSLOTS:-3}"`, line 5). When the wrapper's list stopped at 3 (later 8), a `PYSLOTS` above it let a pytest take an unheld slot and run beside the run the wrapper exists to isolate: the exclusion silently covered only part of the pool.
+
+**Recheck:** any "hold every X" wrapper must derive its count from the thing it excludes (`PYSLOTS` itself, or `ls` over the lock prefix), not keep a copy of it. Before trusting an exclusive run, run one probe job at a `PYSLOTS` above the wrapper's top lock and prove it still blocks. It lives in `scripts/hold_slots.sh` since HOLD-SLOTS-IN-REPO, and the hold lock covers any `PYSLOTS`.
+
+**Owner action (KV evidence item 4, not a failure mode):** the Ollama fallback tag `gemma4:12b` (`core/llm/factory.py:49`, `model = llm_model or "gemma4:12b"`) already matches the documented recommendation (`config/.env.example`), so no repo change is needed. It is not pulled on the model host, so a `LLM_PROVIDER=ollama` install without `LLM_MODEL` asks for a missing model. The owner runs `python scripts/download_models.py ollama --tag gemma4:12b` (or `ollama pull gemma4:12b`) on the model host.
+
+---
+
+## 21. A captured subprocess whose background grandchild keeps the pipe open
+
+The inverse of the leaked-orphan instance under mode 5: there the orphan outlived the batch and held a port or lock; here the orphan makes the caller wait. Reported by another builder: `subprocess.run(..., capture_output=True)` on a command that leaves a background grandchild blocks on pipe EOF until the orphan exits, because the grandchild inherited the stdout/stderr pipe write ends. The test hung with the command already at rc=0; nothing in the output showed a wait on a pipe. (Evidence is the builder's report; not re-reproduced here.)
+
+**Recheck:** a test that runs a command which may background anything redirects the child's stdout/stderr to a file (or `DEVNULL`) instead of pipes, or sets a `timeout=` and kills the process group (`start_new_session=True`, `os.killpg`). When a test hangs at rc=0, list the process's descendants (`pgrep -P`, `ps --forest`) before blaming the code under test.
+
+---
+
+## 22. A fixer and its validator disagree on a threshold
+
+`modules/interpret_safety.py`: `validate_interpretation` requires at least two of the three `REQUIRED_DISCLAIMER_KEYWORDS` groups in interpretation plus advice, but `add_required_disclaimers` treated one group in the interpretation alone as enough and skipped its append. A one-group text ("Ask your doctor what it means for you.") went through add then validate and was withheld with `missing_disclaimers`. Evidence: the probe run on `origin/main` (4d32143e), recorded as the RED output of `HC-DGQ-001`/`002`/`003` in `tests/test_disclaimer_guard_quirk.py`. Two existing withhold tests (`HC-ISE-002`, `HC-IWM-002`) had been using that text as their "production" disclaimer failure, so the quirk read as intended behaviour. Fixed under DISCLAIMER-GUARD-QUIRK by sharing one `_has_required_disclaimers` rule between both sides.
+
+**Recheck:** grep for every fixer/normaliser that feeds a validator (`add_*`, `ensure_*`, `normalize_*` beside a `validate_*`) and compare its "is this already sufficient" test with the validator's pass condition; they must call the same predicate. A test that drives fixer then validator over inputs just below the validator's threshold (0, 1, N-1 of N) would have failed.
+
+---
+
+## 23. quiet_run counts slot waiters as busy
+
+`scripts/quiet_run.sh` holds `pyslot` slots 1-8 and then waits until no test process is running. A `pyslot.sh` pytest that is only WAITING for a slot counts as a running test process, so `quiet_run` waits for the waiter while the waiter waits for `quiet_run`'s slot: a deadlock until `--max-wait`. Evidence: the #621 diagnosis agent's first `quiet_run` on 2026-11-12 deadlocked against another agent's `pyslot` pytest. The script is not changed in this batch (BATCH-1112B); this entry only records the mode.
+
+**Recheck:** before trusting a `quiet_run` stall, run `pgrep -fa pyslot` and see whether the "busy" process is a slot waiter (a `pyslot.sh` pytest that has not started) rather than a running test. If it is a waiter, the run is deadlocked, not slow: stop it and start the waiter's owner first, or wait for the waiter to finish, instead of sitting to `--max-wait`.
+
+---
+
+## 24. A table-row edit adds cells instead of replacing them
+
+BATCH-1113B (#652) was told to replace the SQLCIPHER-WHEEL row's files and ask-first cells. It inserted the two new cells and kept the old ones, so the row had 11 cells under a 10-column header and every value after the ask-first column shifted right. Markdown still rendered, docs lint passed, and the batch's own licence-gate run passed (it changed no product files). The first PR judged by that row (#653) then failed the live licence gate: `scripts/pr_licence_gate.py` read the three ask-first paths as the files cell and the 16-file licence as `est h`. Fixed in BATCH-1113C by realigning the row.
+
+**Recheck:** after any queue-row edit, parse the row with `scripts/queue_drift.py`'s `parse()` and check that it has exactly the header's cell count and that `c["files"]` / `c["ask-first"]` hold what you meant. Then run the licence gate on the PR that row licenses (`--ref` at your branch) before merging the batch.

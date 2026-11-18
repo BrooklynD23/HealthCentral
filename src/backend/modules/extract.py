@@ -8,9 +8,14 @@ Handles:
 - Confidence scoring
 """
 
+import asyncio
+import functools
+import hashlib
 import io
 import logging
+import os
 import re
+import threading
 from dataclasses import dataclass, field
 from datetime import date as date_type
 from datetime import datetime
@@ -47,6 +52,21 @@ class ExtractedObservation:
     confidence: float = 0.0
     extraction_method: str = "pdf_text"
 
+    def __post_init__(self) -> None:
+        # RANGE-ORDER (owner answer 2026-11-07: swap the bounds, keep the
+        # printed text). A lab interval is low->high by definition; a
+        # backwards-printed range stores ordered here so every producer
+        # (_parse_text_line in all forms plus the OCR path, and
+        # _parse_table_row) is covered at one site. ref_range_text and the
+        # provenance snippet keep the printed order verbatim, so the swap
+        # stays auditable.
+        if (
+            self.ref_low is not None
+            and self.ref_high is not None
+            and self.ref_low > self.ref_high
+        ):
+            self.ref_low, self.ref_high = self.ref_high, self.ref_low
+
 
 @dataclass
 class ExtractionResult:
@@ -61,13 +81,269 @@ class ExtractionResult:
     overall_confidence: float = 0.0
     ocr_unavailable: bool = False
     extracted_text: Optional[str] = None
+    # 1-based pages whose text layer has fewer than 20 non-space characters
+    # (image-only or blank). Set by extract_from_pdf (IMPORT-SCANNED-PAGE).
+    pages_without_text: list[int] = field(default_factory=list)
 
 
 # Shared unit alternation. Longer alternatives precede their prefixes.
 _UNIT_ALT = (
+    r"mL/min/1\.73m2|x10E3/uL|x10\^3/uL|10\*3/uL|x10E6/uL|"
     r"mIU/L|[uµμ]IU/mL|ng/dL|[uµμ]g/dL|nmol/L|pmol/L|[uµμ]mol/L|"
-    r"[uµμ]g/L|g/L|mg/dL|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
+    r"[uµμ]g/L|g/L|mg/dL|mg/L|g/dL|mmol/L|mEq/L|U/L|IU/L|ng/mL|pg/mL|%|fL|K/uL|M/uL|cells/uL"
 )
+
+
+# ---------------------------------------------------------------------------
+# OCR engine (RAPIDOCR-BUNDLE)
+#
+# RapidOCR ships its three ONNX models inside the wheel. The engine is built
+# only from those files, with every model path pinned, so RapidOCR's own
+# download branch (requests.get in rapidocr/utils/download_file.py) can never
+# run. A missing or modified file means "no engine", never a download.
+# Tesseract stays as the fallback when it is on PATH.
+#
+# onnxruntime 1.31.0 also ships a Microsoft telemetry client (static libcurl,
+# https://mobile.events.data.microsoft.com/OneCollector/1.0/). A bare import
+# writes a device id and queues a ProcessInfo event (interpreter path, OS, CPU),
+# and a native thread uploads it about 9 s after a session is created. Setting
+# ORT_DISABLE_TELEMETRY=1 BEFORE the first onnxruntime import stops it (measured:
+# no socket in 80 s, no files written); disable_telemetry_events() alone does not
+# stop the files. This breaks the Local-first rule if it is ever removed.
+# Set here, at import, as well as in _rapidocr_engine: any onnxruntime import that
+# comes after this module is imported is then covered. HC-OCR-017 forbids any other
+# product module from importing onnxruntime.
+# ---------------------------------------------------------------------------
+
+os.environ["ORT_DISABLE_TELEMETRY"] = "1"
+
+# File name -> SHA-256, copied from rapidocr 3.10.0 default_models.yaml.
+_RAPIDOCR_MODEL_SHA256 = {
+    "PP-OCRv6_det_small.onnx": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f",
+    "PP-OCRv6_rec_small.onnx": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884",
+    "ch_ppocr_mobile_v2.0_cls_mobile.onnx": "e47acedf663230f8863ff1ab0e64dd2d82b838fceb5957146dab185a89d6215c",
+}
+_OCR_RASTER_DPI = 200  # 300 dpi read no better than 200 in the RAPIDOCR-RESEARCH run
+_MIN_PAGE_CHARS = 20  # non-space characters for a page to count as readable
+_RAPIDOCR_LOCK = threading.Lock()  # one page at a time through the shared engine
+# PDFium is not thread-safe (pypdfium2 METADATA): two threads in it abort the whole
+# process. Held only around PDFium calls (open, page, render, close), by _ocr_pdf_pages
+# and by api.documents.get_page_image. OCR itself runs outside it, so this lock and
+# _RAPIDOCR_LOCK never nest.
+_PDFIUM_LOCK = threading.Lock()
+
+
+def _rapidocr_model_dir() -> Path:
+    """Directory of the models inside the installed rapidocr wheel."""
+    import importlib.resources as resources
+
+    return Path(str(resources.files("rapidocr") / "models"))
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+@functools.lru_cache(maxsize=1)
+def _rapidocr_engine():
+    """The RapidOCR engine, or None when it cannot be built safely offline.
+
+    Logs file names only, never document text.
+    """
+    # Unconditional and before the first onnxruntime import (see the block comment above).
+    os.environ["ORT_DISABLE_TELEMETRY"] = "1"
+    try:
+        import cv2  # noqa: F401
+        import onnxruntime
+        from rapidocr import RapidOCR
+
+        onnxruntime.disable_telemetry_events()
+
+        model_dir = _rapidocr_model_dir()
+    except Exception as exc:  # ImportError, or a broken install
+        logger.warning("RapidOCR is not available (%s)", type(exc).__name__)
+        return None
+
+    paths: dict[str, str] = {}
+    for name, expected in _RAPIDOCR_MODEL_SHA256.items():
+        path = model_dir / name
+        try:
+            actual = _file_sha256(path)
+        except OSError:
+            logger.warning("RapidOCR model file is missing: %s", name)
+            return None
+        if actual != expected:
+            logger.warning("RapidOCR model file has the wrong SHA-256, not using it: %s", name)
+            return None
+        paths[name] = str(path)
+
+    try:
+        return RapidOCR(params={
+            "Det.model_path": paths["PP-OCRv6_det_small.onnx"],
+            "Rec.model_path": paths["PP-OCRv6_rec_small.onnx"],
+            "Cls.model_path": paths["ch_ppocr_mobile_v2.0_cls_mobile.onnx"],
+            "EngineConfig.onnxruntime.intra_op_num_threads": 1,
+            "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+            "Global.log_level": "warning",
+        })
+    except Exception as exc:
+        logger.warning("RapidOCR could not start (%s)", type(exc).__name__)
+        return None
+
+
+def rapidocr_ready() -> bool:
+    """True when the bundled RapidOCR engine can read pages on this machine."""
+    return _rapidocr_engine() is not None
+
+
+def _remove_ruled_lines(gray):
+    """Paint long horizontal and vertical rules white (grid tables read far better)."""
+    import cv2
+    import numpy as np
+
+    binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    horizontal = cv2.morphologyEx(
+        binary, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (120, 1))
+    )
+    vertical = cv2.morphologyEx(
+        binary, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, 120))
+    )
+    mask = cv2.dilate(cv2.bitwise_or(horizontal, vertical), np.ones((5, 5), np.uint8))
+    cleaned = gray.copy()
+    cleaned[mask > 0] = 255
+    return cleaned
+
+
+def _lines_from_boxes(boxes, texts) -> list[str]:
+    """Join recognised boxes into text lines: cluster by y, then order by x."""
+    items = []
+    for box, text in zip(boxes, texts):
+        xs = [pt[0] for pt in box]
+        ys = [pt[1] for pt in box]
+        items.append((sum(ys) / len(ys), min(xs), max(ys) - min(ys), text))
+    if not items:
+        return []
+    heights = sorted(item[2] for item in items)
+    half_median = 0.5 * heights[len(heights) // 2]
+    items.sort(key=lambda item: item[0])
+    rows: list[list[tuple]] = []
+    for item in items:
+        if rows and abs(item[0] - sum(r[0] for r in rows[-1]) / len(rows[-1])) < half_median:
+            rows[-1].append(item)
+        else:
+            rows.append([item])
+    return [" ".join(i[3] for i in sorted(row, key=lambda i: i[1])) for row in rows]
+
+
+def _ocr_image_text(image) -> str:
+    """Read one page image (PIL) into text. RapidOCR first, Tesseract as fallback.
+
+    Blocking and CPU-heavy: callers run it with ``asyncio.to_thread``.
+    """
+    engine = _rapidocr_engine()
+    if engine is not None:
+        import numpy as np
+
+        gray = _remove_ruled_lines(np.array(image.convert("L")))
+        with _RAPIDOCR_LOCK:
+            output = engine(gray)
+        boxes = [] if output.boxes is None else output.boxes.tolist()
+        return "\n".join(_lines_from_boxes(boxes, list(output.txts or ())))
+
+    from core.config import is_tesseract_on_path
+
+    if is_tesseract_on_path():
+        import pytesseract
+
+        return pytesseract.image_to_string(image)
+    raise RuntimeError("no OCR engine is available")
+
+
+def _ocr_backend_ready(*, pdf: bool) -> bool:
+    """True when an engine and the libraries its page path needs can be imported."""
+    try:
+        if rapidocr_ready():
+            if pdf:
+                import pypdfium2  # noqa: F401
+            return True
+        from core.config import is_tesseract_on_path
+
+        if not is_tesseract_on_path():
+            return False
+        import pytesseract  # noqa: F401
+
+        if pdf:
+            import pdf2image  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _ocr_pdf_pages(pdf_bytes: bytes, page_numbers: Optional[list[int]] = None) -> dict[int, str]:
+    """OCR PDF pages (1-based; all pages when None) into {page: text}.
+
+    RapidOCR path: pypdfium2 renders each page, no Poppler needed. Tesseract
+    fallback path: pdf2image, as before. Blocking: run with ``asyncio.to_thread``.
+    """
+    texts: dict[int, str] = {}
+    if rapidocr_ready():
+        import pypdfium2 as pdfium
+
+        with _PDFIUM_LOCK:
+            document = pdfium.PdfDocument(pdf_bytes)
+        try:
+            with _PDFIUM_LOCK:
+                numbers = list(page_numbers or range(1, len(document) + 1))
+            for number in numbers:
+                with _PDFIUM_LOCK:
+                    page = document[number - 1]
+                    try:
+                        image = page.render(scale=_OCR_RASTER_DPI / 72).to_pil()
+                    finally:
+                        page.close()
+                texts[number] = _ocr_image_text(image)
+        finally:
+            with _PDFIUM_LOCK:
+                document.close()
+        return texts
+
+    from pdf2image import convert_from_bytes
+
+    if page_numbers is None:
+        for number, image in enumerate(convert_from_bytes(pdf_bytes), start=1):
+            texts[number] = _ocr_image_text(image)
+        return texts
+    for number in page_numbers:
+        images = convert_from_bytes(pdf_bytes, first_page=number, last_page=number)
+        texts[number] = _ocr_image_text(images[0]) if images else ""
+    return texts
+
+
+def _read_pdf_bytes(pdf_source: Union[Path, BinaryIO, io.BytesIO]) -> bytes:
+    if isinstance(pdf_source, (Path, str)):
+        return Path(pdf_source).read_bytes()
+    position = pdf_source.tell()
+    pdf_source.seek(0)
+    data = pdf_source.read()
+    pdf_source.seek(position)
+    return data
+
+
+# Label words a legend/target line starts with ("Target: 100 mg/dL"). A line whose whole analyte
+# name is one of these is never a test result (owner decision LEGEND-LIST).
+_LEGEND_LABELS = frozenset({
+    "target", "goal", "optimal", "desirable", "recommended", "reference",
+    "reference range", "normal", "normal range", "therapeutic range",
+})
+
+
+def _is_legend_label(name: str) -> bool:
+    """True if *name* is only a legend label word (trailing punctuation and case ignored)."""
+    return re.sub(r"\s+", " ", name.strip(" \t:.,;-")).lower() in _LEGEND_LABELS
 
 
 class ExtractModule:
@@ -123,6 +399,8 @@ class ExtractModule:
         self,
         pdf_source: Union[Path, BinaryIO, io.BytesIO],
         document_id: str,
+        *,
+        ocr_pages: bool = False,
     ) -> ExtractionResult:
         """
         Extract lab values from a text-based PDF.
@@ -131,6 +409,10 @@ class ExtractModule:
             pdf_source: Path to PDF file, or file-like object (BytesIO) containing PDF data.
                        BytesIO is used when reading decrypted documents from memory.
             document_id: Document ID for provenance
+            ocr_pages: Read pages with no text layer by OCR (callers pass the
+                       profile's effective-OCR flag). A page leaves
+                       ``pages_without_text`` only when OCR gives at least
+                       20 non-space characters; its rows are ``ocr_pdf``.
 
         Returns:
             ExtractionResult with observations
@@ -143,35 +425,91 @@ class ExtractModule:
         observations = []
         collection_dates = []
         pages_text: list[str] = []
+        pages_without_text: list[int] = []
+        pdf_bytes: Optional[bytes] = None
+        # Asked on the loop the first time a page is short of text, never for an all-text PDF.
+        ocr_available: Optional[bool] = None
 
         with pdfplumber.open(pdf_source) as pdf:
             for page_num, page in enumerate(pdf.pages, start=1):
                 # Extract text
                 text = page.extract_text() or ""
+                page_is_ocr = False
+                if len("".join(text.split())) < _MIN_PAGE_CHARS:
+                    if ocr_available is None:
+                        ocr_available = bool(ocr_pages and _ocr_backend_ready(pdf=True))
+                    if ocr_available:
+                        try:
+                            if pdf_bytes is None:
+                                pdf_bytes = _read_pdf_bytes(pdf_source)
+                            ocr_text = (
+                                await asyncio.to_thread(_ocr_pdf_pages, pdf_bytes, [page_num])
+                            ).get(page_num, "")
+                        except Exception as exc:  # one unreadable page must not lose the text pages
+                            logger.warning(
+                                "OCR failed on page %d (%s)", page_num, type(exc).__name__
+                            )
+                            ocr_text = ""
+                        if len("".join(ocr_text.split())) >= _MIN_PAGE_CHARS:
+                            text = ocr_text
+                            page_is_ocr = True
+                    if not page_is_ocr:
+                        pages_without_text.append(page_num)
                 pages_text.append(text)
+                obs_start = len(observations)
 
-                # Extract tables (more structured)
-                tables = page.extract_tables() or []
+                # Extract tables (more structured); an OCR page has none
+                tables = [] if page_is_ocr else (page.extract_tables() or [])
 
                 # Process tables for lab values
-                page_table_count = 0
+                table_obs_all: list[ExtractedObservation] = []
+                table_yields: list[int] = []
                 for table in tables:
                     table_obs = self._extract_from_table(
                         table, page_num, document_id
                     )
-                    page_table_count += len(table_obs)
+                    table_yields.append(len(table_obs))
+                    table_obs_all.extend(table_obs)
                     observations.extend(table_obs)
+                page_table_count = len(table_obs_all)
 
-                # If this page's tables gave no observations, try text extraction.
-                # Table pages are noisy (demographics, IDs), so keep only
-                # rows with a recognised unit here.
                 if page_table_count == 0:
+                    # No table gave observations: parse the whole page text.
+                    # Table pages are noisy (demographics, IDs), so keep only
+                    # rows with a recognised unit here.
                     text_obs = self._extract_from_text(
                         text, page_num, document_id
                     )
                     if tables:
                         text_obs = [o for o in text_obs if o.unit]
                     observations.extend(text_obs)
+                else:
+                    # Tables yielded: parse the text outside those tables only
+                    # (a table that yielded nothing keeps its text), keep rows
+                    # with a unit, and drop rows a table already gave.
+                    found = page.find_tables()
+                    region = page
+                    if len(found) == len(tables):
+                        for idx, n_obs in enumerate(table_yields):
+                            if n_obs:
+                                region = region.outside_bbox(found[idx].bbox, strict=False)
+                    text_obs = self._extract_from_text(
+                        region.extract_text() or "", page_num, document_id
+                    )
+                    seen = {
+                        (o.analyte_raw.strip().lower(), o.value) for o in table_obs_all
+                    }
+                    observations.extend(
+                        o for o in text_obs
+                        if o.unit and (o.analyte_raw.strip().lower(), o.value) not in seen
+                    )
+
+                if page_is_ocr:
+                    # Same rule as the scanned-PDF and image paths: OCR rows are
+                    # capped, and the recogniser's own score never enters it.
+                    for obs in observations[obs_start:]:
+                        obs.confidence = min(obs.confidence * 0.8, 0.7)
+                        obs.extraction_method = "ocr_pdf"
 
                 # Extract dates
                 dates = self._extract_dates(text)
@@ -204,6 +542,7 @@ class ExtractModule:
             parser_version=self.parser_version,
             overall_confidence=overall_confidence,
             extracted_text="\f".join(pages_text),
+            pages_without_text=pages_without_text,
         )
 
     def _extract_from_table(
@@ -277,22 +616,37 @@ class ExtractModule:
 
         # Get analyte name
         analyte = get_cell(name_col) if name_col >= 0 else get_cell(0)
-        if not analyte:
+        if not analyte or _is_legend_label(analyte):
             return None
 
-        # Get value
+        # Get value: the whole cell must parse. A comparator (<, >, <=, >=) is a
+        # bound, never an exact number; anything that does not fully match stays text.
         value_text = get_cell(value_col) if value_col >= 0 else ""
         value = None
+        cell_flag = None
         if value_text:
-            match = self.VALUE_PATTERN.search(value_text)
-            if match:
-                try:
-                    value = float(match.group(1))
-                except ValueError:
-                    logger.warning(
-                        "Failed to parse observation value",
-                        extra={"analyte": analyte, "raw_value": value_text, "page": page_num},
-                    )
+            _num = r"(?P<num>[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+            _flg = r"(?P<flag>\(?(?:HH|LL|H|L|A|HIGH|LOW|ABNORMAL|CRITICAL)\)?|\*)"
+            _cmp = r"(?P<cmp>[<>]=?|≤|≥)"
+            # Collapse whitespace runs first: adjacent \s* around optional groups
+            # backtrack cubically on a long space run. value_text stays raw.
+            cell = " ".join(value_text.split())
+            cell_match = re.fullmatch(
+                r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*" + _flg + r"?\s*",
+                cell,
+                re.IGNORECASE,
+            ) or re.fullmatch(
+                r"\s*" + _flg + r"\s*" + _cmp + r"?\s*" + _num + r"\s*(?P<unit>" + _UNIT_ALT + r")?\s*",
+                cell,
+                re.IGNORECASE,
+            )
+            if cell_match:
+                # A comparator makes it a bound, not an exact value: value stays None.
+                if not cell_match.group("cmp"):
+                    value = float(cell_match.group("num").replace(",", ""))
+                raw_flag = cell_match.group("flag")
+                if raw_flag:
+                    cell_flag = "A" if raw_flag == "*" else raw_flag.strip("()").upper()
 
         # Get unit
         unit = get_cell(unit_col) if unit_col >= 0 else None
@@ -319,6 +673,8 @@ class ExtractModule:
             flag_match = self.FLAG_PATTERN.search(flag_text)
             if flag_match:
                 flag = flag_match.group(1).upper()
+        if flag is None:
+            flag = cell_flag  # the flag column wins; the in-cell flag is the fallback
 
         # Calculate confidence
         confidence = 0.5
@@ -343,38 +699,52 @@ class ExtractModule:
             extraction_method="pdf_table",
         )
 
+    # Optional comparator before a value (Quest/LabCorp "<0.5", ">90"). It makes the value a bound.
+    _CMP_ALT = r"[<>]=?|≤|≥"
+    # A number. The lookaheads keep each digit run in one group, so a long run cannot be
+    # split between two groups (quadratic backtracking). Same language as \d+\.?\d*.
+    _NUM = r"\d+(?!\d)(?:\.\d*(?!\d))?"
+
     # Pattern for "Analyte: Value Unit" format
     LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
-        r"(\d+\.?\d*)\s*"  # Numeric value
-        r"(" + _UNIT_ALT + r")?"  # Unit
-        r"(?:\s*\((?:Normal:|Ref:?)?\s*([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
-        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"^(?P<name>[A-Za-z][A-Za-z0-9\s,\-]+?):\s*"  # Analyte name ending with colon
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")"  # Numeric value
+        r"(?:\s*(?P<unit>" + _UNIT_ALT + r"))?"  # Unit (optional; the whitespace belongs to it)
+        r"(?:\s*\((?:Normal:|Ref:?)?\s*(?P<ref_low>[<>]?" + _NUM + r")\s*(?:[-–]\s*)?(?P<ref_high>" + _NUM + r")?\))?"  # Reference range
+        r"(?:\s*(?P<flag>H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
     )
 
     # Alternative pattern for "Analyte Value Unit (Range)" without colon
     ALT_LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]+?)\s+"  # Analyte name
-        r"(\d+\.?\d*)\s*"  # Value
-        r"(" + _UNIT_ALT + r")\s*"  # Required unit
-        r"(?:\(([<>]?\d+\.?\d*)\s*[-–]?\s*(\d+\.?\d*)?\))?"  # Reference range
-        r"(?:\s*(H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
+        r"^(?P<name>[A-Za-z]\s|[A-Za-z](?:\s*[A-Za-z0-9,\-])+?)\s+"  # Analyte name (whitespace runs cannot backtrack; HC-ETF-006)
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")\s*"  # Value
+        r"(?P<unit>" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s*\((?P<ref_low>[<>]?" + _NUM + r")\s*(?:[-–]\s*)?(?P<ref_high>" + _NUM + r")?\))?"  # Reference range
+        r"(?:\s*(?P<flag>H|L|HH|LL|HIGH|LOW|ABNORMAL|CRITICAL))?"  # Flag
         r"\s*$",
         re.IGNORECASE | re.MULTILINE
     )
 
-    # Column layout: "Analyte Value [Flag] Unit [Range] [Flag]" (whitespace-separated,
-    # unit required, range bare: a-b, <a or >a). Tried after the two patterns above.
+    # Column layout: "Analyte Value [Flag] Unit [Flag] [Range] [Flag]" (whitespace-separated,
+    # unit required, range bare: a-b, <a, <=a, <OR=a, >a, >=a or >OR=a). Tried after the two
+    # patterns above. A one-bound range sets one bound; a comparator before the value does not
+    # make the value a number.
     _FLAG_ALT = r"HH|LL|HIGH|LOW|ABNORMAL|CRITICAL|H|L"
     COLUMN_LINE_PATTERN = re.compile(
-        r"^([A-Za-z][A-Za-z0-9\s,\-]*?)\s+"  # Analyte name
-        r"(\d+\.?\d*)\s+"  # Value
-        r"(?:(" + _FLAG_ALT + r")\s+)?"  # Flag before unit
-        r"(" + _UNIT_ALT + r")"  # Required unit
-        r"(?:\s+(?:(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)|<\s*(\d+\.?\d*)|>\s*(\d+\.?\d*)))?"  # Range
-        r"(?:\s+(" + _FLAG_ALT + r"))?"  # Flag after range
+        r"^(?P<name>[A-Za-z](?:\s*[A-Za-z0-9,\-])*?)\s+"  # Analyte name (no trailing whitespace: linear time)
+        r"(?:(?P<cmp>" + _CMP_ALT + r")\s*)?"  # Comparator (a bound, not an exact value)
+        r"(?P<value>" + _NUM + r")\s+"  # Value
+        r"(?:(?P<flag_before>" + _FLAG_ALT + r")\s+)?"  # Flag before unit
+        r"(?P<unit>" + _UNIT_ALT + r")"  # Required unit
+        r"(?:\s+(?:(?P<flag_mid>" + _FLAG_ALT + r")\s+)?"  # Flag between unit and range (only with a range)
+        r"(?:(?P<lo>" + _NUM + r")\s*[-–]\s*(?P<hi>" + _NUM + r")"  # Range a-b
+        r"|(?P<one_lt><(?:OR=|=)?\s*(?P<lt>" + _NUM + r"))"  # Upper bound: <a, <=a, <OR=a
+        r"|(?P<one_gt>>(?:OR=|=)?\s*(?P<gt>" + _NUM + r"))))?"  # Lower bound: >a, >=a, >OR=a
+        r"(?:\s+(?P<flag_after>" + _FLAG_ALT + r"))?"  # Flag after range
         r"\s*$",
         re.IGNORECASE
     )
@@ -420,32 +790,33 @@ class ExtractModule:
         if not match:
             # Try alternative format: "Glucose 95 mg/dL (70-100)"
             match = self.ALT_LINE_PATTERN.match(line)
-
         if not match:
-            col = self.COLUMN_LINE_PATTERN.match(line)
-            if not col:
-                return None
-            name, val, flag_a, col_unit, lo, hi, lt, gt, flag_b = col.groups()
-            col_range_text = (
-                f"{lo}-{hi}" if lo and hi else f"<{lt}" if lt else f">{gt}" if gt else None
-            )
-            # Normalise to the (analyte, value, unit, ref_low, ref_high, flag) shape.
-            if lt:
-                lo, hi = None, lt
-            elif gt:
-                lo, hi = gt, None
-            groups = (name, val, col_unit, lo, hi, flag_a or flag_b)
-        else:
-            groups = match.groups()
-            col_range_text = None
-        analyte = groups[0].strip() if groups[0] else None
-        value_str = groups[1] if len(groups) > 1 else None
-        unit = groups[2] if len(groups) > 2 else None
-        ref_low_str = groups[3] if len(groups) > 3 else None
-        ref_high_str = groups[4] if len(groups) > 4 else None
-        flag = groups[5].upper() if len(groups) > 5 and groups[5] else None
+            # Column layout: "Glucose 95 mg/dL 70-99"
+            match = self.COLUMN_LINE_PATTERN.match(line)
+        if not match:
+            return None
+
+        fields = match.groupdict()
+        analyte = fields["name"].strip() if fields["name"] else None
+        value_str = fields["value"]
+        cmp = fields.get("cmp")
+        unit = fields.get("unit")
+        # Flag before the unit wins, then the flag between unit and range, then the flag after the range.
+        flag_text = (
+            fields.get("flag") or fields.get("flag_before")
+            or fields.get("flag_mid") or fields.get("flag_after")
+        )
+        flag = flag_text.upper() if flag_text else None
+        # A one-bound range ("<100", ">=60") keeps its raw text; a-b ranges are rebuilt from the bounds.
+        one_bound = fields.get("one_lt") or fields.get("one_gt")
+        col_range_text = re.sub(r"\s+", "", one_bound) if one_bound else None
+        ref_low_str = fields.get("ref_low") or fields.get("lo") or fields.get("gt")
+        ref_high_str = fields.get("ref_high") or fields.get("hi") or fields.get("lt")
 
         if not analyte or not value_str:
+            return None
+
+        if _is_legend_label(analyte):
             return None
 
         # Non-colon lines only: a numeric token after the analyte's first word is a
@@ -459,11 +830,23 @@ class ExtractModule:
         ):
             return None
 
-        # Parse numeric values
-        try:
-            value = float(value_str)
-        except (ValueError, TypeError):
+        # A comparator is a result only with a unit and a reference bound on the same line
+        # ("Glucose: <70 mg/dL (70-100)"). Without them it is a reference label
+        # ("Diabetes: >6.4", "Desirable range <200 mg/dL", "Normal: <5.7 %"), not a result.
+        if cmp and (not unit or (ref_low_str is None and ref_high_str is None)):
             return None
+
+        # A comparator (<, >, <=, >=) is a bound, never an exact number: value stays None
+        # and the text is kept as value_text (as in _parse_table_row).
+        value = None
+        value_text = None
+        if cmp:
+            value_text = f"{cmp}{value_str}"
+        else:
+            try:
+                value = float(value_str)
+            except (ValueError, TypeError):
+                return None
 
         ref_low = None
         ref_high = None
@@ -498,6 +881,7 @@ class ExtractModule:
         return ExtractedObservation(
             analyte_raw=analyte,
             value=value,
+            value_text=value_text,
             unit=unit,
             ref_low=ref_low,
             ref_high=ref_high,
@@ -520,7 +904,8 @@ class ExtractModule:
         """
         Extract lab values from a scanned PDF using OCR.
 
-        Uses pdf2image to convert pages to images, then pytesseract for OCR.
+        Uses RapidOCR first (pages rendered with pypdfium2), with Tesseract
+        (pdf2image + pytesseract) as the fallback.
         OCR observations get base confidence 0.4 (lower than text extraction).
         Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
@@ -546,10 +931,7 @@ class ExtractModule:
                 ocr_unavailable=True,
             )
 
-        try:
-            import pytesseract
-            from pdf2image import convert_from_bytes
-        except ImportError:
+        if not _ocr_backend_ready(pdf=True):
             return ExtractionResult(
                 document_id=document_id,
                 observations=[],
@@ -559,20 +941,15 @@ class ExtractModule:
                 ocr_unavailable=True,
             )
 
-        # Read PDF bytes
-        if isinstance(pdf_source, (Path, str)):
-            pdf_bytes = Path(pdf_source).read_bytes()
-        else:
-            pdf_source.seek(0)
-            pdf_bytes = pdf_source.read()
+        pdf_bytes = _read_pdf_bytes(pdf_source)
 
-        images = convert_from_bytes(pdf_bytes)
+        # RapidOCR (pypdfium2 pages) or the Tesseract fallback (pdf2image), off the event loop.
+        page_texts = await asyncio.to_thread(_ocr_pdf_pages, pdf_bytes)
         observations = []
         collection_dates = []
         pages_text: list[str] = []
 
-        for page_num, image in enumerate(images, start=1):
-            text = pytesseract.image_to_string(image)
+        for page_num, text in sorted(page_texts.items()):
             pages_text.append(text)
             # Use existing text extraction on OCR output
             text_obs = self._extract_from_text(text, page_num, document_id)
@@ -622,7 +999,8 @@ class ExtractModule:
         """
         Extract lab values from a direct image import (.png/.jpg).
 
-        Uses pytesseract for OCR. Observations get base confidence 0.4.
+        Uses RapidOCR first, with Tesseract (pytesseract) as the fallback.
+        Observations get base confidence 0.4.
         Returns graceful result with ocr_unavailable=True if OCR deps missing.
         """
         from core.config import is_ocr_available
@@ -648,9 +1026,18 @@ class ExtractModule:
             )
 
         try:
-            import pytesseract
             from PIL import Image
         except ImportError:
+            return ExtractionResult(
+                document_id=document_id,
+                observations=[],
+                collection_dates=[],
+                parser_version=self.parser_version,
+                overall_confidence=0.0,
+                ocr_unavailable=True,
+            )
+
+        if not _ocr_backend_ready(pdf=False):
             return ExtractionResult(
                 document_id=document_id,
                 observations=[],
@@ -666,7 +1053,7 @@ class ExtractModule:
             image_source.seek(0)
             image = Image.open(image_source)
 
-        text = pytesseract.image_to_string(image)
+        text = await asyncio.to_thread(_ocr_image_text, image)
         observations = self._extract_from_text(text, 1, document_id)
         # Lower confidence for OCR-derived observations
         for obs in observations:
@@ -702,6 +1089,32 @@ class ExtractModule:
         r"[:\s]+([\w/\-,\s]+)",
         re.IGNORECASE,
     )
+
+    # A birth label directly before a date marks it as a date of birth, never a
+    # collection date. Checked on a fixed 32-character window (linear on long
+    # whitespace runs); callers pass pos/endpos so `\b` still sees the real
+    # character before the window.
+    _BIRTH_LABEL_TAIL_RE = re.compile(
+        r"(?:\bd\.?\s?o\.?\s?b\.?|\bdate\s+of\s+birth|\bbirth\s*date|\bborn(?:\s+on)?"
+        r"|\bdob\s*/\s*(?:sex|gender|age))"
+        r"\s{0,3}(?:\([^()\n]{0,14}\)\s{0,3})?[:\-]?\s{0,3}$",
+        re.IGNORECASE,
+    )
+    _BIRTH_LABEL_WINDOW = 32
+    # Header words that name a (non-birth) date column, and the only other header words
+    # allowed when a DOB header and its row differ in token count (EXTRACT-DOB-MINORS).
+    # "collection" is left out: alone it is as likely "Collection Site".
+    _COLUMN_DATE_LABELS = frozenset({"collected", "received", "reported", "drawn"})
+    _COLUMN_ID_WORDS = frozenset({"patient", "name", "mrn", "id", "sex", "gender", "age"})
+    _PLAIN_WORD_RE = re.compile(r"[A-Za-z][A-Za-z.'-]*")
+
+    @classmethod
+    def _follows_birth_label(cls, text: str, start: int) -> bool:
+        """True if the text just before *start* ends with a birth label."""
+        return (
+            cls._BIRTH_LABEL_TAIL_RE.search(text, max(0, start - cls._BIRTH_LABEL_WINDOW), start)
+            is not None
+        )
 
     # Plausibility bounds for extracted dates
     _DATE_MIN = date_type(1950, 1, 1)
@@ -773,11 +1186,120 @@ class ExtractModule:
         generic: list[str] = []
         seen: set[str] = set()
 
+        # --- Column layout: a DOB printed under a birth-label header token ---
+        # A line whose whitespace-separated tokens include a single-token birth
+        # label (case-insensitive, a trailing ':' ignored) is a header, unless it
+        # carries a date token itself. The next line is its data row only when it
+        # has the same token count, and the token at the label's index is a DOB
+        # when it is a date. On a count mismatch the ordered date-column rule below
+        # pairs the row's dates with the header's date-column labels instead.
+        # Skipped by character offset, never by value, so the same date printed
+        # elsewhere still counts. In such a data row a birth
+        # label counts only on its own line: the header's label does not reach
+        # into the row's other cells. One split and one pass: linear.
+        birth_labels = {"dob", "d.o.b.", "d.o.b", "birthdate"}
+        lines = text.split("\n")
+        line_starts: list[int] = []
+        offset = 0
+        for line in lines:
+            line_starts.append(offset)
+            offset += len(line) + 1
+        birth_column: set[int] = set()
+        column_row: set[int] = set()
+        # Only a token of this shape can parse as a date: each single-token format in
+        # _normalize_date_str is digits, a separator, a 1-3 character month or day, a
+        # separator, digits and an optional T time. Other tokens skip its 12 strptime
+        # attempts, so a long line of plain tokens stays cheap.
+        date_shape = re.compile(r"\d{1,4}[/\-]\w{1,3}[/\-]\d{1,4}(?:[Tt][\d:]+)?")
+
+        def _is_date_token(token: str) -> bool:
+            return (
+                date_shape.fullmatch(token) is not None
+                and self._normalize_date_str(token) is not None
+            )
+
+        def _mismatch_birth_cells(header, row):
+            """Birth-label/date-cell pairs for a header and row of different token counts.
+
+            Ordered date-column rule: the k-th date cell belongs to the k-th date-column
+            label. Applies only when every guard holds; otherwise nothing is marked and
+            a DOB may still leak (fails open toward keeping a date).
+            """
+
+            def norm(t) -> str:
+                return t.group().lower().removesuffix(":")
+
+            date_labels = self._COLUMN_DATE_LABELS | birth_labels
+            labels = [t for t in header if norm(t) in date_labels]
+            cells = [t for t in row if _is_date_token(t.group())]
+            # (i) as many date cells as date-column labels.
+            if len(labels) != len(cells):
+                return []
+            # (ii) at least two, one of them a named non-birth column.
+            if len(labels) < 2 or not any(norm(t) in self._COLUMN_DATE_LABELS for t in labels):
+                return []
+            # (iii) no label word and no "label:" token in the row: a labelled line.
+            if any(norm(t) in date_labels or t.group().endswith(":") for t in row):
+                return []
+            # (iv) allowlist: every other header word is a known ID word.
+            others = [t for t in header if norm(t) not in date_labels]
+            if any(norm(t) not in self._COLUMN_ID_WORDS for t in others):
+                return []
+            # (v) the non-date cells are few plain words, none between two date cells.
+            rest = [t for t in row if not _is_date_token(t.group())]
+            if len(rest) > len(others) + 1 or any(
+                self._PLAIN_WORD_RE.fullmatch(t.group()) is None for t in rest
+            ):
+                return []
+            first, last = cells[0].start(), cells[-1].start()
+            if any(first < t.start() < last for t in rest):
+                return []
+            return [(lab, cell) for lab, cell in zip(labels, cells) if norm(lab) in birth_labels]
+
+        for i in range(len(lines) - 1):
+            header = list(re.finditer(r"\S+", lines[i]))
+            if not any(t.group().lower().removesuffix(":") in birth_labels for t in header):
+                continue
+            if any(_is_date_token(t.group()) for t in header):
+                continue
+            row = list(re.finditer(r"\S+", lines[i + 1]))
+            if len(header) == len(row):
+                pairs = [
+                    (token, row[col])
+                    for col, token in enumerate(header)
+                    if token.group().lower().removesuffix(":") in birth_labels
+                ]
+            else:
+                pairs = _mismatch_birth_cells(header, row)
+            confirmed = False
+            for _label, cell in pairs:
+                if _is_date_token(cell.group()):
+                    confirmed = True
+                    cell_start = line_starts[i + 1] + cell.start()
+                    birth_column.update(range(cell_start, cell_start + len(cell.group())))
+            if confirmed:
+                row_start = line_starts[i + 1]
+                column_row.update(range(row_start, row_start + len(lines[i + 1])))
+
+        def _after_birth_label(pos: int) -> bool:
+            """True if a birth label precedes *pos*; in a column row, only on the same line."""
+            if pos not in column_row:
+                return self._follows_birth_label(text, pos)
+            lo = max(0, pos - self._BIRTH_LABEL_WINDOW)
+            floor = max(text.rfind("\n", lo, pos) + 1, lo)
+            return self._BIRTH_LABEL_TAIL_RE.search(text, floor, pos) is not None
+
         # --- Stage 1: collection-label dates (highest priority) ---
         for m in self._COLLECTION_LABEL_RE.finditer(text):
             # The capture group may contain extra words; try progressively
             # shorter substrings so we get just the date part.
             raw_tail = m.group(1).strip()
+            tail_start = m.start(1) + (len(m.group(1)) - len(m.group(1).lstrip()))
+            # A DOB-column cell blocks this label only when the label reaches it
+            # across a line break; a label on the same line as its date wins.
+            crosses_line = "\n" in text[m.start():tail_start]
+            if (crosses_line and tail_start in birth_column) or _after_birth_label(tail_start):
+                continue
             for candidate in _date_candidates_from_tail(raw_tail):
                 iso = self._normalize_date_str(candidate)
                 if iso and iso not in seen:
@@ -805,6 +1327,8 @@ class ExtractModule:
 
         for pattern in generic_patterns:
             for m in re.finditer(pattern, text, re.IGNORECASE):
+                if m.start(1) in birth_column or _after_birth_label(m.start(1)):
+                    continue
                 candidate = m.group(1).strip()
                 iso = self._normalize_date_str(candidate)
                 if iso and iso not in seen:

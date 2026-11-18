@@ -1,8 +1,8 @@
 # Asclexis Frontend
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: screens, stack, structure and test notes match `origin/main`)
 
-Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
+Web-based UI for Asclexis: a Vite single-page app served on localhost (no desktop shell is in this repository).
 
 For how the frontend fits into the whole system, see the
 [frontend architecture diagrams](../../docs/architecture/frontend.md).
@@ -11,12 +11,12 @@ For how the frontend fits into the whole system, see the
 
 - **Framework**: React 18+ with TypeScript
 - **Styling**: TailwindCSS with custom design tokens
-- **Components**: shadcn/ui (accessible by design, extensively customized)
+- **Components**: in-repo primitives in `src/components/ui/` built on Radix UI and `class-variance-authority`
 - **Icons**: Lucide React
-- **Fonts**: Variable fonts via Google Fonts or Fontsource
+- **Fonts**: Fontsource packages (Fraunces, Source Sans 3, JetBrains Mono)
 - **Motion**: Framer Motion (for React animations)
-- **Charts**: Recharts (accessible chart library)
-- **State**: Zustand or React Query
+- **Charts**: the in-repo Range Ribbon (`src/components/results/RangeRibbon.tsx`); Recharts is no longer a dependency
+- **State**: React Query for server state, Zustand (`stores/authStore.ts`) for the session
 
 ## Accessibility Requirements (WCAG 2.2 AA)
 
@@ -36,7 +36,7 @@ src/frontend/
 ├── src/
 │   ├── components/           # Reusable UI components
 │   │   ├── ui/              # Base components (Button, Card, Input, Badge, …)
-│   │   ├── layout/          # AppLayout, Sidebar, TopBar
+│   │   ├── layout/          # AppLayout, Sidebar, TopBar, MobileTabBar, MoreSheet, CommandPalette, navConfig
 │   │   ├── auth/            # ProtectedRoute
 │   │   ├── profile/         # RecoveryCodeCard (SEC-RECOV-001)
 │   │   ├── settings/        # DangerZone — profile deletion (PROF-DEL-001)
@@ -47,9 +47,9 @@ src/frontend/
 │   ├── pages/               # Page components (see Screens below)
 │   ├── hooks/               # Custom React hooks
 │   ├── services/            # API client + React Query hooks
-│   │                        #   exported through services/index.ts (the barrel)
+│   │                        #   services/index.ts barrel (not backup, donation, interpretations, medications)
 │   ├── stores/              # Zustand — session state only
-│   ├── types/               # TypeScript types
+│   ├── motion/              # MotionProvider and motion tokens
 │   └── utils/               # Utility functions
 ├── e2e/                     # Playwright specs
 ├── public/                  # Static assets
@@ -63,29 +63,33 @@ The original six PRD screens, plus everything the post-visit roadmap
 
 | Screen | Route | Purpose |
 |---|---|---|
+| **OverviewPage** | `/overview` | The index: `/` redirects here (UI-OVERVIEW). Getting-started checklist, then values waiting for review, latest results and the next dose |
+| **ResultsPage** | `/results` | Trends and Interpret in one page around the Range Ribbon (UI-PG-RESULTS); `/trends` and `/interpret` redirect here |
+| **AboutPage** | `/about` | Public About page, no data and no shell (UI-ABOUT) |
 | **ProfileSetup** | `/setup` | Create an encrypted profile; shows the one-time recovery code |
 | **RecoverProfile** | `/recover` | Forgot-password path using the recovery code (SEC-RECOV-001) |
 | **DocumentInbox** | `/inbox` | Import and list documents; highlight chips, confidence, duplicate warnings |
 | **VerificationWorkbench** | `/verify` | Review and correct extracted values against their source quotes |
-| **TrendsDashboard** | `/trends` | Analyte trends with reference ranges and medication overlay |
 | **TimelinePage** | `/timeline` | Chronological view of labs, visits, imaging, medication changes (HC-M14) |
 | **SearchPage** | `/search` | Cross-record search and filtering (HC-M21) |
-| **LabInterpreter** | `/interpret` | Grounded, cited interpretations |
 | **MedicationCoach** | `/medications` | Medication list, adherence, streaks |
-| **MedicationDetail** | `/medications/:id` | One medication: schedule, doses, related labs |
+| **MedicationDetail** | `/medications/:medicationId` | One medication: schedule, doses, related labs |
 | **CareTasksPage** | `/care-tasks` | Follow-up task candidates and tracker (HC-M15) |
 | **PinboardsPage** | `/pinboards` | User-curated collections (HC-M20) |
 | **ExplainAssistant** | `/explain` | Cited Q&A over your own record, with agentic query chips (HC-M24) |
 | **ExportPage** | `/export` | Doctor summary, visit-prep packet (HC-M18), FHIR R4 (HC-M22), CSV/JSON |
-| **NotificationSettings** | `/notifications` | Medication reminders |
+| **NotificationSettings** | `/notifications` | Redirect only: to `/medications?tab=reminders` (the Reminders tab, UI-PG-MEDS) |
 | **SettingsPage** | `/settings` | Model tier, hardware, voice, memory — and the profile Danger Zone |
 
 ### Conventions
 
-- **Import hooks from the `services/index.ts` barrel**, not from individual
-  service files, so the API surface stays visible in one place.
+- **Export hooks through the `services/index.ts` barrel** so the API surface
+  stays visible in one place. Today the barrel skips `backup`, `donation`,
+  `interpretations` and `medications`, and many pages import a service file by
+  path (see [frontend.md](../../docs/architecture/frontend.md#data-flow)).
 - **Server state lives in React Query; only session state lives in Zustand.**
-  The auth store holds the token, profile id and expiry — nothing the server owns.
+  The auth store holds the token, profile id and name, expiry and the
+  authenticated flag — nothing the server owns.
 
 ## Getting Started
 
@@ -122,7 +126,7 @@ If the repo is checked out under `/mnt/c/...` and longer-running frontend tests 
 npx vitest run
 
 # Run specific test file
-npx vitest run src/__tests__/TrendsDashboard.test.tsx
+npx vitest run src/__tests__/Routing.test.tsx
 
 # Run in watch mode (development)
 npx vitest
@@ -131,12 +135,12 @@ npx vitest
 npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
 ```
 
-Tests use `pool: 'forks'` for process isolation and a 10-second timeout.
+Tests use `pool: 'forks'` (or `'threads'` when the checkout is under `/mnt/`, see `vitest.config.ts`) and a 10-second timeout.
 Zustand stores are reset after each test to prevent state leakage.
 
 ## Design Tokens
 
-See `src/styles/tokens.css` for:
+See `src/styles/globals.css` (and `src/motion/tokens.ts` for motion) for:
 - Typography scale (16-18px base)
 - Spacing system
 - Color palette (high contrast)

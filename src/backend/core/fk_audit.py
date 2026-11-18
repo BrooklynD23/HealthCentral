@@ -1,6 +1,6 @@
 """Report-only orphan detection across declared and logical FKs (SQL-FK-001).
 
-The pragma is per-connection and was never set, so vaults can already hold
+The pragma is per-connection and was never set before SQL-FK-001, so vaults can already hold
 dangling children. This module finds them; nothing here deletes.
 """
 from dataclasses import dataclass

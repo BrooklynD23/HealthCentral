@@ -20,7 +20,7 @@ import sys
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -40,6 +40,7 @@ def _make_session(profile_id: str = "test-profile") -> Session:
         profile_id=profile_id,
         profile_name="Test Profile",
         expires_at=utcnow() + timedelta(hours=1),
+        token_jti="jti-test",  # C-GC1: route_client's constant jti; any live login of the profile is served (EXPORT-LIVE-LOGIN)
     )
 
 
@@ -266,6 +267,13 @@ from api.export import (  # noqa: E402
 )
 
 
+def _vault() -> AsyncMock:
+    """A profile-vault double whose `execute` finds no persisted export rows to prune."""
+    db = AsyncMock()
+    db.execute.return_value = MagicMock(all=MagicMock(return_value=[]))
+    return db
+
+
 def _patch_fetchers(monkeypatch, observations=None, meds=None, mentions=None,
                     tasks=None, entities=None, docs=None):
     monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
@@ -327,7 +335,7 @@ class TestVisitPrepRoute:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
 
         assert response.packet_id
@@ -353,7 +361,7 @@ class TestVisitPrepRoute:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
         assert "Current Medications" not in response.section_titles
         assert "Recent Abnormal Lab Results (verified)" in response.section_titles
@@ -365,14 +373,14 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", audit_mock)
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
 
         download = await download_visit_prep(
             packet_id=response.packet_id,
             session=_make_session(),
             format="markdown",
-            master_db=AsyncMock(),
+            master_db=no_logout_cutoff(AsyncMock()),
         )
         assert download.media_type == "text/markdown"
         body = bytes(download.body).decode("utf-8")
@@ -392,13 +400,13 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", AsyncMock())
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
         download = await download_visit_prep(
             packet_id=response.packet_id,
             session=_make_session(),
             format="html",
-            master_db=AsyncMock(),
+            master_db=no_logout_cutoff(AsyncMock()),
         )
         assert download.media_type == "text/html"
         html = bytes(download.body).decode("utf-8")
@@ -412,14 +420,14 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", AsyncMock())
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
         with pytest.raises(HTTPException) as exc_info:
             await download_visit_prep(
                 packet_id=response.packet_id,
                 session=_make_session("another-profile"),
                 format="markdown",
-                master_db=AsyncMock(),
+                master_db=no_logout_cutoff(AsyncMock()),
             )
         assert exc_info.value.status_code == 403
 
@@ -432,7 +440,7 @@ class TestVisitPrepRoute:
                 packet_id=str(uuid.uuid4()),
                 session=_make_session(),
                 format="markdown",
-                master_db=AsyncMock(),
+                master_db=no_logout_cutoff(AsyncMock()),
             )
         assert exc_info.value.status_code == 404
 
@@ -447,13 +455,13 @@ class TestVisitPrepRoute:
         monkeypatch.setattr("api.export.log_export_event", AsyncMock())
 
         response = await generate_visit_prep(
-            VisitPrepRequest(confirm=True), _make_session(), AsyncMock(), AsyncMock()
+            VisitPrepRequest(confirm=True), _make_session(), _vault(), AsyncMock()
         )
         download = await download_visit_prep(
             packet_id=response.packet_id,
             session=_make_session(),
             format="markdown",
-            master_db=AsyncMock(),
+            master_db=no_logout_cutoff(AsyncMock()),
         )
         body = bytes(download.body).decode("utf-8")
         assert "555-123-4567" not in body
@@ -492,7 +500,7 @@ class TestQuestionsSectionExclusion:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
         assert "Questions for Your Provider" in response.section_titles
         assert "Repeat CBC" not in response.markdown
@@ -514,7 +522,7 @@ class TestQuestionsSectionExclusion:
             confirm=True,
         )
         response = await generate_visit_prep(
-            request, _make_session(), AsyncMock(), AsyncMock()
+            request, _make_session(), _vault(), AsyncMock()
         )
         assert "Questions for Your Provider" in response.section_titles
         assert "Recent Abnormal Lab Results" not in response.markdown
@@ -545,7 +553,7 @@ class TestQuestionsSectionExclusion:
                 confirm=True,
             ),
             _make_session(),
-            AsyncMock(),
+            _vault(),
             AsyncMock(),
         )
 
@@ -700,7 +708,7 @@ class TestRealFetchers:
 import api.export as export_api  # noqa: E402
 from core.auth import get_profile_db_session  # noqa: E402
 from models import UserModelSettings  # noqa: E402
-from tests.support.routes import route_client  # noqa: E402
+from tests.support.routes import no_logout_cutoff, route_client  # noqa: E402
 
 TZ_FROZEN_UTC = datetime(2026, 1, 16, 1, 0)  # = Jan 15 17:00 America/Los_Angeles
 
@@ -750,6 +758,8 @@ def test_hc_exptz_007_packet_without_generated_on_falls_back_to_generated_at():
     _packet_store[packet_id] = {
         "packet_id": packet_id,
         "profile_id": "profile-a",
+        "session_jti": "jti-test",  # route_client's session jti (C-GC1)
+        "session_exp": utcnow() + timedelta(hours=1),
         "generated_at": "2026-01-16T01:00:00",
         "sections": [{"title": "S", "content": "c"}],
         "questions": [],
@@ -758,6 +768,10 @@ def test_hc_exptz_007_packet_without_generated_on_falls_back_to_generated_at():
     }
     try:
         with route_client(export_api.router, "/export", profile_id="profile-a") as client:
+            async def _no_vault():  # the seeded dict entry answers; the vault is never read
+                yield None
+
+            client.app.dependency_overrides[get_profile_db_session] = _no_vault
             download = client.get(
                 f"/export/visit-prep/{packet_id}/download", params={"format": "html"}
             )

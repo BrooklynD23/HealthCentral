@@ -349,7 +349,11 @@ def get_recommended_tier_from_hardware(
     """
     effective_ram = _effective_ram_gb(ram_gb, gpu_vram_gb)
 
+    gpu_boost_applies = gpu_vram_gb is not None and gpu_vram_gb >= GPU_VRAM_BUMP_MIN_GB
     for tier in TIER_ORDER:
+        # CPU-DEFAULT-PHI4: gemma4-12b needs the GPU; CPU-only machines stop at mid.
+        if tier == "gemma4-12b" and not gpu_boost_applies:
+            continue
         requirements = TIER_REQUIREMENTS[tier]
         if effective_ram >= requirements["ram_gb"] and disk_gb >= requirements["disk_gb"]:
             return tier
@@ -375,7 +379,7 @@ def get_tier_display_info(tier: str) -> dict:
         },
         "mid": {
             "name": "Tier 2: Mid",
-            "model": "Phi-3-mini-4k-instruct",
+            "model": "Phi-4-mini-instruct",
             "description": "Balanced quality and performance",
             "requirements": TIER_REQUIREMENTS["mid"],
         },

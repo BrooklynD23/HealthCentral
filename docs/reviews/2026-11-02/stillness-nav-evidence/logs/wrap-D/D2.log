@@ -1,0 +1,64 @@
+=== batch D2 plan=Ccdp batch=1 start 2026-11-02T18:45:36-08:00 cases=5
+ 18:45:36 up 2 days,  8:35,  1 user,  load average: 1.29, 10.17, 12.14
+(node:1759953) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Running 5 tests using 1 worker
+(node:1760053) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1760053) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1760053) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[1/5] [chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.timeline
+[chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.timeline
+CONFIG	trace="off"	video="off"	screenshot="off"	workers=1	retries=0	viewport={"width":1280,"height":720}
+onst inners = innerAsLocators(factory, part.body.parsed, false, maxOutputSize);\n      tokens.push(inners.map((inner) => factory.generateLocator(base, \"or\", inner)));\n      continue;\n    }\n    if (part.name === \"internal:chain\") {\n      const inners = innerAsLocators(factory, part.body.parsed, false, maxOutputSize);\n      tokens.push(inners.map((inner) => factory.generateLocator(base, \"c
+SNL-MARK start Ccdp.b1.cdpcount.base.probe.timeline
+"v":1},{"k":"transform","v":"none"}],"id":404}},{"k":"nodes","v":{"a":[{"o":[{"k":"id","v":1},{"k":"label","v":"label \"Stricter safety mode\""},{"k":"text","v":"Stricter safety mode"},{"k":"color","v":"rgb(28, 27, 25)"},{"k":"bg","v":"rgba(0, 0, 0, 0)"},{"k":"clip","v":"none"},{"k":"filter","v":"none"},{"k":"transform","v":"none"},{"k":"rect","v":{"a":[820,10.296875,119.234375,20],"id":407}},{"k"
+PROBECOST	/timeline	maxGap=39	durBeforeGap=0.2	durAtGap=0.2	maxDur=0.3	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=12	gapEndsAtMs=51	windowMs=1412	triggeredAt=412
+REQLOG	end:-25:/src/components/results/SourceTrace.tsx start:-18:/api/v1/documents/ start:-2:/api/v1/documents/highlights/summary end:6:/api/v1/documents/ end:6:/api/v1/documents/highlights/summary start:23:/api/v1/pinboards/ end:34:/api/v1/pinboards/ start:85:/src/pages/TimelinePage.tsx start:85:/favicon.svg end:95:/src/pages/TimelinePage.tsx end:99:/favicon.svg start:103:/api/v1/timeline/ end:10
+CDPCOUNT	Ccdp.b1.cdpcount.base.probe.timeline	total=105	send=26	recv=79
+SNL-MARK end Ccdp.b1.cdpcount.base.probe.timeline
+RESULT	{"id":"Ccdp.b1.cdpcount.base.probe.timeline","set":"probe","unit":"cdpcount","role":"base","batch":1,"route":"/timeline","base":"http://127.0.0.1:3000","flags":["cdpcount"],"load1Start":1.55,"measured":true,"maxGap":39,"gapStartMs":12,"gapEndMs":51,"windowMs":1412,"postSamples":70,"meanDur":0.1,"maxDur":0.3,"triggeredAt":412,"anchorPage":-1,"longtasks":[],"loaf":[],"reqlog":"end:-25:/src/co
+[2/5] [chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.search
+[chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.search
+s = [];\n  for (; e; e = parentElementOrShadowHost(e)) {\n    const cached = cache.get(e);\n    if (cached !== void 0) {\n      result = cached;\n      break;\n    }\n    parents.push(e);\n    const style = getElementComputedStyle(e);\n    if (!style) {\n      result = true;\n      break;\n    }\n    const value = style.pointerEvents;\n    if (value) {\n      result = value !== \"none\";\n      br
+SNL-MARK start Ccdp.b1.cdpcount.base.probe.search
+PROBECOST	/search	maxGap=64	durBeforeGap=0.5	durAtGap=0.2	maxDur=0.4	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=68	gapStartsAtMs=-3	gapEndsAtMs=61	windowMs=1398	triggeredAt=382
+REQLOG	end:-1:/src/components/results/SourceTrace.tsx start:11:/api/v1/documents/ start:12:/api/v1/documents/highlights/summary end:14:/api/v1/documents/ end:16:/api/v1/documents/highlights/summary start:35:/api/v1/pinboards/ end:68:/api/v1/pinboards/ start:69:/favicon.svg start:76:/src/pages/SearchPage.tsx end:81:/favicon.svg end:82:/src/pages/SearchPage.tsx start:87:/api/v1/search/ end:93:/api/v
+CDPCOUNT	Ccdp.b1.cdpcount.base.probe.search	total=104	send=20	recv=84
+SNL-MARK end Ccdp.b1.cdpcount.base.probe.search
+RESULT	{"id":"Ccdp.b1.cdpcount.base.probe.search","set":"probe","unit":"cdpcount","role":"base","batch":1,"route":"/search","base":"http://127.0.0.1:3000","flags":["cdpcount"],"load1Start":1.55,"measured":true,"maxGap":64,"gapStartMs":-3,"gapEndMs":61,"windowMs":1398,"postSamples":68,"meanDur":0.1,"maxDur":0.4,"triggeredAt":382,"anchorPage":-1,"longtasks":[],"loaf":[{"s":-122,"d":82,"blocking":22,
+[3/5] [chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.med
+[chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.med
+s = [];\n  for (; e; e = parentElementOrShadowHost(e)) {\n    const cached = cache.get(e);\n    if (cached !== void 0) {\n      result = cached;\n      break;\n    }\n    parents.push(e);\n    const style = getElementComputedStyle(e);\n    if (!style) {\n      result = true;\n      break;\n    }\n    const value = style.pointerEvents;\n    if (value) {\n      result = value !== \"none\";\n      br
+SNL-MARK start Ccdp.b1.cdpcount.base.probe.med
+PROBECOST	/medications/med-fixture-1	maxGap=32	durBeforeGap=0.6	durAtGap=0.3	maxDur=0.6	meanDur=0.3	nodesMax=10	nodesAtGap=10	postSamples=70	gapStartsAtMs=63	gapEndsAtMs=95	windowMs=1398	triggeredAt=343
+REQLOG	end:4:/favicon.svg end:5:/src/components/PageImageOverlay.tsx end:5:/node_modules/.vite/deps/@radix-ui_react-dropdown-menu.js end:6:/src/components/documents/HighlightChips.tsx end:6:/src/components/pinboards/AddToPinboardButton.tsx end:6:/src/components/documents/ExtractionConfidenceBadge.tsx start:9:/src/components/results/SourceTrace.tsx start:9:/node_modules/.vite/deps/chunk-BHXDLLGK.js
+RESULT	{"id":"Ccdp.b1.cdpcount.base.probe.med","set":"probe","unit":"cdpcount","role":"base","batch":1,"route":"/medications/med-fixture-1","base":"http://127.0.0.1:3000","flags":["cdpcount"],"load1Start":1.55,"measured":true,"maxGap":32,"gapStartMs":63,"gapEndMs":95,"windowMs":1398,"postSamples":70,"meanDur":0.3,"maxDur":0.6,"triggeredAt":343,"anchorPage":-1,"longtasks":[],"loaf":[{"s":-112,"d":8
+label","v":"p \"Not available yet. The standard safety c\""},{"k":"text","v":"Not available yet. The standard safety checks always run."},{"k":"color","v":"rgb(79, 76, 70)"},{"k":"bg","v":"rgba(0, 0, 0, 0)"},{"k":"clip","v":"none"},{"k":"filter","v":"none"},{"k":"transform","v":"none"},{"k":"rect","v":{"a":[768,36.296875,384,18.40625],"id":385}},{"k":"opacity","v":1},{"k":"inRoute","v":false}],"id
+CDPCOUNT	Ccdp.b1.cdpcount.base.probe.med	total=250	send=25	recv=225
+SNL-MARK end Ccdp.b1.cdpcount.base.probe.med
+[4/5] [chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.notif
+[chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.notif
+s = [];\n  for (; e; e = parentElementOrShadowHost(e)) {\n    const cached = cache.get(e);\n    if (cached !== void 0) {\n      result = cached;\n      break;\n    }\n    parents.push(e);\n    const style = getElementComputedStyle(e);\n    if (!style) {\n      result = true;\n      break;\n    }\n    const value = style.pointerEvents;\n    if (value) {\n      result = value !== \"none\";\n      br
+SNL-MARK start Ccdp.b1.cdpcount.base.probe.notif
+id":378},{"o":[{"k":"id","v":3},{"k":"label","v":"section \"Educational only, not medical advice. Yo\""},{"k":"text","v":"Educational only, not medical advice. Your records stay on this device.Educational only, not medical advice."},{"k":"color","v":"rgb(79, 76, 70)"},{"k":"bg","v":"rgb(255, 255, 255)"},{"k":"clip","v":"none"},{"k":"filter","v":"none"},{"k":"transform","v":"none"},{"k":"rect","v":
+PROBECOST	/medications	maxGap=28	durBeforeGap=0.1	durAtGap=0.2	maxDur=1.7	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=74	gapStartsAtMs=24	gapEndsAtMs=52	windowMs=1477	triggeredAt=363
+REQLOG	end:0:/node_modules/.vite/deps/@radix-ui_react-dropdown-menu.js end:0:/src/components/PageImageOverlay.tsx end:0:/src/components/documents/HighlightChips.tsx end:0:/src/components/pinboards/AddToPinboardButton.tsx start:0:/node_modules/.vite/deps/chunk-BHXDLLGK.js end:0:/src/components/documents/ExtractionConfidenceBadge.tsx start:0:/src/components/results/SourceTrace.tsx end:3:/node_module
+CDPCOUNT	Ccdp.b1.cdpcount.base.probe.notif	total=334	send=46	recv=288
+SNL-MARK end Ccdp.b1.cdpcount.base.probe.notif
+RESULT	{"id":"Ccdp.b1.cdpcount.base.probe.notif","set":"probe","unit":"cdpcount","role":"base","batch":1,"route":"/notifications","base":"http://127.0.0.1:3000","flags":["cdpcount"],"load1Start":1.5,"measured":true,"maxGap":28,"gapStartMs":24,"gapEndMs":52,"windowMs":1477,"postSamples":74,"meanDur":0.1,"maxDur":1.7,"triggeredAt":363,"anchorPage":-1,"longtasks":[],"loaf":[{"s":-118,"d":86,"blocking
+[5/5] [chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.care
+[chromium] › nav-sets.spec.ts:175:7 › Ccdp.b1.cdpcount.base.probe.care
+s = [];\n  for (; e; e = parentElementOrShadowHost(e)) {\n    const cached = cache.get(e);\n    if (cached !== void 0) {\n      result = cached;\n      break;\n    }\n    parents.push(e);\n    const style = getElementComputedStyle(e);\n    if (!style) {\n      result = true;\n      break;\n    }\n    const value = style.pointerEvents;\n    if (value) {\n      result = value !== \"none\";\n      br
+SNL-MARK start Ccdp.b1.cdpcount.base.probe.care
+PROBECOST	/care-tasks	maxGap=37	durBeforeGap=3.4	durAtGap=0.2	maxDur=3.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapStartsAtMs=14	gapEndsAtMs=51	windowMs=1393	triggeredAt=394
+REQLOG	end:-5:/node_modules/.vite/deps/chunk-BHXDLLGK.js start:7:/api/v1/documents/ start:8:/api/v1/documents/highlights/summary end:19:/api/v1/documents/ end:19:/api/v1/documents/highlights/summary start:43:/api/v1/pinboards/ end:51:/api/v1/pinboards/ start:73:/favicon.svg start:82:/src/pages/CareTasksPage.tsx end:84:/favicon.svg end:88:/src/pages/CareTasksPage.tsx start:91:/api/v1/care-tasks/ en
+CDPCOUNT	Ccdp.b1.cdpcount.base.probe.care	total=105	send=26	recv=79
+SNL-MARK end Ccdp.b1.cdpcount.base.probe.care
+RESULT	{"id":"Ccdp.b1.cdpcount.base.probe.care","set":"probe","unit":"cdpcount","role":"base","batch":1,"route":"/care-tasks","base":"http://127.0.0.1:3000","flags":["cdpcount"],"load1Start":1.5,"measured":true,"maxGap":37,"gapStartMs":14,"gapEndMs":51,"windowMs":1393,"postSamples":70,"meanDur":0.2,"maxDur":3.4,"triggeredAt":394,"anchorPage":-1,"longtasks":[],"loaf":[{"s":-130,"d":86,"blocking":27
+  5 passed (16.0s)
+CDPCOUNT	protocol lines in the whole batch	7239
+playwright exit=0
+=== batch D2 end 2026-11-02T18:45:58-08:00
+ 18:45:58 up 2 days,  8:35,  1 user,  load average: 1.50, 9.64, 11.92

@@ -109,6 +109,8 @@ export function useImportDocument() {
       importDocument(file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['observations'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
@@ -120,6 +122,8 @@ export function useDeleteDocument() {
     mutationFn: deleteDocument,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['observations'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
@@ -132,6 +136,7 @@ export function useReprocessDocument() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ['observations'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }
@@ -144,6 +149,7 @@ export function useVerifyDocument() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ['observations'] });
+      queryClient.invalidateQueries({ queryKey: ['timeline'] });
     },
   });
 }

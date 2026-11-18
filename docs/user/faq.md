@@ -19,7 +19,9 @@ provider after opt-in.
 
 ### What file formats are supported?
 
-PDF lab reports and image files (PNG, JPG, JPEG). OCR for scans requires Tesseract,
+PDF lab reports and image files (PNG, JPG, JPEG), plus structured imports: lab
+CSV files and FHIR R4 Bundle JSON files (HC-M23; structured imports always land
+unverified and skip OCR). OCR for scans requires Tesseract,
 **Document import (OCR)** enabled in Settings for your profile, and `OCR_ENABLED=true`
 in the server `.env`.
 
@@ -54,11 +56,12 @@ be opened. The password derives the encryption key, so there is no backdoor by
 design. **Keep backups of your data** using the backup utility, and keep your
 recovery code with them.
 
-### Is HealthCentral HIPAA compliant?
+### Does HIPAA apply to HealthCentral?
 
-HealthCentral implements many HIPAA technical safeguards (encryption at rest,
-audit logging, access controls). However, HIPAA compliance depends on your
-specific deployment context. See [HIPAA Controls](../compliance/hipaa-controls.md).
+No compliance claim is made. The project is designed as if HIPAA applied (owner
+choice, 2026-09-27): encryption at rest, audit logging, and access controls are
+modelled on HIPAA technical safeguards. That is a design posture, not a legal
+conclusion or a certification. See [HIPAA Controls](../compliance/hipaa-controls.md).
 
 ### How does rate limiting work?
 
@@ -102,6 +105,8 @@ Yes, multiple formats:
 - **CSV**: Spreadsheet-compatible observation export
 - **JSON**: Machine-readable complete export
 - **Discussion Questions**: AI-generated questions for doctor visits
+- **FHIR R4 Bundle**: verified observations only, strictly redacted, for other
+  systems (HC-M22)
 
 ### Does the assistant have access to my full history?
 

@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.documents import validate_uuid, verify_document_access
-from api.export import _compute_trends, _packet_store
+from api.export import _compute_trends, _packet_store, _save_artifact, _session_exp
 from core.audit import audit_and_commit, audit_intent, log_pinboard_event
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
@@ -388,7 +388,8 @@ def _observation_dict(obs: Observation) -> dict:
         "id": obs.id, "analyte_canonical": obs.analyte_canonical,
         "analyte_raw": obs.analyte_raw, "value": obs.value,
         "value_text": obs.value_text, "unit": obs.unit, "ref_low": obs.ref_low,
-        "ref_high": obs.ref_high, "flag": obs.flag, "is_abnormal": obs.is_abnormal,
+        "ref_high": obs.ref_high, "ref_range_text": getattr(obs, "ref_range_text", None),
+        "flag": obs.flag, "is_abnormal": obs.is_abnormal,
         "user_verified": obs.user_verified, "collected_at": obs.collected_at,
     }
 
@@ -511,13 +512,23 @@ async def export_pinboard_packet(
         include_normal_observations=True,
         today=local_today,
     )
-    _packet_store[packet["packet_id"]] = packet
+    created_at = utcnow()  # one creation time for the vault row and the dict entry
+    await _save_artifact(
+        profile_db, artifact_id=packet["packet_id"], kind="visit_prep",
+        profile_id=session.profile_id, payload=packet, session_jti=session.token_jti,
+        session_exp=_session_exp(session), created_at=created_at,
+    )
     await audit_and_commit(
         master_db, log_pinboard_event, event="export", profile_id=session.profile_id,
         pinboard_id=board.id,
         details={"packet_id": packet["packet_id"], "item_count": len(items),
                  "redaction_count": packet["redaction_count"]},
     )
+    await profile_db.commit()
+    packet["created_at"] = created_at  # EXPORT-STORE-PURGE: TTL stamp; published after both commits
+    packet["session_jti"] = session.token_jti
+    packet["session_exp"] = _session_exp(session)
+    _packet_store[packet["packet_id"]] = packet
     return PinboardExportResponse(
         packet_id=packet["packet_id"], profile_id=session.profile_id,
         generated_at=packet["generated_at"],

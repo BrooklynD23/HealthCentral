@@ -111,10 +111,10 @@ class UserModelSettings(ProfileDatabaseBase):
         nullable=False,
     )
 
-    # OCR for scanned PDFs / lab images (Phase 1+); default on for new profiles
+    # OCR for scanned PDFs / lab images (Phase 1+); off until the patient opts in
     ocr_preference_enabled: Mapped[bool] = mapped_column(
         Boolean,
-        default=True,
+        default=False,
         nullable=False,
     )
 
@@ -139,6 +139,16 @@ class UserModelSettings(ProfileDatabaseBase):
     # C-GAM2B: per-profile opt-out of streak displays (badges stay visible).
     # Added by 014_streaks_hidden.
     streaks_hidden: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="0",
+        nullable=False,
+    )
+
+    # SAFETY-MODE-SETTING: per-profile opt-in to the stricter safety mode.
+    # Off by default. Read via api.assistant.is_strict_safety_mode.
+    # Added by 016_strict_safety_mode.
+    strict_safety_mode: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
         server_default="0",

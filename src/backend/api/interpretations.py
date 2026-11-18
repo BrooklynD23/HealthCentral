@@ -10,14 +10,14 @@ Phase 1: Core Lab Interpretation Engine - API Layer
 import json
 import logging
 import re
-from typing import Optional
+from typing import NoReturn, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.assistant import get_rag_module
+from api.assistant import get_rag_module, get_strict_rag_module, is_strict_safety_mode
 from core.audit import audit_and_commit, audit_intent, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
@@ -29,7 +29,9 @@ from models import (
     PanelInterpretation,
 )
 from modules import get_interpret_module
-from modules.agent.guardrails.templates import ESCALATE_TEMPLATE
+from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
+from modules.interpret import panel_rebuild_at_risk, saved_card_needs_rebuild
+from modules.knowledge_loader import kb_lookup_name
 from modules.rag import ModelUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -83,6 +85,75 @@ async def _has_interpretation(profile_db: AsyncSession, observation_id: str) -> 
         .limit(1)
     )
     return res.first() is not None
+
+
+# SAFETY-MODE-VERIFIED: under strict safety mode an observation the patient has
+# not verified gets no interpretation. Every route that refuses answers 409 with
+# one shape (the batch route lists the id under "failed" instead).
+UNVERIFIED_BATCH_ERROR = "Verify this result first"
+
+
+async def _audit_withheld(
+    master_db: AsyncSession,
+    profile_id: str,
+    observation_id: str,
+    interp_result,
+    started: bool,
+) -> None:
+    """INTERP-WITHHOLD-MSG: one audit row for a card the safety check withheld.
+
+    Ids and check type names only, never the text, the analyte or the value.
+    ``intent="completed"`` closes the ``started`` row of a regenerate.
+    """
+    checks = interp_result.safety_validation.checks_failed if interp_result.safety_validation else []
+    await _audit_interpretation(
+        master_db, "withheld", profile_id,
+        entity_type="observation", entity_id=observation_id,
+        details={
+            "reason": "safety_check_failed",
+            "decision": "escalate",
+            "checks_failed": list(checks),
+        },
+        intent="completed" if started else None,
+    )
+
+
+async def _audit_unverified_refusal(
+    master_db: AsyncSession,
+    profile_id: str,
+    entity_type: str,
+    entity_id: Optional[str] = None,
+    observation_ids: Optional[list[str]] = None,
+) -> None:
+    """One audit row per refusal: an observation id, or the unverified member ids of
+    a panel. Ids and enums only: no analyte, value, panel name or text. `route` is
+    not an allowed audit detail key (core/audit.py), so the entity fields say what
+    was refused."""
+    details: dict = {"reason": "observation_unverified", "decision": "refuse"}
+    if observation_ids is not None:
+        details["observation_ids"] = observation_ids
+    await _audit_interpretation(
+        master_db, "unverified_refused", profile_id,
+        entity_type=entity_type, entity_id=entity_id, details=details,
+    )
+
+
+async def _refuse_unverified(
+    master_db: AsyncSession,
+    profile_id: str,
+    entity_type: str,
+    entity_id: Optional[str] = None,
+    observation_ids: Optional[list[str]] = None,
+) -> NoReturn:
+    """Audit the refusal, then answer 409. Never returns."""
+    await _audit_unverified_refusal(
+        master_db, profile_id, entity_type, entity_id, observation_ids,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "observation_unverified", "message": "Verify this result first."},
+    )
+
 
 router = APIRouter()
 
@@ -200,7 +271,12 @@ class GroundedVerificationResponse(BaseModel):
 
 class GroundedInterpretationResponse(BaseModel):
     """Combined template interpretation + grounded RAG explanation."""
-    interpretation: InterpretationResponse
+    # None only for a withheld card (INTERP-WITHHOLD-MSG): no card is saved.
+    interpretation: Optional[InterpretationResponse] = None
+    withheld: bool = False
+    # INTERP-WITHHOLD-MSG: a withheld card still tells the patient to contact a
+    # clinician when the value is critical. The flag only: never the value or reason.
+    withheld_physician_review: bool = False
     grounded_segments: list[GroundedSegmentResponse]
     full_response: str
     insufficient_context: bool = False
@@ -389,7 +465,8 @@ async def generate_interpretation(
 
     Generates an AI-powered interpretation of a lab result using the
     knowledge base and safety guardrails. If an interpretation already
-    exists, returns it unless force_regenerate is True.
+    exists, returns it unless force_regenerate is True. A saved template card
+    whose wording the range check contradicts is rebuilt, like a forced regenerate.
 
     Requires authentication and access to the observation's profile.
     """
@@ -413,8 +490,14 @@ async def generate_interpretation(
             detail="Access denied to this observation"
         )
 
-    # AUDIT-ORDER D: regenerate over an existing interpretation is irreversible.
-    started = force_regenerate and await _has_interpretation(profile_db, observation_id)
+    # SAFETY-MODE-VERIFIED: refuse before the stored-row shortcut in interpret_observation.
+    if not observation.user_verified and await is_strict_safety_mode(profile_db):
+        await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
+
+    # AUDIT-ORDER D: regenerate over an existing interpretation is irreversible, and so is
+    # the rebuild of a stale template card (VALUE-RANGE-COMPARE): both open with `started`.
+    stale = not force_regenerate and await saved_card_needs_rebuild(observation, profile_db, master_db)
+    started = (force_regenerate and await _has_interpretation(profile_db, observation_id)) or stale
     if started:
         await _audit_interpretation(
             master_db, "generate", session.profile_id,
@@ -427,8 +510,12 @@ async def generate_interpretation(
         observation_id=observation_id,
         profile_db=profile_db,
         master_db=master_db,
-        force_regenerate=force_regenerate,
+        force_regenerate=force_regenerate or stale,
     )
+
+    # `is True`: a result object without the flag (test doubles) is not withheld.
+    if getattr(interp_result, "withheld", False) is True:
+        await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, started)
 
     if not interp_result.success:
         raise HTTPException(
@@ -475,7 +562,13 @@ async def generate_grounded_interpretation(
             detail="Access denied to this observation",
         )
 
-    started = force_regenerate and await _has_interpretation(profile_db, observation_id)
+    # SAFETY-MODE-VERIFIED: read once here; the 0.75 module is chosen further down.
+    strict = await is_strict_safety_mode(profile_db)
+    if strict and not observation.user_verified:
+        await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
+
+    stale = not force_regenerate and await saved_card_needs_rebuild(observation, profile_db, master_db)
+    started = (force_regenerate and await _has_interpretation(profile_db, observation_id)) or stale
     if started:
         await _audit_interpretation(
             master_db, "grounded", session.profile_id,
@@ -487,8 +580,26 @@ async def generate_grounded_interpretation(
         observation_id=observation_id,
         profile_db=profile_db,
         master_db=master_db,
-        force_regenerate=force_regenerate,
+        force_regenerate=force_regenerate or stale,
     )
+    if getattr(interp_result, "withheld", False) is True:
+        # INTERP-WITHHOLD-MSG: answer with the escalation message, no card and no
+        # rag.query. Keyed on the flag, never on the error_message string.
+        await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, started)
+        return GroundedInterpretationResponse(
+            interpretation=None,
+            withheld=True,
+            withheld_physician_review=bool(
+                interp_result.safety_validation
+                and interp_result.safety_validation.requires_physician_review
+            ),
+            grounded_segments=[
+                GroundedSegmentResponse(segment_type="uncertainty", content=ESCALATE_TEMPLATE, citations=[])
+            ],
+            full_response=ESCALATE_TEMPLATE,
+            verification=GroundedVerificationResponse(),
+            is_valid=False,
+        )
     if not interp_result.success or not interp_result.interpretation:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -503,7 +614,8 @@ async def generate_grounded_interpretation(
         intent="completed" if started else None,
     )
 
-    rag = get_rag_module()
+    # SAFETY-MODE-STRICT: a profile with strict safety mode on gets the 0.75 module.
+    rag = get_strict_rag_module() if strict else get_rag_module()
     # IUV-1: an unverified (possibly mis-extracted) value is kept out of the question.
     # It can still reach the model through the RAG context until W-3 (I-13) lands.
     shown = (
@@ -541,9 +653,10 @@ async def generate_grounded_interpretation(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=str(exc),
         )
-    except RuntimeError:
-        logger.exception(
-            "Grounded interpretation inference failed",
+    except RuntimeError as exc:
+        logger.error(
+            "Grounded interpretation inference failed: %s",
+            type(exc).__name__,
             extra={"profile_id": session.profile_id},
         )
         raise HTTPException(
@@ -605,6 +718,21 @@ async def generate_grounded_interpretation(
             entity_type="observation", entity_id=observation_id,
             details={"reason": rag_result.prohibited_reason, "decision": "escalate"},
         )
+    elif strict and not rag_result.is_valid:
+        # SAFETY-MODE-STRICT: under strict safety mode an answer that fails the
+        # 0.75 checks is withheld. The withheld text must not ship in
+        # full_response either (recurring-failures #2). elif, so the escalation
+        # branch above always wins with exactly one prohibited_blocked row.
+        grounded_segments = [
+            GroundedSegmentResponse(segment_type="uncertainty", content=ABSTAIN_TEMPLATE, citations=[])
+        ]
+        full_response = ABSTAIN_TEMPLATE
+        verification = GroundedVerificationResponse()
+        await _audit_interpretation(
+            master_db, "strict_abstained", session.profile_id,
+            entity_type="observation", entity_id=observation_id,
+            details={"reason": "strict_validation_failed", "decision": "abstain"},
+        )
 
     return GroundedInterpretationResponse(
         interpretation=InterpretationResponse.from_model(interp_result.interpretation),
@@ -631,8 +759,10 @@ async def get_interpretation(
     """
     Get existing interpretation for an observation.
 
-    Returns the stored interpretation if one exists.
-    Does not generate a new interpretation.
+    Returns the stored interpretation if one exists. Never creates a first one
+    (404 when there is none). VALUE-RANGE-COMPARE: a saved template-written card
+    whose sentence the range check contradicts is rebuilt before it is returned,
+    by the same path a forced regenerate takes; the model is never called here.
     """
     validate_uuid(observation_id, "observation_id")
 
@@ -654,6 +784,10 @@ async def get_interpretation(
             detail="Access denied to this observation"
         )
 
+    # SAFETY-MODE-VERIFIED: refuse even when a row is stored, and before viewed_at is written.
+    if not observation.user_verified and await is_strict_safety_mode(profile_db):
+        await _refuse_unverified(master_db, session.profile_id, "observation", observation_id)
+
     # Get interpretation
     result = await profile_db.execute(
         select(LabInterpretation).where(
@@ -666,6 +800,35 @@ async def get_interpretation(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No interpretation found for this observation"
+        )
+
+    # VALUE-RANGE-COMPARE: a stale template card is rebuilt here, and the rebuild deletes
+    # the saved card, so it is bracketed like a forced regenerate (AUDIT-ORDER D, A2): the
+    # started row is committed first and a failed audit write stops it. A card in agreement,
+    # a model card or one the check cannot judge is served as stored: no module call, no
+    # write. A withheld rebuild keeps the old row and never serves its text.
+    if await saved_card_needs_rebuild(observation, profile_db, master_db):
+        await _audit_interpretation(
+            master_db, "generate", session.profile_id,
+            entity_type="observation", entity_id=observation_id, intent="started",
+        )
+        interp_result = await get_interpret_module().interpret_observation(
+            observation_id=observation_id,
+            profile_db=profile_db,
+            master_db=master_db,
+            force_regenerate=True,
+        )
+        if getattr(interp_result, "withheld", False) is True:
+            await _audit_withheld(master_db, session.profile_id, observation_id, interp_result, True)
+        if not interp_result.success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=interp_result.error_message or "Failed to read interpretation",
+            )
+        interpretation = interp_result.interpretation
+        await _audit_interpretation(
+            master_db, "generate", session.profile_id,
+            entity_type="observation", entity_id=observation_id, intent="completed",
         )
 
     # Mark as viewed
@@ -710,6 +873,45 @@ async def generate_panel_interpretation(
             detail=f"Unknown panel: {panel_name}. Valid panels: {', '.join(PANEL_DEFINITIONS.keys())}"
         )
 
+    # SAFETY-MODE-VERIFIED: refuse before interpret_panel and its stored-row shortcut if
+    # any member is unverified. Members are selected exactly as interpret_panel selects
+    # them (modules/interpret.py:326-335): same profile, panel analytes, whole day.
+    if await is_strict_safety_mode(profile_db):
+        day_start = collected_at.replace(hour=0, minute=0, second=0)
+        day_end = collected_at.replace(hour=23, minute=59, second=59)
+        members = await profile_db.execute(
+            select(Observation.id, Observation.user_verified).where(
+                Observation.profile_id == session.profile_id,
+                Observation.analyte_canonical.in_(PANEL_DEFINITIONS[panel_name_lower]["analytes"]),
+                Observation.collected_at >= day_start,
+                Observation.collected_at <= day_end,
+            )
+        )
+        unverified_ids = [obs_id for obs_id, verified in members.all() if not verified]
+        if unverified_ids:
+            await _refuse_unverified(
+                master_db, session.profile_id, "panel_interpretation",
+                observation_ids=unverified_ids,
+            )
+
+    # VALUE-RANGE-COMPARE (AUDIT-ORDER D, A2): a read that would delete a stale saved panel
+    # or replace a stale member card is bracketed. The check is read-only and follows
+    # interpret_panel's branches; the started row is committed before the first delete and a
+    # failed audit write stops the read with nothing changed. A read that deletes nothing
+    # keeps the single plain row below. The panel name is clinical content: ids and counts only.
+    stale_panel_id, at_risk = await panel_rebuild_at_risk(
+        panel_name_lower, collected_at, session.profile_id, profile_db, master_db,
+        force_regenerate,
+    )
+    started = stale_panel_id is not None or bool(at_risk)
+    if started:
+        await _audit_interpretation(
+            master_db, "panel_generate", session.profile_id,
+            entity_type="panel_interpretation", entity_id=stale_panel_id,
+            details={"observation_ids": at_risk, "count": len(at_risk)},
+            intent="started",
+        )
+
     interpret_module = get_interpret_module()
     result = await interpret_module.interpret_panel(
         panel_name=panel_name_lower,
@@ -720,6 +922,30 @@ async def generate_panel_interpretation(
         force_regenerate=force_regenerate,
     )
 
+    # A member whose rebuild the safety check withheld keeps its old card and, when it
+    # fails the read closed, the saved panel row too. One withheld row per member (ids and
+    # check names only); the 500 below answers with the escalation message. A sibling
+    # rebuilt before the withheld one stays rebuilt: its id is in the completed row.
+    for member_id, member_result in result.withheld_members:
+        await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
+    # PANEL-WITHHELD-FIRSTGEN: a withheld member dropped from a first-generation panel is
+    # counted in the saved summary and still writes its withheld row — same shape, ids only.
+    for member_id, member_result in result.withheld_dropped:
+        await _audit_withheld(master_db, session.profile_id, member_id, member_result, False)
+
+    if started:
+        await _audit_interpretation(
+            master_db, "panel_generate", session.profile_id,
+            entity_type="panel_interpretation",
+            entity_id=result.interpretation.id if result.success else stale_panel_id,
+            details={
+                "observation_ids": result.replaced_member_ids,
+                "count": len(result.replaced_member_ids),
+                "skipped_count": len(result.withheld_members),
+            },
+            intent="completed",
+        )
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND if "No observations found" in (result.error_message or "") else status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -727,11 +953,12 @@ async def generate_panel_interpretation(
         )
 
     logger.info(f"Generated panel interpretation for {panel_name}")
-    # The panel name is clinical content: record the interpretation id only.
-    await _audit_interpretation(
-        master_db, "panel_generate", session.profile_id,
-        entity_type="panel_interpretation", entity_id=result.interpretation.id,
-    )
+    if not started:
+        # The panel name is clinical content: record the interpretation id only.
+        await _audit_interpretation(
+            master_db, "panel_generate", session.profile_id,
+            entity_type="panel_interpretation", entity_id=result.interpretation.id,
+        )
     return PanelInterpretationResponse.from_model(result.interpretation)
 
 
@@ -751,10 +978,16 @@ async def get_recent_interpretations(
 
     Returns the most recently created interpretations, ordered by date.
     """
+    query = select(LabInterpretation).where(
+        LabInterpretation.profile_id == session.profile_id
+    )
+    # SAFETY-MODE-VERIFIED: filter in SQL, before the limit, so a page is never short.
+    if await is_strict_safety_mode(profile_db):
+        query = query.join(
+            Observation, Observation.id == LabInterpretation.observation_id
+        ).where(Observation.user_verified.is_(True))
     result = await profile_db.execute(
-        select(LabInterpretation).where(
-            LabInterpretation.profile_id == session.profile_id
-        ).order_by(LabInterpretation.created_at.desc()).limit(limit)
+        query.order_by(LabInterpretation.created_at.desc()).limit(limit)
     )
     interpretations = result.scalars().all()
 
@@ -784,7 +1017,7 @@ async def get_biomarker_knowledge(
     """
     result = await master_db.execute(
         select(BiomarkerKnowledge).where(
-            BiomarkerKnowledge.analyte_canonical == analyte_canonical.lower()
+            BiomarkerKnowledge.analyte_canonical == kb_lookup_name(analyte_canonical)
         )
     )
     kb = result.scalar_one_or_none()
@@ -821,11 +1054,56 @@ async def batch_generate_interpretations(
 
     interpret_module = get_interpret_module()
 
+    # SAFETY-MODE-VERIFIED: under strict mode, read the unverified ids once. They are
+    # refused in the loop, so they stay out of the regenerate audit row below.
+    strict = await is_strict_safety_mode(profile_db)
+    unverified: set[str] = set()
+    if strict:
+        uuid_ids = [i for i in request.observation_ids if UUID_PATTERN.match(i)]
+        if uuid_ids:
+            res = await profile_db.execute(
+                select(Observation.id).where(
+                    Observation.id.in_(uuid_ids),
+                    Observation.user_verified.is_(False),
+                )
+            )
+            unverified = set(res.scalars().all())
+
+    # VALUE-RANGE-COMPARE: without force, a stale template card of this profile's own
+    # observation is rebuilt as a forced regenerate would be, so it is audited as one.
+    stale_ids: set[str] = set()
+    if not request.force_regenerate:
+        stale_candidates = [
+            i for i in request.observation_ids
+            if UUID_PATTERN.match(i) and i not in unverified
+        ]
+        if stale_candidates:
+            res = await profile_db.execute(
+                select(Observation).where(
+                    Observation.id.in_(stale_candidates),
+                    Observation.profile_id == session.profile_id,
+                )
+            )
+            for owned in res.scalars().all():
+                if await saved_card_needs_rebuild(owned, profile_db, master_db):
+                    stale_ids.add(owned.id)
+
     # AUDIT-ORDER D: only UUID-shaped ids that already have an interpretation
     # (regenerate deletes it) reach the audit row.
     started = False
+    if stale_ids:
+        started = True
+        at_risk = [i for i in dict.fromkeys(request.observation_ids) if i in stale_ids]
+        await _audit_interpretation(
+            master_db, "batch_generate", session.profile_id,
+            details={"observation_ids": at_risk, "count": len(at_risk)},
+            intent="started",
+        )
     if request.force_regenerate:
-        candidates = [i for i in request.observation_ids if UUID_PATTERN.match(i)]
+        candidates = [
+            i for i in request.observation_ids
+            if UUID_PATTERN.match(i) and i not in unverified
+        ]
         if candidates:
             res = await profile_db.execute(
                 select(LabInterpretation.observation_id).where(
@@ -842,6 +1120,8 @@ async def batch_generate_interpretations(
                     intent="started",
                 )
 
+    withheld_results: dict[str, object] = {}
+    refused_ids: list[str] = []
     for obs_id in request.observation_ids:
         try:
             validate_uuid(obs_id, "observation_id")
@@ -860,13 +1140,26 @@ async def batch_generate_interpretations(
                 failed.append({"observation_id": obs_id, "error": "Access denied"})
                 continue
 
-            # Generate interpretation
+            # SAFETY-MODE-VERIFIED: refused before generation, listed under "failed".
+            if strict and not observation.user_verified:
+                refused_ids.append(obs_id)  # audited after the loop, outside this try
+                failed.append({"observation_id": obs_id, "error": UNVERIFIED_BATCH_ERROR})
+                continue
+
+            # Generate interpretation. A repeated id is rebuilt once: the second one
+            # reads the fresh card.
+            force = request.force_regenerate or obs_id in stale_ids
+            stale_ids.discard(obs_id)
             result = await interpret_module.interpret_observation(
                 observation_id=obs_id,
                 profile_db=profile_db,
                 master_db=master_db,
-                force_regenerate=request.force_regenerate,
+                force_regenerate=force,
             )
+
+            # `is True`: a result object without the flag (test doubles) is not withheld.
+            if getattr(result, "withheld", False) is True:
+                withheld_results.setdefault(obs_id, result)  # a repeated id gets one row
 
             if result.success:
                 successful.append(obs_id)
@@ -879,12 +1172,24 @@ async def batch_generate_interpretations(
         except HTTPException as e:
             failed.append({"observation_id": obs_id, "error": e.detail})
         except Exception as e:
-            logger.error(f"Batch interpretation error for {obs_id}: {e}")
+            logger.error("Batch interpretation error for %s: %s", obs_id, type(e).__name__)
             failed.append({"observation_id": obs_id, "error": "Internal error"})
 
     logger.info(
         f"Batch interpretation: {len(successful)} successful, {len(failed)} failed"
     )
+
+    # SAFETY-VERIFIED-MINORS: one refusal row per refusal occurrence, written outside the
+    # per-item try so a failed audit write raises (fail closed) instead of being swallowed
+    # into an "Internal error" entry and leaving the refusal unlogged.
+    for obs_id in refused_ids:
+        await _audit_unverified_refusal(master_db, session.profile_id, "observation", obs_id)
+
+    # INTERP-WITHHOLD-MSG, as the single card does: one row per withheld card. Written after
+    # the loop and outside its try, so a failed audit write raises (fail closed) instead of
+    # becoming a "failed" entry that reads "Internal error"; before the closing row.
+    for obs_id, res in withheld_results.items():
+        await _audit_withheld(master_db, session.profile_id, obs_id, res, False)
 
     await _audit_interpretation(
         master_db, "batch_generate", session.profile_id,

@@ -1,0 +1,77 @@
+/*
+ * UI-SHOWCASE-KIT S2 (plan §2.6): the beam border. Colours are design tokens
+ * only (--accent, --accent-ink, --band). Only the border layer animates.
+ */
+
+/* Registering the angle lets the gradient's start angle be animated. */
+@property --beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+.beam-border__content {
+  position: relative;
+}
+
+/* The moving beam: a conic gradient on a 1 px ring, masked to the border. */
+.beam-border__beam {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--beam-angle),
+    var(--band) 0turn,
+    var(--accent) 0.08turn,
+    var(--accent-ink) 0.16turn,
+    var(--band) 0.24turn,
+    var(--band) 1turn
+  );
+  /* The mask takes its alpha from currentColor: pin it to an opaque token so a
+     consumer's translucent text colour cannot dim or hide the beam. */
+  color: var(--accent);
+  -webkit-mask: linear-gradient(currentColor 0 0) content-box, linear-gradient(currentColor 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(currentColor 0 0) content-box exclude, linear-gradient(currentColor 0 0);
+  animation: beam-spin 2.4s linear infinite;
+  transition: opacity 240ms ease-out;
+}
+
+.beam-border[data-active='true'] .beam-border__beam {
+  opacity: 1;
+}
+
+/* Stopped: the beam is paused where it is and fades out, so nothing moves. */
+.beam-border[data-active='false'] .beam-border__beam {
+  opacity: 0;
+  animation-play-state: paused;
+}
+
+/* Reduced motion: a static 1 px accent border in place of the beam. */
+.beam-border__frame {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--accent);
+  border-radius: inherit;
+  pointer-events: none;
+  transition: opacity 240ms ease-out;
+}
+
+.beam-border[data-active='false'] .beam-border__frame {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beam-border__beam {
+    animation: none;
+    display: none;
+  }
+}

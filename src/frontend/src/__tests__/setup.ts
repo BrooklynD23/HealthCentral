@@ -4,7 +4,7 @@
  * Global test configuration and mocks.
  */
 
-import { afterEach, beforeAll, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 
 // Mock localStorage before any module (e.g. the persisted Zustand auth store)
@@ -69,4 +69,23 @@ afterEach(async () => {
 
   // Clear localStorage to prevent persisted store state from leaking
   localStorage.clear();
+
+  // TOAST-TIMER-TEARDOWN: leave no toast queued — a still-live toast keeps
+  // sonner's timers armed past jsdom teardown (see afterAll below).
+  const { toast } = await vi.importActual<typeof import('sonner')>('sonner');
+  toast.dismiss();
+});
+
+// TOAST-TIMER-TEARDOWN (SONNER-TEARDOWN-FLAKE): sonner arms a bare
+// 200 ms setTimeout(removeToast) inside deleteToast (dist/index.mjs:634-636,
+// the site the CI errors name) plus 0-tick flushSync timers in its
+// subscribers (:943,:951,:1032); none is cancelled on unmount. Dismiss the
+// queue, then outwait the unmount timer so whichever survives fires while
+// `window` still exists — else vitest reports "Unhandled error:
+// ReferenceError: window is not defined" with every test green.
+afterAll(async () => {
+  const { toast } = await vi.importActual<typeof import('sonner')>('sonner');
+  toast.dismiss();
+  if (toast.getHistory().length === 0) return;
+  await new Promise((resolve) => setTimeout(resolve, 250));
 });

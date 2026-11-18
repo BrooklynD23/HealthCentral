@@ -1,0 +1,22 @@
+--- precheck before D1 at 2026-11-02T18:45:02-08:00
+ 18:45:02 up 2 days,  8:34,  1 user,  load average: 1.08, 11.24, 12.55
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1747390 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1753181 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1753183 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1753555 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1753557 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1753565 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/ --collect
+[FOREIGN] 1754307 /usr/bin/time -f wall=%es /mnt/e/Programming/Github Repo/hc-source-trace-wire/scripts/pyslot.sh npx vitest run --reporter=default
+[FOREIGN] 1754308 bash /mnt/e/Programming/Github Repo/hc-source-trace-wire/scripts/pyslot.sh npx vitest run --reporter=default
+[FOREIGN] 1755598 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1755600 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1755602 bash /mnt/e/Programming/Github Repo/hc-c-p6/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only -q -p
+[FOREIGN] 1756043 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1756051 bash /mnt/e/Programming/Github Repo/hc-ui-pg-auth/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/ --collect-only
+[FOREIGN] 1757066 bash /mnt/e/Programming/Github Repo/hc-verify-keeps-flag/scripts/pyslot.sh env HF_HUB_OFFLINE=1 PYTHONDONTWRITEBYTECODE=1 /home/danny/venvs/asclexis-311/bin/pytho
+[mine] 1757798 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+[FOREIGN] 1758864 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1757798,fd=30))
+(own server pids: 1757798 )

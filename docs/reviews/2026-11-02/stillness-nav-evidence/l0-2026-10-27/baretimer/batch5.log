@@ -1,0 +1,19 @@
+=== batch 5 21:59:14
+ 21:59:14 up 1 day, 10:09,  0 user,  load average: 1.37, 1.81, 2.17
+pgrep:
+MEAS	main-dev	/timeline	5	31	ticks=77	longtasks=[]	path=/timeline
+MEAS	branch-dev	/timeline	5	28	ticks=76	longtasks=[]	path=/timeline
+MEAS	branch-preview	/timeline	5	27	ticks=77	longtasks=[]	path=/timeline
+MEAS	main-dev	/search	5	31	ticks=76	longtasks=[]	path=/search
+MEAS	branch-dev	/search	5	33	ticks=76	longtasks=[]	path=/search
+MEAS	branch-preview	/search	5	30	ticks=76	longtasks=[]	path=/search
+MEAS	main-dev	/medications/med-fixture-1	5	24	ticks=75	longtasks=[]	path=/medications/med-fixture-1
+MEAS	branch-dev	/medications/med-fixture-1	5	32	ticks=75	longtasks=[]	path=/medications/med-fixture-1
+MEAS	branch-preview	/medications/med-fixture-1	5	24	ticks=75	longtasks=[]	path=/medications/med-fixture-1
+MEAS	main-dev	/notifications	5	28	ticks=77	longtasks=[]	path=/notifications
+MEAS	branch-dev	/notifications	5	33	ticks=77	longtasks=[]	path=/notifications
+MEAS	branch-preview	/notifications	5	24	ticks=77	longtasks=[]	path=/notifications
+MEAS	main-dev	/care-tasks	5	46	ticks=77	longtasks=[]	path=/care-tasks
+MEAS	branch-dev	/care-tasks	5	27	ticks=77	longtasks=[]	path=/care-tasks
+MEAS	branch-preview	/care-tasks	5	28	ticks=77	longtasks=[]	path=/care-tasks
+[1A[2K  15 passed (37.7s)

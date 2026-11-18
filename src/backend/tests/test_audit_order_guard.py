@@ -15,7 +15,13 @@ CLASSIFICATION: dict[str, str] = {
     "api/assistant.py::create_session": "C",
     "api/assistant.py::delete_session": "A2",
     "api/assistant.py::update_memory_settings": "C",
+    "api/assistant.py::get_safety_mode": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::get_verification_status": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::update_safety_mode": "C",
     "api/assistant.py::chat": "C",
+    "api/assistant.py::list_sessions": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::get_session_history": "excluded: read route, audit_and_commit only",
+    "api/assistant.py::get_memory_settings": "excluded: read route, audit_and_commit only",
     "api/backup.py::list_backups": "excluded: read route, audit_and_commit only",
     "api/backup.py::create_backup": "excluded: writes backup files, master audit row only; no vault mutation",
     "api/backup.py::verify_backup": "excluded: read route, audit_and_commit only",
@@ -43,23 +49,24 @@ CLASSIFICATION: dict[str, str] = {
     "api/documents.py::delete_document": "A2",
     "api/donation.py::list_consents": "excluded: read route, audit_and_commit only",
     "api/donation.py::set_consent": "A2",
-    "api/export.py::generate_doctor_summary": "excluded: read route, audit_and_commit only",
-    "api/export.py::download_summary": "excluded: read route, audit_and_commit only",
+    "api/export.py::generate_doctor_summary": "C",
+    "api/export.py::download_summary": "excluded: read route, audit_and_commit only; the vault commit deletes dead export rows only (unaudited, like the 404)",
     "api/export.py::generate_questions": "excluded: read route, audit_and_commit only",
-    "api/export.py::generate_visit_prep": "excluded: read route, audit_and_commit only",
-    "api/export.py::download_visit_prep": "excluded: read route, audit_and_commit only",
+    "api/export.py::generate_visit_prep": "C",
+    "api/export.py::download_visit_prep": "excluded: read route, audit_and_commit only; the vault commit deletes dead export rows only (unaudited, like the 404)",
     "api/export.py::export_csv": "excluded: read route, audit_and_commit only",
     "api/export.py::export_json": "excluded: read route, audit_and_commit only",
-    "api/export.py::generate_fhir_export": "excluded: read route, audit_and_commit only",
-    "api/export.py::download_fhir_export": "excluded: read route, audit_and_commit only",
+    "api/export.py::generate_fhir_export": "C",
+    "api/export.py::download_fhir_export": "excluded: read route, audit_and_commit only; the vault commit deletes dead export rows only (unaudited, like the 404)",
     "api/feedback.py::upsert_feedback": "C",
     "api/feedback.py::export_dataset": "excluded: writes export files; master audit only",
+    "api/feedback.py::get_feedback_stats": "excluded: read route, audit_and_commit only",
     "api/gamification.py::list_badges": "excluded: read route, audit_and_commit only",
     "api/gamification.py::get_streaks": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::generate_interpretation": "A2",
     "api/interpretations.py::generate_grounded_interpretation": "A2",
-    "api/interpretations.py::get_interpretation": "C",  # row 21: GET sets viewed_at in the vault
-    "api/interpretations.py::generate_panel_interpretation": "C",
+    "api/interpretations.py::get_interpretation": "A2",  # a stale template card is rebuilt (deleted) on read
+    "api/interpretations.py::generate_panel_interpretation": "A2",  # a stale saved panel or member card is rebuilt (deleted) on read
     "api/interpretations.py::get_recent_interpretations": "excluded: read route, audit_and_commit only",
     "api/interpretations.py::batch_generate_interpretations": "A2",
     "api/med_reconcile.py::get_med_reconciliation": "excluded: read route, audit_and_commit only",
@@ -73,23 +80,28 @@ CLASSIFICATION: dict[str, str] = {
     "api/medications.py::log_dose": "C",
     "api/medications.py::get_adherence_stats": "excluded: read route, audit_and_commit only",
     "api/medications.py::learn_patterns": "C",
+    "api/medications.py::list_medications": "excluded: read route, audit_and_commit only",
+    "api/medications.py::get_medication": "excluded: read route, audit_and_commit only",
+    "api/medications.py::list_schedules": "excluded: read route, audit_and_commit only",
+    "api/medications.py::list_doses": "excluded: read route, audit_and_commit only",
     "api/memory.py::create_memory_item": "C",
     "api/memory.py::list_memory_items": "excluded: read route, audit_and_commit only",
     "api/memory.py::get_memory_item": "excluded: read route, audit_and_commit only",
     "api/memory.py::update_memory_item": "C",
     "api/memory.py::delete_memory_item": "A2",
-    "api/model_settings.py::get_model_settings": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
+    # download-progress is an unaudited labelled exception: owner AUDIT-READ-SCOPE (a), owner-decisions 2026-10-21.
+    "api/model_settings.py::get_model_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_external_api_settings": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_timezone": "excluded: read route, audit_and_commit only",
+    "api/model_settings.py::get_voice_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::run_hardware_detection": "C",
     "api/model_settings.py::set_model_tier": "C",
-    "api/model_settings.py::list_tiers": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
     "api/model_settings.py::start_model_download": "C",
     "api/model_settings.py::save_external_api_settings": "C",
     "api/model_settings.py::set_timezone": "C",
     "api/model_settings.py::update_voice_settings": "C",
     "api/model_settings.py::get_gamification_settings": "excluded: read route, audit_and_commit only",
     "api/model_settings.py::update_gamification_settings": "C",
-    "api/model_settings.py::get_environment_diagnostics": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
-    "api/model_settings.py::recheck_environment_diagnostics": "excluded: read route, writes no audit row (follow-up AUDIT-READ-SETTINGS)",
     "api/model_settings.py::update_ocr_settings": "C",
     "api/model_settings.py::update_agent_settings": "C",
     "api/notifications.py::get_notification_settings": "excluded: read route, audit_and_commit only",
@@ -101,6 +113,7 @@ CLASSIFICATION: dict[str, str] = {
     "api/observations.py::list_observations": "excluded: read route, audit_and_commit only",
     "api/observations.py::get_observation": "excluded: read route, audit_and_commit only",
     "api/observations.py::verify_observation": "C",
+    "api/observations.py::unverify_observation": "C",
     "api/observations.py::get_analyte_trend": "excluded: read route, audit_and_commit only",
     "api/observations.py::get_panel": "excluded: read route, audit_and_commit only",
     "api/pinboards.py::create_pinboard": "C",
@@ -115,6 +128,9 @@ CLASSIFICATION: dict[str, str] = {
     "api/profiles.py::login": "excluded: master-only auth",
     "api/profiles.py::logout": "excluded: master-only auth",
     "api/profiles.py::reset_synthetic_test_profile": "excluded: test-only reset (3.1)",
+    "api/profiles.py::get_current_profile": "excluded: read route, audit_and_commit only",
+    "api/profiles.py::get_profile": "excluded: read route, audit_and_commit only",
+    "api/profiles.py::list_profiles": "excluded: read route, audit_and_commit only",
     "api/profiles.py::issue_recovery_code": "excluded: master-only credential row",
     "api/profiles.py::recover_profile": "excluded: master-only credential row",
     "api/profiles.py::delete_profile": "A2",
@@ -141,6 +157,9 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "injected planner callable; pure LLM planning, no session",
     "modules/backup_scheduler.py::_is_profile_unlocked::checker":
         "injected unlock predicate; read-only",
+    "modules/document_classifier.py::classify_document::max(get)":
+        "key=scores.get, a dict method on a local dict; no session. The only def named get "
+        "in the graph is modules/agent/tools/registry.py::get, which reaches 1 def and no commit.",
     "core/llm/llama_cpp_provider.py::LlamaCppProvider._ensure_initialized::Llama":
         "llama_cpp model constructor; no session",
     "modules/platform_notifications.py::WindowsToastProvider.send::self._toast_module['notification']":
@@ -153,10 +172,55 @@ NAMED_DYNAMIC_EXCLUSIONS: dict[str, str] = {
         "in-memory progress dict update; no session",
     "api/model_settings.py::start_model_download::background_tasks.add_task(_download_model_task)":
         "background download task; settings write is part of start_model_download (C)",
+    "api/model_settings.py::set_llm_provider::asyncio.to_thread(reset_provider)":
+        "unloads the in-memory LLM provider in a thread; no session",
+    "core/profile_database.py::PerProfileDatabaseManager.open_profile_database::asyncio.to_thread(convert_plaintext_vault_if_needed)":
+        "one-time plaintext-to-SQLCipher file conversion (core/vault_conversion.py, SQLCIPHER-WHEEL) in a "
+        "thread: raw sqlcipher3 file I/O on the vault path, no SQLAlchemy session, no commit, no audit row",
+    "api/model_settings.py::get_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
+        "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
+        "hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run and re Match .start name collisions, "
+        "so the real probe path writes no profile data.",
+    "api/model_settings.py::recheck_environment_diagnostics::asyncio.to_thread(_diagnostics_list_response)":
+        "diagnostics probe in a thread; no DB session on the real path. Name-based commit() reach "
+        "hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run and re Match .start name collisions, "
+        "so the real probe path writes no profile data.",
+    "api/model_settings.py::get_model_settings::asyncio.to_thread(detect_hardware_tier)":
+        "hardware probe in a thread; ModelSelector.detect_hardware_tier reaches 139 defs. "
+        "Name-based commit() reach hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run (hardware_detection.py:78, :115) "
+        "and re Match .start (redaction.py:322, :329) name collisions; with the subprocess, "
+        "torch and re library edges cut the reach is 10 defs and no commit. No real session "
+        "commit: the probe runs wmic, nvidia-smi and torch.cuda and writes no profile data.",
+    "api/model_settings.py::list_tiers::asyncio.to_thread(detect_hardware_tier)":
+        "hardware probe in a thread; ModelSelector.detect_hardware_tier reaches 139 defs. "
+        "Name-based commit() reach hits three sites: backup_scheduler.run_due_backups, "
+        "notification_scheduler._send_notification, adherence_patterns.relearn_unmarked_windows. "
+        "All three come in only through the subprocess .run (hardware_detection.py:78, :115) "
+        "and re Match .start (redaction.py:322, :329) name collisions; with the subprocess, "
+        "torch and re library edges cut the reach is 10 defs and no commit. No real session "
+        "commit: the probe runs wmic, nvidia-smi and torch.cuda and writes no profile data.",
     "api/observations.py::get_panel_snapshots::snapshots.sort(sort_snap)":
         "sort key function; no session",
     "core/migrations.py::run_profile_migration_async::asyncio.to_thread(run_profile_migration)":
-        "alembic runner in a thread; own connection, schema only",
+        "alembic runner in a thread; schema, 017 orphan cleanup, the pre-017 snapshot copy and the unversioned-vault schema match; own connections, no audit session",
+    "modules/extract.py::ExtractModule.extract_from_image::asyncio.to_thread(_ocr_image_text)":
+        "RapidOCR in a thread over image bytes only, no DB session. _ocr_image_text reaches 10 defs "
+        "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "
+        "The caller keeps its own audit and commit.",
+    "modules/extract.py::ExtractModule.extract_from_pdf::asyncio.to_thread(_ocr_pdf_pages)":
+        "RapidOCR in a thread over PDF bytes only, no DB session. _ocr_pdf_pages reaches 13 defs "
+        "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "
+        "The caller keeps its own audit and commit.",
+    "modules/extract.py::ExtractModule.extract_from_scanned_pdf::asyncio.to_thread(_ocr_pdf_pages)":
+        "RapidOCR in a thread over PDF bytes only, no DB session. _ocr_pdf_pages reaches 13 defs "
+        "and none of them commits or reaches create_audit_log, audit_and_commit or audit_intent. "
+        "The caller keeps its own audit and commit.",
     "modules/platform_notifications.py::DesktopNotifierProvider.send::DeliveryResult(platform)":
         "dataclass field named like a def; no call",
     "modules/platform_notifications.py::MockProvider.send::DeliveryResult(platform)":
@@ -291,6 +355,44 @@ def test_hc_aud_ord_030_break_it_def_passed_as_argument(tmp_path):
         "def work():\n    pass\n"
         '@router.post("/zz")\nasync def zz(loop=None):\n    await loop.run_in_executor(None, work)\n'))
     assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::loop.run_in_executor(work)"}
+
+
+def test_hc_aud_ord_032_break_it_bound_method_passed_as_argument(tmp_path):
+    _, _, _, dyn = _overlay(tmp_path, (
+        "import asyncio\n"
+        '@router.post("/zz")\nasync def zz():\n    s = S()\n    await asyncio.to_thread(s.work)\n'),
+        "class S:\n    def work(self):\n        pass\n")
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::asyncio.to_thread(work)"}
+
+
+def test_hc_aud_ord_033_property_value_passed_as_argument_is_not_dynamic(tmp_path):
+    """A property read is a value, not a callable, so it is not flagged. The
+    exclusion needs every def of the name to be a property: a name that is a
+    property on one class and a plain method on another is still flagged."""
+    handler = ('@router.post("/zz")\nasync def zz():\n'
+               "    cfg = Cfg()\n    return Path(cfg.path)\n")
+    values = {
+        "property": "class Cfg:\n    @property\n    def path(self):\n        return 'x'\n",
+        "cached_property": ("import functools\nclass Cfg:\n"
+                            "    @functools.cached_property\n    def path(self):\n        return 'x'\n"),
+        "setter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
+                   "    @path.setter\n    def path(self, v):\n        pass\n"),
+        "bare_cached_property": ("from functools import cached_property\nclass Cfg:\n"
+                                 "    @cached_property\n    def path(self):\n        return 'x'\n"),
+        "getter_deleter": ("class Cfg:\n    @property\n    def path(self):\n        return 'x'\n"
+                           "    @path.getter\n    def path(self):\n        return 'y'\n"
+                           "    @path.deleter\n    def path(self):\n        pass\n"),
+    }
+    for label, helper in values.items():
+        sub = tmp_path / label
+        sub.mkdir()
+        _, _, _, dyn = _overlay(sub, handler, helper)
+        assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == set(), label
+    mixed = tmp_path / "mixed"
+    mixed.mkdir()
+    _, _, _, dyn = _overlay(mixed, handler, values["property"] + (
+        "class Plain:\n    def path(self):\n        return 'y'\n"))
+    assert dyn - set(NAMED_DYNAMIC_EXCLUSIONS) == {"api/zz.py::zz::Path(path)"}
 
 
 def test_hc_aud_ord_030_break_it_vault_write_without_commit(tmp_path):

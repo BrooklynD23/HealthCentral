@@ -1,0 +1,120 @@
+=== probe branch tag=0 22:17:42
+PROBECOST	/timeline	maxGap=47	durBeforeGap=0.1	durAtGap=0.1	maxDur=0.3	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=71	gapEndsAtMs=61	windowMs=1433
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 47 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/search	maxGap=51	durBeforeGap=0.2	durAtGap=0.2	maxDur=2.0	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=68	windowMs=1417
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 51 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/medications/med-fixture-1	maxGap=28	durBeforeGap=0.2	durAtGap=0.1	maxDur=6.2	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=22	windowMs=1395
+PROBECOST	/notifications	maxGap=39	durBeforeGap=4.8	durAtGap=0.2	maxDur=4.8	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=69	gapEndsAtMs=57	windowMs=1398
+PROBECOST	/care-tasks	maxGap=36	durBeforeGap=0.2	durAtGap=0.2	maxDur=1.2	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=71	gapEndsAtMs=50	windowMs=1414
+  2 failed
+  3 passed (31.3s)
+=== probe main tag=0 22:18:17
+PROBECOST	/timeline	maxGap=47	durBeforeGap=0.1	durAtGap=0.2	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=87	gapEndsAtMs=82	windowMs=1755
+PROBEFAIL	/timeline	StillnessError: stillnessProbe failed (4): |   - sampling gap of 47 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/search	maxGap=40	durBeforeGap=0.0	durAtGap=0.0	maxDur=0.1	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=84	gapEndsAtMs=96	windowMs=1695
+PROBEFAIL	/search	StillnessError: stillnessProbe failed (3): |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - no new keyed route container for /search appeared (data-route-container must equal the pathname)
+PROBECOST	/medications/med-fixture-1	maxGap=27	durBeforeGap=0.0	durAtGap=0.1	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=84	gapEndsAtMs=65	windowMs=1679
+PROBEFAIL	/medications/med-fixture-1	StillnessError: stillnessProbe failed (3): |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - no new keyed route container for /medications/med-fixture-1 appeared (data-route-container must equal the pathname)
+PROBECOST	/notifications	maxGap=41	durBeforeGap=0.1	durAtGap=0.0	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=88	gapEndsAtMs=67	windowMs=1798
+PROBEFAIL	/notifications	StillnessError: stillnessProbe failed (4): |   - sampling gap of 41 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/care-tasks	maxGap=45	durBeforeGap=0.1	durAtGap=0.0	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=86	gapEndsAtMs=72	windowMs=1737
+PROBEFAIL	/care-tasks	StillnessError: stillnessProbe failed (4): |   - sampling gap of 45 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+  5 passed (17.9s)
+=== probe main tag=3 22:18:40
+PROBECOST	/timeline	maxGap=42	durBeforeGap=0.3	durAtGap=0.2	maxDur=0.9	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=89	gapEndsAtMs=78	windowMs=1796
+PROBEFAIL	/timeline	StillnessError: stillnessProbe failed (4): |   - sampling gap of 42 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(41, 100, 88)" at 221 ms
+PROBECOST	/search	maxGap=43	durBeforeGap=0.4	durAtGap=0.1	maxDur=1.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=82	gapEndsAtMs=41	windowMs=1679
+PROBEFAIL	/search	StillnessError: stillnessProbe failed (4): |   - sampling gap of 43 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 100 ms
+PROBECOST	/medications/med-fixture-1	maxGap=42	durBeforeGap=5.1	durAtGap=0.1	maxDur=5.1	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=84	gapEndsAtMs=68	windowMs=1699
+PROBEFAIL	/medications/med-fixture-1	StillnessError: stillnessProbe failed (4): |   - sampling gap of 42 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(33, 104, 92)" at 81 ms
+PROBECOST	/notifications	maxGap=33	durBeforeGap=0.1	durAtGap=0.0	maxDur=1.1	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=87	gapEndsAtMs=57	windowMs=1758
+PROBEFAIL	/notifications	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 161 ms |   - no new keyed route container for /notifications appeared (data-route-container must equal the pathname)
+PROBECOST	/care-tasks	maxGap=34	durBeforeGap=4.4	durAtGap=0.1	maxDur=4.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=87	gapEndsAtMs=58	windowMs=1759
+PROBEFAIL	/care-tasks	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(33, 104, 92)" at 181 ms |   - no new keyed route container for /care-tasks appeared (data-route-container must equal the pathname)
+  5 passed (18.0s)
+=== probe branch tag=0 22:19:17
+PROBECOST	/timeline	maxGap=44	durBeforeGap=0.3	durAtGap=0.3	maxDur=1.6	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=71	gapEndsAtMs=59	windowMs=1436
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 44 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/search	maxGap=46	durBeforeGap=0.3	durAtGap=0.1	maxDur=0.4	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=71	gapEndsAtMs=64	windowMs=1433
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 46 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/medications/med-fixture-1	maxGap=32	durBeforeGap=0.6	durAtGap=0.1	maxDur=0.6	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=87	windowMs=1396
+PROBECOST	/notifications	maxGap=46	durBeforeGap=0.3	durAtGap=2.9	maxDur=2.9	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=166	gapEndsAtMs=40	windowMs=3336
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 46 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/care-tasks	maxGap=41	durBeforeGap=0.1	durAtGap=0.1	maxDur=0.9	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=55	windowMs=1415
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 41 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+  4 failed
+  1 passed (40.0s)
+=== probe main tag=0 22:20:28
+PROBECOST	/timeline	maxGap=38	durBeforeGap=0.1	durAtGap=0.0	maxDur=0.1	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=89	gapEndsAtMs=94	windowMs=1776
+PROBEFAIL	/timeline	StillnessError: stillnessProbe failed (3): |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - no new keyed route container for /timeline appeared (data-route-container must equal the pathname)
+PROBECOST	/search	maxGap=46	durBeforeGap=0.0	durAtGap=0.0	maxDur=0.1	meanDur=0.1	nodesMax=0	nodesAtGap=0	postSamples=86	gapEndsAtMs=75	windowMs=1758
+PROBEFAIL	/search	StillnessError: stillnessProbe failed (4): |   - sampling gap of 46 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/medications/med-fixture-1	maxGap=37	durBeforeGap=0.0	durAtGap=0.1	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=84	gapEndsAtMs=74	windowMs=1678
+PROBEFAIL	/medications/med-fixture-1	StillnessError: stillnessProbe failed (3): |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - no new keyed route container for /medications/med-fixture-1 appeared (data-route-container must equal the pathname)
+PROBECOST	/notifications	maxGap=42	durBeforeGap=0.0	durAtGap=0.0	maxDur=0.2	meanDur=0.1	nodesMax=0	nodesAtGap=0	postSamples=87	gapEndsAtMs=61	windowMs=1757
+PROBEFAIL	/notifications	StillnessError: stillnessProbe failed (4): |   - sampling gap of 42 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/care-tasks	maxGap=40	durBeforeGap=0.1	durAtGap=0.1	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=86	gapEndsAtMs=65	windowMs=1737
+PROBEFAIL	/care-tasks	StillnessError: stillnessProbe failed (3): |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - no new keyed route container for /care-tasks appeared (data-route-container must equal the pathname)
+  5 passed (18.0s)
+=== probe main tag=3 22:20:51
+PROBECOST	/timeline	maxGap=53	durBeforeGap=0.1	durAtGap=0.1	maxDur=5.3	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=87	gapEndsAtMs=90	windowMs=1758
+PROBEFAIL	/timeline	StillnessError: stillnessProbe failed (4): |   - sampling gap of 53 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(33, 104, 92)" at 200 ms
+PROBECOST	/search	maxGap=35	durBeforeGap=0.3	durAtGap=0.2	maxDur=0.7	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=85	gapEndsAtMs=33	windowMs=1718
+PROBEFAIL	/search	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(33, 104, 92)" at 121 ms |   - no new keyed route container for /search appeared (data-route-container must equal the pathname)
+PROBECOST	/medications/med-fixture-1	maxGap=31	durBeforeGap=0.3	durAtGap=0.1	maxDur=1.3	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=84	gapEndsAtMs=69	windowMs=1678
+PROBEFAIL	/medications/med-fixture-1	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 81 ms |   - no new keyed route container for /medications/med-fixture-1 appeared (data-route-container must equal the pathname)
+PROBECOST	/notifications	maxGap=57	durBeforeGap=4.5	durAtGap=0.2	maxDur=4.5	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=86	gapEndsAtMs=78	windowMs=1759
+PROBEFAIL	/notifications	StillnessError: stillnessProbe failed (4): |   - sampling gap of 57 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 161 ms
+PROBECOST	/care-tasks	maxGap=56	durBeforeGap=4.7	durAtGap=0.2	maxDur=4.7	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=85	gapEndsAtMs=77	windowMs=1739
+PROBEFAIL	/care-tasks	StillnessError: stillnessProbe failed (4): |   - sampling gap of 56 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 161 ms
+  5 passed (18.3s)
+=== probe branch tag=0 22:21:43
+PROBECOST	/timeline	maxGap=45	durBeforeGap=0.1	durAtGap=0.1	maxDur=1.3	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=71	gapEndsAtMs=61	windowMs=1436
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 45 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/search	maxGap=48	durBeforeGap=0.2	durAtGap=0.1	maxDur=1.2	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=86	windowMs=1418
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 48 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 874 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+PROBECOST	/medications/med-fixture-1	maxGap=32	durBeforeGap=0.3	durAtGap=0.3	maxDur=1.1	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=87	windowMs=1396
+PROBECOST	/notifications	maxGap=39	durBeforeGap=0.2	durAtGap=0.4	maxDur=1.9	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=60	windowMs=1419
+PROBECOST	/care-tasks	maxGap=38	durBeforeGap=4.2	durAtGap=0.3	maxDur=4.2	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=70	gapEndsAtMs=56	windowMs=1399
+  2 failed
+  3 passed (31.0s)
+=== probe main tag=0 22:22:47
+PROBECOST	/timeline	maxGap=42	durBeforeGap=0.0	durAtGap=0.1	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=89	gapEndsAtMs=94	windowMs=1792
+PROBEFAIL	/timeline	StillnessError: stillnessProbe failed (4): |   - sampling gap of 42 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/search	maxGap=46	durBeforeGap=0.0	durAtGap=0.0	maxDur=0.2	meanDur=0.0	nodesMax=0	nodesAtGap=0	postSamples=86	gapEndsAtMs=76	windowMs=1757
+PROBEFAIL	/search	StillnessError: stillnessProbe failed (4): |   - sampling gap of 46 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/medications/med-fixture-1	maxGap=32	durBeforeGap=0.0	durAtGap=0.0	maxDur=0.2	meanDur=0.1	nodesMax=0	nodesAtGap=0	postSamples=85	gapEndsAtMs=69	windowMs=1699
+PROBEFAIL	/medications/med-fixture-1	StillnessError: stillnessProbe failed (3): |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - no new keyed route container for /medications/med-fixture-1 appeared (data-route-container must equal the pathname)
+PROBECOST	/notifications	maxGap=41	durBeforeGap=0.1	durAtGap=0.1	maxDur=0.2	meanDur=0.1	nodesMax=0	nodesAtGap=0	postSamples=88	gapEndsAtMs=64	windowMs=1779
+PROBEFAIL	/notifications	StillnessError: stillnessProbe failed (4): |   - sampling gap of 41 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+PROBECOST	/care-tasks	maxGap=58	durBeforeGap=0.1	durAtGap=0.1	maxDur=0.2	meanDur=0.1	nodesMax=0	nodesAtGap=0	postSamples=85	gapEndsAtMs=80	windowMs=1758
+PROBEFAIL	/care-tasks	StillnessError: stillnessProbe failed (4): |   - sampling gap of 58 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - found zero [data-t0] nodes (the probe needs at least one) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node
+  5 passed (18.2s)
+=== probe main tag=3 22:23:10
+PROBECOST	/timeline	maxGap=38	durBeforeGap=0.2	durAtGap=0.2	maxDur=5.6	meanDur=0.3	nodesMax=3	nodesAtGap=3	postSamples=91	gapEndsAtMs=95	windowMs=1817
+PROBEFAIL	/timeline	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 221 ms |   - no new keyed route container for /timeline appeared (data-route-container must equal the pathname)
+PROBECOST	/search	maxGap=56	durBeforeGap=0.2	durAtGap=0.1	maxDur=0.9	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=85	gapEndsAtMs=96	windowMs=1739
+PROBEFAIL	/search	StillnessError: stillnessProbe failed (4): |   - sampling gap of 56 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 141 ms
+PROBECOST	/medications/med-fixture-1	maxGap=31	durBeforeGap=0.2	durAtGap=0.2	maxDur=1.2	meanDur=0.1	nodesMax=3	nodesAtGap=3	postSamples=84	gapEndsAtMs=74	windowMs=1678
+PROBEFAIL	/medications/med-fixture-1	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 46 ms |   - no new keyed route container for /medications/med-fixture-1 appeared (data-route-container must equal the pathname)
+PROBECOST	/notifications	maxGap=56	durBeforeGap=0.2	durAtGap=0.2	maxDur=1.0	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=87	gapEndsAtMs=93	windowMs=1757
+PROBEFAIL	/notifications	StillnessError: stillnessProbe failed (4): |   - sampling gap of 56 ms (must be <= 40 ms; G10 samples every 16-40 ms) |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 181 ms
+PROBECOST	/care-tasks	maxGap=40	durBeforeGap=4.5	durAtGap=0.1	maxDur=4.5	meanDur=0.2	nodesMax=3	nodesAtGap=3	postSamples=85	gapEndsAtMs=62	windowMs=1719
+PROBEFAIL	/care-tasks	StillnessError: stillnessProbe failed (3): |   - expected selector "nav[aria-label="Main navigation"]" matched no [data-t0] node |   - computed color changed on [data-t0] a "Inbox": "rgb(29, 107, 94)" -> "rgb(30, 106, 94)" at 161 ms |   - no new keyed route container for /care-tasks appeared (data-route-container must equal the pathname)
+  5 passed (18.3s)

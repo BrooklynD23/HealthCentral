@@ -23,12 +23,12 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.audit import create_audit_log
+from core.audit import audit_and_commit, create_audit_log
 from core.auth import ProfileDbSession, RequireAuth
 from core.database import get_db
 from core.feedback_constants import VALID_TAGS
@@ -226,6 +226,8 @@ async def upsert_feedback(
 
     Upsert semantics: if feedback for this turn already exists in this
     profile, it is overwritten (user may change their rating).
+    A field the request leaves out keeps its stored value; an explicit
+    ``null`` clears it (``correction_text``, ``feedback_tags``).
     """
     profile_id = session.profile_id
     now = utcnow()
@@ -238,8 +240,10 @@ async def upsert_feedback(
 
     if existing:
         existing.rating = body.rating
-        existing.correction_text = body.correction_text
-        existing.feedback_tags = body.feedback_tags
+        if "correction_text" in body.model_fields_set:
+            existing.correction_text = body.correction_text
+        if "feedback_tags" in body.model_fields_set:
+            existing.feedback_tags = body.feedback_tags
         if prompt_snapshot is not None:
             existing.prompt_snapshot = prompt_snapshot
         if body.response_text is not None:
@@ -299,6 +303,7 @@ async def upsert_feedback(
 async def get_feedback_stats(
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Return counts and distributions for this profile's feedback."""
     profile_id = session.profile_id
@@ -326,6 +331,16 @@ async def get_feedback_stats(
         model_dist[m] = model_dist.get(m, 0) + 1
         provider_dist[p] = provider_dist.get(p, 0) + 1
 
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="feedback.stats.view",
+        action="feedback.stats.view",
+        profile_id=profile_id,
+        entity_type="response_feedback",
+        entity_id="all",
+        details={"count": len(rows)},
+    )
     return FeedbackStatsResponse(
         total_feedback=len(rows),
         positive_count=positive_count,

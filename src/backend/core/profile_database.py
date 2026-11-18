@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
+from .database import install_sqlite_foreign_keys
 from .security import (
     unseal_key_with_dpapi,
     KeySealingError,
@@ -33,6 +34,7 @@ from .security import (
 )
 from .sqlcipher_driver import is_sqlcipher_available, get_sqlcipher_module
 from .migrations import run_profile_migration_async
+from .vault_conversion import convert_plaintext_vault_if_needed, needs_conversion
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,10 @@ class ProfileDatabaseConnection:
     engine: AsyncEngine
     session_maker: async_sessionmaker[AsyncSession]
     _encryption_key: bytes = field(repr=False)  # Sensitive - don't log
+    # Orphan counts that migration 017 cleaned while this connection was opened
+    # ({check id: n}); one-shot: the login route that writes the master audit
+    # row clears it (P6-CLEANUP-AUDIT). Counts only, never row content.
+    fk_cleanup_counts: dict[str, int] = field(default_factory=dict)
 
     async def close(self) -> None:
         """Close the database connection and clear sensitive data."""
@@ -278,6 +284,22 @@ class PerProfileDatabaseManager:
             KeySealingError: If encryption key cannot be unsealed
             FileNotFoundError: If vault doesn't exist
         """
+        if profile_id in self._connections:
+            logger.debug(f"Reusing existing connection for profile {profile_id}")
+            return self._connections[profile_id]
+
+        # A plaintext vault from before SQLCipher was installed is converted once, before
+        # any engine or migration touches the file (SQLCIPHER-WHEEL). This runs OUTSIDE the
+        # global pool lock: a slow or failing conversion of one profile must never block
+        # another profile's open. vault.convert.lock stops a second conversion of the same
+        # vault; the cheap check keeps the key unseal off the normal login path.
+        pending_path = self._get_profile_db_path(profile_id)
+        if needs_conversion(pending_path):
+            pending_key = await self._load_encryption_key(profile_id, password)
+            await asyncio.to_thread(
+                convert_plaintext_vault_if_needed, pending_path, self._key_to_hex(pending_key)
+            )
+
         async with self._pool_lock:
             # Check if connection already exists
             if profile_id in self._connections:
@@ -372,6 +394,10 @@ class PerProfileDatabaseManager:
                     raise
                 cursor.close()
 
+            # FK enforcement (SQL-FK-001). Registered after the key listener, so
+            # PRAGMA key runs first on every new connection.
+            install_sqlite_foreign_keys(engine.sync_engine)
+
             # Create session maker
             session_maker = async_sessionmaker(
                 engine,
@@ -381,7 +407,7 @@ class PerProfileDatabaseManager:
 
             # Run profile migrations (with baseline detection)
             # This runs in a thread to avoid blocking the event loop
-            await run_profile_migration_async(db_path, encryption_key)
+            fk_cleanup_counts = await run_profile_migration_async(db_path, encryption_key)
 
             # Create and cache connection
             connection = ProfileDatabaseConnection(
@@ -389,6 +415,7 @@ class PerProfileDatabaseManager:
                 engine=engine,
                 session_maker=session_maker,
                 _encryption_key=encryption_key,
+                fk_cleanup_counts=dict(fk_cleanup_counts or {}),
             )
             self._connections[profile_id] = connection
 

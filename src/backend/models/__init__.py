@@ -3,12 +3,10 @@ SQLAlchemy models for HealthCentral.
 
 Exports all models for use throughout the application.
 
-Model Organization:
-- Master Database (core.database.Base): Profile, AuditLog, BiomarkerKnowledge,
-  InterventionMapping, BiomarkerRelationship
-- Per-Profile Database (core.profile_database.ProfileDatabaseBase): Document,
-  Observation, Chunk, Embedding, LabInterpretation, PanelInterpretation,
-  Medication, MedicationSchedule, DoseTaken, AdherencePattern, ReminderLog
+Model Organization: models live on one of two declarative bases, the master
+database (core.database.Base) or the per-profile database
+(core.profile_database.ProfileDatabaseBase). See __all__ below for the full,
+grouped list.
 """
 
 from .audit import AuditLog
@@ -20,6 +18,7 @@ from .data_donation import DonatedRecord, DonationConsent
 from .document import Document
 from .document_category import DocumentCategory, DocumentEntity
 from .embedding import Embedding
+from .export_artifact import ExportArtifact
 from .gamification import BadgeDefinition, EarnedBadge
 from .interpretation import LabInterpretation, PanelInterpretation
 from .knowledge_base import (
@@ -39,6 +38,7 @@ from .model_settings import UserModelSettings
 from .observation import Observation
 from .pinboard import Pinboard, PinboardItem
 from .profile import Profile
+from .response_feedback import ResponseFeedback
 
 __all__ = [
     # Master database
@@ -84,4 +84,7 @@ __all__ = [
     # Pinboards (per-profile, HC-M20)
     "Pinboard",
     "PinboardItem",
+    "ExportArtifact",
+    # Response feedback (per-profile)
+    "ResponseFeedback",
 ]

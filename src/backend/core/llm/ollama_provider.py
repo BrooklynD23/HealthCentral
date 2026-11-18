@@ -36,6 +36,11 @@ _LOCAL_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
 _OLLAMA_CONNECT_TIMEOUT = 5.0   # seconds for initial connection attempt
 _OLLAMA_READ_TIMEOUT    = 300.0  # seconds for full response (large models are slow)
 
+# Context window sent as options.num_ctx.  Evidence: docs/reviews/2026-10-22/kv-prefix-measure.md
+# conclusion (b): largest case 4350 + 1024 output = 5374 tokens; 8192 is the smallest
+# size that fits, 100% GPU.  Capped at the model's own maximum in _build_request_body.
+_OLLAMA_NUM_CTX = 8192
+
 
 def _assert_localhost(url: str) -> None:
     """
@@ -135,6 +140,7 @@ class OllamaProvider:
             "stream": False,
             "options": {
                 "num_predict": config.max_tokens,
+                "num_ctx": min(_OLLAMA_NUM_CTX, self.capabilities().context_len),
                 "temperature": config.temperature,
                 "top_p": config.top_p,
                 "stop": list(config.stop_sequences or []),
@@ -143,6 +149,9 @@ class OllamaProvider:
         schema = getattr(config, "response_schema", None)
         if schema:
             body["format"] = schema
+        think = getattr(config, "think", None)
+        if think is not None:
+            body["think"] = think
         return body
 
     # ------------------------------------------------------------------

@@ -242,7 +242,7 @@ class TestSeedAdviceWording:
 
     def test_hc_iaw_001_seed_high_wording_is_educational(self):
         ldl = _seed_data("ldl_cholesterol")["high_interpretation"]
-        glucose = _seed_data("glucose_fasting")["high_interpretation"]
+        glucose = _seed_data("glucose")["high_interpretation"]
         assert "medication" not in ldl.lower()
         assert "lifestyle modifications may be recommended" not in glucose.lower()
 
@@ -256,7 +256,7 @@ class TestSeedAdviceWording:
         session, engine = real_master_session
         for analyte, old_text in (
             ("ldl_cholesterol", _OLD_LDL_HIGH),
-            ("glucose_fasting", _OLD_GLUCOSE_HIGH),
+            ("glucose", _OLD_GLUCOSE_HIGH),
         ):
             old_row = dict(_seed_data(analyte))
             old_row["high_interpretation"] = old_text
@@ -266,7 +266,7 @@ class TestSeedAdviceWording:
         with patch.object(skb, "async_session_maker", _session_maker_for(engine)):
             await skb.seed_all(skip_db_init=True)
 
-        for analyte in ("ldl_cholesterol", "glucose_fasting"):
+        for analyte in ("ldl_cholesterol", "glucose"):
             stored = await _high_text_in_db(engine, analyte)
             assert stored == _seed_data(analyte)["high_interpretation"]
         assert "medication" not in (await _high_text_in_db(engine)).lower()

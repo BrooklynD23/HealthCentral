@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = REPO_ROOT / ".claude" / "hooks" / "session_log.py"
@@ -110,3 +113,60 @@ def test_committed_settings_wire_the_hook_to_a_script_that_exists() -> None:
     assert {"PostToolUse", "PostToolUseFailure", "SessionEnd"} <= set(settings["hooks"])
     assert commands and all(".claude/hooks/session_log.py" in c for c in commands)
     assert SCRIPT_PATH.is_file()
+
+
+def _failure(tool: str, error: str, tmp_path: Path) -> dict:
+    tool_input = {"file_path": str(tmp_path / "a.py")} if tool == "Edit" else {"command": "x"}
+    return {
+        "session_id": "s5",
+        "hook_event_name": "PostToolUseFailure",
+        "tool_name": tool,
+        "tool_input": tool_input,
+        "error": error,
+    }
+
+
+def test_hc_slog_001_failure_row_gets_fixed_class_never_the_error_text(tmp_path: Path) -> None:
+    rows = _run(tmp_path, _failure("Bash", "Exit code 1\nModuleNotFoundError: No module named 'secretpkg'", tmp_path))
+
+    assert rows[0]["error_class"] == "module-not-found"
+    assert "secretpkg" not in json.dumps(rows[0])
+
+
+@pytest.mark.parametrize(
+    ("tool", "error", "expected"),
+    [
+        ("Bash", "Exit code 2\nboom", "exit-2"),
+        ("Bash", "Exit code 144", "exit-144-self-kill"),
+        ("Bash", "no exit line", "other"),
+        ("Edit", "String to replace not found", "edit-no-match"),
+    ],
+)
+def test_hc_slog_002_classes(tmp_path: Path, tool: str, error: str, expected: str) -> None:
+    rows = _run(tmp_path, _failure(tool, error, tmp_path))
+
+    assert rows[0]["error_class"] == expected
+
+
+def test_hc_slog_003_success_is_null_and_session_end_has_no_key(tmp_path: Path) -> None:
+    ok_rows = _run(tmp_path, {
+        "session_id": "s6",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "ls"},
+        "tool_response": {"stdout": "", "stderr": ""},
+    })
+    end_rows = _run(tmp_path, {"session_id": "s6", "hook_event_name": "SessionEnd", "reason": "logout"})
+
+    assert "error_class" in ok_rows[0] and ok_rows[0]["error_class"] is None
+    assert "error_class" not in end_rows[-1]
+
+
+def test_hc_slog_004_classes_match_the_mod_classifier() -> None:
+    """Python and TS classifiers must emit the same fixed vocabulary."""
+    source = (REPO_ROOT / ".claude" / "mods" / "asclexis-rsi" / "hooks" / "logic.ts").read_text(encoding="utf-8")
+    body = source.split("export function classifyError", 1)[1].split("\n}", 1)[0]
+    literals = set(re.findall(r"return '([a-z0-9-]+)'", body))
+
+    assert "`exit-${n}`" in body
+    assert set(session_log._ERROR_CLASSES) == literals | {"exit-"}

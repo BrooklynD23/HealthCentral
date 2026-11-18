@@ -1,0 +1,70 @@
+
+Running 2 tests using 1 worker
+
+
+[1/2] [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+[chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+HC-UIG-010 (d) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 172 ms (must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms)
+
+  1) [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound 
+
+    Error: the trigger must run after the start page settled
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      910 |   expect(error, 'the probe must reject the blocked main thread').not.toBeNull();
+      911 |   expect(error?.name, 'the settle must not be what rejects it').not.toBe(SETTLE_ERROR_NAME);
+    > 912 |   expect(await sawSlowDone(page), 'the trigger must run after the start page settled').toBe(true);
+          |                                                                                        ^
+      913 |   const gap = /sampling gap of (\d+) ms \(must be <= 70 ms for a page change, owner STILLNESS-NAV-70/.exec(String(error));
+      914 |   expect(gap, 'the rejection must be the 70 ms page-change gap bound').not.toBeNull();
+      915 |   expect(Number(gap?.[1]), 'the gap is the 150 ms the trigger blocked').toBeGreaterThan(70);
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:912:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-d-work-2552e-l-fails-the-70-ms-gap-bound-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-d-work-2552e-l-fails-the-70-ms-gap-bound-chromium/error-context.md
+
+
+
+[2/2] [chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+[chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+HC-UIG-010 (e) rejected with: StillnessError: stillnessProbe failed (2):
+  - computed transform changed on [data-t0] p "Glucose 104 mg/dL": "none" -> "matrix(0.96, 0, 0, 0.96, 0, 0)" at 22 ms
+  - getBoundingClientRect changed on [data-t0] p "Glucose 104 mg/dL": [0,16,220,22.4] -> [4.4,16.4,211.2,21.5] at 22 ms
+
+  2) [chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe 
+
+    Error: the trigger must run after the start page settled
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      936 |   expect(error, 'the probe must reject a T0 node that moves').not.toBeNull();
+      937 |   expect(error?.name, 'the settle must not be what rejects it').not.toBe(SETTLE_ERROR_NAME);
+    > 938 |   expect(await sawSlowDone(page), 'the trigger must run after the start page settled').toBe(true);
+          |                                                                                        ^
+      939 |   expect(String(error), 'the rejection must name the property that moved').toMatch(/computed transform changed/);
+      940 | });
+      941 |
+        at /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/e2e/ui-gates.spec.ts:938:88
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-e-a-da-b3d80-ettle-still-fails-the-probe-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: ../../../../../../../tmp/claude-1000/snl-pwout-red/ui-gates-HC-UIG-010-e-a-da-b3d80-ettle-still-fails-the-probe-chromium/error-context.md
+
+
+  2 failed
+    [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound 
+    [chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe 
+EXIT=1

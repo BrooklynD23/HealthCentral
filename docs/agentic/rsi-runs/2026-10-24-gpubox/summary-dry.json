@@ -1,0 +1,293 @@
+{
+  "run_id": "2026-10-24-gpubox-dry",
+  "dry_run": true,
+  "clusters": [
+    {
+      "tool": "Bash",
+      "error_class": "other",
+      "count": 76,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "no-such-file",
+      "count": 29,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-1",
+      "count": 21,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-2",
+      "count": 17,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "timeout",
+      "count": 12,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log",
+        "pr-review #339"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-144-self-kill",
+      "count": 11,
+      "denied": 9,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Monitor",
+      "error_class": "timeout",
+      "count": 8,
+      "denied": 0,
+      "retries": 1,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Read",
+      "error_class": "other",
+      "count": 6,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "edit-no-match",
+      "count": 4,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "exit-143",
+      "count": 4,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "git-fatal",
+      "count": 3,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Skill",
+      "error_class": "other",
+      "count": 2,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "module-not-found",
+      "count": 2,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "syntax-error",
+      "count": 2,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "playwright-exec-missing",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "TaskStop",
+      "error_class": "other",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Edit",
+      "error_class": "edit-no-match",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "AskUserQuestion",
+      "error_class": "other",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Bash",
+      "error_class": "command-not-found",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Write",
+      "error_class": "other",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    },
+    {
+      "tool": "Workflow",
+      "error_class": "other",
+      "count": 1,
+      "denied": 0,
+      "retries": 0,
+      "sources": [
+        "rsi-log"
+      ]
+    }
+  ],
+  "candidates": 0,
+  "accepted_prs": [],
+  "rejected": [],
+  "metrics": {
+    "tool_calls": 8150,
+    "failure_rate_by_tool": {
+      "Bash": 0.0261,
+      "Read": 0.028,
+      "Monitor": 0.0455,
+      "Edit": 0.1111,
+      "Write": 0.0127,
+      "Workflow": 0.0152,
+      "AskUserQuestion": 0.0667,
+      "TaskStop": 0.1429,
+      "Skill": 0.1429
+    },
+    "retries": 1,
+    "items": 0,
+    "retries_per_item": 0,
+    "tokens_per_item": null,
+    "previous_summary": "",
+    "previous_failure_rate_by_tool": {}
+  },
+  "reflections": [
+    {
+      "cluster": "Bash/other",
+      "went_wrong": "76 Bash failures came out under the catch-all 'other' class, with 0 denials and 0 retries. The metadata doesn't say what the commands were, what the errors said, or what kind of failure they were, so there is nothing concrete to write a rule match against. Any rule written now would be a guess.",
+      "smallest_change": "None. A rule needs a specific command pattern and error text, and this cluster has neither. Once the miner classifies these errors more finely, the cluster can be reflected on again.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "already_covered_by": "",
+      "worth_proposing": false
+    },
+    {
+      "cluster": "Bash/no-such-file",
+      "went_wrong": "29 Bash commands failed with no-such-file, with no retries and no denials. The metadata doesn't show which paths were missing. The repo path contains a space ('Github Repo'), and agent cwd resets between calls, so unquoted or relative paths are a plausible cause. That is only a guess, though: the metadata gives no command or path text to confirm it, and none of the 12 recurring-failure modes covers path errors.",
+      "smallest_change": "None yet. If the log later shows unquoted '/mnt/e/Programming/Github Repo' paths, a hint rule could match an unquoted 'Github Repo' in Bash commands and say to quote absolute paths. That would need one positive replay case (an unquoted path) and one negative (a quoted path). The current metadata doesn't support writing it.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "already_covered_by": "",
+      "worth_proposing": false
+    },
+    {
+      "cluster": "Bash/exit-1",
+      "went_wrong": "21 Bash commands exited with code 1, with no retries and no denials. Exit 1 is ordinary for grep with no match, test, diff and failing checks, so this cluster mixes normal results with real failures. Without the commands themselves, the real failures can't be separated out.",
+      "smallest_change": "None. A rule on exit-1 alone would fire on normal grep and test results, and might push agents toward making failing checks pass, which this repo never allows.",
+      "target_file": ".claude/mods/asclexis-rsi/hooks/rules.ts",
+      "already_covered_by": "",
+      "worth_proposing": false
+    }
+  ],
+  "codex_reflections": [
+    {
+      "cluster": "Bash/other",
+      "went_wrong": "The cluster is heterogeneous and provides no command or output signature; a rule could misclassify unrelated health-app failures.",
+      "smallest_change": "No change until a recurring, narrowly matchable signature is available.",
+      "target_file": "docs/agentic/recurring-failures.md",
+      "worth_proposing": false,
+      "already_covered_by": ""
+    },
+    {
+      "cluster": "Bash/no-such-file",
+      "went_wrong": "The metadata does not identify which file, command, or path assumption recurred, so a safe targeted hint cannot be defined.",
+      "smallest_change": "No change until examples establish one stable cause and remediation.",
+      "target_file": "docs/agentic/recurring-failures.md",
+      "worth_proposing": false,
+      "already_covered_by": "playwright-exec-path"
+    },
+    {
+      "cluster": "Bash/exit-1",
+      "went_wrong": "Exit status 1 is generic and lacks enough context to distinguish actionable recurrence from normal command failure.",
+      "smallest_change": "No change; require a specific repeated command-and-output pattern before adding guidance.",
+      "target_file": "docs/agentic/recurring-failures.md",
+      "worth_proposing": false,
+      "already_covered_by": ""
+    }
+  ],
+  "note": "nothing worth proposing"
+}

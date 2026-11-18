@@ -39,13 +39,15 @@ vi.mock('@/services/api', () => ({
 // Mock framer-motion to avoid animation issues
 vi.mock('framer-motion', async () => {
   const actual = await vi.importActual('framer-motion');
+  const motionStubs = {
+    div: ({ children, ...props }: React.PropsWithChildren<object>) => (
+      <div {...props}>{children}</div>
+    ),
+  };
   return {
     ...actual,
-    motion: {
-      div: ({ children, ...props }: React.PropsWithChildren<object>) => (
-        <div {...props}>{children}</div>
-      ),
-    },
+    motion: motionStubs,
+    m: motionStubs,
   };
 });
 
@@ -441,7 +443,7 @@ describe('ExportPage', () => {
       });
 
       // Toggle a section
-      const summaryToggle = screen.getByText('Results Summary').closest('button');
+      const summaryToggle = screen.getByRole('checkbox', { name: 'Results Summary' });
       if (summaryToggle) {
         await user.click(summaryToggle);
       }
@@ -463,7 +465,7 @@ describe('ExportPage', () => {
       });
 
       // Toggle questions section on
-      const questionsToggle = screen.getByText('Questions for Clinician').closest('button');
+      const questionsToggle = screen.getByRole('checkbox', { name: 'Questions for Clinician' });
       if (questionsToggle) {
         await user.click(questionsToggle);
       }

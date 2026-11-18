@@ -1,0 +1,41 @@
+=== probe control 22:01:49
+ 22:01:49 up 1 day, 10:12,  0 user,  load average: 1.31, 1.75, 2.10
+pgrep:
+  1) [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /search 
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 46 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+    ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out/ui-shell-HC-UISH-003-route-cc71a-gh-the-navigation-to-search-chromium/test-failed-1.png
+  2) [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /timeline 
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 44 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+    ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out/ui-shell-HC-UISH-003-route-51539--the-navigation-to-timeline-chromium-repeat1/test-failed-1.png
+  3) [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /notifications 
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 46 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+    ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out/ui-shell-HC-UISH-003-route-59e3f-navigation-to-notifications-chromium-repeat1/test-failed-1.png
+  4) [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /care-tasks 
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 53 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+    ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out/ui-shell-HC-UISH-003-route-191f6-he-navigation-to-care-tasks-chromium-repeat1/test-failed-1.png
+  5) [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /timeline 
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 50 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+    ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out/ui-shell-HC-UISH-003-route-51539--the-navigation-to-timeline-chromium-repeat2/test-failed-1.png
+  6) [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /search 
+    StillnessError: stillnessProbe failed (1):
+      - sampling gap of 48 ms (must be <= 40 ms; G10 samples every 16-40 ms)
+    > 858 |     throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+    ../../../../../../../tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/b8becc8c-4942-444f-9c3c-2a03f3900e75/scratchpad/baretimer/pw-out/ui-shell-HC-UISH-003-route-cc71a-gh-the-navigation-to-search-chromium-repeat2/test-failed-1.png
+  6 failed
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /search 
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /timeline 
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /notifications 
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /care-tasks 
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /timeline 
+    [chromium] › e2e/ui-shell.spec.ts:317:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /search 
+  9 passed (1.6m)

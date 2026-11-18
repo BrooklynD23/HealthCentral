@@ -1,9 +1,12 @@
 // Data-only guard/hint table (RSI contract). `rsi-loop` proposals may edit ONLY this file,
 // replay/cases.ts and docs/agentic/recurring-failures.md.
-// Fields: id, tool, when (before|after), match (regex source; before: over the command,
-// after: over the error/output text), action (deny|hint), message, source, errorClass.
-// Optional after-only refinements: `command` (regex the command must also match),
+// Fields: id, tool, when (before|after), match (regex source; before: over the tool's fixed
+// field, after: over the error/output text), action (deny|hint), message, source, errorClass.
+// Optional after-only refinements: `command` (regex the tool's fixed field must also match),
 // `onSuccess` (also fire when the call did not fail), `absent` (regex that must NOT occur in output).
+// Fixed field per tool (never free text): Bash command; Workflow name (else safe scriptPath basename);
+// Skill skill; Agent subagent_type; mcp__<server>__<tool> -> server name. `tool: 'mcp__*'` matches that family.
+// Non-Bash fields are strings <= 200 chars, else ''; a scriptPath basename must match [A-Za-z0-9._-]+, else ''.
 export type Rule = {
   id: string
   tool: string
@@ -76,5 +79,27 @@ export const RULES: readonly Rule[] = [
     message: 'llama-cpp-python needs a C compiler. Install one first: sudo apt-get install -y build-essential cmake.',
     source: 'handoff 2026-10-17 s2.2: llama-cpp-python with no C compiler',
     errorClass: 'no-c-compiler',
+  },
+  {
+    id: 'embedding-bundle-missing',
+    tool: 'Bash',
+    when: 'after',
+    match: String.raw`test_hc_emb_002_fetched_model_loads_offline|test_api_rag_index_002[bc]?|test_search_vectors_async_calculates_similarity`,
+    action: 'hint',
+    message:
+      'These failures are environmental. Fetch the model with python scripts/download_models.py embedding. Do not lower the 0.7 threshold. Judge on the collected count (recurring-failures #4).',
+    source: 'pr-review leads 223,218',
+    errorClass: 'embedding-bundle-missing',
+  },
+  {
+    id: 'no-such-file-path',
+    tool: 'Bash',
+    when: 'after',
+    match: String.raw`No such file or directory`,
+    action: 'hint',
+    message:
+      'A path was not found ("No such file or directory"). Resolve and verify the path (ls its parent directory) before retrying the command unchanged.',
+    source: 'rsi-2026-10-24-gpubox-1: Bash/no-such-file cluster, 35 failed calls since 2026-10-21, no path recorded',
+    errorClass: 'no-such-file',
   },
 ]

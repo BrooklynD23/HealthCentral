@@ -48,6 +48,9 @@ class _Result:
     def scalars(self):
         return _Scalars(self.items)
 
+    def all(self):  # the export_artifact prune select (EXPORT-LIVE-LOGIN)
+        return self.items
+
 
 def _pinboard(**overrides):
     from models.pinboard import Pinboard
@@ -237,6 +240,7 @@ async def test_hc_pin_005_export_excludes_unverified_and_invokes_existing_redact
     profile_db = AsyncMock()
     profile_db.execute.side_effect = [
         _Result(one=board), _Result(items=items), _Result(items=[verified, unverified]),
+        _Result(items=[]),  # export_artifact prune (no rows)
     ]
     from modules.redaction import RedactionEngine
     original = RedactionEngine.redact
@@ -331,6 +335,7 @@ async def test_hc_pin_008_export_excludes_unverified_source_documents(monkeypatc
         _Result(one=board),
         _Result(items=items),
         _Result(items=[verified, unverified]),
+        _Result(items=[]),  # export_artifact prune (no rows)
     ]
     monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
     monkeypatch.setattr(
@@ -439,6 +444,7 @@ async def test_hc_pin_013_export_renders_selected_verified_normal_observation(
         _Result(one=board),
         _Result(items=items),
         _Result(items=[normal]),
+        _Result(items=[]),  # export_artifact prune (no rows)
     ]
     monkeypatch.setattr("api.pinboards.log_pinboard_event", AsyncMock())
     monkeypatch.setattr(

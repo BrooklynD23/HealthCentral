@@ -408,10 +408,11 @@ async def test_hc_pdel_016_another_profiles_backups_survive(vaults):
 
 @pytest.mark.asyncio
 async def test_hc_pdel_017_backup_schedule_row_is_deleted_explicitly(vaults):
-    """`backup_schedules.profile_id` declares ON DELETE CASCADE, but SQLite
-    ignores foreign keys unless `PRAGMA foreign_keys=ON` is set, and it is set
-    nowhere in this codebase. Relying on the cascade orphans the row, so the
-    delete must be explicit."""
+    """`backup_schedules.profile_id` declares ON DELETE CASCADE. The pragma is now
+    set by `install_sqlite_foreign_keys` (core/database.py) on the master engine
+    and in core/profile_database.py on the profile engines (SQL-FK-001), so the
+    cascade would fire too. The delete stays explicit: the route orders the audit
+    purge, schedule delete, profile delete and tombstone on purpose."""
     _, db = await _delete(profile_id="profile-a")
 
     assert any("DELETE FROM backup_schedules" in s for s in db.executed), (

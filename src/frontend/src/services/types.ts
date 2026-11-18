@@ -137,6 +137,8 @@ export interface DocumentImportResponse {
   } | null;
   /** Only set for CSV/FHIR structured imports (HC-M23). */
   import_summary: ImportSummary | null;
+  /** 1-based pages with no readable text, so their values were not read (IMPORT-SCANNED-PAGE). */
+  pages_without_text?: number[] | null;
 }
 
 export interface DocumentVerifyResponse {
@@ -204,6 +206,9 @@ export interface TrendPoint {
   // D4 (owner, 2026-09-27): unverified points may be charted but must be marked.
   // Optional (I-13): a missing flag is read as unverified (`=== true`).
   user_verified?: boolean;
+  // KEPT-FLAG-DISAGREES: this point's printed flag disagrees with its own report's printed range.
+  // Optional like user_verified: a missing field is read as false (`=== true`).
+  flag_range_disagree?: boolean;
 }
 
 export interface TrendData {
@@ -341,7 +346,9 @@ export interface GroundedVerification {
 }
 
 export interface GroundedInterpretationResponse {
-  interpretation: InterpretationResponse;
+  interpretation: InterpretationResponse | null;
+  withheld?: boolean;
+  withheld_physician_review?: boolean;
   grounded_segments: GroundedInterpretationSegment[];
   full_response: string;
   insufficient_context: boolean;

@@ -1,0 +1,247 @@
+=== batch warmB plan=warmB batch=0 start 2026-11-02T17:39:28-08:00 cases=30
+ 17:39:28 up 2 days,  7:31,  1 user,  load average: 1.29, 6.75, 7.14
+(node:1671087) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.timeline", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.search", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.med", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.notif", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.care", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.timeline", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.search", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.med", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.notif", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.care", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.timeline", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.search", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.med", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.notif", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.probe.care", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.timeline", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.search", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.med", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.notif", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+Error: duplicate test title "warmB.b0.warmup.warmup.bare.care", first declared in nav-sets.spec.ts:174
+
+   at nav-sets.spec.ts:174
+
+  172 |
+  173 | for (const c of PLAN) {
+> 174 |   test(c.id, async ({ page }, testInfo) => {
+      |       ^
+  175 |     if (!configPrinted) {
+  176 |       configPrinted = true;
+  177 |       const use = testInfo.project.use as Record<string, unknown>;
+
+[1A[2Kplaywright exit=1
+=== batch warmB end 2026-11-02T17:39:36-08:00
+ 17:39:36 up 2 days,  7:31,  1 user,  load average: 1.39, 6.59, 7.08

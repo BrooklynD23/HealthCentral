@@ -1,0 +1,32 @@
+### C.b1.trace.base.probe.care.c1
+- maxGap 43 ms; gap window -9..34 ms after the trigger (43.0 ms); main-thread RunTask time inside it 42.8 ms (99%); trace C.b1.trace.base.probe.care.c1.json
+  - 125 main-thread task(s) under 1 ms, 4.3 ms in all
+  - task at -9.4 ms, 5.6 ms long: Layout 3.3 ms, UpdateLayoutTree 1.4 ms, RunMicrotasks 0.0 ms, V8.BytecodeBudgetInterrupt 0.0 ms
+  - task at -1.2 ms, 1.1 ms long: (no nested events)
+  - task at +1.4 ms, 22.5 ms long: FunctionCall (anonymous) @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:18675 20.8 ms, V8.BytecodeBudgetInterrupt 0.7 ms, V8.HandleInterrupts 0.5 ms, V8.StackGuard 0.2 ms, FunctionCall (anonymous) @ 0.0.1:3000/node_modules/.vite/deps/@tanstack_react-query.js?v=e78cc856:618 0.1 ms
+  - task at +24.0 ms, 5.9 ms long: UpdateLayoutTree 1.3 ms, V8.BytecodeBudgetInterrupt 0.2 ms, RunMicrotasks 0.1 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms, V8.StackGuard 0.0 ms
+  - task at +29.9 ms, 2.5 ms long: Layout 1.1 ms, FunctionCall processBatch @ p://127.0.0.1:3000/node_modules/.vite/deps/framer-motion.js?v=e78cc856:1146 0.5 ms, Paint 0.2 ms, Layerize 0.1 ms, UpdateLayoutTree 0.1 ms
+  - task at +32.4 ms, 1.4 ms long: FunctionCall performWorkUntilDeadline @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:377 1.2 ms, V8.BytecodeBudgetInterrupt 0.1 ms, V8.HandleInterrupts 0.1 ms, V8.StackGuard 0.0 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms
+  - sampler tick calls around the gap (ms after trigger): +34, +40, +56
+
+### C.b1.trace.base.probe.notif.c2
+- maxGap 42 ms; gap window -9..33 ms after the trigger (42.0 ms); main-thread RunTask time inside it 41.5 ms (99%); trace C.b1.trace.base.probe.notif.c2.json
+  - 274 main-thread task(s) under 1 ms, 5.9 ms in all
+  - task at -8.7 ms, 2.9 ms long: FunctionCall performWorkUntilDeadline @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:377 2.5 ms, V8.BytecodeBudgetInterrupt 0.1 ms, V8.StackGuard 0.1 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms, V8.HandleInterrupts 0.0 ms
+  - task at -4.9 ms, 4.6 ms long: Layout 3.3 ms, UpdateLayoutTree 0.8 ms, Paint 0.1 ms, Layerize 0.1 ms, PrePaint 0.1 ms
+  - task at +3.5 ms, 4.1 ms long: V8.BytecodeBudgetInterrupt 0.2 ms, RunMicrotasks 0.0 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms, V8.StackGuard 0.0 ms, V8.HandleInterrupts 0.0 ms
+  - task at +7.8 ms, 19.1 ms long: FunctionCall (anonymous) @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:18675 17.5 ms, V8.BytecodeBudgetInterrupt 0.7 ms, V8.HandleInterrupts 0.6 ms, V8.StackGuard 0.2 ms, FunctionCall (anonymous) @ 0.0.1:3000/node_modules/.vite/deps/@tanstack_react-query.js?v=e78cc856:618 0.1 ms
+  - task at +27.2 ms, 4.0 ms long: Layout 1.7 ms, UpdateLayoutTree 0.9 ms, FunctionCall processBatch @ p://127.0.0.1:3000/node_modules/.vite/deps/framer-motion.js?v=e78cc856:1146 0.4 ms, Paint 0.2 ms, Layerize 0.2 ms
+  - task at +31.6 ms, 1.5 ms long: FunctionCall performWorkUntilDeadline @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:377 1.2 ms, V8.BytecodeBudgetInterrupt 0.2 ms, V8.HandleInterrupts 0.1 ms, V8.StackGuard 0.0 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms
+  - sampler tick calls around the gap (ms after trigger): +33, +51
+
+### C.b1.trace.base.probe.care.c2
+- maxGap 42 ms; gap window -8..34 ms after the trigger (42.0 ms); main-thread RunTask time inside it 41.7 ms (99%); trace C.b1.trace.base.probe.care.c2.json
+  - 135 main-thread task(s) under 1 ms, 6.5 ms in all
+  - task at -8.5 ms, 5.2 ms long: Layout 3.3 ms, UpdateLayoutTree 1.1 ms, RunMicrotasks 0.0 ms, V8.BytecodeBudgetInterrupt 0.0 ms
+  - task at +2.8 ms, 19.9 ms long: FunctionCall (anonymous) @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:18675 18.4 ms, V8.BytecodeBudgetInterrupt 0.7 ms, V8.HandleInterrupts 0.4 ms, V8.StackGuard 0.1 ms, FunctionCall (anonymous) @ 0.0.1:3000/node_modules/.vite/deps/@tanstack_react-query.js?v=e78cc856:618 0.1 ms
+  - task at +22.8 ms, 6.1 ms long: UpdateLayoutTree 1.4 ms, V8.BytecodeBudgetInterrupt 0.2 ms, RunMicrotasks 0.1 ms, V8.HandleInterrupts 0.0 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms
+  - task at +29.0 ms, 2.6 ms long: Layout 1.1 ms, FunctionCall processBatch @ p://127.0.0.1:3000/node_modules/.vite/deps/framer-motion.js?v=e78cc856:1146 0.6 ms, Paint 0.2 ms, UpdateLayoutTree 0.1 ms, Layerize 0.1 ms
+  - task at +31.6 ms, 1.8 ms long: FunctionCall performWorkUntilDeadline @ ://127.0.0.1:3000/node_modules/.vite/deps/chunk-IZHK4E3M.js?v=e78cc856:377 1.4 ms, V8.BytecodeBudgetInterrupt 0.2 ms, V8.HandleInterrupts 0.1 ms, V8.StackGuard 0.0 ms, V8.BytecodeBudgetInterruptWithStackCheck 0.0 ms
+  - sampler tick calls around the gap (ms after trigger): +33, +40, +57
+

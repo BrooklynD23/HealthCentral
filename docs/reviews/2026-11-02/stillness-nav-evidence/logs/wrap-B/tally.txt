@@ -1,0 +1,576 @@
+### c1-wait100
+- probe variant: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 40
+  gaps: timeline=26 search=32 med=31 notif=38 care=29 timeline=34 search=40 med=23 notif=37 care=34 timeline=28 search=33 med=29 notif=30 care=34
+- probe control: 6 of 15 over 40 ms (pooled); per batch b1:2/5 b2:3/5 b3:1/5; unmeasured 0; max 65
+  gaps: timeline=34 search=47 med=41 notif=32 care=34 timeline=43 search=62 med=30 notif=29 care=45 timeline=33 search=65 med=32 notif=38 care=29
+  B.b1.c1-wait100.variant.probe.timeline	gap=26	gapStart=38	gapEnd=64	longtasks=-	load1=1.32/1.32
+  B.b1.c1-wait100.variant.probe.search	gap=32	gapStart=17	gapEnd=49	longtasks=-	load1=1.32/1.21
+  B.b1.c1-wait100.variant.probe.med	gap=31	gapStart=57	gapEnd=88	longtasks=-	load1=1.21/1.21
+  B.b1.c1-wait100.variant.probe.notif	gap=38	gapStart=17	gapEnd=55	longtasks=-	load1=1.21/1.11
+  B.b1.c1-wait100.variant.probe.care	gap=29	gapStart=38	gapEnd=67	longtasks=-	load1=1.11/1.11
+  B.b2.c1-wait100.variant.probe.timeline	gap=34	gapStart=18	gapEnd=52	longtasks=-	load1=0.78/0.78
+  B.b2.c1-wait100.variant.probe.search	gap=40	gapStart=-2	gapEnd=38	longtasks=-	load1=0.78/0.8
+  B.b2.c1-wait100.variant.probe.med	gap=23	gapStart=39	gapEnd=62	longtasks=-	load1=0.8/0.8
+  B.b2.c1-wait100.variant.probe.notif	gap=37	gapStart=17	gapEnd=54	longtasks=-	load1=0.8/0.73
+  B.b2.c1-wait100.variant.probe.care	gap=34	gapStart=17	gapEnd=51	longtasks=-	load1=0.73/0.73
+  B.b3.c1-wait100.variant.probe.timeline	gap=28	gapStart=19	gapEnd=47	longtasks=-	load1=1.45/1.45
+  B.b3.c1-wait100.variant.probe.search	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=1.45/1.45
+  B.b3.c1-wait100.variant.probe.med	gap=29	gapStart=38	gapEnd=67	longtasks=-	load1=1.45/1.34
+  B.b3.c1-wait100.variant.probe.notif	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.34/1.34
+  B.b3.c1-wait100.variant.probe.care	gap=34	gapStart=38	gapEnd=72	longtasks=-	load1=1.34/1.34
+  B.b1.c1-wait100.control.probe.timeline	gap=34	gapStart=61	gapEnd=95	longtasks=-	load1=1.11/1.11
+  B.b1.c1-wait100.control.probe.search	gap=47	gapStart=-7	gapEnd=40	longtasks=-	load1=1.11/1.02
+  B.b1.c1-wait100.control.probe.med	gap=41	gapStart=58	gapEnd=99	longtasks=-	load1=1.02/1.02
+  B.b1.c1-wait100.control.probe.notif	gap=32	gapStart=25	gapEnd=57	longtasks=-	load1=1.02/1.02
+  B.b1.c1-wait100.control.probe.care	gap=34	gapStart=20	gapEnd=54	longtasks=-	load1=1.02/1.1
+  B.b2.c1-wait100.control.probe.timeline	gap=43	gapStart=-6	gapEnd=37	longtasks=-	load1=0.73/0.73
+  B.b2.c1-wait100.control.probe.search	gap=62	gapStart=-3	gapEnd=59	longtasks=-	load1=0.73/0.83
+  B.b2.c1-wait100.control.probe.med	gap=30	gapStart=-4	gapEnd=26	longtasks=-	load1=0.83/0.83
+  B.b2.c1-wait100.control.probe.notif	gap=29	gapStart=23	gapEnd=52	longtasks=-	load1=0.83/0.77
+  B.b2.c1-wait100.control.probe.care	gap=45	gapStart=-2	gapEnd=43	longtasks=-	load1=0.77/0.77
+  B.b3.c1-wait100.control.probe.timeline	gap=33	gapStart=19	gapEnd=52	longtasks=-	load1=1.34/1.31
+  B.b3.c1-wait100.control.probe.search	gap=65	gapStart=-2	gapEnd=63	longtasks=-	load1=1.31/1.31
+  B.b3.c1-wait100.control.probe.med	gap=32	gapStart=59	gapEnd=91	longtasks=-	load1=1.31/1.2
+  B.b3.c1-wait100.control.probe.notif	gap=38	gapStart=18	gapEnd=56	longtasks=-	load1=1.2/1.2
+  B.b3.c1-wait100.control.probe.care	gap=29	gapStart=19	gapEnd=48	longtasks=-	load1=1.2/1.2
+
+### c2a-lazy-false
+- probe control: 7 of 15 over 40 ms (pooled); per batch b1:2/5 b2:2/5 b3:3/5; unmeasured 0; max 57
+  gaps: timeline=54 search=44 med=28 notif=30 care=32 timeline=29 search=45 med=28 notif=53 care=28 timeline=49 search=57 med=36 notif=47 care=29
+- probe variant: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:1/5 b3:2/5; unmeasured 0; max 49
+  gaps: timeline=29 search=48 med=36 notif=31 care=39 timeline=38 search=33 med=33 notif=43 care=29 timeline=29 search=49 med=39 notif=41 care=40
+  B.b1.c2a-lazy-false.control.probe.timeline	gap=54	gapStart=-3	gapEnd=51	longtasks=-	load1=1.1/1.1
+  B.b1.c2a-lazy-false.control.probe.search	gap=44	gapStart=17	gapEnd=61	longtasks=-	load1=1.1/1.33
+  B.b1.c2a-lazy-false.control.probe.med	gap=28	gapStart=-3	gapEnd=25	longtasks=-	load1=1.33/1.33
+  B.b1.c2a-lazy-false.control.probe.notif	gap=30	gapStart=58	gapEnd=88	longtasks=-	load1=1.33/1.33
+  B.b1.c2a-lazy-false.control.probe.care	gap=32	gapStart=21	gapEnd=53	longtasks=-	load1=1.33/1.31
+  B.b2.c2a-lazy-false.control.probe.timeline	gap=29	gapStart=14	gapEnd=43	longtasks=-	load1=0.77/0.77
+  B.b2.c2a-lazy-false.control.probe.search	gap=45	gapStart=-3	gapEnd=42	longtasks=-	load1=0.77/0.79
+  B.b2.c2a-lazy-false.control.probe.med	gap=28	gapStart=59	gapEnd=87	longtasks=-	load1=0.79/0.79
+  B.b2.c2a-lazy-false.control.probe.notif	gap=53	gapStart=-2	gapEnd=51	longtasks=-	load1=0.79/0.79
+  B.b2.c2a-lazy-false.control.probe.care	gap=28	gapStart=21	gapEnd=49	longtasks=-	load1=0.88/0.88
+  B.b3.c2a-lazy-false.control.probe.timeline	gap=49	gapStart=-2	gapEnd=47	longtasks=-	load1=1.2/1.11
+  B.b3.c2a-lazy-false.control.probe.search	gap=57	gapStart=-7	gapEnd=50	longtasks=-	load1=1.11/1.11
+  B.b3.c2a-lazy-false.control.probe.med	gap=36	gapStart=19	gapEnd=55	longtasks=-	load1=1.11/1.11
+  B.b3.c2a-lazy-false.control.probe.notif	gap=47	gapStart=-3	gapEnd=44	longtasks=-	load1=1.11/1.26
+  B.b3.c2a-lazy-false.control.probe.care	gap=29	gapStart=46	gapEnd=75	longtasks=-	load1=1.26/1.26
+  B.b1.c2a-lazy-false.variant.probe.timeline	gap=29	gapStart=23	gapEnd=52	longtasks=-	load1=1.31/1.31
+  B.b1.c2a-lazy-false.variant.probe.search	gap=48	gapStart=-1	gapEnd=47	longtasks=-	load1=1.31/1.31
+  B.b1.c2a-lazy-false.variant.probe.med	gap=36	gapStart=-3	gapEnd=33	longtasks=-	load1=1.31/1.28
+  B.b1.c2a-lazy-false.variant.probe.notif	gap=31	gapStart=18	gapEnd=49	longtasks=-	load1=1.28/1.28
+  B.b1.c2a-lazy-false.variant.probe.care	gap=39	gapStart=-7	gapEnd=32	longtasks=-	load1=1.28/1.28
+  B.b2.c2a-lazy-false.variant.probe.timeline	gap=38	gapStart=19	gapEnd=57	longtasks=-	load1=0.88/0.88
+  B.b2.c2a-lazy-false.variant.probe.search	gap=33	gapStart=26	gapEnd=59	longtasks=-	load1=0.88/0.88
+  B.b2.c2a-lazy-false.variant.probe.med	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=0.88/1.05
+  B.b2.c2a-lazy-false.variant.probe.notif	gap=43	gapStart=-2	gapEnd=41	longtasks=-	load1=1.05/1.05
+  B.b2.c2a-lazy-false.variant.probe.care	gap=29	gapStart=22	gapEnd=51	longtasks=-	load1=1.05/1.05
+  B.b3.c2a-lazy-false.variant.probe.timeline	gap=29	gapStart=21	gapEnd=50	longtasks=-	load1=1.26/1.26
+  B.b3.c2a-lazy-false.variant.probe.search	gap=49	gapStart=-2	gapEnd=47	longtasks=-	load1=1.16/1.16
+  B.b3.c2a-lazy-false.variant.probe.med	gap=39	gapStart=39	gapEnd=78	longtasks=-	load1=1.16/1.16
+  B.b3.c2a-lazy-false.variant.probe.notif	gap=41	gapStart=-7	gapEnd=34	longtasks=-	load1=1.16/1.16
+  B.b3.c2a-lazy-false.variant.probe.care	gap=40	gapStart=-3	gapEnd=37	longtasks=-	load1=1.16/1.06
+
+### c2b-bare-track
+- bare variant: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 39
+  gaps: timeline=30 search=39 med=24 notif=34 care=32 timeline=36 search=28 med=31 notif=32 care=35 timeline=25 search=37 med=35 notif=35 care=33
+- bare control: 1 of 15 over 40 ms (pooled); per batch b1:1/5 b2:0/5 b3:0/5; unmeasured 0; max 44
+  gaps: timeline=31 search=44 med=28 notif=30 care=31 timeline=35 search=29 med=22 notif=35 care=31 timeline=28 search=27 med=30 notif=31 care=26
+  B.b1.c2b-bare-track.variant.bare.timeline	gap=30	gapStart=17	gapEnd=47	longtasks=-	load1=1.28/1.28
+  B.b1.c2b-bare-track.variant.bare.search	gap=39	gapStart=-2	gapEnd=37	longtasks=-	load1=1.28/1.66
+  B.b1.c2b-bare-track.variant.bare.med	gap=24	gapStart=39	gapEnd=63	longtasks=-	load1=1.66/1.66
+  B.b1.c2b-bare-track.variant.bare.notif	gap=34	gapStart=17	gapEnd=51	longtasks=-	load1=1.66/1.77
+  B.b1.c2b-bare-track.variant.bare.care	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.77/1.77
+  B.b2.c2b-bare-track.variant.bare.timeline	gap=36	gapStart=17	gapEnd=53	longtasks=-	load1=1.05/0.97
+  B.b2.c2b-bare-track.variant.bare.search	gap=28	gapStart=-2	gapEnd=27	longtasks=-	load1=0.97/0.97
+  B.b2.c2b-bare-track.variant.bare.med	gap=31	gapStart=37	gapEnd=68	longtasks=-	load1=0.97/0.97
+  B.b2.c2b-bare-track.variant.bare.notif	gap=32	gapStart=38	gapEnd=70	longtasks=-	load1=0.97/1.13
+  B.b2.c2b-bare-track.variant.bare.care	gap=35	gapStart=18	gapEnd=52	longtasks=-	load1=1.13/1.13
+  B.b3.c2b-bare-track.variant.bare.timeline	gap=25	gapStart=38	gapEnd=63	longtasks=-	load1=1.06/1.06
+  B.b3.c2b-bare-track.variant.bare.search	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.06/1.06
+  B.b3.c2b-bare-track.variant.bare.med	gap=35	gapStart=37	gapEnd=72	longtasks=-	load1=1.06/0.98
+  B.b3.c2b-bare-track.variant.bare.notif	gap=35	gapStart=18	gapEnd=53	longtasks=-	load1=0.98/0.98
+  B.b3.c2b-bare-track.variant.bare.care	gap=33	gapStart=18	gapEnd=51	longtasks=-	load1=0.98/0.9
+  B.b1.c2b-bare-track.control.bare.timeline	gap=31	gapStart=39	gapEnd=70	longtasks=-	load1=1.77/1.63
+  B.b1.c2b-bare-track.control.bare.search	gap=44	gapStart=-2	gapEnd=42	longtasks=-	load1=1.63/1.63
+  B.b1.c2b-bare-track.control.bare.med	gap=28	gapStart=38	gapEnd=66	longtasks=-	load1=1.63/1.63
+  B.b1.c2b-bare-track.control.bare.notif	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1.63/1.5
+  B.b1.c2b-bare-track.control.bare.care	gap=31	gapStart=19	gapEnd=49	longtasks=-	load1=1.5/1.5
+  B.b2.c2b-bare-track.control.bare.timeline	gap=35	gapStart=17	gapEnd=53	longtasks=-	load1=1.13/1.04
+  B.b2.c2b-bare-track.control.bare.search	gap=29	gapStart=-1	gapEnd=28	longtasks=-	load1=1.04/1.04
+  B.b2.c2b-bare-track.control.bare.med	gap=22	gapStart=-2	gapEnd=20	longtasks=-	load1=1.04/1.04
+  B.b2.c2b-bare-track.control.bare.notif	gap=35	gapStart=17	gapEnd=52	longtasks=-	load1=0.96/0.96
+  B.b2.c2b-bare-track.control.bare.care	gap=31	gapStart=37	gapEnd=68	longtasks=-	load1=0.96/0.96
+  B.b3.c2b-bare-track.control.bare.timeline	gap=28	gapStart=38	gapEnd=66	longtasks=-	load1=0.9/0.9
+  B.b3.c2b-bare-track.control.bare.search	gap=27	gapStart=-1	gapEnd=25	longtasks=-	load1=0.9/0.9
+  B.b3.c2b-bare-track.control.bare.med	gap=30	gapStart=38	gapEnd=68	longtasks=-	load1=0.9/1.39
+  B.b3.c2b-bare-track.control.bare.notif	gap=31	gapStart=18	gapEnd=48	longtasks=-	load1=1.39/1.39
+  B.b3.c2b-bare-track.control.bare.care	gap=26	gapStart=37	gapEnd=63	longtasks=-	load1=1.39/1.28
+
+### c3a-noguard
+- probe control: 7 of 15 over 40 ms (pooled); per batch b1:3/5 b2:1/5 b3:3/5; unmeasured 0; max 48
+  gaps: timeline=41 search=48 med=32 notif=45 care=27 timeline=26 search=39 med=34 notif=41 care=26 timeline=29 search=42 med=42 notif=33 care=46
+- probe variant: 3 of 15 over 40 ms (pooled); per batch b1:1/5 b2:1/5 b3:1/5; unmeasured 0; max 53
+  gaps: timeline=27 search=53 med=37 notif=33 care=31 timeline=37 search=41 med=35 notif=31 care=34 timeline=33 search=31 med=41 notif=28 care=31
+  B.b1.c3a-noguard.control.probe.timeline	gap=41	gapStart=37	gapEnd=78	longtasks=-	load1=1.5/1.38
+  B.b1.c3a-noguard.control.probe.search	gap=48	gapStart=-7	gapEnd=41	longtasks=-	load1=1.38/1.38
+  B.b1.c3a-noguard.control.probe.med	gap=32	gapStart=58	gapEnd=90	longtasks=-	load1=1.38/1.38
+  B.b1.c3a-noguard.control.probe.notif	gap=45	gapStart=-6	gapEnd=39	longtasks=-	load1=1.38/1.43
+  B.b1.c3a-noguard.control.probe.care	gap=27	gapStart=44	gapEnd=71	longtasks=-	load1=1.43/1.43
+  B.b2.c3a-noguard.control.probe.timeline	gap=26	gapStart=19	gapEnd=45	longtasks=-	load1=0.96/0.88
+  B.b2.c3a-noguard.control.probe.search	gap=39	gapStart=-9	gapEnd=30	longtasks=-	load1=0.88/0.88
+  B.b2.c3a-noguard.control.probe.med	gap=34	gapStart=-2	gapEnd=32	longtasks=-	load1=0.88/0.88
+  B.b2.c3a-noguard.control.probe.notif	gap=41	gapStart=23	gapEnd=64	longtasks=-	load1=1.45/1.45
+  B.b2.c3a-noguard.control.probe.care	gap=26	gapStart=23	gapEnd=49	longtasks=-	load1=1.45/1.45
+  B.b3.c3a-noguard.control.probe.timeline	gap=29	gapStart=24	gapEnd=53	longtasks=-	load1=1.28/1.28
+  B.b3.c3a-noguard.control.probe.search	gap=42	gapStart=-3	gapEnd=39	longtasks=-	load1=1.28/1.28
+  B.b3.c3a-noguard.control.probe.med	gap=42	gapStart=38	gapEnd=80	longtasks=-	load1=1.28/1.9
+  B.b3.c3a-noguard.control.probe.notif	gap=33	gapStart=25	gapEnd=58	longtasks=-	load1=1.9/1.9
+  B.b3.c3a-noguard.control.probe.care	gap=46	gapStart=-6	gapEnd=40	longtasks=-	load1=1.9/1.74
+  B.b1.c3a-noguard.variant.probe.timeline	gap=27	gapStart=15	gapEnd=42	longtasks=-	load1=1.43/1.31
+  B.b1.c3a-noguard.variant.probe.search	gap=53	gapStart=-4	gapEnd=49	longtasks=-	load1=1.31/1.31
+  B.b1.c3a-noguard.variant.probe.med	gap=37	gapStart=58	gapEnd=95	longtasks=-	load1=1.31/1.31
+  B.b1.c3a-noguard.variant.probe.notif	gap=33	gapStart=18	gapEnd=51	longtasks=-	load1=1.31/1.21
+  B.b1.c3a-noguard.variant.probe.care	gap=31	gapStart=21	gapEnd=52	longtasks=-	load1=1.21/1.21
+  B.b2.c3a-noguard.variant.probe.timeline	gap=37	gapStart=19	gapEnd=56	longtasks=-	load1=1.45/1.33
+  B.b2.c3a-noguard.variant.probe.search	gap=41	gapStart=-8	gapEnd=33	longtasks=-	load1=1.33/1.33
+  B.b2.c3a-noguard.variant.probe.med	gap=35	gapStart=53	gapEnd=88	longtasks=-	load1=1.33/1.33
+  B.b2.c3a-noguard.variant.probe.notif	gap=31	gapStart=14	gapEnd=45	longtasks=-	load1=1.33/1.95
+  B.b2.c3a-noguard.variant.probe.care	gap=34	gapStart=55	gapEnd=89	longtasks=-	load1=1.95/1.95
+  B.b3.c3a-noguard.variant.probe.timeline	gap=33	gapStart=19	gapEnd=52	longtasks=-	load1=1.74/1.74
+  B.b3.c3a-noguard.variant.probe.search	gap=31	gapStart=47	gapEnd=78	longtasks=-	load1=1.74/1.74
+  B.b3.c3a-noguard.variant.probe.med	gap=41	gapStart=38	gapEnd=79	longtasks=-	load1=1.74/2
+  B.b3.c3a-noguard.variant.probe.notif	gap=28	gapStart=21	gapEnd=49	longtasks=-	load1=2/2
+  B.b3.c3a-noguard.variant.probe.care	gap=31	gapStart=19	gapEnd=50	longtasks=-	load1=2/1.84
+
+### c3b-nolisteners
+- probe variant: 5 of 15 over 40 ms (pooled); per batch b1:0/5 b2:3/5 b3:2/5; unmeasured 0; max 55
+  gaps: timeline=27 search=27 med=31 notif=37 care=31 timeline=26 search=55 med=29 notif=42 care=51 timeline=28 search=42 med=43 notif=36 care=35
+- probe control: 8 of 15 over 40 ms (pooled); per batch b1:4/5 b2:2/5 b3:2/5; unmeasured 0; max 59
+  gaps: timeline=42 search=55 med=43 notif=45 care=32 timeline=32 search=59 med=30 notif=31 care=44 timeline=28 search=35 med=33 notif=42 care=47
+  B.b1.c3b-nolisteners.variant.probe.timeline	gap=27	gapStart=19	gapEnd=46	longtasks=-	load1=1.21/1.21
+  B.b1.c3b-nolisteners.variant.probe.search	gap=27	gapStart=-2	gapEnd=25	longtasks=-	load1=1.21/1.11
+  B.b1.c3b-nolisteners.variant.probe.med	gap=31	gapStart=59	gapEnd=90	longtasks=-	load1=1.11/1.11
+  B.b1.c3b-nolisteners.variant.probe.notif	gap=37	gapStart=19	gapEnd=56	longtasks=-	load1=1.11/1.11
+  B.b1.c3b-nolisteners.variant.probe.care	gap=31	gapStart=18	gapEnd=49	longtasks=-	load1=1.11/1.11
+  B.b2.c3b-nolisteners.variant.probe.timeline	gap=26	gapStart=21	gapEnd=47	longtasks=-	load1=1.95/1.95
+  B.b2.c3b-nolisteners.variant.probe.search	gap=55	gapStart=-1	gapEnd=54	longtasks=-	load1=1.95/1.95
+  B.b2.c3b-nolisteners.variant.probe.med	gap=29	gapStart=60	gapEnd=89	longtasks=-	load1=1.95/1.95
+  B.b2.c3b-nolisteners.variant.probe.notif	gap=42	gapStart=20	gapEnd=62	longtasks=-	load1=1.95/1.95
+  B.b2.c3b-nolisteners.variant.probe.care	gap=51	gapStart=-2	gapEnd=49	longtasks=-	load1=1.95/1.8
+  B.b3.c3b-nolisteners.variant.probe.timeline	gap=28	gapStart=11	gapEnd=39	longtasks=-	load1=1.84/1.84
+  B.b3.c3b-nolisteners.variant.probe.search	gap=42	gapStart=19	gapEnd=61	longtasks=-	load1=1.84/1.84
+  B.b3.c3b-nolisteners.variant.probe.med	gap=43	gapStart=39	gapEnd=82	longtasks=-	load1=1.84/1.84
+  B.b3.c3b-nolisteners.variant.probe.notif	gap=36	gapStart=21	gapEnd=57	longtasks=-	load1=1.84/1.94
+  B.b3.c3b-nolisteners.variant.probe.care	gap=35	gapStart=19	gapEnd=54	longtasks=-	load1=1.94/1.94
+  B.b1.c3b-nolisteners.control.probe.timeline	gap=42	gapStart=19	gapEnd=61	longtasks=-	load1=1.11/1.02
+  B.b1.c3b-nolisteners.control.probe.search	gap=55	gapStart=18	gapEnd=73	longtasks=-	load1=1.02/1.02
+  B.b1.c3b-nolisteners.control.probe.med	gap=43	gapStart=-9	gapEnd=34	longtasks=-	load1=1.02/1.02
+  B.b1.c3b-nolisteners.control.probe.notif	gap=45	gapStart=-3	gapEnd=42	longtasks=-	load1=1.02/1.18
+  B.b1.c3b-nolisteners.control.probe.care	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=1.18/1.18
+  B.b2.c3b-nolisteners.control.probe.timeline	gap=32	gapStart=24	gapEnd=56	longtasks=-	load1=1.8/1.8
+  B.b2.c3b-nolisteners.control.probe.search	gap=59	gapStart=-2	gapEnd=57	longtasks=-	load1=1.8/1.8
+  B.b2.c3b-nolisteners.control.probe.med	gap=30	gapStart=74	gapEnd=104	longtasks=-	load1=1.8/1.73
+  B.b2.c3b-nolisteners.control.probe.notif	gap=31	gapStart=19	gapEnd=50	longtasks=-	load1=1.73/1.73
+  B.b2.c3b-nolisteners.control.probe.care	gap=44	gapStart=-2	gapEnd=42	longtasks=-	load1=1.73/1.73
+  B.b3.c3b-nolisteners.control.probe.timeline	gap=28	gapStart=19	gapEnd=47	longtasks=-	load1=1.94/1.94
+  B.b3.c3b-nolisteners.control.probe.search	gap=35	gapStart=17	gapEnd=52	longtasks=-	load1=1.94/1.78
+  B.b3.c3b-nolisteners.control.probe.med	gap=33	gapStart=59	gapEnd=92	longtasks=-	load1=1.78/1.78
+  B.b3.c3b-nolisteners.control.probe.notif	gap=42	gapStart=-6	gapEnd=36	longtasks=-	load1=1.78/1.78
+  B.b3.c3b-nolisteners.control.probe.care	gap=47	gapStart=-2	gapEnd=45	longtasks=-	load1=1.78/1.72
+
+### c4a-raf
+- probe control: 6 of 15 over 40 ms (pooled); per batch b1:2/5 b2:1/5 b3:3/5; unmeasured 0; max 55
+  gaps: timeline=49 search=46 med=35 notif=34 care=30 timeline=43 search=35 med=28 notif=28 care=30 timeline=33 search=49 med=34 notif=55 care=49
+- probe variant: 1 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:1/5; unmeasured 0; max 41
+  gaps: timeline=32 search=40 med=32 notif=34 care=23 timeline=30 search=36 med=30 notif=30 care=33 timeline=28 search=38 med=41 notif=25 care=22
+  B.b1.c4a-raf.control.probe.timeline	gap=49	gapStart=20	gapEnd=69	longtasks=-	load1=1.18/1.08
+  B.b1.c4a-raf.control.probe.search	gap=46	gapStart=-8	gapEnd=38	longtasks=-	load1=1.08/1.08
+  B.b1.c4a-raf.control.probe.med	gap=35	gapStart=58	gapEnd=93	longtasks=-	load1=1.08/1.08
+  B.b1.c4a-raf.control.probe.notif	gap=34	gapStart=19	gapEnd=53	longtasks=-	load1=1.08/1.08
+  B.b1.c4a-raf.control.probe.care	gap=30	gapStart=21	gapEnd=51	longtasks=-	load1=1.08/1.08
+  B.b2.c4a-raf.control.probe.timeline	gap=43	gapStart=18	gapEnd=61	longtasks=-	load1=1.37/1.58
+  B.b2.c4a-raf.control.probe.search	gap=35	gapStart=19	gapEnd=54	longtasks=-	load1=1.58/1.58
+  B.b2.c4a-raf.control.probe.med	gap=28	gapStart=60	gapEnd=88	longtasks=-	load1=1.58/1.45
+  B.b2.c4a-raf.control.probe.notif	gap=28	gapStart=19	gapEnd=47	longtasks=-	load1=1.45/1.45
+  B.b2.c4a-raf.control.probe.care	gap=30	gapStart=20	gapEnd=50	longtasks=-	load1=1.45/1.45
+  B.b3.c4a-raf.control.probe.timeline	gap=33	gapStart=19	gapEnd=52	longtasks=-	load1=1.72/1.72
+  B.b3.c4a-raf.control.probe.search	gap=49	gapStart=-6	gapEnd=43	longtasks=-	load1=1.72/1.58
+  B.b3.c4a-raf.control.probe.med	gap=34	gapStart=59	gapEnd=93	longtasks=-	load1=1.58/1.58
+  B.b3.c4a-raf.control.probe.notif	gap=55	gapStart=-2	gapEnd=53	longtasks=-	load1=1.58/1.58
+  B.b3.c4a-raf.control.probe.care	gap=49	gapStart=-7	gapEnd=42	longtasks=-	load1=1.58/1.53
+  B.b1.c4a-raf.variant.probe.timeline	gap=32	gapStart=17	gapEnd=49	longtasks=-	load1=1.08/0.99
+  B.b1.c4a-raf.variant.probe.search	gap=40	gapStart=12	gapEnd=52	longtasks=-	load1=0.99/0.99
+  B.b1.c4a-raf.variant.probe.med	gap=32	gapStart=63	gapEnd=95	longtasks=-	load1=0.99/0.99
+  B.b1.c4a-raf.variant.probe.notif	gap=34	gapStart=18	gapEnd=52	longtasks=-	load1=0.99/1.15
+  B.b1.c4a-raf.variant.probe.care	gap=23	gapStart=23	gapEnd=46	longtasks=-	load1=1.15/1.15
+  B.b2.c4a-raf.variant.probe.timeline	gap=30	gapStart=-1	gapEnd=29	longtasks=-	load1=1.45/1.5
+  B.b2.c4a-raf.variant.probe.search	gap=36	gapStart=12	gapEnd=48	longtasks=-	load1=1.5/1.5
+  B.b2.c4a-raf.variant.probe.med	gap=30	gapStart=43	gapEnd=73	longtasks=-	load1=1.5/1.38
+  B.b2.c4a-raf.variant.probe.notif	gap=30	gapStart=15	gapEnd=45	longtasks=-	load1=1.38/1.38
+  B.b2.c4a-raf.variant.probe.care	gap=33	gapStart=12	gapEnd=45	longtasks=-	load1=1.38/1.38
+  B.b3.c4a-raf.variant.probe.timeline	gap=28	gapStart=2	gapEnd=30	longtasks=-	load1=1.53/1.53
+  B.b3.c4a-raf.variant.probe.search	gap=38	gapStart=45	gapEnd=83	longtasks=-	load1=1.53/1.53
+  B.b3.c4a-raf.variant.probe.med	gap=41	gapStart=0	gapEnd=41	longtasks=-	load1=1.53/1.41
+  B.b3.c4a-raf.variant.probe.notif	gap=25	gapStart=10	gapEnd=35	longtasks=-	load1=1.41/1.41
+  B.b3.c4a-raf.variant.probe.care	gap=22	gapStart=26	gapEnd=48	longtasks=-	load1=1.41/1.3
+
+### c4b-unrounded
+- probe variant: 7 of 15 over 40 ms (pooled); per batch b1:2/5 b2:3/5 b3:2/5; unmeasured 0; max 52
+  gaps: timeline=29.4 search=49.3 med=36.3 notif=33.8 care=41.5 timeline=42.9 search=52 med=24.2 notif=46.5 care=28.6 timeline=32.1 search=48.3 med=33.9 notif=46.8 care=33.5
+- probe control: 7 of 15 over 40 ms (pooled); per batch b1:2/5 b2:4/5 b3:1/5; unmeasured 0; max 52
+  gaps: timeline=40 search=52 med=31 notif=27 care=44 timeline=42 search=44 med=41 notif=38 care=44 timeline=35 search=42 med=29 notif=33 care=28
+  B.b1.c4b-unrounded.variant.probe.timeline	gap=29.4	gapStart=15.199999988079071	gapEnd=44.599999994039536	longtasks=-	load1=1.15/1.15
+  B.b1.c4b-unrounded.variant.probe.search	gap=49.3	gapStart=-3	gapEnd=46.29999998211861	longtasks=-	load1=1.54/1.54
+  B.b1.c4b-unrounded.variant.probe.med	gap=36.3	gapStart=38.70000001788139	gapEnd=75	longtasks=-	load1=1.54/1.54
+  B.b1.c4b-unrounded.variant.probe.notif	gap=33.8	gapStart=23.099999994039536	gapEnd=56.900000005960464	longtasks=-	load1=1.54/1.42
+  B.b1.c4b-unrounded.variant.probe.care	gap=41.5	gapStart=-8.5	gapEnd=33	longtasks=-	load1=1.42/1.42
+  B.b2.c4b-unrounded.variant.probe.timeline	gap=42.9	gapStart=-7.699999988079071	gapEnd=35.20000001788139	longtasks=-	load1=1.38/1.27
+  B.b2.c4b-unrounded.variant.probe.search	gap=52	gapStart=18	gapEnd=70	longtasks=-	load1=1.27/1.27
+  B.b2.c4b-unrounded.variant.probe.med	gap=24.2	gapStart=58.599999994039536	gapEnd=82.80000001192093	longtasks=-	load1=1.27/1.27
+  B.b2.c4b-unrounded.variant.probe.notif	gap=46.5	gapStart=-6.0999999940395355	gapEnd=40.400000005960464	longtasks=-	load1=1.41/1.41
+  B.b2.c4b-unrounded.variant.probe.care	gap=28.6	gapStart=19.30000001192093	gapEnd=47.900000005960464	longtasks=-	load1=1.41/1.41
+  B.b3.c4b-unrounded.variant.probe.timeline	gap=32.1	gapStart=15	gapEnd=47.099999994039536	longtasks=-	load1=1.3/1.3
+  B.b3.c4b-unrounded.variant.probe.search	gap=48.3	gapStart=-2.9000000059604645	gapEnd=45.400000005960464	longtasks=-	load1=1.3/1.3
+  B.b3.c4b-unrounded.variant.probe.med	gap=33.9	gapStart=54	gapEnd=87.90000000596046	longtasks=-	load1=1.3/1.19
+  B.b3.c4b-unrounded.variant.probe.notif	gap=46.8	gapStart=-7.800000011920929	gapEnd=39	longtasks=-	load1=1.19/1.19
+  B.b3.c4b-unrounded.variant.probe.care	gap=33.5	gapStart=18.400000005960464	gapEnd=51.900000005960464	longtasks=-	load1=1.19/1.19
+  B.b1.c4b-unrounded.control.probe.timeline	gap=40	gapStart=-8	gapEnd=32	longtasks=-	load1=1.42/1.42
+  B.b1.c4b-unrounded.control.probe.search	gap=52	gapStart=-2	gapEnd=50	longtasks=-	load1=1.42/1.38
+  B.b1.c4b-unrounded.control.probe.med	gap=31	gapStart=58	gapEnd=89	longtasks=-	load1=1.38/1.38
+  B.b1.c4b-unrounded.control.probe.notif	gap=27	gapStart=19	gapEnd=46	longtasks=-	load1=1.38/1.27
+  B.b1.c4b-unrounded.control.probe.care	gap=44	gapStart=18	gapEnd=62	longtasks=-	load1=1.27/1.27
+  B.b2.c4b-unrounded.control.probe.timeline	gap=42	gapStart=-6	gapEnd=36	longtasks=-	load1=1.41/1.29
+  B.b2.c4b-unrounded.control.probe.search	gap=44	gapStart=-8	gapEnd=36	longtasks=-	load1=1.29/1.29
+  B.b2.c4b-unrounded.control.probe.med	gap=41	gapStart=39	gapEnd=80	longtasks=-	load1=1.29/1.29
+  B.b2.c4b-unrounded.control.probe.notif	gap=38	gapStart=-7	gapEnd=31	longtasks=-	load1=1.29/1.27
+  B.b2.c4b-unrounded.control.probe.care	gap=44	gapStart=-6	gapEnd=38	longtasks=-	load1=1.27/1.27
+  B.b3.c4b-unrounded.control.probe.timeline	gap=35	gapStart=18	gapEnd=53	longtasks=-	load1=1.19/1.34
+  B.b3.c4b-unrounded.control.probe.search	gap=42	gapStart=34	gapEnd=76	longtasks=-	load1=1.34/1.34
+  B.b3.c4b-unrounded.control.probe.med	gap=29	gapStart=55	gapEnd=84	longtasks=-	load1=1.34/1.23
+  B.b3.c4b-unrounded.control.probe.notif	gap=33	gapStart=59	gapEnd=92	longtasks=-	load1=1.23/1.23
+  B.b3.c4b-unrounded.control.probe.care	gap=28	gapStart=17	gapEnd=45	longtasks=-	load1=1.23/1.23
+
+### c5-barestamp
+- probe control: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:3/5 b3:0/5; unmeasured 0; max 50
+  gaps: timeline=28 search=42 med=30 notif=30 care=30 timeline=29 search=45 med=42 notif=50 care=27 timeline=28 search=28 med=33 notif=29 care=34
+- probe variant: 5 of 15 over 40 ms (pooled); per batch b1:2/5 b2:2/5 b3:1/5; unmeasured 0; max 65
+  gaps: timeline=38 search=51 med=32 notif=49 care=34 timeline=39 search=54 med=28 notif=44 care=32 timeline=39 search=65 med=31 notif=28 care=28
+  B.b1.c5-barestamp.control.probe.timeline	gap=28	gapStart=20	gapEnd=48	longtasks=-	load1=1.27/1.27
+  B.b1.c5-barestamp.control.probe.search	gap=42	gapStart=16	gapEnd=58	longtasks=-	load1=1.27/1.17
+  B.b1.c5-barestamp.control.probe.med	gap=30	gapStart=61	gapEnd=91	longtasks=-	load1=1.17/1.17
+  B.b1.c5-barestamp.control.probe.notif	gap=30	gapStart=46	gapEnd=76	longtasks=-	load1=1.17/1.17
+  B.b1.c5-barestamp.control.probe.care	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.17/1.24
+  B.b2.c5-barestamp.control.probe.timeline	gap=29	gapStart=21	gapEnd=50	longtasks=-	load1=1.27/1.17
+  B.b2.c5-barestamp.control.probe.search	gap=45	gapStart=-7	gapEnd=38	longtasks=-	load1=1.17/1.17
+  B.b2.c5-barestamp.control.probe.med	gap=42	gapStart=38	gapEnd=80	longtasks=-	load1=1.17/1.17
+  B.b2.c5-barestamp.control.probe.notif	gap=50	gapStart=-2	gapEnd=48	longtasks=-	load1=1.17/1.07
+  B.b2.c5-barestamp.control.probe.care	gap=27	gapStart=20	gapEnd=47	longtasks=-	load1=1.07/1.07
+  B.b3.c5-barestamp.control.probe.timeline	gap=28	gapStart=14	gapEnd=42	longtasks=-	load1=1.23/1.13
+  B.b3.c5-barestamp.control.probe.search	gap=28	gapStart=-2	gapEnd=26	longtasks=-	load1=1.13/1.13
+  B.b3.c5-barestamp.control.probe.med	gap=33	gapStart=59	gapEnd=92	longtasks=-	load1=1.13/1.04
+  B.b3.c5-barestamp.control.probe.notif	gap=29	gapStart=13	gapEnd=42	longtasks=-	load1=1.04/1.04
+  B.b3.c5-barestamp.control.probe.care	gap=34	gapStart=19	gapEnd=53	longtasks=-	load1=1.04/1.04
+  B.b1.c5-barestamp.variant.probe.timeline	gap=38	gapStart=-5	gapEnd=33	longtasks=-	load1=1.24/1.24	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b1.c5-barestamp.variant.probe.search	gap=51	gapStart=-5	gapEnd=46	longtasks=-	load1=1.24/1.14	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b1.c5-barestamp.variant.probe.med	gap=32	gapStart=56	gapEnd=88	longtasks=-	load1=1.14/1.14	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b1.c5-barestamp.variant.probe.notif	gap=49	gapStart=-2	gapEnd=47	longtasks=-	load1=1.14/1.14	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b1.c5-barestamp.variant.probe.care	gap=34	gapStart=24	gapEnd=58	longtasks=-	load1=1.14/1.13	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b2.c5-barestamp.variant.probe.timeline	gap=39	gapStart=-3	gapEnd=36	longtasks=-	load1=1.07/1.07	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b2.c5-barestamp.variant.probe.search	gap=54	gapStart=-3	gapEnd=51	longtasks=-	load1=1.07/1.07	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b2.c5-barestamp.variant.probe.med	gap=28	gapStart=59	gapEnd=87	longtasks=-	load1=1.07/1.07	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b2.c5-barestamp.variant.probe.notif	gap=44	gapStart=-2	gapEnd=42	longtasks=-	load1=1.07/0.98	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b2.c5-barestamp.variant.probe.care	gap=32	gapStart=20	gapEnd=52	longtasks=-	load1=0.98/0.98	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b3.c5-barestamp.variant.probe.timeline	gap=39	gapStart=-2	gapEnd=37	longtasks=-	load1=1.04/0.96	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b3.c5-barestamp.variant.probe.search	gap=65	gapStart=-4	gapEnd=61	longtasks=-	load1=0.96/0.96	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b3.c5-barestamp.variant.probe.med	gap=31	gapStart=59	gapEnd=90	longtasks=-	load1=0.96/0.96	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b3.c5-barestamp.variant.probe.notif	gap=28	gapStart=21	gapEnd=49	longtasks=-	load1=0.96/1.68	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+  B.b3.c5-barestamp.variant.probe.care	gap=28	gapStart=19	gapEnd=47	longtasks=-	load1=1.68/1.68	probe=StillnessError: stillnessProbe failed (4): |   - found zero 
+
+### c6a-mock50
+- probe variant: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 37
+  gaps: timeline=28 search=28 med=33 notif=29 care=30 timeline=31 search=28 med=37 notif=32 care=27 timeline=37 search=30 med=34 notif=33 care=30
+- probe control: 4 of 15 over 40 ms (pooled); per batch b1:2/5 b2:1/5 b3:1/5; unmeasured 0; max 45
+  gaps: timeline=28 search=42 med=34 notif=27 care=45 timeline=32 search=39 med=41 notif=28 care=32 timeline=31 search=42 med=29 notif=32 care=31
+  B.b1.c6a-mock50.variant.probe.timeline	gap=28	gapStart=38	gapEnd=66	longtasks=-	load1=1.13/1.13
+  B.b1.c6a-mock50.variant.probe.search	gap=28	gapStart=-4	gapEnd=24	longtasks=-	load1=1.13/1.04
+  B.b1.c6a-mock50.variant.probe.med	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=1.04/1.04
+  B.b1.c6a-mock50.variant.probe.notif	gap=29	gapStart=34	gapEnd=63	longtasks=-	load1=1.04/1.04
+  B.b1.c6a-mock50.variant.probe.care	gap=30	gapStart=34	gapEnd=64	longtasks=-	load1=1.04/0.95
+  B.b2.c6a-mock50.variant.probe.timeline	gap=31	gapStart=28	gapEnd=59	longtasks=-	load1=0.98/0.98
+  B.b2.c6a-mock50.variant.probe.search	gap=28	gapStart=-6	gapEnd=22	longtasks=-	load1=0.98/0.9
+  B.b2.c6a-mock50.variant.probe.med	gap=37	gapStart=-8	gapEnd=29	longtasks=-	load1=0.9/0.9
+  B.b2.c6a-mock50.variant.probe.notif	gap=32	gapStart=38	gapEnd=70	longtasks=-	load1=0.9/0.83
+  B.b2.c6a-mock50.variant.probe.care	gap=27	gapStart=38	gapEnd=65	longtasks=-	load1=0.83/0.83
+  B.b3.c6a-mock50.variant.probe.timeline	gap=37	gapStart=34	gapEnd=71	longtasks=-	load1=1.68/1.68
+  B.b3.c6a-mock50.variant.probe.search	gap=30	gapStart=13	gapEnd=43	longtasks=-	load1=1.68/1.71
+  B.b3.c6a-mock50.variant.probe.med	gap=34	gapStart=-2	gapEnd=32	longtasks=-	load1=1.71/1.71
+  B.b3.c6a-mock50.variant.probe.notif	gap=33	gapStart=37	gapEnd=70	longtasks=-	load1=1.71/1.57
+  B.b3.c6a-mock50.variant.probe.care	gap=30	gapStart=29	gapEnd=59	longtasks=-	load1=1.57/1.57
+  B.b1.c6a-mock50.control.probe.timeline	gap=28	gapStart=22	gapEnd=50	longtasks=-	load1=0.95/0.95
+  B.b1.c6a-mock50.control.probe.search	gap=42	gapStart=-3	gapEnd=39	longtasks=-	load1=0.95/0.95
+  B.b1.c6a-mock50.control.probe.med	gap=34	gapStart=54	gapEnd=88	longtasks=-	load1=0.96/0.96
+  B.b1.c6a-mock50.control.probe.notif	gap=27	gapStart=20	gapEnd=47	longtasks=-	load1=0.96/0.96
+  B.b1.c6a-mock50.control.probe.care	gap=45	gapStart=-3	gapEnd=42	longtasks=-	load1=0.96/0.88
+  B.b2.c6a-mock50.control.probe.timeline	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=0.83/0.83
+  B.b2.c6a-mock50.control.probe.search	gap=39	gapStart=21	gapEnd=60	longtasks=-	load1=0.83/0.76
+  B.b2.c6a-mock50.control.probe.med	gap=41	gapStart=-4	gapEnd=37	longtasks=-	load1=0.76/0.76
+  B.b2.c6a-mock50.control.probe.notif	gap=28	gapStart=14	gapEnd=42	longtasks=-	load1=0.76/0.76
+  B.b2.c6a-mock50.control.probe.care	gap=32	gapStart=27	gapEnd=59	longtasks=-	load1=0.76/1.26
+  B.b3.c6a-mock50.control.probe.timeline	gap=31	gapStart=13	gapEnd=44	longtasks=-	load1=1.57/1.57
+  B.b3.c6a-mock50.control.probe.search	gap=42	gapStart=18	gapEnd=60	longtasks=-	load1=1.57/1.69
+  B.b3.c6a-mock50.control.probe.med	gap=29	gapStart=60	gapEnd=89	longtasks=-	load1=1.69/1.69
+  B.b3.c6a-mock50.control.probe.notif	gap=32	gapStart=58	gapEnd=90	longtasks=-	load1=1.69/1.55
+  B.b3.c6a-mock50.control.probe.care	gap=31	gapStart=20	gapEnd=51	longtasks=-	load1=1.55/1.55
+
+### c6b-mock150
+- probe control: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:2/5 b3:1/5; unmeasured 0; max 48
+  gaps: timeline=47 search=32 med=31 notif=31 care=27 timeline=27 search=48 med=42 notif=36 care=35 timeline=27 search=45 med=27 notif=32 care=40
+- probe variant: 1 of 15 over 40 ms (pooled); per batch b1:1/5 b2:0/5 b3:0/5; unmeasured 0; max 45
+  gaps: timeline=30 search=30 med=45 notif=27 care=33 timeline=26 search=28 med=34 notif=30 care=30 timeline=32 search=29 med=35 notif=28 care=28
+  B.b1.c6b-mock150.control.probe.timeline	gap=47	gapStart=-3	gapEnd=44	longtasks=-	load1=0.88/0.88
+  B.b1.c6b-mock150.control.probe.search	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=0.88/0.88
+  B.b1.c6b-mock150.control.probe.med	gap=31	gapStart=59	gapEnd=90	longtasks=-	load1=0.88/0.89
+  B.b1.c6b-mock150.control.probe.notif	gap=31	gapStart=18	gapEnd=49	longtasks=-	load1=0.89/0.89
+  B.b1.c6b-mock150.control.probe.care	gap=27	gapStart=19	gapEnd=46	longtasks=-	load1=0.89/0.89
+  B.b2.c6b-mock150.control.probe.timeline	gap=27	gapStart=21	gapEnd=48	longtasks=-	load1=1.26/1.26
+  B.b2.c6b-mock150.control.probe.search	gap=48	gapStart=21	gapEnd=69	longtasks=-	load1=1.26/1.16
+  B.b2.c6b-mock150.control.probe.med	gap=42	gapStart=38	gapEnd=80	longtasks=-	load1=1.16/1.16
+  B.b2.c6b-mock150.control.probe.notif	gap=36	gapStart=19	gapEnd=55	longtasks=-	load1=1.16/1.16
+  B.b2.c6b-mock150.control.probe.care	gap=35	gapStart=18	gapEnd=53	longtasks=-	load1=1.16/1.07
+  B.b3.c6b-mock150.control.probe.timeline	gap=27	gapStart=15	gapEnd=42	longtasks=-	load1=1.55/1.55
+  B.b3.c6b-mock150.control.probe.search	gap=45	gapStart=-9	gapEnd=36	longtasks=-	load1=1.55/1.43
+  B.b3.c6b-mock150.control.probe.med	gap=27	gapStart=59	gapEnd=86	longtasks=-	load1=1.43/1.43
+  B.b3.c6b-mock150.control.probe.notif	gap=32	gapStart=60	gapEnd=92	longtasks=-	load1=1.43/1.31
+  B.b3.c6b-mock150.control.probe.care	gap=40	gapStart=-2	gapEnd=38	longtasks=-	load1=1.31/1.31
+  B.b1.c6b-mock150.variant.probe.timeline	gap=30	gapStart=56	gapEnd=86	longtasks=-	load1=0.89/1.86
+  B.b1.c6b-mock150.variant.probe.search	gap=30	gapStart=20	gapEnd=50	longtasks=-	load1=1.86/1.86
+  B.b1.c6b-mock150.variant.probe.med	gap=45	gapStart=199	gapEnd=244	longtasks=-	load1=1.86/1.71
+  B.b1.c6b-mock150.variant.probe.notif	gap=27	gapStart=257	gapEnd=284	longtasks=-	load1=1.71/1.71
+  B.b1.c6b-mock150.variant.probe.care	gap=33	gapStart=31	gapEnd=64	longtasks=-	load1=1.71/1.57
+  B.b2.c6b-mock150.variant.probe.timeline	gap=26	gapStart=38	gapEnd=64	longtasks=-	load1=1.07/1.07
+  B.b2.c6b-mock150.variant.probe.search	gap=28	gapStart=17	gapEnd=45	longtasks=-	load1=1.07/1.07
+  B.b2.c6b-mock150.variant.probe.med	gap=34	gapStart=197	gapEnd=231	longtasks=-	load1=1.07/1.38
+  B.b2.c6b-mock150.variant.probe.notif	gap=30	gapStart=38	gapEnd=68	longtasks=-	load1=1.38/1.38
+  B.b2.c6b-mock150.variant.probe.care	gap=30	gapStart=39	gapEnd=69	longtasks=-	load1=1.38/1.35
+  B.b3.c6b-mock150.variant.probe.timeline	gap=32	gapStart=37	gapEnd=69	longtasks=-	load1=1.31/1.31
+  B.b3.c6b-mock150.variant.probe.search	gap=29	gapStart=15	gapEnd=44	longtasks=-	load1=1.31/1.21
+  B.b3.c6b-mock150.variant.probe.med	gap=35	gapStart=192	gapEnd=227	longtasks=-	load1=1.21/1.21
+  B.b3.c6b-mock150.variant.probe.notif	gap=28	gapStart=38	gapEnd=66	longtasks=-	load1=1.21/1.11
+  B.b3.c6b-mock150.variant.probe.care	gap=28	gapStart=37	gapEnd=65	longtasks=-	load1=1.11/1.11
+
+### c7a-preview
+- probe variant: 3 of 15 over 40 ms (pooled); per batch b1:2/5 b2:0/5 b3:1/5; unmeasured 0; max 47
+  gaps: timeline=41 search=40 med=36 notif=33 care=47 timeline=28 search=30 med=35 notif=35 care=31 timeline=38 search=44 med=36 notif=27 care=39
+- probe control: 5 of 15 over 40 ms (pooled); per batch b1:2/5 b2:1/5 b3:2/5; unmeasured 0; max 60
+  gaps: timeline=33 search=42 med=36 notif=44 care=33 timeline=27 search=48 med=31 notif=31 care=36 timeline=33 search=60 med=45 notif=33 care=31
+  B.b1.c7a-preview.variant.probe.timeline	gap=41	gapStart=-10	gapEnd=31	longtasks=-	load1=1.57/1.57
+  B.b1.c7a-preview.variant.probe.search	gap=40	gapStart=-7	gapEnd=33	longtasks=-	load1=1.57/1.57
+  B.b1.c7a-preview.variant.probe.med	gap=36	gapStart=-9	gapEnd=27	longtasks=-	load1=1.57/1.45
+  B.b1.c7a-preview.variant.probe.notif	gap=33	gapStart=56	gapEnd=89	longtasks=-	load1=1.45/1.45
+  B.b1.c7a-preview.variant.probe.care	gap=47	gapStart=37	gapEnd=84	longtasks=-	load1=1.45/1.45
+  B.b2.c7a-preview.variant.probe.timeline	gap=28	gapStart=46	gapEnd=74	longtasks=-	load1=1.35/1.35
+  B.b2.c7a-preview.variant.probe.search	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.35/1.35
+  B.b2.c7a-preview.variant.probe.med	gap=35	gapStart=33	gapEnd=68	longtasks=-	load1=1.35/1.32
+  B.b2.c7a-preview.variant.probe.notif	gap=35	gapStart=-9	gapEnd=26	longtasks=-	load1=1.32/1.32
+  B.b2.c7a-preview.variant.probe.care	gap=31	gapStart=-7	gapEnd=24	longtasks=-	load1=1.32/1.32
+  B.b3.c7a-preview.variant.probe.timeline	gap=38	gapStart=20	gapEnd=58	longtasks=-	load1=1.48/1.48
+  B.b3.c7a-preview.variant.probe.search	gap=44	gapStart=-11	gapEnd=33	longtasks=-	load1=1.48/1.52
+  B.b3.c7a-preview.variant.probe.med	gap=36	gapStart=33	gapEnd=69	longtasks=-	load1=1.52/1.52
+  B.b3.c7a-preview.variant.probe.notif	gap=27	gapStart=36	gapEnd=63	longtasks=-	load1=1.52/1.52
+  B.b3.c7a-preview.variant.probe.care	gap=39	gapStart=36	gapEnd=75	longtasks=-	load1=1.52/1.4
+  B.b1.c7a-preview.control.probe.timeline	gap=33	gapStart=18	gapEnd=51	longtasks=-	load1=1.45/1.33
+  B.b1.c7a-preview.control.probe.search	gap=42	gapStart=19	gapEnd=61	longtasks=-	load1=1.33/1.33
+  B.b1.c7a-preview.control.probe.med	gap=36	gapStart=39	gapEnd=75	longtasks=-	load1=1.33/1.33
+  B.b1.c7a-preview.control.probe.notif	gap=44	gapStart=-3	gapEnd=41	longtasks=-	load1=1.33/1.38
+  B.b1.c7a-preview.control.probe.care	gap=33	gapStart=17	gapEnd=50	longtasks=-	load1=1.38/1.38
+  B.b2.c7a-preview.control.probe.timeline	gap=27	gapStart=24	gapEnd=51	longtasks=-	load1=1.46/1.46
+  B.b2.c7a-preview.control.probe.search	gap=48	gapStart=19	gapEnd=67	longtasks=-	load1=1.46/1.46
+  B.b2.c7a-preview.control.probe.med	gap=31	gapStart=-7	gapEnd=24	longtasks=-	load1=1.46/1.34
+  B.b2.c7a-preview.control.probe.notif	gap=31	gapStart=18	gapEnd=49	longtasks=-	load1=1.34/1.34
+  B.b2.c7a-preview.control.probe.care	gap=36	gapStart=19	gapEnd=55	longtasks=-	load1=1.34/1.34
+  B.b3.c7a-preview.control.probe.timeline	gap=33	gapStart=18	gapEnd=51	longtasks=-	load1=1.4/1.4
+  B.b3.c7a-preview.control.probe.search	gap=60	gapStart=-11	gapEnd=49	longtasks=-	load1=1.4/1.4
+  B.b3.c7a-preview.control.probe.med	gap=45	gapStart=56	gapEnd=101	longtasks=-	load1=1.4/2.65
+  B.b3.c7a-preview.control.probe.notif	gap=33	gapStart=22	gapEnd=55	longtasks=-	load1=2.65/2.65
+  B.b3.c7a-preview.control.probe.care	gap=31	gapStart=15	gapEnd=46	longtasks=-	load1=2.65/2.52
+
+### c7b-hmr-off
+- probe control: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:2/5 b3:1/5; unmeasured 0; max 53
+  gaps: timeline=39 search=44 med=35 notif=30 care=31 timeline=28 search=42 med=36 notif=32 care=53 timeline=33 search=40 med=34 notif=45 care=34
+- probe variant: 5 of 15 over 40 ms (pooled); per batch b1:1/5 b2:1/5 b3:3/5; unmeasured 0; max 52
+  gaps: timeline=41 search=40 med=30 notif=26 care=39 timeline=36 search=30 med=33 notif=48 care=26 timeline=30 search=52 med=41 notif=34 care=42
+  B.b1.c7b-hmr-off.control.probe.timeline	gap=39	gapStart=-2	gapEnd=37	longtasks=-	load1=1.38/1.27
+  B.b1.c7b-hmr-off.control.probe.search	gap=44	gapStart=19	gapEnd=63	longtasks=-	load1=1.27/1.27
+  B.b1.c7b-hmr-off.control.probe.med	gap=35	gapStart=58	gapEnd=93	longtasks=-	load1=1.27/1.27
+  B.b1.c7b-hmr-off.control.probe.notif	gap=30	gapStart=21	gapEnd=51	longtasks=-	load1=1.27/1.17
+  B.b1.c7b-hmr-off.control.probe.care	gap=31	gapStart=15	gapEnd=46	longtasks=-	load1=1.17/1.17
+  B.b2.c7b-hmr-off.control.probe.timeline	gap=28	gapStart=19	gapEnd=47	longtasks=-	load1=1.34/1.55
+  B.b2.c7b-hmr-off.control.probe.search	gap=42	gapStart=-3	gapEnd=39	longtasks=-	load1=1.55/1.55
+  B.b2.c7b-hmr-off.control.probe.med	gap=36	gapStart=54	gapEnd=90	longtasks=-	load1=1.55/1.55
+  B.b2.c7b-hmr-off.control.probe.notif	gap=32	gapStart=21	gapEnd=53	longtasks=-	load1=1.55/1.99
+  B.b2.c7b-hmr-off.control.probe.care	gap=53	gapStart=-2	gapEnd=51	longtasks=-	load1=1.99/1.99
+  B.b3.c7b-hmr-off.control.probe.timeline	gap=33	gapStart=20	gapEnd=53	longtasks=-	load1=2.52/2.52
+  B.b3.c7b-hmr-off.control.probe.search	gap=40	gapStart=50	gapEnd=90	longtasks=-	load1=2.52/2.52
+  B.b3.c7b-hmr-off.control.probe.med	gap=34	gapStart=-3	gapEnd=31	longtasks=-	load1=2.52/2.48
+  B.b3.c7b-hmr-off.control.probe.notif	gap=45	gapStart=-2	gapEnd=43	longtasks=-	load1=2.48/2.48
+  B.b3.c7b-hmr-off.control.probe.care	gap=34	gapStart=19	gapEnd=53	longtasks=-	load1=2.48/2.28
+  B.b1.c7b-hmr-off.variant.probe.timeline	gap=41	gapStart=19	gapEnd=60	longtasks=-	load1=1.17/1.17
+  B.b1.c7b-hmr-off.variant.probe.search	gap=40	gapStart=-2	gapEnd=38	longtasks=-	load1=1.17/1.64
+  B.b1.c7b-hmr-off.variant.probe.med	gap=30	gapStart=58	gapEnd=88	longtasks=-	load1=1.64/1.64
+  B.b1.c7b-hmr-off.variant.probe.notif	gap=26	gapStart=19	gapEnd=45	longtasks=-	load1=1.64/1.59
+  B.b1.c7b-hmr-off.variant.probe.care	gap=39	gapStart=-3	gapEnd=36	longtasks=-	load1=1.59/1.59
+  B.b2.c7b-hmr-off.variant.probe.timeline	gap=36	gapStart=18	gapEnd=54	longtasks=-	load1=1.99/1.83
+  B.b2.c7b-hmr-off.variant.probe.search	gap=30	gapStart=46	gapEnd=76	longtasks=-	load1=1.83/1.83
+  B.b2.c7b-hmr-off.variant.probe.med	gap=33	gapStart=59	gapEnd=92	longtasks=-	load1=1.83/1.83
+  B.b2.c7b-hmr-off.variant.probe.notif	gap=48	gapStart=-2	gapEnd=46	longtasks=-	load1=1.83/1.68
+  B.b2.c7b-hmr-off.variant.probe.care	gap=26	gapStart=18	gapEnd=44	longtasks=-	load1=1.68/1.68
+  B.b3.c7b-hmr-off.variant.probe.timeline	gap=30	gapStart=21	gapEnd=51	longtasks=-	load1=2.28/2.28
+  B.b3.c7b-hmr-off.variant.probe.search	gap=52	gapStart=-2	gapEnd=50	longtasks=-	load1=2.28/2.28
+  B.b3.c7b-hmr-off.variant.probe.med	gap=41	gapStart=39	gapEnd=80	longtasks=-	load1=2.28/2.1
+  B.b3.c7b-hmr-off.variant.probe.notif	gap=34	gapStart=16	gapEnd=50	longtasks=-	load1=2.1/2.1
+  B.b3.c7b-hmr-off.variant.probe.care	gap=42	gapStart=-4	gapEnd=38	longtasks=-	load1=2.1/2.1
+
+### c8-preload
+- probe variant: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 35
+  gaps: timeline=34 search=27 med=32 notif=33 care=35 timeline=30 search=29 med=25 notif=31 care=27 timeline=35 search=31 med=25 notif=30 care=25
+- probe control: 3 of 15 over 40 ms (pooled); per batch b1:2/5 b2:1/5 b3:0/5; unmeasured 0; max 54
+  gaps: timeline=31 search=54 med=30 notif=46 care=28 timeline=44 search=33 med=29 notif=36 care=35 timeline=27 search=34 med=30 notif=30 care=32
+  B.b1.c8-preload.variant.probe.timeline	gap=34	gapStart=38	gapEnd=72	longtasks=-	load1=1.59/1.59
+  B.b1.c8-preload.variant.probe.search	gap=27	gapStart=-23	gapEnd=4	longtasks=-	load1=1.59/1.46
+  B.b1.c8-preload.variant.probe.med	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=1.46/1.46
+  B.b1.c8-preload.variant.probe.notif	gap=33	gapStart=16	gapEnd=49	longtasks=-	load1=1.46/1.34
+  B.b1.c8-preload.variant.probe.care	gap=35	gapStart=-23	gapEnd=12	longtasks=-	load1=1.34/1.34
+  B.b2.c8-preload.variant.probe.timeline	gap=30	gapStart=36	gapEnd=66	longtasks=-	load1=1.68/1.55
+  B.b2.c8-preload.variant.probe.search	gap=29	gapStart=-12	gapEnd=17	longtasks=-	load1=1.55/1.55
+  B.b2.c8-preload.variant.probe.med	gap=25	gapStart=-2	gapEnd=23	longtasks=-	load1=1.55/1.55
+  B.b2.c8-preload.variant.probe.notif	gap=31	gapStart=38	gapEnd=69	longtasks=-	load1=1.55/1.42
+  B.b2.c8-preload.variant.probe.care	gap=27	gapStart=36	gapEnd=63	longtasks=-	load1=1.42/1.42
+  B.b3.c8-preload.variant.probe.timeline	gap=35	gapStart=16	gapEnd=51	longtasks=-	load1=2.1/2.41
+  B.b3.c8-preload.variant.probe.search	gap=31	gapStart=-3	gapEnd=28	longtasks=-	load1=2.41/2.41
+  B.b3.c8-preload.variant.probe.med	gap=25	gapStart=-2	gapEnd=23	longtasks=-	load1=2.41/2.22
+  B.b3.c8-preload.variant.probe.notif	gap=30	gapStart=30	gapEnd=60	longtasks=-	load1=2.22/2.22
+  B.b3.c8-preload.variant.probe.care	gap=25	gapStart=-17	gapEnd=8	longtasks=-	load1=2.22/2.22
+  B.b1.c8-preload.control.probe.timeline	gap=31	gapStart=21	gapEnd=52	longtasks=-	load1=1.34/1.34
+  B.b1.c8-preload.control.probe.search	gap=54	gapStart=-7	gapEnd=47	longtasks=-	load1=1.34/1.23
+  B.b1.c8-preload.control.probe.med	gap=30	gapStart=61	gapEnd=91	longtasks=-	load1=1.23/1.23
+  B.b1.c8-preload.control.probe.notif	gap=46	gapStart=-2	gapEnd=44	longtasks=-	load1=1.23/1.23
+  B.b1.c8-preload.control.probe.care	gap=28	gapStart=18	gapEnd=46	longtasks=-	load1=1.23/1.22
+  B.b2.c8-preload.control.probe.timeline	gap=44	gapStart=-7	gapEnd=37	longtasks=-	load1=1.42/1.31
+  B.b2.c8-preload.control.probe.search	gap=33	gapStart=27	gapEnd=60	longtasks=-	load1=1.31/1.31
+  B.b2.c8-preload.control.probe.med	gap=29	gapStart=58	gapEnd=87	longtasks=-	load1=1.31/1.31
+  B.b2.c8-preload.control.probe.notif	gap=36	gapStart=18	gapEnd=54	longtasks=-	load1=1.31/1.29
+  B.b2.c8-preload.control.probe.care	gap=35	gapStart=20	gapEnd=55	longtasks=-	load1=1.29/1.29
+  B.b3.c8-preload.control.probe.timeline	gap=27	gapStart=19	gapEnd=46	longtasks=-	load1=2.22/2.28
+  B.b3.c8-preload.control.probe.search	gap=34	gapStart=45	gapEnd=79	longtasks=-	load1=2.28/2.28
+  B.b3.c8-preload.control.probe.med	gap=30	gapStart=57	gapEnd=87	longtasks=-	load1=2.28/2.26
+  B.b3.c8-preload.control.probe.notif	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=2.26/2.26
+  B.b3.c8-preload.control.probe.care	gap=32	gapStart=59	gapEnd=91	longtasks=-	load1=2.26/2.26
+
+### c9-reduced
+- probe control: 1 of 15 over 40 ms (pooled); per batch b1:0/5 b2:1/5 b3:0/5; unmeasured 0; max 53
+  gaps: timeline=29 search=36 med=40 notif=40 care=40 timeline=31 search=53 med=33 notif=29 care=32 timeline=31 search=34 med=39 notif=28 care=33
+- probe variant: 6 of 15 over 40 ms (pooled); per batch b1:2/5 b2:2/5 b3:2/5; unmeasured 0; max 58
+  gaps: timeline=29 search=44 med=42 notif=40 care=28 timeline=40 search=44 med=31 notif=48 care=28 timeline=40 search=58 med=35 notif=29 care=49
+  B.b1.c9-reduced.control.probe.timeline	gap=29	gapStart=19	gapEnd=48	longtasks=-	load1=1.22/1.22
+  B.b1.c9-reduced.control.probe.search	gap=36	gapStart=20	gapEnd=56	longtasks=-	load1=1.22/1.12
+  B.b1.c9-reduced.control.probe.med	gap=40	gapStart=38	gapEnd=78	longtasks=-	load1=1.12/1.12
+  B.b1.c9-reduced.control.probe.notif	gap=40	gapStart=-2	gapEnd=38	longtasks=-	load1=1.12/1.12
+  B.b1.c9-reduced.control.probe.care	gap=40	gapStart=19	gapEnd=59	longtasks=-	load1=1.12/1.03
+  B.b2.c9-reduced.control.probe.timeline	gap=31	gapStart=50	gapEnd=81	longtasks=-	load1=1.29/1.29
+  B.b2.c9-reduced.control.probe.search	gap=53	gapStart=-2	gapEnd=51	longtasks=-	load1=1.29/1.18
+  B.b2.c9-reduced.control.probe.med	gap=33	gapStart=59	gapEnd=92	longtasks=-	load1=1.18/1.18
+  B.b2.c9-reduced.control.probe.notif	gap=29	gapStart=19	gapEnd=48	longtasks=-	load1=1.18/1.18
+  B.b2.c9-reduced.control.probe.care	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=1.18/1.49
+  B.b3.c9-reduced.control.probe.timeline	gap=31	gapStart=19	gapEnd=50	longtasks=-	load1=2.26/2.08
+  B.b3.c9-reduced.control.probe.search	gap=34	gapStart=24	gapEnd=58	longtasks=-	load1=2.08/2.08
+  B.b3.c9-reduced.control.probe.med	gap=39	gapStart=54	gapEnd=93	longtasks=-	load1=2.08/2.08
+  B.b3.c9-reduced.control.probe.notif	gap=28	gapStart=21	gapEnd=49	longtasks=-	load1=2.08/2.39
+  B.b3.c9-reduced.control.probe.care	gap=33	gapStart=19	gapEnd=52	longtasks=-	load1=2.39/2.39
+  B.b1.c9-reduced.variant.probe.timeline	gap=29	gapStart=46	gapEnd=75	longtasks=-	load1=1.03/1.03
+  B.b1.c9-reduced.variant.probe.search	gap=44	gapStart=-8	gapEnd=36	longtasks=-	load1=1.03/1.03
+  B.b1.c9-reduced.variant.probe.med	gap=42	gapStart=38	gapEnd=80	longtasks=-	load1=1.03/1.27
+  B.b1.c9-reduced.variant.probe.notif	gap=40	gapStart=-1	gapEnd=39	longtasks=-	load1=1.27/1.27
+  B.b1.c9-reduced.variant.probe.care	gap=28	gapStart=18	gapEnd=46	longtasks=-	load1=1.27/1.16
+  B.b2.c9-reduced.variant.probe.timeline	gap=40	gapStart=-4	gapEnd=36	longtasks=-	load1=1.49/1.49
+  B.b2.c9-reduced.variant.probe.search	gap=44	gapStart=-7	gapEnd=37	longtasks=-	load1=1.49/1.53
+  B.b2.c9-reduced.variant.probe.med	gap=31	gapStart=59	gapEnd=90	longtasks=-	load1=1.53/1.53
+  B.b2.c9-reduced.variant.probe.notif	gap=48	gapStart=-1	gapEnd=47	longtasks=-	load1=1.53/1.53
+  B.b2.c9-reduced.variant.probe.care	gap=28	gapStart=23	gapEnd=51	longtasks=-	load1=1.53/1.41
+  B.b3.c9-reduced.variant.probe.timeline	gap=40	gapStart=-6	gapEnd=34	longtasks=-	load1=2.39/2.2
+  B.b3.c9-reduced.variant.probe.search	gap=58	gapStart=-4	gapEnd=54	longtasks=-	load1=2.2/2.2
+  B.b3.c9-reduced.variant.probe.med	gap=35	gapStart=20	gapEnd=55	longtasks=-	load1=2.2/2.2
+  B.b3.c9-reduced.variant.probe.notif	gap=29	gapStart=13	gapEnd=42	longtasks=-	load1=2.2/2.26
+  B.b3.c9-reduced.variant.probe.care	gap=49	gapStart=-3	gapEnd=46	longtasks=-	load1=2.26/2.26
+
+### s1-bare-nowait
+- bare variant: 4 of 15 over 40 ms (pooled); per batch b1:2/5 b2:1/5 b3:1/5; unmeasured 0; max 51
+  gaps: timeline=32 search=51 med=44 notif=29 care=28 timeline=29 search=34 med=42 notif=31 care=28 timeline=33 search=20 med=42 notif=27 care=39
+- bare control: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 38
+  gaps: timeline=30 search=30 med=26 notif=30 care=38 timeline=26 search=36 med=24 notif=31 care=32 timeline=36 search=37 med=26 notif=33 care=32
+  B.b1.s1-bare-nowait.variant.bare.timeline	gap=32	gapStart=19	gapEnd=51	longtasks=-	load1=1.16/1.16
+  B.b1.s1-bare-nowait.variant.bare.search	gap=51	gapStart=19	gapEnd=70	longtasks=-	load1=1.16/1.16
+  B.b1.s1-bare-nowait.variant.bare.med	gap=44	gapStart=39	gapEnd=83	longtasks=-	load1=1.16/1.63
+  B.b1.s1-bare-nowait.variant.bare.notif	gap=29	gapStart=21	gapEnd=50	longtasks=-	load1=1.63/1.63
+  B.b1.s1-bare-nowait.variant.bare.care	gap=28	gapStart=22	gapEnd=50	longtasks=-	load1=1.63/1.82
+  B.b2.s1-bare-nowait.variant.bare.timeline	gap=29	gapStart=21	gapEnd=49	longtasks=-	load1=1.41/1.41
+  B.b2.s1-bare-nowait.variant.bare.search	gap=34	gapStart=1098	gapEnd=1132	longtasks=-	load1=1.41/1.29
+  B.b2.s1-bare-nowait.variant.bare.med	gap=42	gapStart=39	gapEnd=81	longtasks=-	load1=1.29/1.29
+  B.b2.s1-bare-nowait.variant.bare.notif	gap=31	gapStart=25	gapEnd=56	longtasks=-	load1=1.29/1.29
+  B.b2.s1-bare-nowait.variant.bare.care	gap=28	gapStart=20	gapEnd=48	longtasks=-	load1=1.29/1.19
+  B.b3.s1-bare-nowait.variant.bare.timeline	gap=33	gapStart=19	gapEnd=52	longtasks=-	load1=2.26/2.08
+  B.b3.s1-bare-nowait.variant.bare.search	gap=20	gapStart=79	gapEnd=99	longtasks=-	load1=2.08/2.08
+  B.b3.s1-bare-nowait.variant.bare.med	gap=42	gapStart=39	gapEnd=80	longtasks=-	load1=2.08/2.08
+  B.b3.s1-bare-nowait.variant.bare.notif	gap=27	gapStart=19	gapEnd=46	longtasks=-	load1=2.08/1.99
+  B.b3.s1-bare-nowait.variant.bare.care	gap=39	gapStart=22	gapEnd=61	longtasks=-	load1=1.99/1.99
+  B.b1.s1-bare-nowait.control.bare.timeline	gap=30	gapStart=38	gapEnd=68	longtasks=-	load1=1.82/1.82
+  B.b1.s1-bare-nowait.control.bare.search	gap=30	gapStart=-3	gapEnd=27	longtasks=-	load1=1.82/1.82
+  B.b1.s1-bare-nowait.control.bare.med	gap=26	gapStart=38	gapEnd=64	longtasks=-	load1=2.96/2.96
+  B.b1.s1-bare-nowait.control.bare.notif	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=2.96/2.96
+  B.b1.s1-bare-nowait.control.bare.care	gap=38	gapStart=17	gapEnd=55	longtasks=-	load1=2.96/2.72
+  B.b2.s1-bare-nowait.control.bare.timeline	gap=26	gapStart=37	gapEnd=63	longtasks=-	load1=1.19/1.19
+  B.b2.s1-bare-nowait.control.bare.search	gap=36	gapStart=-2	gapEnd=34	longtasks=-	load1=1.19/1.09
+  B.b2.s1-bare-nowait.control.bare.med	gap=24	gapStart=37	gapEnd=62	longtasks=-	load1=1.09/1.09
+  B.b2.s1-bare-nowait.control.bare.notif	gap=31	gapStart=19	gapEnd=50	longtasks=-	load1=1.09/1.09
+  B.b2.s1-bare-nowait.control.bare.care	gap=32	gapStart=17	gapEnd=49	longtasks=-	load1=1.09/1.09
+  B.b3.s1-bare-nowait.control.bare.timeline	gap=36	gapStart=17	gapEnd=53	longtasks=-	load1=1.99/1.83
+  B.b3.s1-bare-nowait.control.bare.search	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.83/1.83
+  B.b3.s1-bare-nowait.control.bare.med	gap=26	gapStart=38	gapEnd=64	longtasks=-	load1=1.83/1.83
+  B.b3.s1-bare-nowait.control.bare.notif	gap=33	gapStart=14	gapEnd=47	longtasks=-	load1=1.83/2.01
+  B.b3.s1-bare-nowait.control.bare.care	gap=32	gapStart=39	gapEnd=70	longtasks=-	load1=2.01/2.01
+
+### s3-bare-guard
+- bare control: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 36
+  gaps: timeline=32 search=29 med=28 notif=25 care=36 timeline=35 search=31 med=24 notif=30 care=33 timeline=30 search=33 med=25 notif=35 care=36
+- bare variant: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 36
+  gaps: timeline=36 search=27 med=25 notif=33 care=27 timeline=33 search=33 med=35 notif=26 care=33 timeline=35 search=26 med=22 notif=33 care=33
+  B.b1.s3-bare-guard.control.bare.timeline	gap=32	gapStart=39	gapEnd=71	longtasks=-	load1=2.72/2.72
+  B.b1.s3-bare-guard.control.bare.search	gap=29	gapStart=-2	gapEnd=27	longtasks=-	load1=2.72/2.5
+  B.b1.s3-bare-guard.control.bare.med	gap=28	gapStart=39	gapEnd=66	longtasks=-	load1=2.5/2.5
+  B.b1.s3-bare-guard.control.bare.notif	gap=25	gapStart=38	gapEnd=63	longtasks=-	load1=2.5/2.5
+  B.b1.s3-bare-guard.control.bare.care	gap=36	gapStart=18	gapEnd=54	longtasks=-	load1=2.5/2.62
+  B.b2.s3-bare-guard.control.bare.timeline	gap=35	gapStart=18	gapEnd=52	longtasks=-	load1=1.09/1.09
+  B.b2.s3-bare-guard.control.bare.search	gap=31	gapStart=-2	gapEnd=28	longtasks=-	load1=1.09/1
+  B.b2.s3-bare-guard.control.bare.med	gap=24	gapStart=37	gapEnd=62	longtasks=-	load1=1/1
+  B.b2.s3-bare-guard.control.bare.notif	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=1/0.92
+  B.b2.s3-bare-guard.control.bare.care	gap=33	gapStart=18	gapEnd=52	longtasks=-	load1=0.92/0.92
+  B.b3.s3-bare-guard.control.bare.timeline	gap=30	gapStart=18	gapEnd=48	longtasks=-	load1=2.01/1.85
+  B.b3.s3-bare-guard.control.bare.search	gap=33	gapStart=-3	gapEnd=30	longtasks=-	load1=1.85/1.85
+  B.b3.s3-bare-guard.control.bare.med	gap=25	gapStart=38	gapEnd=63	longtasks=-	load1=1.85/1.78
+  B.b3.s3-bare-guard.control.bare.notif	gap=35	gapStart=17	gapEnd=53	longtasks=-	load1=1.78/1.78
+  B.b3.s3-bare-guard.control.bare.care	gap=36	gapStart=18	gapEnd=53	longtasks=-	load1=1.78/1.78
+  B.b1.s3-bare-guard.variant.bare.timeline	gap=36	gapStart=18	gapEnd=54	longtasks=-	load1=2.62/2.62
+  B.b1.s3-bare-guard.variant.bare.search	gap=27	gapStart=-2	gapEnd=24	longtasks=-	load1=2.62/2.41
+  B.b1.s3-bare-guard.variant.bare.med	gap=25	gapStart=38	gapEnd=63	longtasks=-	load1=2.41/2.41
+  B.b1.s3-bare-guard.variant.bare.notif	gap=33	gapStart=39	gapEnd=71	longtasks=-	load1=2.41/2.22
+  B.b1.s3-bare-guard.variant.bare.care	gap=27	gapStart=38	gapEnd=65	longtasks=-	load1=2.22/2.22
+  B.b2.s3-bare-guard.variant.bare.timeline	gap=33	gapStart=38	gapEnd=70	longtasks=-	load1=0.92/0.92
+  B.b2.s3-bare-guard.variant.bare.search	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=0.92/0.85
+  B.b2.s3-bare-guard.variant.bare.med	gap=35	gapStart=38	gapEnd=73	longtasks=-	load1=0.85/0.85
+  B.b2.s3-bare-guard.variant.bare.notif	gap=26	gapStart=38	gapEnd=63	longtasks=-	load1=0.85/0.78
+  B.b2.s3-bare-guard.variant.bare.care	gap=33	gapStart=37	gapEnd=70	longtasks=-	load1=0.78/0.78
+  B.b3.s3-bare-guard.variant.bare.timeline	gap=35	gapStart=18	gapEnd=53	longtasks=-	load1=1.78/1.72
+  B.b3.s3-bare-guard.variant.bare.search	gap=26	gapStart=-2	gapEnd=23	longtasks=-	load1=1.72/1.72
+  B.b3.s3-bare-guard.variant.bare.med	gap=22	gapStart=38	gapEnd=60	longtasks=-	load1=1.72/1.58
+  B.b3.s3-bare-guard.variant.bare.notif	gap=33	gapStart=18	gapEnd=50	longtasks=-	load1=1.58/1.58
+  B.b3.s3-bare-guard.variant.bare.care	gap=33	gapStart=37	gapEnd=71	longtasks=-	load1=1.58/1.58
+

@@ -8,24 +8,39 @@
  */
 
 import { Suspense, lazy, type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useResolvedPath } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Skeleton } from './components/ui';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Layout
 import { AppLayout } from './components/layout';
 import { ProtectedRoute } from './components/auth';
 
-// Eager pages
-import { ProfileSetup, DocumentInbox, VerificationWorkbench, SettingsPage } from './pages';
+// First-run page (not lazy: it is the entry point before a profile exists).
+// Imported from its module, not the './pages' barrel, so the lazy pages below
+// are not also statically imported into the main chunk.
+import { ProfileSetup } from './pages/ProfileSetup';
 
-const TrendsDashboard = lazy(async () => {
-  const module = await import('./pages/TrendsDashboard');
-  return { default: module.TrendsDashboard };
+const OverviewPage = lazy(async () => {
+  const module = await import('./pages/OverviewPage');
+  return { default: module.OverviewPage };
 });
-const LabInterpreter = lazy(async () => {
-  const module = await import('./pages/LabInterpreter');
-  return { default: module.LabInterpreter };
+const DocumentInbox = lazy(async () => {
+  const module = await import('./pages/DocumentInbox');
+  return { default: module.DocumentInbox };
+});
+const VerificationWorkbench = lazy(async () => {
+  const module = await import('./pages/VerificationWorkbench');
+  return { default: module.VerificationWorkbench };
+});
+const SettingsPage = lazy(async () => {
+  const module = await import('./pages/SettingsPage');
+  return { default: module.SettingsPage };
+});
+const ResultsPage = lazy(async () => {
+  const module = await import('./pages/ResultsPage');
+  return { default: module.ResultsPage };
 });
 const MedicationCoach = lazy(async () => {
   const module = await import('./pages/MedicationCoach');
@@ -68,6 +83,11 @@ const RecoverProfile = lazy(async () => {
   return { default: module.RecoverProfile };
 });
 
+const AboutPage = lazy(async () => {
+  const module = await import('./pages/AboutPage');
+  return { default: module.AboutPage };
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -94,8 +114,116 @@ function RouteFallback() {
   );
 }
 
-function lazyRoute(element: ReactNode) {
-  return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
+// Content-shaped fallbacks for the lazy pages a user lands on, so the swap to
+// the loaded page does not move the layout (G2). Each approximates its page's
+// header and main area. Settings uses the same shape as the page's own loading state.
+// No motion: the fallback is shown while the page loads, not as a transition.
+
+function InboxFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <Skeleton className="h-10 w-44 rounded-xl" />
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-20 rounded-2xl" />
+        <Skeleton className="h-20 rounded-2xl" />
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
+// The Overview page's own loading shape (a header and three cards), so the swap to the loaded page does not move
+// the layout (G2).
+function OverviewFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-4 w-72 max-w-full" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
+function VerifyFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Skeleton className="h-96 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-96 rounded-2xl" />
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
+function SettingsFallback() {
+  return (
+    <div className="space-y-6" role="status" aria-live="polite">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Skeleton className="h-40 rounded-2xl" />
+          <Skeleton className="h-40 rounded-2xl" />
+          <Skeleton className="h-80 rounded-2xl" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-48 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
+        </div>
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
+
+/**
+ * Error boundary for one route. Keyed by the route's own path, so navigating to
+ * another page remounts it and clears a caught error.
+ */
+function RouteBoundary({ children }: { children: ReactNode }) {
+  // The route's own path, not the live location. AppLayout keeps the exiting page
+  // mounted while it fades out, and that page must keep its key or it remounts.
+  const { pathname } = useResolvedPath('.');
+  return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>;
+}
+
+/**
+ * /trends and /interpret were folded into /results (UI-PG-RESULTS). The query string (?analyte=) is kept and the
+ * entry is replaced, so Back does not return to the redirect. /interpret opens Explain, by router state, so its
+ * URL is exactly /results.
+ */
+function RedirectToResults({ explain = false }: { explain?: boolean }) {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: '/results', search }} replace state={explain ? { explain: true } : undefined} />;
+}
+
+function lazyRoute(element: ReactNode, fallback: ReactNode = <RouteFallback />) {
+  return (
+    <RouteBoundary>
+      <Suspense fallback={fallback}>{element}</Suspense>
+    </RouteBoundary>
+  );
 }
 
 function App() {
@@ -104,21 +232,26 @@ function App() {
       <BrowserRouter>
         <Routes>
           {/* First run / no profile */}
-          <Route path="/setup" element={<ProfileSetup />} />
+          <Route path="/setup" element={<RouteBoundary><ProfileSetup /></RouteBoundary>} />
 
           {/* Forgot password -> recovery code (SEC-RECOV-001) */}
           <Route path="/recover" element={lazyRoute(<RecoverProfile />)} />
 
+          {/* Public About page for the demo: no data, no auth, no shell (UI-ABOUT) */}
+          <Route path="/about" element={lazyRoute(<AboutPage />)} />
+
           {/* Protected routes - require authentication */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<AppLayout />}>
-              <Route index element={<Navigate to="/inbox" replace />} />
-              <Route path="inbox" element={<DocumentInbox />} />
-              <Route path="verify" element={<VerificationWorkbench />} />
-              <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
+              <Route index element={<Navigate to="/overview" replace />} />
+              <Route path="overview" element={lazyRoute(<OverviewPage />, <OverviewFallback />)} />
+              <Route path="inbox" element={lazyRoute(<DocumentInbox />, <InboxFallback />)} />
+              <Route path="verify" element={lazyRoute(<VerificationWorkbench />, <VerifyFallback />)} />
+              <Route path="results" element={lazyRoute(<ResultsPage />)} />
+              <Route path="trends" element={<RedirectToResults />} />
               <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
               <Route path="search" element={lazyRoute(<SearchPage />)} />
-              <Route path="interpret" element={lazyRoute(<LabInterpreter />)} />
+              <Route path="interpret" element={<RedirectToResults explain />} />
               <Route path="medications" element={lazyRoute(<MedicationCoach />)} />
               <Route path="medications/:medicationId" element={lazyRoute(<MedicationDetail />)} />
               <Route path="notifications" element={lazyRoute(<NotificationSettings />)} />
@@ -126,7 +259,7 @@ function App() {
               <Route path="pinboards" element={lazyRoute(<PinboardsPage />)} />
               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
               <Route path="export" element={lazyRoute(<ExportPage />)} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings" element={lazyRoute(<SettingsPage />, <SettingsFallback />)} />
             </Route>
           </Route>
 

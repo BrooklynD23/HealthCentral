@@ -1,6 +1,6 @@
 # Performance & Scalability Review
 
-**Last Updated:** 2026-07-27
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: finding 2 updated for the 30-minute export TTL)
 **Owner:** Project Lead
 **Refresh Trigger:** A hot path changes, or any limit below is hit in practice
 
@@ -51,22 +51,24 @@ migration. This stays entirely inside the encrypted vault, so it costs nothing
 in privacy terms. Deferred because it needs a profile migration and a
 correctness story for rebuilds after restore — not because it is hard.
 
-### 2. In-memory stores with no TTL — visit-prep packets, doctor summaries, FHIR exports
+### 2. In-memory export stores — visit-prep packets, doctor summaries, FHIR exports
 
-**Status: known, admitted in PR #17, unchanged.**
+**Status: mitigated since PR #17 (EXPORT-STORE-PURGE, `c1bfeeb7`, 2026-10-23).**
 
-Generated packets are held in process-local dicts keyed by an export id, with
-no expiry and no eviction. In a long-running desktop session, generating many
-exports grows the process heap monotonically until restart.
+Generated packets are still held in process-local dicts keyed by an export id
+(`_summary_store`, `_packet_store`, `_fhir_store` in `api/export.py`). Entries
+now expire after 30 minutes (`_EXPORT_TTL`): `_prune_expired()` runs each time
+a new summary, packet or FHIR export is generated, and
+`purge_profile_exports()` drops a profile's entries on logout, lock and
+profile deletion (`api/profiles.py`). An entry with no `created_at` is treated
+as fresh (L0 ruling noted in the code).
 
-The volumes are small (a packet is text), so this is a slow leak rather than an
-acute one — but it is unbounded, and "the app gets heavier the longer you use
-it" is a real user-visible property.
+What remains: there is no size cap, and pruning happens only on generation, so
+expired entries stay in memory until the next export. Generated packets do not
+survive a restart.
 
-**Fix direction:** a bounded LRU with a TTL, or spill to the vault's `docs/`
-directory with the existing document encryption. The second option also
-survives a restart, which is what users would expect of a generated packet they
-haven't downloaded yet.
+**Fix direction, if it ever matters:** a size bound, or spill to the vault's
+`docs/` directory with the existing document encryption.
 
 ### 3. Timeline is a derived read-model with no materialization — `modules/timeline.py`
 
@@ -164,7 +166,7 @@ kept.
 | # | Finding | Severity | Bounded by | Action |
 |---|---|---|---|---|
 | 1 | FTS index rebuilt per query | **High** at scale | document count | Maintain a real FTS table |
-| 2 | TTL-less in-memory export stores | Medium | session length | LRU + TTL, or spill to vault |
+| 2 | In-memory export stores (30-min TTL, no size cap) | Low | exports per 30 min | Size bound, or spill to vault, if measured |
 | 3 | Timeline not materialized | Low | event count | Measure before changing |
 | 4 | In-process blocking inference | Inherent | — | Accept; it is the local-first trade |
 | 5 | PBKDF2 unlock cost | By design | — | Accept; rate-limit recovery (done) |

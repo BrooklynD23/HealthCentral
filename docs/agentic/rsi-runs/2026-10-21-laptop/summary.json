@@ -1,0 +1,29 @@
+{
+  "run_id": "2026-10-21-local",
+  "machine": "laptop (Danny-Lenovo, WSL, 6 vCPU, no GPU)",
+  "session_flags": "--plugin-dir .claude/mods/asclexis-rsi",
+  "since": "2026-10-21T00:00:00Z",
+  "main_sha_at_run": "35cdb10",
+  "source": "rsi-loop workflow result (run wf_58ac5554-123); the workflow stopped at 'nothing worth proposing', so it wrote no .claude/logs/rsi/summary-*.json; this file is that result, copied verbatim",
+  "clusters": [
+    {"tool": "Bash", "error_class": "exit-code-1 (session-log PostToolUseFailure)", "count": 25, "denied": 0, "retries": 0, "sources": ["session-log"]},
+    {"tool": "Bash", "error_class": "other (rsi-log)", "count": 7, "denied": 0, "retries": 0, "sources": ["rsi-log"]},
+    {"tool": "Bash", "error_class": "exit-code-2 (session-log PostToolUseFailure)", "count": 7, "denied": 0, "retries": 0, "sources": ["session-log"]},
+    {"tool": "Bash", "error_class": "exit-code-144 (session-log PostToolUseFailure)", "count": 3, "denied": 0, "retries": 0, "sources": ["session-log"]},
+    {"tool": "Monitor", "error_class": "timeout (rsi-log)", "count": 1, "denied": 0, "retries": 0, "sources": ["rsi-log"]},
+    {"tool": "Bash", "error_class": "gh-projects-classic (rsi-log)", "count": 1, "denied": 0, "retries": 0, "sources": ["rsi-log"]}
+  ],
+  "candidates": 0,
+  "accepted_prs": [],
+  "rejected": [],
+  "metrics": {
+    "tool_calls": 344,
+    "failure_rate_by_tool": {"Bash": 0.026, "Monitor": 0.143, "Agent": 0, "Workflow": 0, "StructuredOutput": 0, "Read": 0, "SubagentHandback": 0, "Write": 0},
+    "items": 0, "retries": 0, "retries_per_item": 0, "tokens_per_item": null,
+    "previous_summary": "", "previous_failure_rate_by_tool": {}
+  },
+  "note": "nothing worth proposing: the session-log clusters carry no command or stderr text (fixed error classes arrive with #271 RSI-LOG-SESSIONLOG)",
+  "earlier_runs": [
+    {"run_id": "2026-10-21-cloud", "machine": "claude.ai/code cloud container", "tool_calls": 0, "candidates": 0, "note": "mod not loaded (no --plugin-dir); nothing logged; see docs/plans/2026-10-21b-session-handoff.md"}
+  ]
+}

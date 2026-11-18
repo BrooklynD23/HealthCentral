@@ -57,6 +57,7 @@ def get_provider(force_new: bool = False):
             _active_provider = LlamaCppProvider(
                 model_path=None,
                 n_ctx=getattr(settings, "chat_context_size", 4096),
+                n_gpu_layers=getattr(settings, "llm_n_gpu_layers", 0),
             )
     else:
         if provider_name not in ("llama_cpp", "llamacpp", "llama-cpp"):
@@ -69,6 +70,7 @@ def get_provider(force_new: bool = False):
         _active_provider = LlamaCppProvider(
             model_path=llm_model if llm_model else None,
             n_ctx=getattr(settings, "chat_context_size", 4096),
+            n_gpu_layers=getattr(settings, "llm_n_gpu_layers", 0),
         )
 
     return _active_provider
@@ -77,9 +79,11 @@ def get_provider(force_new: bool = False):
 def reset_provider() -> None:
     """Unload and discard the cached provider (for testing / hot-reload)."""
     global _active_provider
-    if _active_provider is not None:
+    # Detach first: unload() can wait on a running generation, and new
+    # requests must not get the old instance while it does.
+    old, _active_provider = _active_provider, None
+    if old is not None:
         try:
-            _active_provider.unload()
+            old.unload()
         except Exception:
             pass
-        _active_provider = None

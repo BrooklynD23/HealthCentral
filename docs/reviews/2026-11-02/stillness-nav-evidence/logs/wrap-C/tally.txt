@@ -1,0 +1,14 @@
+### trace
+- probe base: 3 of 10 over 40 ms (pooled); per batch b1:3/10; unmeasured 0; max 43
+  gaps: timeline=31 search=31 med=30 notif=38 care=43 timeline=38 search=35 med=32 notif=42 care=42
+  C.b1.trace.base.probe.timeline.c1	gap=31	gapStart=-25	gapEnd=6	longtasks=-	load1=1.14/1.14
+  C.b1.trace.base.probe.search.c1	gap=31	gapStart=14	gapEnd=45	longtasks=-	load1=1.14/1.04
+  C.b1.trace.base.probe.med.c1	gap=30	gapStart=-7	gapEnd=23	longtasks=-	load1=1.04/1.04
+  C.b1.trace.base.probe.notif.c1	gap=38	gapStart=-33	gapEnd=5	longtasks=-	load1=1.04/0.96
+  C.b1.trace.base.probe.care.c1	gap=43	gapStart=-9	gapEnd=34	longtasks=-	load1=0.96/0.96
+  C.b1.trace.base.probe.timeline.c2	gap=38	gapStart=-7	gapEnd=31	longtasks=-	load1=0.96/0.96
+  C.b1.trace.base.probe.search.c2	gap=35	gapStart=-7	gapEnd=28	longtasks=-	load1=0.96/1.28
+  C.b1.trace.base.probe.med.c2	gap=32	gapStart=-9	gapEnd=23	longtasks=-	load1=1.28/1.28
+  C.b1.trace.base.probe.notif.c2	gap=42	gapStart=-9	gapEnd=33	longtasks=-	load1=1.28/1.18
+  C.b1.trace.base.probe.care.c2	gap=42	gapStart=-8	gapEnd=34	longtasks=-	load1=1.18/1.18
+

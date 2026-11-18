@@ -1,0 +1,23 @@
+=== batch 0 21:42:14
+ 21:42:14 up 1 day,  9:51,  0 user,  load average: 4.76, 3.80, 3.16
+pgrep:
+1190110 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1792983446957-g5t0tf.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b8becc8c-4942-444f-9c3c-2a03f3900e75' export CLAUDE_PLUGIN_DATA='/home/danny/.claude/plugins/data/codex-openai-codex' : && shopt -u extglob 2>/dev/null || true && { \builtin unalias -- 'unsetenv'; \builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'cd "/mnt/e/Programming/Github Repo/hc-rag-timeout-answer/src/backend" && "/mnt/e/Programming/Github Repo/hc-rag-timeout-answer/scripts/pyslot.sh" env HF_HUB_OFFLINE=1 ~/venvs/asclexis-311/bin/python -m pytest tests/test_rag_timeout_answer.py -p no:cacheprovider -q 2>&1 | tail -30; echo "exit=${PIPESTATUS[0]}"' < /dev/null && pwd -P >| /tmp/claude-1d24-cwd
+1190111 bash /mnt/e/Programming/Github Repo/hc-rag-timeout-answer/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_rag_timeout_answer.py -p no:cacheprovider -q
+1190115 flock -n -E 75 /tmp/claude-1000/hc-pytest.1.lock env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_rag_timeout_answer.py -p no:cacheprovider -q
+1190116 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_rag_timeout_answer.py -p no:cacheprovider -q
+MEAS	branch-dev	/timeline	0	30	ticks=77	longtasks=[]	path=/timeline
+MEAS	main-dev	/timeline	0	30	ticks=77	longtasks=[]	path=/timeline
+MEAS	branch-preview	/timeline	0	32	ticks=77	longtasks=[]	path=/timeline
+MEAS	branch-dev	/search	0	30	ticks=76	longtasks=[]	path=/search
+MEAS	main-dev	/search	0	29	ticks=76	longtasks=[]	path=/search
+MEAS	branch-preview	/search	0	36	ticks=76	longtasks=[]	path=/search
+MEAS	branch-dev	/medications/med-fixture-1	0	25	ticks=75	longtasks=[]	path=/medications/med-fixture-1
+MEAS	main-dev	/medications/med-fixture-1	0	29	ticks=75	longtasks=[]	path=/medications/med-fixture-1
+MEAS	branch-preview	/medications/med-fixture-1	0	23	ticks=75	longtasks=[]	path=/medications/med-fixture-1
+MEAS	branch-dev	/notifications	0	33	ticks=77	longtasks=[]	path=/notifications
+MEAS	main-dev	/notifications	0	36	ticks=77	longtasks=[]	path=/notifications
+MEAS	branch-preview	/notifications	0	28	ticks=77	longtasks=[]	path=/notifications
+MEAS	branch-dev	/care-tasks	0	32	ticks=77	longtasks=[]	path=/care-tasks
+MEAS	main-dev	/care-tasks	0	30	ticks=77	longtasks=[]	path=/care-tasks
+MEAS	branch-preview	/care-tasks	0	31	ticks=77	longtasks=[]	path=/care-tasks
+[1A[2K  15 passed (38.2s)

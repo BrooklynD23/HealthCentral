@@ -8,8 +8,11 @@
 # Windows mount is slow, file watching is unreliable, and Windows and Linux
 # cannot share the venv or node_modules. Set HC_ALLOW_WINDOWS_MOUNT=1 to override.
 # Set HC_SKIP_OCR_SETUP=1 to leave OCR_ENABLED in src/backend/.env untouched.
-# Set HC_DEV_STOP_AFTER_DEPS=1 to exit 0 right after the Python dependency step
-# (test hook; nothing after pip runs).
+# Set HC_ALLOW_UNENCRYPTED=1 to keep going when SQLCipher cannot be installed or fails its
+# file probe (development only, like dev.ps1). Without it dev.sh stops, so health data is
+# never stored unencrypted.
+# Set HC_DEV_STOP_AFTER_DEPS=1 to exit 0 right after the Python dependency step and the
+# SQLCipher file probe (test hook; nothing after them runs).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -26,6 +29,14 @@ status() { printf '  [*] %s\n' "$*"; }
 ok()     { printf '  [+] %s\n' "$*"; }
 warn()   { printf '  [!] %s\n' "$*" >&2; }
 die()    { printf '  [-] %s\n' "$*" >&2; exit 1; }
+# Same wording as dev.ps1's red banner (HC_ALLOW_UNENCRYPTED=1 only).
+unencrypted_banner() {
+  printf '\n  ============================================================\n' >&2
+  printf '   HC_ALLOW_UNENCRYPTED=1: SQLCipher could not be set up.\n' >&2
+  printf '   Your health data will NOT be encrypted on this computer.\n' >&2
+  printf '   Development only. Do not store real patient data.\n' >&2
+  printf '  ============================================================\n\n' >&2
+}
 
 # Same contract as dev.ps1 Set-DotEnvKey: replace the first KEY= line, drop
 # duplicates, append (after a blank line) when absent.
@@ -119,7 +130,23 @@ if [ -z "$PROVIDER" ]; then
 fi
 REQ_FILE="$BACKEND_DIR/requirements.txt"
 NOCC_FILTERED=""
-if [ -z "$COMPILER" ]; then
+# llama-cpp-python: install the pinned prebuilt CPU wheel first, so no C++ toolchain is needed.
+# The source build (and the compiler check below) applies only when this step is skipped
+# (CMAKE_ARGS set) or finds no wheel for this platform.
+LLAMA_PIN="$(sed -n 's/^[[:space:]]*llama-cpp-python==\([^[:space:];#]*\).*/\1/p' "$REQ_FILE" | head -n 1)"
+LLAMA_WHEEL_OK=0
+if [ -n "${CMAKE_ARGS:-}" ]; then
+  status "CMAKE_ARGS is set: skipping the prebuilt llama-cpp-python wheel (pip builds it from source)"
+elif [ -n "$LLAMA_PIN" ]; then
+  status "Installing llama-cpp-python $LLAMA_PIN from the prebuilt wheel index ..."
+  if "$VENV_PY" -m pip install --only-binary=llama-cpp-python --index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "llama-cpp-python==$LLAMA_PIN" --no-deps >"$LOG_DIR/dev-llama-wheel.log" 2>&1; then
+    LLAMA_WHEEL_OK=1
+    ok "llama-cpp-python $LLAMA_PIN is ready (prebuilt wheel)"
+  else
+    warn "No prebuilt llama-cpp-python $LLAMA_PIN wheel was installed (no wheel for this platform, or the index is unreachable; log: logs/dev-llama-wheel.log); pip will try a source build"
+  fi
+fi
+if [ "$LLAMA_WHEEL_OK" = "0" ] && [ -z "$COMPILER" ]; then
   if [ "$PROVIDER" = "ollama" ]; then
     warn "llama-cpp-python skipped: no C compiler; LLM_PROVIDER=ollama does not need it"
     NOCC_FILTERED="$(mktemp)"
@@ -132,10 +159,17 @@ fi
 status "Installing Python dependencies (log: logs/dev-pip.log) ..."
 "$VENV_PY" -m pip install --upgrade pip --quiet >/dev/null 2>&1 || true
 SQLCIPHER_AVAILABLE=1
+ALLOW_UNENCRYPTED=0
+[ "${HC_ALLOW_UNENCRYPTED:-}" != "1" ] || ALLOW_UNENCRYPTED=1
 PIP_LOG="$LOG_DIR/dev-pip.log"
 if ! "$VENV_PY" -m pip install -r "$REQ_FILE" >"$PIP_LOG" 2>&1; then
   if grep -qi sqlcipher "$PIP_LOG"; then
-    warn "SQLCipher could not be installed (Debian/Ubuntu: sudo apt install libsqlcipher-dev, then re-run)."
+    if [ "$ALLOW_UNENCRYPTED" != "1" ]; then
+      [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
+      tail -n 15 "$PIP_LOG" >&2
+      die "SQLCipher could not be installed (Debian/Ubuntu: sudo apt install libsqlcipher-dev; macOS: brew install sqlcipher). dev.sh stopped so your health data is never stored unencrypted; .env was not changed. For development only, set HC_ALLOW_UNENCRYPTED=1 to continue without encryption."
+    fi
+    unencrypted_banner
     status "Installing remaining dependencies without SQLCipher ..."
     SQLCIPHER_AVAILABLE=0
     FILTERED="$(mktemp)"
@@ -152,7 +186,31 @@ else
   ok "Python dependencies installed"
 fi
 [ -z "$NOCC_FILTERED" ] || rm -f "$NOCC_FILTERED"
+# A module can import and still not encrypt: prove it writes ciphertext (same probe as dev.ps1).
+# Inside an if, so a failing probe reaches the branch and not set -e.
+if [ "$SQLCIPHER_AVAILABLE" = "1" ]; then
+  status "Checking that SQLCipher really encrypts a file (log: logs/dev-sqlcipher-probe.log) ..."
+  PROBE_LOG="$LOG_DIR/dev-sqlcipher-probe.log"
+  if "$VENV_PY" "$ROOT_DIR/scripts/check_sqlcipher.py" --file-probe >"$PROBE_LOG" 2>&1; then
+    ok "SQLCipher is ready (file probe passed)"
+  elif [ "$ALLOW_UNENCRYPTED" = "1" ]; then
+    unencrypted_banner
+    SQLCIPHER_AVAILABLE=0
+  else
+    tail -n 12 "$PROBE_LOG" >&2
+    die "SQLCipher is installed but did not pass its file probe (log: $PROBE_LOG). dev.sh stopped so your health data is never stored unencrypted; .env was not changed. For development only, set HC_ALLOW_UNENCRYPTED=1 to continue without encryption."
+  fi
+fi
 [ "${HC_DEV_STOP_AFTER_DEPS:-}" != "1" ] || { status "HC_DEV_STOP_AFTER_DEPS=1 set; stopping after dependencies."; exit 0; }
+
+# --- STEP 3a: embedding model (document chunks need it) ----------------------
+# The backend loads it offline and never downloads it; this is the one fetch (about 88 MB, once).
+# Already installed: download_models.py says so and makes no network call.
+status "Checking the embedding model ..."
+if ! (cd "$BACKEND_DIR" && "$VENV_PY" scripts/download_models.py embedding); then
+  die "The embedding model is missing and could not be fetched (it needs internet once, about 88 MB). To retry: cd $BACKEND_DIR && $VENV_PY scripts/download_models.py embedding"
+fi
+ok "Embedding model is ready"
 
 # --- STEP 3b: OCR tools (detect only; no system installs) --------------------
 TESSERACT_OK=0
@@ -160,9 +218,9 @@ if [ "${HC_SKIP_OCR_SETUP:-}" = "1" ]; then
   status "Skipping OCR setup (HC_SKIP_OCR_SETUP=1)."
 else
   if command -v tesseract >/dev/null 2>&1; then TESSERACT_OK=1; ok "Tesseract OCR is available"
-  else warn "Tesseract not found. For scanned PDFs: sudo apt install tesseract-ocr  (macOS: brew install tesseract)"; fi
+  else status "Tesseract not found (optional fallback; the bundled OCR reader is used first). To add it: sudo apt install tesseract-ocr  (macOS: brew install tesseract)"; fi
   if command -v pdftoppm >/dev/null 2>&1; then ok "Poppler (pdftoppm) is available"
-  else warn "pdftoppm not found - scanned PDF OCR may fail. Install: sudo apt install poppler-utils  (macOS: brew install poppler)"; fi
+  else status "pdftoppm not found (optional: only the Tesseract fallback needs it). Install: sudo apt install poppler-utils  (macOS: brew install poppler)"; fi
 fi
 
 # --- STEP 4: .env ------------------------------------------------------------
@@ -176,18 +234,33 @@ if [ ! -f "$ENV_FILE" ]; then
     ok "Created default .env"
   fi
 fi
-# Same as dev.ps1: only when SQLCipher failed to install, flip REQUIRED=true to false.
-if [ "$SQLCIPHER_AVAILABLE" = "0" ] && grep -Eiq 'DATABASE_ENCRYPTION_REQUIRED[[:space:]]*=[[:space:]]*true' "$ENV_FILE"; then
-  TMP_ENV="$(mktemp)"
-  sed -E 's/[Dd][Aa][Tt][Aa][Bb][Aa][Ss][Ee]_[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn]_[Rr][Ee][Qq][Uu][Ii][Rr][Ee][Dd][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee]/DATABASE_ENCRYPTION_REQUIRED=false/g' "$ENV_FILE" >"$TMP_ENV"
-  cat "$TMP_ENV" >"$ENV_FILE" && rm -f "$TMP_ENV"
-  warn "Set DATABASE_ENCRYPTION_REQUIRED=false (SQLCipher not installed)"
+# Same as dev.ps1: the file probe passed, so encryption is required (an older dev.sh may have
+# left false). Only HC_ALLOW_UNENCRYPTED=1 (see STEP 3) ever writes false.
+if [ "$SQLCIPHER_AVAILABLE" = "1" ]; then
+  WAS_FALSE=0
+  if grep -Eiq '^[[:space:]]*DATABASE_ENCRYPTION_REQUIRED[[:space:]]*=[[:space:]]*false' "$ENV_FILE"; then WAS_FALSE=1; fi
+  set_env_key "$ENV_FILE" DATABASE_ENCRYPTION_REQUIRED true
+  if [ "$WAS_FALSE" = "1" ]; then ok "Set DATABASE_ENCRYPTION_REQUIRED=true (SQLCipher file probe passed)"; fi
+else
+  if grep -Eiq 'DATABASE_ENCRYPTION_REQUIRED[[:space:]]*=[[:space:]]*true' "$ENV_FILE"; then
+    TMP_ENV="$(mktemp)"
+    sed -E 's/[Dd][Aa][Tt][Aa][Bb][Aa][Ss][Ee]_[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn]_[Rr][Ee][Qq][Uu][Ii][Rr][Ee][Dd][[:space:]]*=[[:space:]]*[Tt][Rr][Uu][Ee]/DATABASE_ENCRYPTION_REQUIRED=false/g' "$ENV_FILE" >"$TMP_ENV"
+    cat "$TMP_ENV" >"$ENV_FILE" && rm -f "$TMP_ENV"
+    warn "Set DATABASE_ENCRYPTION_REQUIRED=false (HC_ALLOW_UNENCRYPTED=1): vaults will NOT be encrypted"
+  fi
 fi
 if [ "${HC_SKIP_OCR_SETUP:-}" != "1" ]; then
-  if [ "$TESSERACT_OK" = "1" ]; then
+  # RapidOCR ships in the backend venv and is read first; Tesseract is the fallback.
+  RAPIDOCR_OK=0
+  if (cd "$BACKEND_DIR" && "$VENV_PY" -c "from modules.extract import rapidocr_ready; raise SystemExit(0 if rapidocr_ready() else 1)") >/dev/null 2>&1; then RAPIDOCR_OK=1; fi
+  if [ "$RAPIDOCR_OK" = "1" ] && [ "$TESSERACT_OK" = "1" ]; then
+    set_env_key "$ENV_FILE" OCR_ENABLED true; ok "Synced .env: OCR_ENABLED=true (RapidOCR and Tesseract found)"
+  elif [ "$RAPIDOCR_OK" = "1" ]; then
+    set_env_key "$ENV_FILE" OCR_ENABLED true; ok "Synced .env: OCR_ENABLED=true (RapidOCR found)"
+  elif [ "$TESSERACT_OK" = "1" ]; then
     set_env_key "$ENV_FILE" OCR_ENABLED true; ok "Synced .env: OCR_ENABLED=true (Tesseract on PATH)"
   else
-    set_env_key "$ENV_FILE" OCR_ENABLED false; warn "Synced .env: OCR_ENABLED=false (Tesseract not detected - install and re-run dev.sh)"
+    set_env_key "$ENV_FILE" OCR_ENABLED false; warn "Synced .env: OCR_ENABLED=false (neither RapidOCR nor Tesseract found - re-run dev.sh after installing dependencies)"
   fi
 fi
 ok ".env is ready"

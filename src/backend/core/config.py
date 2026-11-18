@@ -80,7 +80,6 @@ class Settings(BaseSettings):
 
     # Security headers (OPS-003)
     security_headers_enabled: bool = True
-    audit_security_events_to_db: bool = False
 
     # Monitoring (OPS-001)
     metrics_enabled: bool = True
@@ -108,6 +107,10 @@ class Settings(BaseSettings):
     #   llama_cpp:  path to a .gguf file (empty = auto-detect from models_path)
     #   ollama:     Ollama model tag, e.g. "gemma4:12b", "gemma4:e4b", "gemma4:26b"
     llm_model: str = ""
+
+    # llm_n_gpu_layers: llama_cpp only. Layers to offload to the GPU (env
+    # LLM_N_GPU_LAYERS). 0 = CPU only; -1 = all layers. Non-zero needs a GPU build.
+    llm_n_gpu_layers: int = 0
 
     # Ollama base URL. Must be localhost. validate_startup does not check it; the
     # model-settings API asserts it via _assert_localhost. core/llm/factory.py does
@@ -226,10 +229,10 @@ class Settings(BaseSettings):
             except OSError as e:
                 warnings.append(f"Cannot create models directory '{self.models_path}': {e}")
 
-        # Check OCR availability
-        if self.ocr_enabled and not shutil.which("tesseract"):
+        # Check OCR availability (bundled RapidOCR, or Tesseract on PATH)
+        if self.ocr_enabled and not (shutil.which("tesseract") or _rapidocr_ready()):
             warnings.append(
-                "OCR enabled but tesseract not found on PATH; disabling OCR"
+                "OCR enabled but no OCR engine (bundled RapidOCR or Tesseract) is available; disabling OCR"
             )
             self.ocr_enabled = False
 
@@ -290,26 +293,50 @@ def is_tesseract_on_path() -> bool:
     return shutil.which("tesseract") is not None
 
 
+def _rapidocr_ready() -> bool:
+    """True if the bundled RapidOCR engine is usable (lazy import: extract imports config)."""
+    from modules.extract import rapidocr_ready
+
+    return rapidocr_ready()
+
+
+def _rapidocr_installed() -> bool:
+    """True if rapidocr and onnxruntime are both installed. Imports nothing (find_spec on
+    top-level names). The requirements marker leaves onnxruntime out on an Intel Mac."""
+    import importlib.util
+
+    return (
+        importlib.util.find_spec("rapidocr") is not None
+        and importlib.util.find_spec("onnxruntime") is not None
+    )
+
+
+def _ocr_engine_available() -> bool:
+    """An OCR engine is installed: Tesseract on PATH, or bundled RapidOCR."""
+    return is_tesseract_on_path() or _rapidocr_ready()
+
+
 def is_ocr_available() -> bool:
     """
-    Server-level OCR capability: deployment allows OCR and Tesseract is installed.
+    Server-level OCR capability: deployment allows OCR and an engine is installed
+    (bundled RapidOCR, or Tesseract on PATH).
 
-    Startup validation may set ocr_enabled False if Tesseract was missing at boot.
+    Startup validation may set ocr_enabled False if no engine was found at boot.
     Per-profile user preference is handled separately via compute_ocr_effective.
     """
-    return settings.ocr_enabled and is_tesseract_on_path()
+    return settings.ocr_enabled and _ocr_engine_available()
 
 
 def user_ocr_preference_enabled(user_settings: object | None) -> bool:
-    """Default ON when no settings row exists yet."""
+    """Default OFF: OCR runs only after the patient turns it on (no settings row = not chosen)."""
     if user_settings is None:
-        return True
-    return bool(getattr(user_settings, "ocr_preference_enabled", True))
+        return False
+    return bool(getattr(user_settings, "ocr_preference_enabled", False))
 
 
 def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:
     """
-    Effective OCR for a profile: env cap, Tesseract, and user toggle.
+    Effective OCR for a profile: env cap, an OCR engine, and user toggle.
 
     Returns:
         (effective, blockers) where blockers are stable codes for the UI:
@@ -318,9 +345,15 @@ def compute_ocr_effective(user_pref_enabled: bool) -> tuple[bool, list[str]]:
     blockers: list[str] = []
     if not settings.ocr_enabled:
         blockers.append("disabled_by_admin")
-    if not is_tesseract_on_path():
+    # OCR is off by default and this runs on every Settings GET and lab import: only
+    # build the engine (cv2/onnxruntime, ~2 s, +66 MB) when OCR is actually enabled.
+    if settings.ocr_enabled:
+        engine_available = _ocr_engine_available()
+    else:
+        engine_available = is_tesseract_on_path() or _rapidocr_installed()
+    if not engine_available:
         blockers.append("tesseract_missing")
     if not user_pref_enabled:
         blockers.append("user_disabled")
-    effective = settings.ocr_enabled and is_tesseract_on_path() and user_pref_enabled
+    effective = settings.ocr_enabled and engine_available and user_pref_enabled
     return effective, blockers

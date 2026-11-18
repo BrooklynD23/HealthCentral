@@ -4,6 +4,7 @@ Profile management API endpoints.
 Handles profile creation, authentication, and access control.
 """
 
+import asyncio
 import base64
 import os
 import uuid
@@ -14,9 +15,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.export import purge_profile_exports
 from core.database import get_db
 from core.config import settings
 from core.time import utcnow
@@ -32,6 +34,7 @@ from core.security import (
     KeySealingError,
 )
 from core.rate_limiter import auth_rate_limiter, recovery_rate_limiter
+from core.migrations import purge_pre017_snapshot
 from core.profile_database import get_profile_db_manager
 from core.auth import (
     authenticate_profile,
@@ -47,28 +50,37 @@ from core.auth import (
     close_profile_database_on_logout,
     ProfileDbSession,
 )
-from core.audit import audit_intent, create_audit_log, log_profile_event
+from core.audit import audit_and_commit, audit_intent, create_audit_log, log_profile_event
 from models import (
     AdherencePattern,
     AuditLog,
     BackupSchedule,
+    CarePlanTask,
+    ChatSession,
+    ChatTurn,
     Chunk,
+    DonatedRecord,
+    DonationConsent,
     Document,
     DocumentCategory,
     DocumentEntity,
     DoseTaken,
     EarnedBadge,
     Embedding,
+    ExportArtifact,
     LabInterpretation,
     Medication,
     MedicationSchedule,
     MemoryItem,
     Observation,
     PanelInterpretation,
+    Pinboard,
+    PinboardItem,
     Profile,
     ReminderLog,
     UserModelSettings,
 )
+from models.response_feedback import ResponseFeedback
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +90,86 @@ PROFILE_DELETE_CONFIRMATION = "DELETE MY HEALTH DATA"
 
 router = APIRouter()
 
+# PROFILE-NAME-UNIQUE: serialises the duplicate-name check with the insert, so
+# two concurrent creates of one name cannot both pass the check. Process-local:
+# the app runs one backend process per install.
+_profile_create_lock = asyncio.Lock()
+
+
+def _normalise_profile_name(name: str) -> str:
+    """Comparison key for display names: strip, collapse whitespace, casefold."""
+    return " ".join(name.split()).casefold()
+
+
+async def _audit_fk_orphan_cleanup(db: AsyncSession, profile_id: str, connection) -> None:
+    """Write one master audit row when opening the vault ran the 017 orphan cleanup.
+
+    Counts only (``resource_counts`` per check id plus ``count``): no row ids,
+    values or names (P6-CLEANUP-AUDIT). The counts are one-shot. The manager
+    caches the connection, so a later login returns the same object, and
+    leaving the counts on it would re-announce one migration on every login.
+    """
+    counts = getattr(connection, "fk_cleanup_counts", None)
+    if not isinstance(counts, dict) or not counts:
+        return
+    total = sum(counts.values())
+    if total <= 0:
+        return
+    connection.fk_cleanup_counts = {}
+    try:
+        await create_audit_log(
+            db=db,
+            event_type="profile.fk_orphan_cleanup",
+            action="profile.fk_orphan_cleanup",
+            profile_id=profile_id,
+            entity_type="profile",
+            entity_id=profile_id,
+            details={"resource_counts": dict(counts), "count": total},
+        )
+        await db.commit()
+    except Exception:
+        connection.fk_cleanup_counts = counts  # not written: keep it for the next login
+        raise
+
+
 _SYNTHETIC_E2E_PROFILE_PREFIX = "Playwright E2E"
+
+# Profile tables wiped by POST /profiles/test/reset. The vault runs with
+# PRAGMA foreign_keys=ON, so the order is children before parents.
+# Deliberately absent: badge_definition, which is migration-seeded reference
+# data that nothing re-seeds. HC-RESET-010 fails if a profile table is added
+# without updating this tuple.
+_SYNTHETIC_RESET_MODELS = (
+    ResponseFeedback,  # logical turn_id only, no db FK
+    PinboardItem,  # FK -> pinboard
+    Pinboard,
+    ChatTurn,  # FK -> chat_sessions
+    ChatSession,
+    CarePlanTask,  # FK -> documents, document_entity
+    Embedding,  # FK -> chunks
+    Chunk,  # FK -> documents
+    DocumentEntity,  # FK -> documents
+    DocumentCategory,  # FK -> documents
+    LabInterpretation,  # FK -> observations
+    PanelInterpretation,
+    Observation,  # FK -> documents
+    Document,
+    DoseTaken,  # FK -> medications, medication_schedules
+    ReminderLog,  # FK -> medications, medication_schedules
+    AdherencePattern,  # FK -> medications, medication_schedules
+    MedicationSchedule,  # FK -> medications
+    Medication,
+    MemoryItem,
+    UserModelSettings,
+    EarnedBadge,  # FK -> badge_definition (the parent is kept)
+    DonatedRecord,
+    DonationConsent,
+    ExportArtifact,  # no FK; transient export downloads (C-GC1)
+)
+
+# Runtime tables from modules/search.py. They are not ORM models and exist only
+# after a first search, so the reset clears them only when they are present.
+_SEARCH_INDEX_TABLES = ("search_records", "search_records_fts")
 
 
 class ProfileCreate(BaseModel):
@@ -248,7 +339,14 @@ async def list_profiles(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Profile).order_by(Profile.created_at.desc()))
     profiles = result.scalars().all()
 
-    return [ProfileListResponse.from_model(p) for p in profiles]
+    response = [ProfileListResponse.from_model(p) for p in profiles]
+    # AUD-02: unauthenticated entry point, so there is no actor to record.
+    # profile_id stays NULL; only the count is kept (display names are PHI).
+    await audit_and_commit(
+        db, create_audit_log, event_type="profile.list", action="profile.list",
+        entity_type="profile", details={"count": len(response)},
+    )
+    return response
 
 
 @router.post("/", response_model=ProfileCreateResponse, status_code=status.HTTP_201_CREATED)
@@ -267,7 +365,26 @@ async def create_profile(
     - Session token for immediate access
 
     The profile is automatically unlocked after creation.
+
+    A display name equal to an existing one (ignoring case and whitespace) is
+    refused with 409 before anything is written (PROFILE-NAME-UNIQUE).
     """
+    async with _profile_create_lock:
+        return await _create_profile_locked(profile_data, db)
+
+
+async def _create_profile_locked(profile_data: ProfileCreate, db: AsyncSession):
+    wanted = _normalise_profile_name(profile_data.display_name)
+    existing = await db.execute(select(Profile.display_name))
+    if any(_normalise_profile_name(name) == wanted for name in existing.scalars()):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"A profile named {profile_data.display_name} already exists. "
+                "Choose a different name."
+            ),
+        )
+
     profile_id = str(uuid.uuid4())
     encryption_key_id = str(uuid.uuid4())
 
@@ -327,7 +444,8 @@ async def create_profile(
     logger.info(f"Created profile: {profile_id} ({profile_data.display_name})")
 
     # Phase 3: Open the per-profile encrypted database
-    await open_profile_database_on_login(profile_id, profile_data.password)
+    connection = await open_profile_database_on_login(profile_id, profile_data.password)
+    await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     # SEC-RECOV-001: seal a second copy of the same DEK under a one-time
     # recovery code, so a forgotten password is no longer permanent loss of the
@@ -402,7 +520,8 @@ async def login(
     logger.info(f"Profile logged in: {profile.id}")
 
     # Phase 3: Open the per-profile encrypted database
-    await open_profile_database_on_login(profile.id, login_data.password)
+    connection = await open_profile_database_on_login(profile.id, login_data.password)
+    await _audit_fk_orphan_cleanup(db, profile.id, connection)
 
     return create_session_token(profile)
 
@@ -431,7 +550,14 @@ async def get_current_profile(
             detail="Profile not found",
         )
 
-    return ProfileResponse.from_model(profile)
+    response = ProfileResponse.from_model(profile)
+    # AUD-02 / C-AUDIT-1: a profile read is audited. audit_and_commit is
+    # fail-closed: if the row cannot be written, the profile is not served.
+    await audit_and_commit(
+        db, log_profile_event, event="view",
+        profile_id=profile.id, profile_name=profile.display_name,
+    )
+    return response
 
 
 @router.post("/logout")
@@ -466,7 +592,10 @@ async def logout(
         await db.commit()
 
     # Phase 3: Close the per-profile encrypted database and clear keys
-    await close_profile_database_on_logout(session.profile_id)
+    try:
+        await purge_profile_exports(session.profile_id)
+    finally:
+        await close_profile_database_on_logout(session.profile_id)
 
     logger.info(f"Profile logged out: {session.profile_id}")
 
@@ -477,6 +606,7 @@ async def logout(
 async def reset_synthetic_test_profile(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Reset data for the authenticated Playwright synthetic profile.
@@ -495,39 +625,45 @@ async def reset_synthetic_test_profile(
         )
 
     try:
-        for model in (
-            Embedding,
-            Chunk,
-            DocumentEntity,
-            DocumentCategory,
-            LabInterpretation,
-            PanelInterpretation,
-            Observation,
-            Document,
-            DoseTaken,
-            ReminderLog,
-            AdherencePattern,
-            MedicationSchedule,
-            Medication,
-            MemoryItem,
-            UserModelSettings,
-            EarnedBadge,
-        ):
+        for model in _SYNTHETIC_RESET_MODELS:
             await profile_db.execute(delete(model))
+
+        # N-02: the derived search index holds record titles and content.
+        present = (
+            await profile_db.execute(
+                text("SELECT name FROM sqlite_master WHERE name IN ('search_records', 'search_records_fts')")
+            )
+        ).scalars().all()
+        for table in _SEARCH_INDEX_TABLES:
+            if table in present:
+                await profile_db.execute(text(f"DELETE FROM {table}"))
 
         docs_path = Path(settings.app_data_path) / "vaults" / session.profile_id / "docs"
         if docs_path.exists():
             shutil.rmtree(docs_path)
         docs_path.mkdir(parents=True, exist_ok=True)
+        # The pre-017 snapshot holds the old data of a profile that is being reset.
+        purge_pre017_snapshot(docs_path.parent / "vault.db")
 
         await profile_db.commit()
     except Exception as exc:
         await profile_db.rollback()
-        logger.exception("Synthetic profile reset failed for %s", session.profile_id)
+        # Type name only: the message and traceback can carry SQL or path detail.
+        logger.error(
+            "Synthetic profile reset failed for %s: %s", session.profile_id, type(exc).__name__
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Synthetic profile reset failed: {exc}",
+            detail="Synthetic profile reset failed.",
         ) from exc
+    # AUD-02: written only after the vault commit, so a failed reset leaves no
+    # row claiming it happened (HC-PAUD-004). Outside the try: an audit failure
+    # must not be reported as "Synthetic profile reset failed".
+    await audit_and_commit(
+        db, log_profile_event, event="test_reset",
+        profile_id=session.profile_id, profile_name=session.profile_name,
+        details={"count": len(_SYNTHETIC_RESET_MODELS)},
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -589,6 +725,7 @@ def _unseal_dek_with_recovery_code(profile_id: str, code: str) -> bytes:
 async def issue_recovery_code(
     profile_id: str,
     payload: ProfileUnlock,
+    request: Request,
     session: Session = Depends(require_profile_access()),
     db: AsyncSession = Depends(get_db),
 ):
@@ -599,16 +736,31 @@ async def issue_recovery_code(
     the only way to unseal the DEK that the new copy will re-seal.
 
     The code is returned exactly once and is not recoverable afterwards.
+
+    The password re-auth is throttled with the standard ``auth_rate_limiter``,
+    the login pattern (owner answer RECOVERY-CODE-THROTTLE).
     """
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"recovery-code:{client_ip}"
+    decision = auth_rate_limiter.check(rate_key)
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Please try again shortly.",
+            headers={"Retry-After": str(decision.retry_after_seconds or 1)},
+        )
+
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
     if profile is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
     if await authenticate_profile(profile_id, payload.password, db) is None:
+        auth_rate_limiter.add_failure(rate_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect password"
         )
+    auth_rate_limiter.reset(rate_key)
 
     manager = get_profile_db_manager()
     key_path = manager._get_profile_key_path(profile_id)
@@ -624,7 +776,6 @@ async def issue_recovery_code(
             key_path.read_bytes(), method, fallback_password=payload.password
         )
         had_previous = manager.has_recovery_key(profile_id)
-        code = _issue_recovery_code(profile_id, dek)
     except KeySealingError as exc:
         logger.error("Recovery code generation failed for a profile")
         raise HTTPException(
@@ -640,6 +791,19 @@ async def issue_recovery_code(
         details={"trigger": "user_request" if had_previous else "backfill"},
     )
     await db.commit()
+
+    # Commit before rotation (RECOVER-ORDER-COMMIT): a failed commit leaves the
+    # existing recovery file untouched. The code is returned only once the new
+    # seal is on disk. A crash between the commit and this write leaves the old
+    # code valid and an audit row for a rotation that did not happen.
+    try:
+        code = _issue_recovery_code(profile_id, dek)
+    except KeySealingError as exc:
+        logger.error("Recovery code generation failed for a profile")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not generate a recovery code",
+        ) from exc
 
     return RecoveryCodeResponse(recovery_code=code, replaced_existing=had_previous)
 
@@ -663,6 +827,12 @@ async def recover_profile(
     hash with a new-password seal — login fails cleanly and the recovery code
     still works. The inverse order would leave auth accepting a password that
     cannot open the vault.
+
+    The recovery code is rotated only after that commit (RECOVER-ORDER-COMMIT),
+    then a second commit records the rotation. A crash in any window leaves at
+    least one working credential: the old recovery code before the first commit,
+    the new password after it. A crash between the rotation and the second
+    commit loses only the ``recovery_code_generated`` audit row.
     """
     result = await db.execute(select(Profile).where(Profile.id == profile_id))
     profile = result.scalar_one_or_none()
@@ -731,13 +901,6 @@ async def recover_profile(
     profile.is_locked = False
     profile.last_accessed_at = utcnow()
 
-    # Rotate the recovery code rather than invalidating it: plain invalidation
-    # would leave the user with *no* recovery until they remember to generate
-    # one, a durability regression in the feature whose whole point is
-    # durability. Rotation gives one-time-use semantics and keeps the invariant
-    # "there is always exactly one valid recovery code".
-    new_code = _issue_recovery_code(profile_id, dek)
-
     recovery_rate_limiter.reset(rate_key)
 
     await log_profile_event(
@@ -745,6 +908,16 @@ async def recover_profile(
         profile_name=profile.display_name,
         details={"password_reset": True, "recovery_rotated": True},
     )
+    await db.commit()
+
+    # Rotate the recovery code rather than invalidating it: plain invalidation
+    # would leave the user with *no* recovery until they remember to generate
+    # one, a durability regression in the feature whose whole point is
+    # durability. Rotation gives one-time-use semantics and keeps the invariant
+    # "there is always exactly one valid recovery code". It runs only after the
+    # credential commit above (RECOVER-ORDER-COMMIT).
+    new_code = _issue_recovery_code(profile_id, dek)
+
     await log_profile_event(
         db=db, event="recovery_code_generated", profile_id=profile_id,
         profile_name=profile.display_name,
@@ -752,7 +925,8 @@ async def recover_profile(
     )
     await db.commit()
 
-    await open_profile_database_on_login(profile_id, payload.new_password)
+    connection = await open_profile_database_on_login(profile_id, payload.new_password)
+    await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     logger.info("Profile access recovered with a recovery code")
 
@@ -802,7 +976,9 @@ async def delete_profile(
     ``export_acknowledged``. The RL dataset export (POST /feedback/export) is
     the exception: it writes per-profile JSONL server-side under
     ``rl_exports/profile_{id}/``, so this route removes that directory as a
-    step after the backups sweep.
+    step after the backups sweep. Downloadable summary/packet/FHIR artifacts
+    are the exception: they are rows in the profile vault and are erased by
+    step 4.
     """
     profile = await _load_profile_for_delete(profile_id, db)
     if profile is None:
@@ -863,7 +1039,10 @@ async def delete_profile(
     if session.token_jti:
         revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
 
-    await close_profile_database_on_logout(profile_id)
+    try:
+        await purge_profile_exports(profile_id)
+    finally:
+        await close_profile_database_on_logout(profile_id)
 
     from core.profile_database import get_profile_db_manager
 
@@ -936,10 +1115,12 @@ async def delete_profile(
     )
     purged = getattr(audit_result, "rowcount", 0) or 0
 
-    # `backup_schedules.profile_id` declares ON DELETE CASCADE, but SQLite
-    # ignores foreign keys unless `PRAGMA foreign_keys=ON` is set, and it is set
-    # nowhere in this codebase. Relying on the cascade orphans the row, so the
-    # delete is explicit.
+    # `backup_schedules.profile_id` declares ON DELETE CASCADE. The pragma is now
+    # ON for the master engine (core/database.py install_sqlite_foreign_keys) and
+    # the profile engines (core/profile_database.py, SQL-FK-001), so the cascade
+    # would fire too. The delete stays explicit anyway: the audit purge, schedule
+    # delete, profile delete and tombstone are ordered on purpose, and restore's
+    # raw sqlite3 path (scripts/backup.py) never sees the pragma.
     await db.execute(
         delete(BackupSchedule).where(BackupSchedule.profile_id == profile_id)
     )
@@ -986,7 +1167,14 @@ async def get_profile(
             detail="Profile not found",
         )
 
-    return ProfileResponse.from_model(profile)
+    response = ProfileResponse.from_model(profile)
+    # AUD-02 / C-AUDIT-1: a profile read is audited. audit_and_commit is
+    # fail-closed: if the row cannot be written, the profile is not served.
+    await audit_and_commit(
+        db, log_profile_event, event="view",
+        profile_id=profile.id, profile_name=profile.display_name,
+    )
+    return response
 
 
 @router.post("/{profile_id}/lock", response_model=ProfileResponse)
@@ -1022,11 +1210,16 @@ async def lock_profile(
     await db.commit()
 
     # Phase 3: Close the per-profile encrypted database and clear keys
-    await close_profile_database_on_logout(profile_id)
-
-    # Revoke the current JWT so the session can't be reused after locking.
-    if session.token_jti:
-        revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
+    try:
+        try:
+            await purge_profile_exports(profile_id)
+        finally:
+            await close_profile_database_on_logout(profile_id)
+    finally:
+        # Revoke the current JWT so the session can't be reused after locking, even
+        # when the export purge or the close raised (the error still propagates).
+        if session.token_jti:
+            revoke_jwt_token(session.token_jti, int(session.expires_at.timestamp()))
 
     logger.info(f"Profile locked: {profile_id}")
 
@@ -1087,7 +1280,8 @@ async def unlock_profile(
     await db.commit()
 
     # Phase 3: Re-open the per-profile encrypted database
-    await open_profile_database_on_login(profile_id, unlock_data.password)
+    connection = await open_profile_database_on_login(profile_id, unlock_data.password)
+    await _audit_fk_orphan_cleanup(db, profile_id, connection)
 
     logger.info(f"Profile unlocked: {profile_id}")
 

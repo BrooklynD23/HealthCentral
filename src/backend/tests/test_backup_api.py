@@ -616,3 +616,144 @@ def test_hc_bkup_041_backup_root_is_not_a_backup(data_dir, hostile):
     with pytest.raises(HTTPException) as exc:
         backup_api._resolve_backup_dir("profile-a", hostile)
     assert exc.value.status_code in (400, 404)
+
+
+# ---------------------------------------------------------------------------
+# HC-ERP-001..003 — restore purges this profile's in-memory export packets
+# (EXPORT-RESTORE-PURGE). Through HTTP so Depends(...) runs.
+# ---------------------------------------------------------------------------
+
+def _seed_export_entries(export_api, profile_id: str, packet_id: str) -> None:
+    """One live, session-bound entry in each in-process store, shaped as a generate
+    route leaves it (the serving rule in contracts.md I-20)."""
+    from core import time as core_time
+
+    now = core_time.utcnow()
+    live = {
+        "profile_id": profile_id,
+        "session_jti": "jti-test",
+        "session_exp": now + timedelta(hours=1),
+        "created_at": now,
+    }
+    export_api._packet_store[packet_id] = {
+        **live, "markdown": f"# pre-restore packet of {profile_id}",
+        "generated_at": now.isoformat(), "sections": [],
+    }
+    export_api._summary_store[f"summary-{profile_id}"] = dict(live)
+    export_api._fhir_store[f"fhir-{profile_id}"] = dict(live)
+
+
+def _all_entries(export_api, profile_id: str) -> list:
+    return [
+        key
+        for store in (export_api._summary_store, export_api._packet_store, export_api._fhir_store)
+        for key, entry in store.items()
+        if entry.get("profile_id") == profile_id
+    ]
+
+
+@pytest.fixture
+def export_env(data_dir, tmp_path, monkeypatch):
+    """Empty export stores plus an empty `export_artifact` table for the download route."""
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    import api.export as export_api
+    from models.export_artifact import ExportArtifact
+
+    for name in ("_summary_store", "_packet_store", "_fhir_store"):
+        monkeypatch.setattr(export_api, name, {})
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'erp-vault.db'}", poolclass=NullPool)
+
+    async def _create():
+        async with engine.begin() as conn:
+            await conn.run_sync(ExportArtifact.__table__.create)
+
+    asyncio.run(_create())
+    monkeypatch.setattr(backup_api, "authenticate_profile",
+                        AsyncMock(return_value=SimpleNamespace(id="profile-a")))
+    monkeypatch.setattr(backup_api, "close_profile_database_on_logout", AsyncMock())
+    yield export_api, async_sessionmaker(engine, expire_on_commit=False)
+    asyncio.run(engine.dispose())
+
+
+def _restore_body(**overrides):
+    body = {"password": "CorrectHorse1",
+            "confirmation_phrase": backup_api.BACKUP_RESTORE_CONFIRMATION}
+    body.update(overrides)
+    return body
+
+
+PACKET_A = "11111111-1111-4111-8111-111111111111"
+PACKET_B = "22222222-2222-4222-8222-222222222222"
+
+
+def test_hc_erp_001_restore_purges_the_profiles_pre_restore_exports(export_env):
+    """A packet generated before the restore describes data the vault no longer holds. It must
+    not stay downloadable. Would not notice: persisted `export_artifact` rows in the restored
+    vault (the vault is closed when the restore returns, so they are not reachable here)."""
+    from tests.support.routes import route_client
+
+    export_api, vault = export_env
+    _seed_export_entries(export_api, "profile-a", PACKET_A)
+    url = f"/export/visit-prep/{PACKET_A}/download?format=markdown"
+    with route_client(export_api.router, "/export", profile_db=vault) as exports, \
+            route_client(backup_api.router, "/backup") as backups:
+        before = exports.get(url)
+        assert before.status_code == 200, before.text  # precondition: it WAS served
+        assert "pre-restore packet" in before.text
+
+        backup_id = backups.post("/backup/").json()["backup_id"]
+        restored = backups.post(f"/backup/{backup_id}/restore", json=_restore_body())
+        assert restored.status_code == 200, restored.text
+
+        after = exports.get(url)
+    assert after.status_code == 404, after.text
+    assert _all_entries(export_api, "profile-a") == []
+
+
+def test_hc_erp_002_restore_leaves_another_profiles_exports_alone(export_env):
+    from tests.support.routes import route_client
+
+    export_api, vault = export_env
+    _seed_export_entries(export_api, "profile-a", PACKET_A)
+    _seed_export_entries(export_api, "profile-b", PACKET_B)
+    with route_client(backup_api.router, "/backup") as backups:
+        backup_id = backups.post("/backup/").json()["backup_id"]
+        assert backups.post(
+            f"/backup/{backup_id}/restore", json=_restore_body()
+        ).status_code == 200
+    assert _all_entries(export_api, "profile-a") == []
+    assert len(_all_entries(export_api, "profile-b")) == 3
+    with route_client(export_api.router, "/export", profile_id="profile-b",
+                      profile_db=vault) as exports:
+        still = exports.get(f"/export/visit-prep/{PACKET_B}/download?format=markdown")
+    assert still.status_code == 200, still.text
+
+
+@pytest.mark.parametrize("failure", ["phrase", "corrupt", "password"])
+def test_hc_erp_003_a_failed_restore_keeps_the_exports(export_env, data_dir, monkeypatch, failure):
+    """The vault never changed, so the exports are still true. Would not notice: a restore that
+    fails PARTWAY (the vault already replaced, HTTP 500); this pins the refusals before any file
+    is touched."""
+    from tests.support.routes import route_client
+
+    export_api, vault = export_env
+    _seed_export_entries(export_api, "profile-a", PACKET_A)
+    body = _restore_body()
+    with route_client(backup_api.router, "/backup") as backups:
+        backup_id = backups.post("/backup/").json()["backup_id"]
+        if failure == "phrase":
+            body = _restore_body(confirmation_phrase="yes please")
+        elif failure == "corrupt":
+            (data_dir / "backups" / "profile-a" / backup_id / "asclexis.db").write_bytes(b"corrupted")
+        else:
+            monkeypatch.setattr(backup_api, "authenticate_profile", AsyncMock(return_value=None))
+        refused = backups.post(f"/backup/{backup_id}/restore", json=body)
+    assert refused.status_code in (400, 401), refused.text
+    assert len(_all_entries(export_api, "profile-a")) == 3
+    with route_client(export_api.router, "/export", profile_db=vault) as exports:
+        still = exports.get(f"/export/visit-prep/{PACKET_A}/download?format=markdown")
+    assert still.status_code == 200, still.text

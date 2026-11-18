@@ -1,9 +1,11 @@
 /** Search page and compact header search tests (HC-M21). */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import CommandPalette from '@/components/layout/CommandPalette';
 import { TopBar } from '@/components/layout/TopBar';
 import { SearchPage } from '@/pages/SearchPage';
 import { useSearch } from '@/services/search';
@@ -61,25 +63,29 @@ describe('SearchPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('FE-SRCH-UI-003 submits the compact header search to the search route', async () => {
+  it('FE-SRCH-UI-003 submits the header search, opened as the palette, to the search route', async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={['/inbox']}>
-        <Routes>
-          <Route
-            path="*"
-            element={
-              <>
-                <TopBar />
-                <LocationProbe />
-              </>
-            }
-          />
-        </Routes>
-      </MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/inbox']}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  <TopBar />
+                  <CommandPalette />
+                  <LocationProbe />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
     );
 
-    const input = screen.getByRole('searchbox');
+    await user.click(screen.getByRole('button', { name: /search/i }));
+    const input = await screen.findByRole('combobox');
     await user.type(input, 'migraine aura{enter}');
 
     expect(screen.getByTestId('location')).toHaveTextContent(

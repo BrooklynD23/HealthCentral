@@ -1,0 +1,1127 @@
+/**
+ * UI-GATES acceptance helpers (plan section 6, gates G1-G10).
+ *
+ * Each helper measures one gate. Helpers return data and throw on probe
+ * failure; the caller asserts on the result, so a test can name the exact
+ * value that failed. See e2e/README.md for when to use each one.
+ *
+ * Helpers that read the route fade need the product's `data-route-container`
+ * contract, which no row has added yet. Until one does, routeOpacitySamples
+ * falls back to the PageTransition element (`main > div`); see its docs.
+ */
+
+import type { Page, Request } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+
+export type Theme = 'light' | 'dark';
+
+/** WCAG 2.0 / 2.1 / 2.2 A and AA (plan G1). */
+export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+/** G10: the route fade must finish within this many ms of the new container. */
+export const ROUTE_FADE_MS = 240;
+/** G10: stillness window after the trigger (extended for lazy first visits). */
+export const STILLNESS_WINDOW_MS = 800;
+/** G10: sampling interval (plan says 16-40 ms). */
+export const STILLNESS_SAMPLE_MS = 20;
+/** G10: no gap between samples may exceed this (the plan's upper sampling bound). */
+export const STILLNESS_MAX_GAP_MS = 40;
+/** G10 page changes (kind 'navigation'): owner STILLNESS-NAV-70, 2026-10-28. Interactions keep 40 ms; overlay opens have their own bound below. */
+export const STILLNESS_NAV_MAX_GAP_MS = 70;
+/** G10 overlay opens (kind 'overlay', a trigger that opens a Popover or a Modal): owner STILLNESS-OVERLAY-OPEN, 2026-11-01. */
+export const STILLNESS_OVERLAY_MAX_GAP_MS = 70;
+/** G10 lazy route: network idle is this long with nothing in flight (Playwright's networkidle quiet period). */
+export const NETWORK_IDLE_MS = 500;
+/** G10 lazy route: give up waiting for network idle after this long. */
+const LAZY_IDLE_TIMEOUT_MS = 15_000;
+/** G10: bounding-rect tolerance in CSS pixels. */
+export const RECT_TOLERANCE_PX = 0.5;
+
+/** The product's route container: `data-route-container` = pathname (plan G10). */
+export const ROUTE_CONTAINER_SELECTOR = '[data-route-container]';
+/** Today's fallback: PageTransition is the only element directly inside `<main>`. */
+export const ROUTE_FALLBACK_SELECTOR = 'main > div';
+/** The Safety Rail carries this attribute once UI-SHELL lands (plan G9). */
+export const SAFETY_RAIL_SELECTOR = '[data-safety-rail]';
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const SETTLED_OPACITY = 0.99;
+const OPACITY_EPSILON = 0.01;
+const IDENTITY_TRANSFORM =
+  /^(none|matrix\(\s*1,\s*0,\s*0,\s*1,\s*0,\s*0\s*\)|matrix3d\(\s*1,\s*0,\s*0,\s*0,\s*0,\s*1,\s*0,\s*0,\s*0,\s*0,\s*1,\s*0,\s*0,\s*0,\s*0,\s*1\s*\))$/;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const round1 = (value: number) => Math.round(value * 10) / 10;
+
+// ---------------------------------------------------------------------------
+// G1: axe, WCAG 2.0-2.2 A and AA.
+// ---------------------------------------------------------------------------
+
+export type AxeViolation = Awaited<ReturnType<AxeBuilder['analyze']>>['violations'][number];
+
+export interface AxeGateResult {
+  violations: AxeViolation[];
+  /** Every violated rule id, in axe's order (e.g. `color-contrast`). */
+  ruleIds: string[];
+  /** The serious and critical subset (G1 requires none). */
+  blocking: AxeViolation[];
+}
+
+/** Longest a finite CSS transition or animation may run before G1 gives up waiting for it (MEDS-G-FLAKE). */
+export const SETTLE_TIMEOUT_MS = 5000;
+
+/**
+ * Waits until no finite animation or transition runs, bounded by SETTLE_TIMEOUT_MS. Infinite loaders (spinners,
+ * pulses) are ignored. Throws, naming what still runs, when they never settle: a reading is never taken mid-blend.
+ */
+export async function settleFiniteAnimations(page: Page): Promise<void> {
+  try {
+    await page.waitForFunction(
+      () =>
+        document.getAnimations().every((animation) => {
+          const iterations = animation.effect?.getComputedTiming().iterations;
+          return iterations === Infinity || animation.playState !== 'running';
+        }),
+      undefined,
+      { timeout: SETTLE_TIMEOUT_MS }
+    );
+  } catch (error) {
+    if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error;
+    const still = await page
+      .evaluate(() =>
+        document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity && animation.playState === 'running')
+          .map((animation) => {
+            const target = (animation.effect as KeyframeEffect | null)?.target;
+            const property = (animation as CSSTransition).transitionProperty ?? (animation as CSSAnimation).animationName ?? '?';
+            return `${target?.tagName.toLowerCase() ?? '?'}.${String(target?.className ?? '').slice(0, 40)} ${property}`;
+          })
+      )
+      .catch(() => ['(could not list them)']);
+    throw new Error(
+      `G1 settle: finite CSS transitions or animations still running after ${SETTLE_TIMEOUT_MS} ms ` +
+        `(a finite animation longer than that fails G1): ${still.slice(0, 5).join('; ')}; ${String(error)}`
+    );
+  }
+}
+
+/** Settles transitions after a theme change, then waits one frame, so the read is never a blend of two themes (HC-DPC-003). */
+export async function settleTheme(page: Page, theme: Theme): Promise<void> {
+  await setTheme(page, theme);
+  await settleFiniteAnimations(page);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
+
+/**
+ * Runs axe with the WCAG tags. Pass `theme` to apply it first (G1 runs light and dark). Axe always waits for running
+ * finite transitions first, also for callers that called setTheme themselves, so colour-contrast never reads a blend
+ * of two themes (MEDS-G-FLAKE). Infinite loaders are ignored.
+ */
+export async function axeGate(page: Page, options: { theme?: Theme } = {}): Promise<AxeGateResult> {
+  if (options.theme) await setTheme(page, options.theme);
+  await settleFiniteAnimations(page);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze();
+  return {
+    violations: results.violations,
+    ruleIds: results.violations.map((violation) => violation.id),
+    blocking: results.violations.filter(
+      (violation) => violation.impact === 'serious' || violation.impact === 'critical'
+    ),
+  };
+}
+
+/**
+ * Applies a theme after load. The product stays light until UI-DARK-FLIP, so
+ * until then this only sets the attributes a dark-aware stylesheet would read.
+ */
+export async function setTheme(page: Page, theme: Theme): Promise<void> {
+  await page.emulateMedia({ colorScheme: theme });
+  await page.evaluate((next) => {
+    const root = document.documentElement;
+    root.dataset.theme = next;
+    root.classList.toggle('dark', next === 'dark');
+    root.style.colorScheme = next;
+  }, theme);
+}
+
+// ---------------------------------------------------------------------------
+// G6: no horizontal scroll at the viewport the caller set (390x844 or 320x640).
+// ---------------------------------------------------------------------------
+
+export interface ScrollGateResult {
+  scrollWidth: number;
+  innerWidth: number;
+  ok: boolean;
+}
+
+export async function noHorizontalScroll(page: Page): Promise<ScrollGateResult> {
+  const measured = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth,
+  }));
+  return { ...measured, ok: measured.scrollWidth <= measured.innerWidth };
+}
+
+// ---------------------------------------------------------------------------
+// G2: cumulative layout shift.
+// ---------------------------------------------------------------------------
+
+/**
+ * CLS of the current document, from load plus whatever `action` does. The
+ * observer is an init script, so it watches navigations made inside `action`;
+ * on a page that was already loaded before this call, the result is NaN.
+ */
+export async function measureCls(
+  page: Page,
+  action: () => Promise<void>,
+  settleMs = 500
+): Promise<number> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __hcCls?: number };
+    w.__hcCls = 0;
+    try {
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) {
+          if (!entry.hadRecentInput) w.__hcCls = (w.__hcCls ?? 0) + entry.value;
+        }
+      }).observe({ type: 'layout-shift', buffered: true } as PerformanceObserverInit);
+    } catch {
+      // layout-shift is unsupported: the total stays 0 for this document.
+    }
+  });
+  await action();
+  await page.waitForTimeout(settleMs);
+  return page.evaluate(() => {
+    const value = (window as unknown as { __hcCls?: number }).__hcCls;
+    return typeof value === 'number' ? value : NaN;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// G3: INP proxy under CPU x4.
+// ---------------------------------------------------------------------------
+
+/**
+ * Largest Event Timing duration (ms, threshold 16) for the events `action`
+ * causes, with the CPU throttled (default x4). Events that started before
+ * `action` are not counted. Returns 0 when no event reached the threshold, so
+ * a fast click and a dead observer both return 0: a caller that needs to know
+ * the observer works must click something known to be slow (see HC-UIG-005).
+ * Chromium only (CDP).
+ */
+export async function maxEventDuration(
+  page: Page,
+  action: () => Promise<void>,
+  options: { cpuRate?: number; settleMs?: number } = {}
+): Promise<number> {
+  type EventTiming = { start: number; duration: number };
+  const session = await page.context().newCDPSession(page);
+  await session.send('Emulation.setCPUThrottlingRate', { rate: options.cpuRate ?? 4 });
+  try {
+    // The observer is buffered, so it also delivers entries from before the mark; the filter below drops them.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __hcEvents?: Array<{ start: number; duration: number }>;
+        __hcEventMark?: number;
+        __hcEventObserver?: PerformanceObserver;
+      };
+      w.__hcEvents = [];
+      w.__hcEventMark = performance.now();
+      w.__hcEventObserver?.disconnect();
+      w.__hcEventObserver = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) w.__hcEvents?.push({ start: entry.startTime, duration: entry.duration });
+      });
+      w.__hcEventObserver.observe({ type: 'event', durationThreshold: 16, buffered: true } as PerformanceObserverInit);
+    });
+    await action();
+    await page.waitForTimeout(options.settleMs ?? 200);
+    const events: EventTiming[] = await page.evaluate(() => {
+      const w = window as unknown as {
+        __hcEvents?: Array<{ start: number; duration: number }>;
+        __hcEventMark?: number;
+        __hcEventObserver?: PerformanceObserver;
+      };
+      w.__hcEventObserver?.disconnect();
+      const mark = w.__hcEventMark ?? 0;
+      return (w.__hcEvents ?? []).filter((event) => event.start >= mark);
+    });
+    return events.length > 0 ? Math.max(...events.map((event) => event.duration)) : 0;
+  } finally {
+    await session.send('Emulation.setCPUThrottlingRate', { rate: 1 }).catch(() => undefined);
+    await session.detach().catch(() => undefined);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G5: reduced motion.
+// ---------------------------------------------------------------------------
+
+/**
+ * Emulates reduced motion, runs `action`, waits 50 ms, and returns the
+ * elements still transformed. An empty array passes.
+ *
+ * Two reads, 150 ms apart (GATES-POPPER-TRANSFORM). An element is an offender when
+ *  - its computed transform differs between the reads (running motion; tagged `moving`), or
+ *  - it holds the same non-identity transform in both reads and that transform is not a pure translation
+ *    (a residual rotate/scale/skew/perspective has no positioning justification).
+ * An element detached at the second read (`!isConnected`) left the DOM; it is logged as such and not counted (L0 ruling R7).
+ * A transform that is identical in both reads and a pure translation is a static positioning offset
+ * (a Radix/floating-ui popper wrapper). It is left out of the return and logged, so it shows in the run output.
+ *
+ * Optional `firstRead`: keys are selectors; they are filled in with how many elements matched at the first read
+ * (L0 R8: a guard that something was on screen when the snapshot started, not after it returned).
+ *
+ * Would not notice: a translation that completed inside the first 50 ms and then holds still reads as static,
+ * which is indistinguishable from positioning. HC-UIG-012 (d) pins that trade-off.
+ */
+export async function reducedMotionSnapshot(
+  page: Page,
+  action: () => Promise<void>,
+  firstRead?: Record<string, number>
+): Promise<string[]> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await action();
+  await page.waitForTimeout(50);
+  const result = await page.evaluate(
+    async ({ identitySource, secondReadDelayMs, countSelectors }) => {
+      const identity = new RegExp(identitySource);
+      const pureTranslation = (transform: string): boolean => {
+        const nums = (body: string) => body.split(',').map((part) => Number(part.trim()));
+        const m2 = /^matrix\(([^)]*)\)$/.exec(transform);
+        if (m2) {
+          const [a, b, c, d] = nums(m2[1]);
+          return a === 1 && b === 0 && c === 0 && d === 1;
+        }
+        const m3 = /^matrix3d\(([^)]*)\)$/.exec(transform);
+        if (m3) {
+          const n = nums(m3[1]);
+          const wanted = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];
+          return wanted.every((value, index) => n[index] === value) && n[15] === 1 && n[3] === 0 && n[7] === 0 && n[11] === 0;
+        }
+        return false;
+      };
+      const label = (el: Element) => {
+        const id = el.id ? `#${el.id}` : '';
+        const cls = (el.getAttribute('class') ?? '').trim().replace(/\s+/g, '.').slice(0, 60);
+        return `${el.tagName.toLowerCase()}${id}${cls ? `.${cls}` : ''}`;
+      };
+      const elements = Array.from(document.querySelectorAll('body *'));
+      const first = elements.map((el) => getComputedStyle(el).transform);
+      const counts: Record<string, number> = {};
+      for (const selector of countSelectors) counts[selector] = document.querySelectorAll(selector).length;
+      await new Promise((resolve) => setTimeout(resolve, secondReadDelayMs));
+      const offenders: string[] = [];
+      const statics: string[] = [];
+      const gone: string[] = [];
+      elements.forEach((el, index) => {
+        // A node that left the DOM between the reads (toast, dialog, page change) reads "" and is not motion.
+        if (!el.isConnected) {
+          gone.push(label(el));
+          return;
+        }
+        const before = first[index];
+        const after = getComputedStyle(el).transform;
+        if (before !== after) {
+          offenders.push(`${label(el)} transform=${after} moving (was ${before})`);
+        } else if (!identity.test(after)) {
+          if (pureTranslation(after)) statics.push(`${label(el)} transform=${after}`);
+          else offenders.push(`${label(el)} transform=${after}`);
+        }
+      });
+      return { offenders, statics, gone, counts };
+    },
+    { identitySource: IDENTITY_TRANSFORM.source, secondReadDelayMs: 150, countSelectors: Object.keys(firstRead ?? {}) }
+  );
+  if (firstRead) Object.assign(firstRead, result.counts);
+  if (result.statics.length > 0) {
+    console.log(`reducedMotionSnapshot: ${result.statics.length} static positioning transform(s) ignored: ${result.statics.join('; ')}`);
+  }
+  if (result.gone.length > 0) {
+    console.log(`reducedMotionSnapshot: ${result.gone.length} element(s) left the DOM between the reads, not counted: ${result.gone.join('; ')}`);
+  }
+  return result.offenders;
+}
+
+// ---------------------------------------------------------------------------
+// DF-6 / HC-UISH-003: route container opacity during a navigation.
+// ---------------------------------------------------------------------------
+
+export interface RouteOpacitySample {
+  /** ms since sampling began (page clock) */
+  t: number;
+  /** computed opacity of the route element; NaN when no element matched */
+  opacity: number;
+  /** which element was read */
+  source: 'route-container' | 'fallback' | 'missing';
+}
+
+/**
+ * Samples the route element's computed opacity every `intervalMs` (default 40)
+ * while `navigate` runs and for `durationMs` after it (default 800).
+ *
+ * The element is `[data-route-container]` when a row has added it. Until then
+ * it falls back to `main > div`: AppLayout puts the keyed PageTransition
+ * motion.div directly inside `<main>`, and that element is the one whose
+ * opacity runs 1 -> 0 (exit) -> 0 -> 1 (enter). `main` itself never animates,
+ * so sampling it would read 1 and miss the defect.
+ *
+ * The sampler lives in the page, so it covers SPA navigation only (a click
+ * that changes the route without a document load).
+ */
+export async function routeOpacitySamples(
+  page: Page,
+  options: { navigate: () => Promise<void>; durationMs?: number; intervalMs?: number }
+): Promise<RouteOpacitySample[]> {
+  await page.evaluate(
+    ({ container, fallback, interval }) => {
+      type Raw = { t: number; opacity: number; source: string };
+      const w = window as unknown as { __hcRouteSamples?: Raw[]; __hcRouteTimer?: number };
+      const start = performance.now();
+      w.__hcRouteSamples = [];
+      w.__hcRouteTimer = window.setInterval(() => {
+        const primary = document.querySelector(container);
+        const el = primary ?? document.querySelector(fallback);
+        const source = primary ? 'route-container' : el ? 'fallback' : 'missing';
+        const opacity = el ? parseFloat(getComputedStyle(el).opacity) : NaN;
+        w.__hcRouteSamples?.push({ t: Math.round(performance.now() - start), opacity, source });
+      }, interval);
+    },
+    {
+      container: ROUTE_CONTAINER_SELECTOR,
+      fallback: ROUTE_FALLBACK_SELECTOR,
+      interval: options.intervalMs ?? 40,
+    }
+  );
+  try {
+    await options.navigate();
+    await page.waitForTimeout(options.durationMs ?? 800);
+  } finally {
+    // Stop the sampler even when navigate throws; the error still propagates.
+    await page.evaluate(() => {
+      const w = window as unknown as { __hcRouteTimer?: number };
+      if (w.__hcRouteTimer !== undefined) window.clearInterval(w.__hcRouteTimer);
+    });
+  }
+  const raw = await page.evaluate(
+    () => (window as unknown as { __hcRouteSamples?: Array<{ t: number; opacity: number; source: string }> }).__hcRouteSamples ?? []
+  );
+  return raw.map((sample) => ({
+    t: sample.t,
+    opacity: sample.opacity,
+    source: sample.source as RouteOpacitySample['source'],
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// G7: zero console errors and no non-localhost request.
+// ---------------------------------------------------------------------------
+
+export interface GuardReport {
+  consoleErrors: string[];
+  externalRequests: string[];
+  unmockedApi: string[];
+}
+
+export interface NetworkGuard {
+  report(): GuardReport;
+  /** Throws, listing every problem, if the page logged an error, made a non-localhost request, or reached an unmocked API. */
+  assertClean(): void;
+}
+
+/**
+ * Attaches listeners at call time, so create it before the navigation under
+ * test. Pass the `installMockApi` result as `mock` to fail on any /api/v1 call
+ * the mock did not answer.
+ */
+export function consoleAndNetworkGuard(
+  page: Page,
+  options: { mock?: { readonly unmocked: string[] } } = {}
+): NetworkGuard {
+  const consoleErrors: string[] = [];
+  const externalRequests: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => {
+    consoleErrors.push(`pageerror: ${error.message}`);
+  });
+  page.on('request', (request) => {
+    if (isExternal(request.url())) externalRequests.push(request.url());
+  });
+
+  const report = (): GuardReport => ({
+    consoleErrors: [...consoleErrors],
+    externalRequests: [...externalRequests],
+    unmockedApi: [...(options.mock?.unmocked ?? [])],
+  });
+
+  return {
+    report,
+    assertClean() {
+      const current = report();
+      const problems = [
+        ...current.consoleErrors.map((text) => `console error: ${text}`),
+        ...current.externalRequests.map((url) => `non-localhost request: ${url}`),
+        ...current.unmockedApi.map((call) => `unmocked API request: ${call}`),
+      ];
+      if (problems.length > 0) {
+        throw new Error(`consoleAndNetworkGuard: ${problems.length} problem(s)\n  ${problems.join('\n  ')}`);
+      }
+    },
+  };
+}
+
+function isExternal(raw: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (!['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol)) return false;
+  return !LOCAL_HOSTS.has(url.hostname);
+}
+
+// ---------------------------------------------------------------------------
+// G9: Safety Rail visibility.
+// ---------------------------------------------------------------------------
+
+export interface SafetyVisibility {
+  found: boolean;
+  /** the rect overlaps the viewport */
+  inViewport: boolean;
+  /** product of the element's and every ancestor's computed opacity (must be 1) */
+  effectiveOpacity: number;
+}
+
+export async function safetyVisible(page: Page, selector = SAFETY_RAIL_SELECTOR): Promise<SafetyVisibility> {
+  return page.evaluate((target) => {
+    const el = document.querySelector(target);
+    if (!(el instanceof HTMLElement)) return { found: false, inViewport: false, effectiveOpacity: 0 };
+    const rect = el.getBoundingClientRect();
+    let effectiveOpacity = 1;
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      effectiveOpacity *= parseFloat(getComputedStyle(node).opacity);
+    }
+    const inViewport =
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.bottom > 0 &&
+      rect.right > 0 &&
+      rect.top < window.innerHeight &&
+      rect.left < window.innerWidth;
+    return { found: true, inViewport, effectiveOpacity };
+  }, selector);
+}
+
+// ---------------------------------------------------------------------------
+// G10: stillness probe.
+// ---------------------------------------------------------------------------
+
+export interface StillnessOptions {
+  /** Runs the interaction or navigation. Called after the first sample. */
+  trigger: () => Promise<void>;
+  /** Selectors that must each match at least one [data-t0] node (the route's §2.7 components). */
+  expected: string[];
+  /**
+   * A navigation enables the route-fade rules. During the fade window a [data-t0] node inside the route
+   * container must match the container's opacity, and a node outside it (the Safety Rail) must stay at 1,
+   * because only the container fades (plan §2 T0 row, HC-UISH-009). An interaction has no fade window. An
+   * overlay open (a trigger that opens a Popover or a Modal) follows the interaction rules (no fade window,
+   * effective opacity 1) with a 70 ms gap bound (owner STILLNESS-OVERLAY-OPEN). Default `interaction`.
+   */
+  kind?: 'interaction' | 'navigation' | 'overlay';
+  /**
+   * A route that fetches its data after the trigger: the window starts only when no request is in flight and none
+   * has started or finished for NETWORK_IDLE_MS (counted from the trigger), then runs windowMs more.
+   */
+  lazyRoute?: boolean;
+  /** Window after the trigger. Default STILLNESS_WINDOW_MS (800). */
+  windowMs?: number;
+}
+
+export interface StillnessReport {
+  /** Every sample, before and after the trigger. */
+  samples: number;
+  /** Samples at or after the trigger; the probe needs at least windowMs / 40 of them. */
+  postTriggerSamples: number;
+  /** Largest gap in ms between consecutive samples at or after the trigger (must be <= 40, or 70 for a navigation or an overlay open). */
+  maxGapMs: number;
+  /** Largest gap over the 20 ms timer samples alone (the old signal); reported, not gated. */
+  timerMaxGapMs: number;
+  /** Largest gap over the animation-frame samples alone; reported, not gated. */
+  rafMaxGapMs: number;
+  /** Trigger to the end of the window, in ms (longer on a lazy route). */
+  elapsedMs: number;
+  /** [data-t0] nodes in the last sample */
+  nodes: number;
+  /** key of the route container in the last sample, if any */
+  routeKey: string | null;
+}
+
+export class StillnessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StillnessError';
+  }
+}
+
+/** The start page of a navigation probe never settled (see settleStartPage). Its own name, so it is never read as a gap failure. */
+export class StillnessSettleError extends StillnessError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StillnessSettleError';
+  }
+}
+
+interface NodeSnap {
+  id: number;
+  label: string;
+  text: string;
+  color: string;
+  bg: string;
+  clip: string;
+  filter: string;
+  transform: string;
+  rect: [number, number, number, number];
+  /** product of this node's and every ancestor's computed opacity */
+  opacity: number;
+  /** inside the route container, the element that fades on a navigation */
+  inRoute: boolean;
+}
+
+interface RouteSnap {
+  key: string;
+  opacity: number;
+  transform: string;
+}
+
+interface Snap {
+  /** which sampler took this snapshot: the 20 ms interval, or a requestAnimationFrame callback */
+  src: 'timer' | 'raf';
+  /** milliseconds on the page clock (performance.now()) */
+  t: number;
+  pathname: string;
+  route: RouteSnap | null;
+  nodes: NodeSnap[];
+  expectedHits: boolean[];
+}
+
+/** The sampler's state inside the page (window.__hcStill). */
+interface SamplerState {
+  running: boolean;
+  timer: number;
+  raf: number;
+  snaps: Snap[];
+  lastError: string | null;
+}
+
+/** What stopSampler hands back to the probe. */
+interface SamplerDump {
+  snaps: Snap[];
+  lastError: string | null;
+}
+
+/**
+ * Runs inside the page. Starts the sampler, replacing an earlier one, and takes
+ * the first sample at once. Each tick snapshots every [data-t0] node, the route
+ * container and the expected selectors, on the page's own clock.
+ *
+ * Playwright serialises this function, so it must not reference module scope.
+ *
+ * It samples in the page because a sample taken by a CDP call from Node queues
+ * behind whatever the trigger is running. The gap between samples then depended
+ * on what ran earlier in the test run (review round 2: gaps of 35-66 ms on a
+ * cold run of a fixture that is 25 ms warm).
+ */
+function startSampler(config: { expected: string[]; intervalMs: number }): void {
+  const w = window as unknown as { __hcStill?: SamplerState };
+  if (w.__hcStill) {
+    w.__hcStill.running = false;
+    window.clearInterval(w.__hcStill.timer);
+    cancelAnimationFrame(w.__hcStill.raf);
+  }
+  const state: SamplerState = { running: true, timer: 0, raf: 0, snaps: [], lastError: null };
+  w.__hcStill = state;
+
+  const ids = new WeakMap<Element, number>();
+  let nextId = 1;
+  const idOf = (el: Element): number => {
+    let id = ids.get(el);
+    if (id === undefined) {
+      id = nextId++;
+      ids.set(el, id);
+    }
+    return id;
+  };
+  const effectiveOpacity = (el: Element): number => {
+    let value = 1;
+    for (let node: Element | null = el; node; node = node.parentElement) {
+      value *= parseFloat(getComputedStyle(node).opacity);
+    }
+    return value;
+  };
+
+  const snapshot = (src: Snap['src']): Snap => {
+    // Stamped before the first read: the tick's own style and layout reads then add nothing to the gap.
+    const t = Math.round(performance.now());
+    const routeEl = document.querySelector('[data-route-container]');
+    let route: RouteSnap | null = null;
+    if (routeEl) {
+      const cs = getComputedStyle(routeEl);
+      route = {
+        key: routeEl.getAttribute('data-route-container') ?? '',
+        opacity: parseFloat(cs.opacity),
+        transform: cs.transform,
+      };
+    }
+
+    // G10-HIDDEN-TABPANEL (#535 ruling 6714563477): a node whose closest Tabs content panel carries `hidden` is gone.
+    const inHiddenTabPanel = (el: Element) =>
+      el.closest('[data-state][data-orientation][id*="-content-"]')?.hasAttribute('hidden') === true;
+    const tracked = Array.from(document.querySelectorAll('[data-t0]')).filter((el) => !inHiddenTabPanel(el));
+    const nodes: NodeSnap[] = tracked.map((el): NodeSnap => {
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      const text = el.textContent ?? '';
+      return {
+        id: idOf(el),
+        label: `${el.tagName.toLowerCase()} "${text.trim().slice(0, 40)}"`,
+        text,
+        color: cs.color,
+        bg: cs.backgroundColor,
+        clip: cs.clipPath,
+        filter: cs.filter,
+        transform: cs.transform,
+        rect: [r.x, r.y, r.width, r.height],
+        opacity: effectiveOpacity(el),
+        inRoute: routeEl !== null && routeEl.contains(el),
+      };
+    });
+
+    const expectedHits = config.expected.map((selector) =>
+      Array.from(document.querySelectorAll(selector)).some((el) => el.matches('[data-t0]'))
+    );
+
+    return { src, t, pathname: location.pathname, route, nodes, expectedHits };
+  };
+
+  const take = (src: Snap['src']) => {
+    if (!state.running) return;
+    try {
+      state.snaps.push(snapshot(src));
+    } catch (error) {
+      // A selector may be invalid, or the DOM may be mid-update. The next tick retries.
+      state.lastError = String(error);
+    }
+  };
+  // Two sources feed one array, in time order (one thread). Never sort it: analyse() reads it in push order.
+  // The timer keeps the old 20 ms signal. The frame callback adds a sample at every point a user could see a new
+  // state, so a timer that runs late behind a render no longer counts as a freeze (MEDS-G-FLAKE).
+  const frame = () => {
+    take('raf');
+    if (state.running) state.raf = requestAnimationFrame(frame);
+  };
+  take('timer');
+  state.timer = window.setInterval(() => take('timer'), config.intervalMs);
+  state.raf = requestAnimationFrame(frame);
+}
+
+/**
+ * Runs inside the page. Stops the sampler and returns what it recorded. Returns
+ * null when the page has no sampler, which means the document was replaced.
+ */
+function stopSampler(): SamplerDump | null {
+  const state = (window as unknown as { __hcStill?: SamplerState }).__hcStill;
+  if (!state) return null;
+  state.running = false;
+  window.clearInterval(state.timer);
+  cancelAnimationFrame(state.raf);
+  return { snaps: state.snaps, lastError: state.lastError };
+}
+
+/**
+ * Pure analysis of the samples. Returns one message per failure; each names
+ * the property that moved so a caller can match on it.
+ */
+function analyse(snaps: Snap[], kind: 'interaction' | 'navigation' | 'overlay', expected: string[]): string[] {
+  const failures: string[] = [];
+  const seen = new Set<string>();
+  const fail = (key: string, message: string) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    failures.push(message);
+  };
+  const origin = snaps[0].t;
+  const last = snaps[snaps.length - 1];
+
+  if (last.nodes.length === 0) {
+    fail('zero-nodes', 'found zero [data-t0] nodes (the probe needs at least one)');
+  }
+  expected.forEach((selector, index) => {
+    if (!last.expectedHits[index]) {
+      fail(`expected:${selector}`, `expected selector "${selector}" matched no [data-t0] node`);
+    }
+  });
+
+  // Per-node stillness: the baseline is the first sample in which the node exists.
+  const baselines = new Map<number, NodeSnap>();
+  for (const snap of snaps) {
+    for (const node of snap.nodes) {
+      const base = baselines.get(node.id);
+      if (!base) {
+        baselines.set(node.id, node);
+        continue;
+      }
+      const at = snap.t - origin;
+      const who = `[data-t0] ${base.label}`;
+      const key = String(node.id);
+      const compare = (prop: string, before: string, after: string) => {
+        if (before !== after) {
+          fail(`${key}:${prop}`, `${prop} changed on ${who}: "${before}" -> "${after}" at ${at} ms`);
+        }
+      };
+      compare('textContent', base.text, node.text);
+      compare('computed color', base.color, node.color);
+      compare('computed background-color', base.bg, node.bg);
+      compare('computed clip-path', base.clip, node.clip);
+      compare('computed filter', base.filter, node.filter);
+      compare('computed transform', base.transform, node.transform);
+      if (node.rect.some((value, index) => Math.abs(value - base.rect[index]) > RECT_TOLERANCE_PX)) {
+        fail(
+          `${key}:rect`,
+          `getBoundingClientRect changed on ${who}: [${base.rect.map(round1)}] -> [${node.rect.map(round1)}] at ${at} ms`
+        );
+      }
+    }
+  }
+
+  // Route fade (navigation only). The new keyed container is the first sample
+  // whose key matches the pathname and was not the container before the trigger.
+  let i0 = -1;
+  let t0 = 0;
+  if (kind === 'navigation') {
+    const oldKey = snaps[0].route?.key ?? null;
+    i0 = snaps.findIndex((s) => s.route !== null && s.route.key === s.pathname && s.route.key !== oldKey);
+    if (i0 < 0) {
+      fail('no-route', `no new keyed route container for ${last.pathname} appeared (data-route-container must equal the pathname)`);
+    } else {
+      // The fade clock keeps its timer origin (MEDS-G-FLAKE): the first TIMER sample of the new container, as before the
+      // frame samples existed. A frame sample can see the fade's first frame earlier, and a long first frame (HC-UIG-007 c)
+      // then stretches the observed fade; the 240 ms bound was calibrated on the timer origin and does not move.
+      // The fade window still opens at i0, so a frame sample inside the fade is checked against the container's opacity.
+      t0 = (snaps.slice(i0).find((snap) => snap.src === 'timer') ?? snaps[i0]).t;
+      let settledAt = -1;
+      for (let index = i0; index < snaps.length; index++) {
+        const route = snaps[index].route;
+        if (!route) continue;
+        const at = snaps[index].t - t0;
+        if (!IDENTITY_TRANSFORM.test(route.transform)) {
+          fail('route-transform', `route container transform ${route.transform} at ${at} ms (must stay none)`);
+        }
+        if (settledAt < 0 && route.opacity >= SETTLED_OPACITY) {
+          settledAt = index;
+        } else if (settledAt >= 0 && route.opacity < SETTLED_OPACITY) {
+          fail('route-reopacity', `route container opacity changed after settling (1 -> ${route.opacity.toFixed(2)}) at ${at} ms`);
+        }
+      }
+      if (settledAt < 0 || snaps[settledAt].t - t0 > ROUTE_FADE_MS) {
+        const reached = settledAt < 0 ? 'never' : `at ${snaps[settledAt].t - t0} ms`;
+        fail('route-240', `route container did not reach opacity 1 within ${ROUTE_FADE_MS} ms (reached ${reached})`);
+      }
+    }
+  }
+
+  // Effective opacity (plan G10). During the navigation fade window a node inside the route container must
+  // equal the container's own opacity. A node outside it must stay at 1: only the container fades, and the
+  // Safety Rail sits outside it (plan §2 T0 row, HC-UISH-009). Everywhere else every node must be 1.
+  for (let index = 0; index < snaps.length; index++) {
+    const snap = snaps[index];
+    const inWindow =
+      kind === 'navigation' &&
+      i0 >= 0 &&
+      index >= i0 &&
+      snap.t - t0 <= ROUTE_FADE_MS &&
+      snap.route !== null;
+    for (const node of snap.nodes) {
+      const insideFade = inWindow && node.inRoute;
+      const allowed = insideFade && snap.route ? snap.route.opacity : 1;
+      if (Math.abs(node.opacity - allowed) > OPACITY_EPSILON) {
+        const at = snap.t - origin;
+        let message: string;
+        if (insideFade) {
+          message = `effective opacity ${node.opacity.toFixed(2)} must equal the route container's ${allowed.toFixed(2)} during the fade on [data-t0] ${node.label} at ${at} ms`;
+        } else if (inWindow) {
+          message = `effective opacity ${node.opacity.toFixed(2)} must be 1 on [data-t0] ${node.label} at ${at} ms: the node is outside the route container, and only the container fades`;
+        } else {
+          message = `effective opacity ${node.opacity.toFixed(2)} (must be 1) on [data-t0] ${node.label} at ${at} ms`;
+        }
+        fail(`${node.id}:opacity`, message);
+      }
+    }
+  }
+
+  return failures;
+}
+
+async function waitUntil(predicate: () => boolean, timeoutMs: number, what: string): Promise<void> {
+  const deadline = performance.now() + timeoutMs;
+  while (!predicate()) {
+    if (performance.now() > deadline) throw new StillnessError(`timed out waiting for ${what}`);
+    await sleep(5);
+  }
+}
+
+export interface SamplingCheck {
+  failures: string[];
+  /** Largest gap between consecutive samples at or after the trigger; the gap that spans the trigger counts. */
+  maxGapMs: number;
+  postTriggerSamples: number;
+  /** Largest gap over the timer samples alone (the pre-MEDS-G-FLAKE signal); reported, never gated. Only with `sources`. */
+  timerMaxGapMs?: number;
+  /** Largest gap over the animation-frame samples alone; reported, never gated. Only with `sources`. */
+  rafMaxGapMs?: number;
+}
+
+/**
+ * G10 sampling, checked on the sample times: at least windowMs / 40 samples at
+ * or after the trigger, and no gap over maxGapMs (40 ms by default, 70 ms for a
+ * navigation or an overlay open). The minimum always uses 40 ms. `overlayOpen`
+ * only picks the failure text: an overlay miss names STILLNESS-OVERLAY-OPEN
+ * and not the page-change owner. Pure, so the harness tests it on
+ * synthetic times. A probe whose sampler stalls or throws fails here instead of
+ * passing on the few samples it did take.
+ *
+ * `sources` (MEDS-G-FLAKE) tags each time as taken by the 20 ms timer or by an animation frame. The gap bound
+ * is measured over the union, so it is a coverage check of every point the user could see: the 40 ms bound keeps its
+ * meaning, but a block of about 20-40 ms that the timer alone caught is now judged on frame cadence too (a loosening
+ * of the sampler, not of the bound). The minimum count stays on timer samples (frames alone would make it vacuous),
+ * and a probe that took no frame sample fails, so a dead rAF cannot quietly fall back to timer-only.
+ */
+export function checkSampling(
+  sampleTimes: number[],
+  triggeredAt: number,
+  windowMs: number,
+  lastError: unknown,
+  maxGapMs = STILLNESS_MAX_GAP_MS,
+  overlayOpen = false,
+  sources?: Array<'timer' | 'raf'>
+): SamplingCheck {
+  const failures: string[] = [];
+  let largestGapMs = 0;
+  let postTriggerSamples = 0;
+  let timerPost = 0;
+  let rafPost = 0;
+  const lastBy: { timer: number | null; raf: number | null } = { timer: null, raf: null };
+  const gapBy = { timer: 0, raf: 0 };
+  sampleTimes.forEach((at, index) => {
+    const src = sources?.[index];
+    if (src && at >= triggeredAt) {
+      if (src === 'timer') timerPost++;
+      else rafPost++;
+      // A source's own gap starts at its last sample before the trigger, like the union's.
+      if (lastBy[src] !== null) gapBy[src] = Math.max(gapBy[src], at - lastBy[src]);
+    }
+    if (src) lastBy[src] = at;
+    if (at < triggeredAt) return;
+    postTriggerSamples++;
+    if (index > 0) largestGapMs = Math.max(largestGapMs, at - sampleTimes[index - 1]);
+  });
+  const minimum = Math.floor(windowMs / STILLNESS_MAX_GAP_MS);
+  const counted = sources ? timerPost : postTriggerSamples;
+  if (sources && rafPost === 0) {
+    failures.push('no animation-frame sample after the trigger (the page did not render frames; G10 needs both samplers)');
+  }
+  if (counted < minimum) {
+    const detail = lastError === null ? '' : ` (last sampler error: ${String(lastError)})`;
+    failures.push(
+      `only ${counted} sample(s) after the trigger; the ${windowMs} ms window needs at least ${minimum} at one per ${STILLNESS_MAX_GAP_MS} ms${detail}`
+    );
+  }
+  if (largestGapMs > maxGapMs) {
+    // overlayOpen is tested first: both bounds are 70, so keying on the value alone would print the page-change text for an overlay.
+    // Otherwise the text keys on the bound value: a caller that passes 70 gets the page-change text, so an interaction probe must never pass 70.
+    const bound = overlayOpen
+      ? `must be <= ${maxGapMs} ms for an overlay open, owner STILLNESS-OVERLAY-OPEN; G10 samples every 16-40 ms`
+      : maxGapMs === STILLNESS_NAV_MAX_GAP_MS
+        ? `must be <= ${maxGapMs} ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms`
+        : `must be <= ${maxGapMs} ms; G10 samples every 16-40 ms`;
+    failures.push(`sampling gap of ${largestGapMs} ms (${bound})`);
+  }
+  return sources
+    ? { failures, maxGapMs: largestGapMs, postTriggerSamples, timerMaxGapMs: gapBy.timer, rafMaxGapMs: gapBy.raf }
+    : { failures, maxGapMs: largestGapMs, postTriggerSamples };
+}
+
+interface NetworkTracker {
+  /** Requests started and not yet finished or failed. */
+  readonly inFlight: Set<Request>;
+  /** performance.now() reading (ms, monotonic, Node side) at the last request start, finish or failure. */
+  lastEventAt: number;
+  stop(): void;
+}
+
+/** Long-lived streams never go idle, so they do not count toward network idle. */
+const STREAMING_TYPES = new Set(['eventsource', 'websocket']);
+
+function trackRequests(page: Page): NetworkTracker {
+  const inFlight = new Set<Request>();
+  const tracker: NetworkTracker = { inFlight, lastEventAt: performance.now(), stop: () => undefined };
+  const started = (request: Request) => {
+    tracker.lastEventAt = performance.now();
+    if (!STREAMING_TYPES.has(request.resourceType())) inFlight.add(request);
+  };
+  const ended = (request: Request) => {
+    tracker.lastEventAt = performance.now();
+    inFlight.delete(request);
+  };
+  page.on('request', started);
+  page.on('requestfinished', ended);
+  page.on('requestfailed', ended);
+  tracker.stop = () => {
+    page.off('request', started);
+    page.off('requestfinished', ended);
+    page.off('requestfailed', ended);
+  };
+  return tracker;
+}
+
+/**
+ * Waits for the page a navigation starts from to settle: no request in flight for NETWORK_IDLE_MS and the route
+ * container's entrance fade done (settleRoute's condition in ui-gates.spec.ts), both true at the same moment.
+ * It runs before the sampler starts, so the start page's own pending render is not in the gap window. A page
+ * that does not settle within LAZY_IDLE_TIMEOUT_MS throws StillnessSettleError; it never proceeds.
+ *
+ * The tracker is attached first and then seeded from page.requests(): a listener only sees requests that start
+ * after it, and the start page's own fetches began before the probe. Known limits: page.requests() holds the
+ * last 100 requests only, and a seeded request counts as done once its response headers arrive, so a pre-probe
+ * request whose body never ends is not detected.
+ */
+async function settleStartPage(page: Page): Promise<void> {
+  const network = trackRequests(page);
+  try {
+    for (const request of await page.requests()) {
+      if (STREAMING_TYPES.has(request.resourceType()) || request.failure() !== null) continue;
+      network.inFlight.add(request);
+      void request
+        .response()
+        .catch(() => null)
+        .finally(() => {
+          if (network.inFlight.delete(request)) network.lastEventAt = performance.now();
+        });
+    }
+    const quiet = () => network.inFlight.size === 0 && performance.now() - network.lastEventAt >= NETWORK_IDLE_MS;
+    const deadline = performance.now() + LAZY_IDLE_TIMEOUT_MS;
+    let opacity = Number.NaN;
+    for (;;) {
+      if (quiet()) {
+        opacity = await page.evaluate(
+          ({ container, fallback }) => {
+            const el = document.querySelector(container) ?? document.querySelector(fallback);
+            return el ? parseFloat(getComputedStyle(el).opacity) : Number.NaN;
+          },
+          { container: ROUTE_CONTAINER_SELECTOR, fallback: ROUTE_FALLBACK_SELECTOR }
+        );
+        if (opacity >= SETTLED_OPACITY && quiet()) return;
+      }
+      if (performance.now() >= deadline) break;
+      await sleep(20);
+    }
+    const pending = [...network.inFlight].map((request) => request.url());
+    throw new StillnessSettleError(
+      `stillnessProbe: the start page did not settle within ${LAZY_IDLE_TIMEOUT_MS} ms ` +
+        `(needs no request in flight for ${NETWORK_IDLE_MS} ms and the route element at opacity >= ${SETTLED_OPACITY}); ` +
+        `in flight: ${pending.length > 0 ? pending.join(', ') : 'none'}; ` +
+        (Number.isNaN(opacity) ? 'no route element' : `last route opacity ${opacity}`)
+    );
+  } finally {
+    network.stop();
+  }
+}
+
+/**
+ * Samples every STILLNESS_SAMPLE_MS on the page's clock while `trigger` runs and
+ * for the window after it, then throws a StillnessError listing every failure.
+ * Resolves with a summary when the page stays still. A navigation first waits for its start page to settle
+ * (settleStartPage), so the start page's own pending render is not counted against the trigger.
+ *
+ * The sampler runs in the page, so a full document load ends it and the probe
+ * then fails with "lost its sampler". Use the probe for interactions and for
+ * client-side (SPA) navigations.
+ */
+export async function stillnessProbe(page: Page, options: StillnessOptions): Promise<StillnessReport> {
+  const kind = options.kind ?? 'interaction';
+  const windowMs = options.windowMs ?? STILLNESS_WINDOW_MS;
+  if (kind === 'navigation') await settleStartPage(page);
+  await page.evaluate(startSampler, { expected: options.expected, intervalMs: STILLNESS_SAMPLE_MS });
+
+  let dump: SamplerDump | null = null;
+  let triggeredAt = 0;
+  let elapsedMs = 0;
+  try {
+    const network = options.lazyRoute ? trackRequests(page) : null;
+    try {
+      // Whole milliseconds, like the samples, so the messages read "at 1280 ms" and the gap is integral.
+      triggeredAt = await page.evaluate(() => Math.round(performance.now()));
+      const triggeredWall = performance.now();
+      let windowStart = triggeredWall;
+      await options.trigger();
+      if (network) {
+        // A request the trigger starts can begin a few ms later, so the quiet period runs from the trigger.
+        // waitForLoadState('networkidle') is not used: it returns at once on a page that was already idle.
+        await waitUntil(
+          () => network.inFlight.size === 0 && performance.now() - network.lastEventAt >= NETWORK_IDLE_MS,
+          LAZY_IDLE_TIMEOUT_MS,
+          'the lazy route to go network idle'
+        );
+        windowStart = performance.now();
+      }
+      const end = windowStart + windowMs;
+      while (performance.now() < end) await sleep(10);
+      elapsedMs = Math.round(performance.now() - triggeredWall);
+    } finally {
+      network?.stop();
+    }
+  } finally {
+    // Stop the sampler on every path, including a trigger that throws.
+    dump = await page.evaluate(stopSampler).catch(() => null);
+  }
+
+  if (dump === null) {
+    throw new StillnessError('stillnessProbe lost its sampler: the page reloaded or navigated during the probe');
+  }
+  const snaps = dump.snaps;
+  if (snaps.length === 0) {
+    throw new StillnessError(`stillnessProbe took no sample: ${String(dump.lastError)}`);
+  }
+  const sampling = checkSampling(
+    snaps.map((snap) => snap.t),
+    triggeredAt,
+    windowMs,
+    dump.lastError,
+    kind === 'navigation'
+      ? STILLNESS_NAV_MAX_GAP_MS
+      : kind === 'overlay'
+        ? STILLNESS_OVERLAY_MAX_GAP_MS
+        : STILLNESS_MAX_GAP_MS,
+    kind === 'overlay',
+    snaps.map((snap) => snap.src)
+  );
+  const failures = [...sampling.failures, ...analyse(snaps, kind, options.expected)];
+  if (failures.length > 0) {
+    throw new StillnessError(`stillnessProbe failed (${failures.length}):\n  - ${failures.join('\n  - ')}`);
+  }
+  const last = snaps[snaps.length - 1];
+  return {
+    samples: snaps.length,
+    postTriggerSamples: sampling.postTriggerSamples,
+    maxGapMs: sampling.maxGapMs,
+    timerMaxGapMs: sampling.timerMaxGapMs ?? 0,
+    rafMaxGapMs: sampling.rafMaxGapMs ?? 0,
+    elapsedMs,
+    nodes: last.nodes.length,
+    routeKey: last.route?.key ?? null,
+  };
+}

@@ -1,0 +1,70 @@
+name: npm audit (scheduled)
+
+# Weekly report only. No PR trigger, so a failure here never blocks a PR.
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Audit the lockfile
+        working-directory: src/frontend
+        run: npm audit --package-lock-only --json > npm-audit.json || true
+
+      - name: Write summary
+        working-directory: src/frontend
+        run: |
+          node -e '
+          const fs = require("fs");
+          let r = {};
+          try { r = JSON.parse(fs.readFileSync("npm-audit.json", "utf8")); } catch (e) { r = { message: "unreadable npm-audit.json: " + e.message }; }
+          const m = r.metadata && r.metadata.vulnerabilities;
+          if (!m) {
+            const why = r.message || (r.error && r.error.summary) || "no metadata in output";
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## npm audit\n\nnpm audit did not produce a report: " + why + "\n");
+            process.exit(0);
+          }
+          const keys = ["info", "low", "moderate", "high", "critical", "total"];
+          let out = "## npm audit\n\n| " + keys.join(" | ") + " |\n|" + keys.map(() => "---").join("|") + "|\n";
+          out += "| " + keys.map((k) => m[k] ?? 0).join(" | ") + " |\n";
+          const vs = Object.values(r.vulnerabilities || {}).filter((v) => v.severity === "high" || v.severity === "critical");
+          if (vs.length) {
+            out += "\n### High and critical\n\n| package | severity | fixAvailable |\n|---|---|---|\n";
+            for (const v of vs) out += "| " + v.name + " | " + v.severity + " | " + JSON.stringify(v.fixAvailable) + " |\n";
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, out);
+          '
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit
+          path: src/frontend/npm-audit.json
+          retention-days: 30
+
+      - name: Fail on high or critical
+        working-directory: src/frontend
+        run: |
+          node -e '
+          let m;
+          try { m = require("./npm-audit.json").metadata.vulnerabilities; } catch (e) {}
+          if (!m) {
+            console.log("npm audit did not produce a report (registry error or unreadable output)");
+            process.exit(1);
+          }
+          const n = (m.high || 0) + (m.critical || 0);
+          console.log("high+critical = " + n);
+          process.exit(n > 0 ? 1 : 0);
+          '

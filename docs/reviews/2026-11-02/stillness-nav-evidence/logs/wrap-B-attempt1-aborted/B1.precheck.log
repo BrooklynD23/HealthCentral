@@ -1,0 +1,20 @@
+--- precheck before B1 at 2026-11-02T17:39:36-08:00
+ 17:39:36 up 2 days,  7:31,  1 user,  load average: 1.39, 6.59, 7.08
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1666739 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1666810 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1666812 bash -c "/mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh" npx vitest run src/__tests__/ui-motion.test.tsx; echo EXIT=$?
+[FOREIGN] 1666813 timeout 580 bash -c until grep -q "^EXIT=" /tmp/claude-1000/uipg-r3/vitest-motion.txt; do sleep 5; done
+[FOREIGN] 1666814 bash -c until grep -q "^EXIT=" /tmp/claude-1000/uipg-r3/vitest-motion.txt; do sleep 5; done
+[FOREIGN] 1666815 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-motion.test.tsx
+[FOREIGN] 1666836 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='b2fcd6a5-f
+[FOREIGN] 1666838 timeout 500 ../../scripts/pyslot.sh npx vitest run src/__tests__/ui-auth.test.tsx -t Enter your password|no spinner
+[FOREIGN] 1666842 bash ../../scripts/pyslot.sh npx vitest run src/__tests__/ui-auth.test.tsx -t Enter your password|no spinner
+[FOREIGN] 1669271 bash /mnt/e/Programming/Github Repo/hc-c-p6/scripts/pyslot.sh env HF_HUB_OFFLINE=1 /home/danny/venvs/asclexis-311/bin/python -m pytest tests/test_fk_migration_017
+[mine] 1670893 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+[mine] 1670948 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir /tmp/clau
+[mine] 1670981 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --config /tmp/claude-1000/snl-scratch-B/vite.nohmr.config.ts --host 
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:4173       0.0.0.0:*    users:(("node-MainThread",pid=1670948,fd=30))
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1670893,fd=30))
+(own server pids: 1670893 1670948 1670981 )

@@ -12,7 +12,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { ExternalApiBreakGlassWarning } from '../components/settings/ExternalApiBreakGlassWarning';
-import { LabInterpreter } from '@/pages/LabInterpreter';
+import { ResultsPage } from '@/pages/ResultsPage';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -48,18 +48,20 @@ vi.mock('framer-motion', async () => {
     function MotionStub(props: React.PropsWithChildren<Record<string, unknown>>) {
       return <Tag {...filter(props)}>{props.children}</Tag>;
     };
+  const motionStubs = {
+    div: make('div'),
+    button: make('button'),
+    tr: make('tr'),
+    p: make('p'),
+    span: make('span'),
+    li: make('li'),
+    ul: make('ul'),
+    section: make('section'),
+  };
   return {
     ...actual,
-    motion: {
-      div: make('div'),
-      button: make('button'),
-      tr: make('tr'),
-      p: make('p'),
-      span: make('span'),
-      li: make('li'),
-      ul: make('ul'),
-      section: make('section'),
-    },
+    motion: motionStubs,
+    m: motionStubs,
     AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
   };
 });
@@ -122,7 +124,7 @@ describe('ExternalApiBreakGlassWarning unknown state (B-1, BGS-1)', () => {
   });
 });
 
-describe('HC-EXT-003e: lab interpreter shows the status notice when the settings fetch fails', () => {
+describe('HC-EXT-003e: the Results page shows the status notice when the settings fetch fails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.getState().setAuth({
@@ -136,6 +138,7 @@ describe('HC-EXT-003e: lab interpreter shows the status notice when the settings
     vi.mocked(api.apiGet).mockImplementation(async (url) => {
       if (url === '/settings/model/external-api') throw new Error('network down');
       if (url === '/observations/') return [observation];
+      if (url === '/assistant/safety-mode') return { strict_safety_mode: false };
       throw new Error(`unmocked ${url}`);
     });
     const queryClient = new QueryClient({
@@ -144,12 +147,13 @@ describe('HC-EXT-003e: lab interpreter shows the status notice when the settings
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
-          <LabInterpreter />
+          <ResultsPage />
         </MemoryRouter>
       </QueryClientProvider>
     );
 
-    await screen.findByText(/Interpret CBC Panel/i);
+    // The tab list exists only once the observations have loaded (the old wait was the Interpret CBC Panel button).
+    await screen.findByRole('tablist', { name: 'Lab panels' });
     expect(await screen.findByRole('status')).toHaveTextContent(UNKNOWN_COPY);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));

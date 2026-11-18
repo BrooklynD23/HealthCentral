@@ -20,7 +20,7 @@ class DocumentCategory(ProfileDatabaseBase):
     __tablename__ = "document_category"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
-    doc_id: Mapped[str] = mapped_column(Text, ForeignKey("documents.id"), nullable=False, index=True)
+    doc_id: Mapped[str] = mapped_column(Text, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     category: Mapped[str] = mapped_column(Text, nullable=False)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
     classified_by: Mapped[str] = mapped_column(Text, nullable=False)
@@ -36,7 +36,7 @@ class DocumentEntity(ProfileDatabaseBase):
     __tablename__ = "document_entity"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
-    doc_id: Mapped[str] = mapped_column(Text, ForeignKey("documents.id"), nullable=False, index=True)
+    doc_id: Mapped[str] = mapped_column(Text, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     category: Mapped[str] = mapped_column(Text, nullable=False)
     entity_type: Mapped[str] = mapped_column(Text, nullable=False)
     entity_value: Mapped[str] = mapped_column(Text, nullable=False)

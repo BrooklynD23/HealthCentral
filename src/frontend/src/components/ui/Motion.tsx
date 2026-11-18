@@ -1,6 +1,5 @@
-import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
+import { m, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { cn } from '@/utils/cn';
 
 /**
  * Shared motion variants for consistent entrance animations.
@@ -26,32 +25,11 @@ export const staggerContainerVariants: Variants = {
 };
 
 /**
- * PageTransition wrapper for consistent route entrance.
- */
-export function PageTransition({ children, className, ...props }: HTMLMotionProps<'div'>) {
-  const prefersReducedMotion = useReducedMotion();
-
-  return (
-    <motion.div
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      variants={prefersReducedMotion ? fadeVariants : slideUpVariants}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
-      className={cn('w-full', className)}
-      {...props}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/**
  * StaggerGroup for list orchestrations.
  */
 export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <motion.div
+    <m.div
       initial="initial"
       animate="animate"
       variants={staggerContainerVariants}
@@ -59,7 +37,7 @@ export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<
       {...props}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -70,13 +48,13 @@ export function StaggerItem({ children, className, ...props }: HTMLMotionProps<'
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       variants={prefersReducedMotion ? fadeVariants : slideUpVariants}
       className={className}
       {...props}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 

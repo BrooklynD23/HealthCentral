@@ -1,0 +1,19 @@
+### baseline-preview
+- probe base: 0 of 15 over 40 ms (pooled); per batch b1:0/5 b2:0/5 b3:0/5; unmeasured 0; max 37
+  gaps: timeline=24 search=33 med=22 notif=34 care=30 timeline=26 search=37 med=23 notif=33 care=31 timeline=32 search=34 med=22 notif=30 care=37
+  P.b1.baseline-preview.base.probe.timeline	gap=24	gapStart=18	gapEnd=42	longtasks=-	load1=1.29/1.19
+  P.b1.baseline-preview.base.probe.search	gap=33	gapStart=-2	gapEnd=31	longtasks=-	load1=1.19/1.19
+  P.b1.baseline-preview.base.probe.med	gap=22	gapStart=40	gapEnd=62	longtasks=-	load1=1.19/1.09
+  P.b1.baseline-preview.base.probe.notif	gap=34	gapStart=-1	gapEnd=33	longtasks=-	load1=1.09/1.09
+  P.b1.baseline-preview.base.probe.care	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.09/1.09
+  P.b2.baseline-preview.base.probe.timeline	gap=26	gapStart=19	gapEnd=45	longtasks=-	load1=1.15/1.15
+  P.b2.baseline-preview.base.probe.search	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.15/1.05
+  P.b2.baseline-preview.base.probe.med	gap=23	gapStart=-2	gapEnd=21	longtasks=-	load1=1.05/1.05
+  P.b2.baseline-preview.base.probe.notif	gap=33	gapStart=-1	gapEnd=32	longtasks=-	load1=1.05/0.97
+  P.b2.baseline-preview.base.probe.care	gap=31	gapStart=-2	gapEnd=29	longtasks=-	load1=0.97/0.97
+  P.b3.baseline-preview.base.probe.timeline	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.05/1.13
+  P.b3.baseline-preview.base.probe.search	gap=34	gapStart=-2	gapEnd=32	longtasks=-	load1=1.13/1.13
+  P.b3.baseline-preview.base.probe.med	gap=22	gapStart=38	gapEnd=60	longtasks=-	load1=1.13/1.04
+  P.b3.baseline-preview.base.probe.notif	gap=30	gapStart=19	gapEnd=49	longtasks=-	load1=1.04/1.04
+  P.b3.baseline-preview.base.probe.care	gap=37	gapStart=-2	gapEnd=35	longtasks=-	load1=1.04/1.12
+

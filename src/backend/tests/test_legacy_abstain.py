@@ -15,8 +15,11 @@ monkeypatched on the class; modules/faithfulness.py is not edited (C-SAFE-1).
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
+from modules.agent.guardrails.classifier import classify_advice
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE, ESCALATE_TEMPLATE
 from modules.faithfulness import FaithfulnessScorer, FaithfulnessScores
 from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
@@ -86,6 +89,8 @@ def test_hc_leg_001_low_faithfulness_legacy_answer_returns_abstention_over_http(
 
 
 def test_hc_leg_004_faithfulness_at_threshold_0_6_is_served_unchanged(monkeypatch):
+    # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
+    monkeypatch.setattr("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False))
     _force_faithfulness(monkeypatch, 0.6)
     with legacy_chat_client(build_chunks("glucose"), CITED_ANSWER) as (client, append_turns):
         resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
@@ -122,10 +127,15 @@ def test_hc_leg_006_safe_chat_does_not_overwrite_the_abstention_over_http():
 def test_hc_leg_007_prohibited_advice_still_escalates_over_http():
     """Prohibited: SAFE-CHAT's escalation wins over W-4's abstention (owner SAFE-CHAT-TPL)."""
     with legacy_chat_client(build_chunks("glucose"), PROHIBITED_ANSWER) as (client, append_turns):
-        resp = client.post(CHAT_PATH, json={"question": "What should I do about my glucose?"})
+        # LEGACY-ADVICE-GATE: "What should I do about my glucose?" now escalates before the
+        # model. This phrasing passes classify_advice, so the post-hoc prohibited check is
+        # what escalates the model's advice.
+        assert classify_advice("What was my glucose?").is_advice_seeking is False
+        resp = client.post(CHAT_PATH, json={"question": "What was my glucose?"})
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
+    assert "pre_model_advice" not in body["validation_errors"]
     assert body["segments"] == [
         {"segment_type": "uncertainty", "content": ESCALATE_TEMPLATE, "citations": []}
     ]

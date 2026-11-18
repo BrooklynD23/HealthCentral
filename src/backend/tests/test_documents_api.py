@@ -26,6 +26,7 @@ from core.auth import Session, get_profile_db_session
 from core.time import utcnow
 from models import CarePlanTask, Document
 from modules.ingest import ImportResult
+from tests.support.minimal_pdf import text_then_image_pdf
 from tests.support.routes import route_client
 
 
@@ -1175,3 +1176,278 @@ async def test_HC_DDI_004_interpretation_created_by_fk_still_flushes(entity_prof
     assert await _ddi_count(
         entity_profile_db, LabInterpretation, LabInterpretation.observation_id == obs_id
     ) == 0
+
+
+# ---------------------------------------------------------------------------
+# EXTRACT-DOB-DATE (HC-DATE-010)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_HC_DATE_010_same_dob_does_not_make_two_reports_same_date_duplicates(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """A date of birth is not a collection date. Two lab PDFs for the same patient
+    (same `DOB:` line, different collection dates) must store their own
+    collection dates and must not trip the `same_date` duplicate warning.
+
+    Real `ExtractModule.extract_from_pdf` on real text PDFs, real profile DB, and
+    the upload goes through HTTP; only vault encryption/ingest is replaced."""
+    import hashlib
+
+    from tests.support.minimal_pdf import minimal_pdf
+
+    profile_id = "profile-a"  # route_client's default session profile_id
+    stored: dict[str, bytes] = {}
+
+    class _PdfIngest:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def import_document(self, *, file, **_kwargs):
+            data = file.read()
+            doc_id = str(uuid.uuid4())
+            stored[doc_id] = data
+            digest = hashlib.sha256(data).hexdigest()
+            return ImportResult(
+                document_id=doc_id,
+                path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                content_hash=digest,  # distinct per PDF: only a date match can warn
+                doc_type="lab_pdf",
+                page_count=1,
+                is_duplicate=False,
+                metadata={},
+                encrypted=True,
+            )
+
+    async def _no_classify(**_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+    monkeypatch.setattr(modules, "IngestModule", _PdfIngest)
+    monkeypatch.setattr(
+        documents_api, "get_decrypted_document", lambda _pid, doc_id: io.BytesIO(stored[doc_id])
+    )
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+
+    def _report(collection_date: str) -> bytes:
+        return minimal_pdf([[
+            "Patient: Jane Test",
+            "DOB: 1970-01-01",
+            f"Collection Date: {collection_date}",
+            "Glucose: 95 mg/dL (70-100)",
+        ]])
+
+    master = _CommitTrackingMasterDb()
+    responses = []
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=master
+    ) as client:
+
+        async def _override_profile_db():
+            return entity_profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        for name, day in (("first.pdf", "2026-03-02"), ("second.pdf", "2026-06-01")):
+            responses.append(
+                client.post(
+                    "/documents/import",
+                    files={"file": (name, _report(day), "application/pdf")},
+                )
+            )
+
+    assert [r.status_code for r in responses] == [201, 201], [r.text for r in responses]
+    first, second = (r.json() for r in responses)
+    assert first["observations_extracted"] == 1 and second["observations_extracted"] == 1
+
+    docs = (await entity_profile_db.execute(
+        select(Document).where(Document.profile_id == profile_id)
+    )).scalars().all()
+    by_source = {d.source: d.collection_date for d in docs}
+    assert by_source == {
+        "first.pdf": datetime(2026, 3, 2),
+        "second.pdf": datetime(2026, 6, 1),
+    }
+    assert second["duplicate_warning"] is None, second["duplicate_warning"]
+
+
+_ISP_LINES = [
+    "Patient: Jane Test  DOB: 1970-01-01  Collected: 03/02/2026",
+    "Glucose: 95 mg/dL (70-100)",
+    "Creatinine: 1.1 mg/dL (0.7-1.3)",
+    "Sodium: 140 mmol/L (135-145)",
+]
+
+
+def _stub_pdf_import(monkeypatch, tmp_path) -> dict[str, bytes]:
+    """Real ExtractModule on real PDF bytes; only vault encryption and the store are replaced.
+
+    Returns the dict that holds each imported document's bytes by id.
+    """
+    import hashlib
+
+    from modules.ingest import IngestModule as RealIngest
+
+    stored: dict[str, bytes] = {}
+    classifier = RealIngest(vault_path=tmp_path / "classify", encryption_key=b"x" * 32)
+
+    class _PdfIngest:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def import_document(self, *, file, filename, **_kwargs):
+            data = file.read()
+            doc_id = str(uuid.uuid4())
+            stored[doc_id] = data
+            return ImportResult(
+                document_id=doc_id,
+                path_hash=hashlib.sha256(doc_id.encode()).hexdigest(),
+                content_hash=hashlib.sha256(data).hexdigest(),
+                doc_type=classifier.detect_doc_type(filename, data),
+                page_count=2,
+                is_duplicate=False,
+                metadata={},
+                encrypted=True,
+            )
+
+    async def _no_classify(**_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    monkeypatch.setattr(documents_api, "get_profile_encryption_key", lambda _pid: b"x" * 32)
+    monkeypatch.setattr(modules, "IngestModule", _PdfIngest)
+    monkeypatch.setattr(
+        documents_api, "get_decrypted_document", lambda _pid, doc_id: io.BytesIO(stored[doc_id])
+    )
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", _no_classify)
+    return stored
+
+
+@pytest.mark.asyncio
+async def test_hc_isp_002_import_response_names_the_page_without_text(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """IMPORT-SCANNED-PAGE: a text report with one image-only page imports as a
+    parsed text report (not pending_ocr), and the HTTP response names the page
+    that had no readable text.
+
+    Real ExtractModule on real PDF bytes, real doc-type detection
+    (IngestModule.detect_doc_type), real profile DB, upload over HTTP; only the
+    vault encryption and the document store are replaced."""
+    profile_id = "profile-a"  # route_client's default session profile_id
+    _stub_pdf_import(monkeypatch, tmp_path)
+
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=_CommitTrackingMasterDb()
+    ) as client:
+
+        async def _override_profile_db():
+            return entity_profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        response = client.post(
+            "/documents/import",
+            files={"file": ("report.pdf", text_then_image_pdf(_ISP_LINES), "application/pdf")},
+        )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["document"]["status"] == "parsed", body["document"]
+    assert body["observations_extracted"] == 3, body
+    assert body["pages_without_text"] == [2], body
+
+
+@pytest.mark.asyncio
+async def test_hc_isp_005_reprocess_response_names_the_page_without_text(
+    entity_profile_db, monkeypatch, tmp_path
+):
+    """IMPORT-SCANNED-MINORS: POST /documents/{id}/reprocess runs the same extraction
+    and returns pages_without_text, so a rescan still names the image-only page."""
+    profile_id = "profile-a"
+    _stub_pdf_import(monkeypatch, tmp_path)
+
+    with route_client(
+        documents_router, "/documents", profile_id=profile_id, master_db=_CommitTrackingMasterDb()
+    ) as client:
+
+        async def _override_profile_db():
+            return entity_profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        imported = client.post(
+            "/documents/import",
+            files={"file": ("report.pdf", text_then_image_pdf(_ISP_LINES), "application/pdf")},
+        )
+        assert imported.status_code == 201, imported.text
+        doc_id = imported.json()["document"]["id"]
+        response = client.post(f"/documents/{doc_id}/reprocess")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["pages_without_text"] == [2], response.json()
+
+
+@pytest.mark.asyncio
+async def test_HC_FK_020_reprocess_leaves_no_orphan_interpretation_over_http(monkeypatch):
+    """REPROCESS-INTERP-ORPHAN (P6-Q5 a). Reprocess core-deletes the document's
+    observations (``delete(Observation)`` in the extraction refresh). A
+    ``LabInterpretation`` hangs off each observation by FK only, so on an engine
+    that enforces ``ondelete="CASCADE"`` it must go with it: 0 orphan rows after.
+    Pragma-ON engine; with the pragma off the interpretation would dangle.
+
+    Extraction itself is faked (no PDF); the refresh delete under test is real.
+    """
+    from core.fk_audit import PROFILE_CHECKS, find_orphans
+    from modules.extract import ExtractionResult
+    from tests.support.db import fk_profile_engine
+
+    class _EmptyExtract:
+        async def extract_from_pdf(self, _source, document_id, ocr_pages=True):
+            return ExtractionResult(document_id=document_id, extracted_text="")
+
+    monkeypatch.setattr(documents_api, "ExtractModule", _EmptyExtract)
+    monkeypatch.setattr(documents_api, "get_decrypted_document", lambda *_a: io.BytesIO(b"%PDF"))
+    monkeypatch.setattr(documents_api, "_create_chunks_and_embeddings", AsyncMock(return_value=0))
+    monkeypatch.setattr(documents_api, "_classify_and_extract_entities", AsyncMock())
+
+    from models import Pinboard, PinboardItem  # noqa: F401 -- register tables
+
+    engine = fk_profile_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        profile_id = "profile-a"
+        document = _pin_cleanup_document(profile_id, doc_type="lab_pdf")
+        session.add(document)
+        await session.commit()
+        obs = _ddi_observation(profile_id, document.id)
+        session.add(obs)
+        await session.commit()
+        session.add(_ddi_interpretation(profile_id, obs.id))
+        await session.commit()
+        doc_id = document.id
+
+        with route_client(
+            documents_router, "/documents", profile_id=profile_id,
+            master_db=_CommitTrackingMasterDb(),
+        ) as client:
+
+            async def _override_profile_db():
+                return session
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+            resp = client.post(f"/documents/{doc_id}/reprocess")
+
+        assert resp.status_code == 200, resp.text
+        session.expire_all()
+        assert await _ddi_count(session, Observation, Observation.doc_id == doc_id) == 0
+        assert await _ddi_count(session, LabInterpretation) == 0, "interpretation outlived its observation"
+        assert await find_orphans(session, PROFILE_CHECKS) == []
+    finally:
+        await session.close()
+        await engine.dispose()

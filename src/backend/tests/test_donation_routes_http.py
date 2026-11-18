@@ -254,6 +254,17 @@ def test_hc_don_005e_card_version_matches_server_constant():
     assert m.group(1) == CURRENT_CONSENT_TEXT_VERSION
 
 
+def test_hc_don_024_card_and_server_pair_is_the_v3_wording():
+    """DON-COPY-V3 drift pin: not a repeat of 005e. The matched pair must also be
+    the v3 wording, so a v2 pair that agrees with itself cannot pass."""
+    import re
+
+    m = re.search(r"CONSENT_TEXT_VERSION\s*=\s*'([^']+)'", CARD.read_text(encoding="utf-8"))
+    assert m, "CONSENT_TEXT_VERSION literal not found in DataDonationCard.tsx"
+    assert m.group(1) == CURRENT_CONSENT_TEXT_VERSION
+    assert m.group(1).endswith("-v3")
+
+
 @pytest.mark.asyncio
 async def test_hc_don_006_revoke_deletes_real_and_synthetic_children(vault):
     await _seed(vault, PROFILE_A, "fine_tune", n_real=2, n_syn_per_real=2)  # 2 + 4 (+2 orphan synthetic)
@@ -536,6 +547,39 @@ async def test_hc_don_005g_stale_consent_is_visible_and_reconfirmable_without_de
     await _put_ok(vault, "agent_traces", True)
     resp, _ = _call("GET", vault)
     assert _state(resp)["agent_traces"]["current"] is True
+
+
+@pytest.mark.asyncio
+async def test_hc_don_023_stale_v2_grant_reads_not_current_and_cannot_be_regranted(vault):
+    """DON-COPY-V3 on the route: an active grant on the superseded v2 wording
+    reads granted but not current, a grant on v2 is refused, and the current
+    wording is accepted (positive control)."""
+    vault.add(DonationConsent(
+        profile_id=PROFILE_A, purpose="fine_tune", consent_text_version="2026-10-20-v2",
+    ))
+    await vault.commit()
+
+    resp, _ = _call("GET", vault)
+    assert resp.status_code == 200, resp.text
+    st = _state(resp)["fine_tune"]
+    assert st["granted"] is True and st["current"] is False
+    assert st["consent_text_version"] == "2026-10-20-v2"
+
+    resp, master = _call(
+        "PUT", vault, f"{PATH}/fine_tune",
+        json={"granted": True, "consent_text_version": "2026-10-20-v2"},
+    )
+    assert resp.status_code == 422, resp.text
+    # The refusal wrote nothing: the stale row is still the only one, unaudited.
+    rows = (await vault.execute(select(DonationConsent))).scalars().all()
+    assert len(rows) == 1 and rows[0].revoked_at is None
+    assert _audit_rows(master) == []
+
+    # Positive control: the current wording is accepted and reads current.
+    await _put_ok(vault, "fine_tune", True)
+    resp, _ = _call("GET", vault)
+    st = _state(resp)["fine_tune"]
+    assert st["granted"] is True and st["current"] is True
 
 
 @pytest.mark.asyncio

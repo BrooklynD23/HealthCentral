@@ -29,6 +29,13 @@ EMBEDDING_UNAVAILABLE_MESSAGE = (
     "Document search is unavailable because the local embedding model is not installed."
 )
 
+# RAG-TIMEOUT-ANSWER: the text _generate_with_runner returns when the runner times out.
+# query() labels it as a failed answer (GENERATION_TIMEOUT_ERROR) instead of verifying
+# a sentence the model never wrote.
+GENERATION_TIMEOUT_TEXT = """UNCERTAINTIES:
+I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+GENERATION_TIMEOUT_ERROR = "Generation timed out"
+
 from .claim_extractor import ClaimExtractor
 from .embeddings import EmbeddingModelUnavailableError, EmbeddingsModule
 from .faithfulness import (
@@ -436,11 +443,15 @@ USER QUESTION: {question}"""
                 flag_str = ""
                 if latest.flag:
                     flag_str = latest.flag.upper()
-                elif latest.is_abnormal:
-                    if latest.ref_high is not None and latest.value > latest.ref_high:
-                        flag_str = "HIGH"
-                    elif latest.ref_low is not None and latest.value < latest.ref_low:
-                        flag_str = "LOW"
+                else:
+                    # ADVICE-CLASSIFIER-FIX: an unflagged row is read against its own numeric
+                    # range, not by the stored is_abnormal (false on any row imported before #492).
+                    from api.observations import (
+                        observation_range_status,  # lazy: api imports modules
+                    )
+
+                    place = observation_range_status(None, latest.value, latest.ref_low, latest.ref_high)
+                    flag_str = {"above": "HIGH", "below": "LOW"}.get(place, "")
 
                 # Trend over last 3 readings (newest first). Values are
                 # converted to a canonical unit before comparing across
@@ -751,6 +762,16 @@ USER QUESTION: {question}"""
                     + "\n"
                 )
 
+        # The question is NOT injection-filtered here. Owner decision
+        # QUESTION-INJECTION (2026-11-06) covers only the typed chat question
+        # on the legacy chat route (api/assistant.py): the user's own text.
+        # Session history (_sanitize_history), retrieved chunks
+        # (_sanitize_chunk_text) and memory (_retrieve_memory_context) are
+        # filtered. Backstops: classify_advice on the chat question before the
+        # model runs (api/assistant.py only), and on the answer
+        # validate_response ([cite:N] and prohibited patterns). Other callers,
+        # e.g. api/interpretations.py, build the question from observation
+        # fields and get no injection filter and no pre-model gate.
         prompt = self.SYSTEM_PROMPT.format(
             context=context,
             question=question,
@@ -864,8 +885,8 @@ I was unable to fully process your question within the time limit. Please try as
             return result.text
 
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e
 
     def validate_response(
         self,
@@ -940,7 +961,9 @@ I was unable to fully process your question within the time limit. Please try as
                     f"{verification_metadata.failed_claims} claim(s) could not be verified"
                 )
 
-            if verification_metadata.faithfulness_score < 0.6:
+            # SAFETY-MODE-STRICT: compare against the scorer's own threshold. The
+            # default is 0.6, so the default module is unchanged; the strict module passes 0.75.
+            if verification_metadata.faithfulness_score < self.faithfulness_scorer.config.min_overall_score:
                 errors.append(
                     f"Low faithfulness score: {verification_metadata.faithfulness_score:.2f}"
                 )
@@ -1357,7 +1380,14 @@ I was unable to fully process your question within the time limit. Please try as
             prompt, runner, n_chunks=len(chunks)
         )
 
-        # Step 4: Validate and verify response
+        # Step 4: Validate and verify response. A generation timeout is labelled
+        # instead: the canned sentence is not sent through the claim checks.
+        if response == GENERATION_TIMEOUT_TEXT:
+            return ValidatedResponse(
+                segments=self._parse_response_segments(response),
+                is_valid=False,
+                validation_errors=[GENERATION_TIMEOUT_ERROR],
+            )
         validated = self.validate_response(response, chunks)
 
         # Step 5 (B-3): local advice judge, ORed into the regex floor. It runs
@@ -1428,7 +1458,16 @@ I was unable to fully process your question within the time limit. Please try as
                     or any(type(c) is not int or not 1 <= c <= n_chunks for c in cites)
                 ):
                     return None
-                rendered.append(f"- {body} " + " ".join(f"[cite:{c}]" for c in cites))
+                # LLAMA-CITE-DETACH: keep the marker inside the bullet's
+                # sentence — move terminal .!? after the cites so a
+                # sentence-splitting verifier does not see a detached fragment.
+                stripped = body.rstrip(".!?")
+                trailing = body[len(stripped):] if stripped else ""
+                if stripped:
+                    body = stripped
+                rendered.append(
+                    f"- {body} " + " ".join(f"[cite:{c}]" for c in cites) + trailing
+                )
             if rendered:
                 lines.append(f"{title}:\n" + "\n".join(rendered))
 
@@ -1481,13 +1520,14 @@ I was unable to fully process your question within the time limit. Please try as
             top_p=0.9,
             timeout_seconds=60,
             response_schema=_cite_schema(n_chunks) if n_chunks else None,
+            # KV-THINK-RAG: thinking models return empty cite-schema answers.
+            think=False,
         )
 
         try:
             result = await runner.generate_async(prompt, config)
             if result.finish_reason == "timeout":
-                return """UNCERTAINTIES:
-I was unable to fully process your question within the time limit. Please try asking a more specific question about your results."""
+                return GENERATION_TIMEOUT_TEXT
             if n_chunks:
                 rendered = self._render_structured_answer(result.text, n_chunks)
                 if rendered is not None:
@@ -1499,5 +1539,5 @@ I was unable to fully process your question within the time limit. Please try as
                     return self._STRUCTURED_WITHHELD
             return result.text
         except Exception as e:
-            self._logger.error(f"LLM generation failed: {e}")
-            raise RuntimeError(f"Failed to generate response: {e}")
+            self._logger.error("LLM generation failed: %s", type(e).__name__)
+            raise RuntimeError("Failed to generate response") from e

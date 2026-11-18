@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asclexis — Project Showcase · CS4610</title>
+<style>
+:root{
+  --bg:#0b0f14; --bg2:#111823; --bg3:#17202e; --card:#141c29; --line:#26334a;
+  --txt:#dce6f2; --dim:#8fa3bd; --dim2:#5d7189;
+  --teal:#2dd4bf; --cyan:#38bdf8; --violet:#a78bfa; --amber:#fbbf24;
+  --red:#f87171; --green:#34d399; --pink:#f472b6;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--cyan);text-decoration:none}
+code,kbd{font-family:var(--mono);font-size:.85em;background:#0d1522;border:1px solid var(--line);border-radius:4px;padding:.1em .4em;color:var(--teal)}
+
+/* ---------- nav ---------- */
+nav{position:sticky;top:0;z-index:100;background:rgba(11,15,20,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+nav .inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:6px;padding:10px 20px;overflow-x:auto}
+nav .brand{font-weight:700;color:#fff;white-space:nowrap;margin-right:14px;font-size:15px}
+nav .brand span{color:var(--teal)}
+nav a.nl{color:var(--dim);font-size:12.5px;padding:5px 10px;border-radius:6px;white-space:nowrap;transition:.15s}
+nav a.nl:hover{color:#fff;background:var(--bg3)}
+nav a.nl.active{color:var(--teal);background:#123233}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px}
+section{padding:56px 0 30px;border-bottom:1px solid #1a2332}
+h2{font-size:24px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+h2 .num{font-family:var(--mono);font-size:12px;color:var(--bg);background:var(--teal);border-radius:5px;padding:3px 8px;font-weight:700}
+.sub{color:var(--dim);font-size:14px;margin-bottom:26px;max-width:820px}
+h3{font-size:16px;margin:22px 0 10px;color:#fff}
+h4{font-size:13.5px;margin:0 0 8px;color:var(--cyan);font-weight:600}
+p.lede{color:var(--dim);font-size:14px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.card h4{margin-top:0}
+ul.tight{padding-left:18px;color:var(--dim);font-size:13.5px}
+ul.tight li{margin:3px 0}
+ul.tight b,ul.tight strong{color:var(--txt)}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--dim);margin:2px 2px 0 0}
+.tag.t{color:#0b0f14;background:var(--teal);border-color:var(--teal);font-weight:700}
+.tag.c{background:#12303c;color:var(--cyan);border-color:#1d4e63}
+.tag.v{background:#241d3d;color:var(--violet);border-color:#3d3358}
+.tag.a{background:#3a2e10;color:var(--amber);border-color:#5c4a1c}
+.tag.r{background:#3d1a1a;color:var(--red);border-color:#5c2626}
+.tag.g{background:#12332a;color:var(--green);border-color:#1d5443}
+.file{font-family:var(--mono);font-size:11px;color:var(--dim2)}
+
+/* ---------- hero ---------- */
+.hero{padding:64px 0 44px;text-align:center;border-bottom:1px solid #1a2332}
+.hero .kicker{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:2px;text-transform:uppercase}
+.hero h1{font-size:44px;font-weight:800;margin:10px 0 6px;background:linear-gradient(90deg,#2dd4bf,#38bdf8,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .tagline{color:var(--dim);font-size:16px;max-width:680px;margin:0 auto 8px}
+.hero .meta{font-family:var(--mono);font-size:11.5px;color:var(--dim2);margin-top:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;max-width:1000px;margin:34px auto 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 8px}
+.stat .v{font-size:26px;font-weight:800;color:var(--teal);font-family:var(--mono)}
+.stat .l{font-size:10.5px;color:var(--dim2);text-transform:uppercase;letter-spacing:.6px;margin-top:2px}
+
+/* ---------- journey stepper ---------- */
+.stepper{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
+.stepbtn{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;text-align:left;transition:.15s;position:relative}
+.stepbtn:hover{border-color:var(--teal)}
+.stepbtn.on{border-color:var(--teal);background:#10242b;box-shadow:0 0 0 1px var(--teal) inset}
+.stepbtn .n{font-family:var(--mono);font-size:10px;color:var(--dim2)}
+.stepbtn .t{font-weight:700;font-size:14px;color:#fff;margin-top:2px}
+.stepbtn.on .n{color:var(--teal)}
+.stepdetail{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:10px;padding:20px 22px;min-height:170px}
+.stepdetail h3{margin-top:0}
+.stepdetail .cols{display:grid;grid-template-columns:1.4fr 1fr;gap:20px}
+@media(max-width:760px){.stepdetail .cols{grid-template-columns:1fr}}
+
+/* ---------- pipeline ---------- */
+.pipe{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:14px 4px;margin-bottom:16px}
+.pnode{flex:0 0 auto;min-width:120px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer;transition:.15s;text-align:center}
+.pnode:hover{border-color:var(--cyan)}
+.pnode.on{border-color:var(--cyan);background:#0f2432}
+.pnode .ic{font-size:18px}
+.pnode .t{font-size:12.5px;font-weight:700;color:#fff;margin-top:4px}
+.pnode .s{font-size:10.5px;color:var(--dim2)}
+.parr{align-self:center;color:var(--dim2);padding:0 6px;font-size:18px;flex:0 0 auto}
+.pdetail{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--cyan);border-radius:10px;padding:18px 20px;min-height:150px}
+
+/* ---------- model router ---------- */
+.router{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0}
+.prov{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;cursor:pointer;transition:.15s}
+.prov:hover{border-color:var(--violet)}
+.prov.on{border-color:var(--violet);background:#1a1630}
+.prov .pt{font-weight:700;color:#fff;font-size:14px}
+.prov .ps{font-size:11.5px;color:var(--dim2);margin-top:2px}
+.provdetail{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--violet);border-radius:10px;padding:18px 20px}
+.tiers{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:12px}
+.tier{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:12px}
+.tier .tt{font-family:var(--mono);font-size:12px;color:var(--amber)}
+.tier .td{font-size:12px;color:var(--dim);margin-top:4px}
+
+/* ---------- safety ---------- */
+.toggle{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:3px;margin-bottom:14px}
+.toggle button{background:none;border:0;color:var(--dim);font:inherit;font-size:12.5px;padding:6px 14px;border-radius:6px;cursor:pointer}
+.toggle button.on{background:var(--violet);color:#0b0f14;font-weight:700}
+.lane{display:flex;align-items:center;gap:0;overflow-x:auto;padding:10px 0}
+.gate{background:#1c1230;border:1px dashed var(--violet);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--violet);white-space:nowrap}
+.cite{font-family:var(--mono);font-size:11.5px;padding:2px 7px;border-radius:4px}
+.cite.yr{background:#12332a;color:var(--green)}
+.cite.rf{background:#12303c;color:var(--cyan)}
+
+/* ---------- vault ---------- */
+.vault{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.vault{grid-template-columns:1fr}}
+.db{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px}
+.db .dt{font-weight:700;color:#fff;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.db .badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:8px}
+.badge.open{background:#3a2e10;color:var(--amber)}
+.badge.enc{background:#12332a;color:var(--green)}
+.db ul{margin-top:10px}
+.erase{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.estep{flex:1;min-width:110px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center}
+.estep .en{font-family:var(--mono);font-size:10px;color:var(--red)}
+.estep .et{font-size:11.5px;color:var(--txt);margin-top:3px}
+
+/* ---------- harness / maturity ---------- */
+.mbar{display:grid;grid-template-columns:210px 1fr 40px;gap:10px;align-items:center;margin:7px 0}
+.mbar .ml{font-size:12.5px;color:var(--dim)}
+.mbar .track{background:var(--bg2);border-radius:6px;height:16px;overflow:hidden;border:1px solid var(--line)}
+.mbar .fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--cyan));border-radius:6px;width:0;transition:width 1s ease}
+.mbar .lv{font-family:var(--mono);font-size:12px;color:var(--teal);font-weight:700}
+.gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.gate2{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+.gate2 .gt{font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:7px}
+.gate2 .gs{font-size:11.5px;color:var(--dim);margin-top:4px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.g{background:var(--green)}.dot.r{background:var(--red)}.dot.a{background:var(--amber)}
+
+/* ---------- era timeline ---------- */
+.eras{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}
+.era{flex:1;min-width:150px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px}
+.era .et{font-family:var(--mono);font-size:10.5px;color:var(--cyan)}
+.era .en{font-weight:700;font-size:13.5px;color:#fff;margin:3px 0}
+.era .ed{font-size:11.5px;color:var(--dim)}
+.era .bar{height:6px;background:var(--bg2);border-radius:3px;margin-top:10px;overflow:hidden}
+.era .bar i{display:block;height:100%;background:var(--violet)}
+.authbar{display:flex;height:26px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-top:8px}
+.authbar .h{background:var(--teal)}.authbar .a{background:var(--violet)}
+.legend{display:flex;gap:16px;font-size:11.5px;color:var(--dim);margin-top:6px}
+.legend i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px;vertical-align:-1px}
+
+/* ---------- findings ---------- */
+.filt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.filt button{background:var(--bg2);border:1px solid var(--line);color:var(--dim);border-radius:14px;padding:4px 12px;font:inherit;font-size:12px;cursor:pointer}
+.filt button.on{background:var(--teal);color:#0b0f14;border-color:var(--teal);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid #1a2332;vertical-align:top;color:var(--dim)}
+td:first-child{color:var(--txt);font-weight:600}
+tr:hover td{background:#131c2b}
+.sev{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:8px}
+.sev.p1{background:#3d1a1a;color:var(--red)}.sev.p2{background:#3a2e10;color:var(--amber)}.sev.p3{background:#1a2332;color:var(--dim)}
+
+/* ---------- footer ---------- */
+footer{padding:36px 0 60px;color:var(--dim2);font-size:12px;text-align:center}
+.print-note{font-family:var(--mono);font-size:11px;color:var(--dim2);margin-top:20px;text-align:center}
+@media print{nav{display:none}section{padding:24px 0}}
+
+[hidden]{display:none!important}
+.pd{margin:0}
+.note{font-size:12px;color:var(--dim2);margin-top:10px}
+.eras .era .ed{display:block}
+</style>
+</head>
+<body>
+
+<nav><div class="inner">
+  <div class="brand">ASCLEXIS<span> · showcase</span></div>
+  <a class="nl" href="#journey">User Journey</a>
+  <a class="nl" href="#pipeline">Data Pipeline</a>
+  <a class="nl" href="#models">Model Layer</a>
+  <a class="nl" href="#safety">Safety &amp; Citations</a>
+  <a class="nl" href="#vault">Vault &amp; Privacy</a>
+  <a class="nl" href="#harness">The Harness</a>
+  <a class="nl" href="#evidence">Evidence</a>
+  <a class="nl" href="#audit">Audit &amp; Roadmap</a>
+  <a class="nl" href="#capstone">Capstone Track</a>
+</div></nav>
+<header class="hero">
+  <div class="kicker" data-exempt="metadata">CS4610 Senior Project · Danny Tran · Fall 2026</div>
+  <h1>Asclexis</h1>
+  <p class="tagline" data-ledger="C10">A local-first medical results companion: patient data stays on this computer by default (one opt-in cloud path, off by default) —
+  and a living case study in agentic software engineering:
+  <b data-ledger="H12">19.5% of commits have an AI agent as git author (361/1847 at <code>a16dd51</code>; 70% counting co-author trailers)</b>,
+  claims on this page map to rows in the claims ledger (checked by script), and
+  <span data-ledger="H7" data-kind="case-study">failure modes are written down (docs/agentic/recurring-failures.md)</span>.</p>
+  <p class="meta" data-exempt="metadata">github.com/BrooklynD23/HealthCentral · figures measured for the 2026-10-22 claim freeze at a16dd51 · first audit 2026-09-25 · single-file interactive artifact</p>
+  <div class="stats">
+    <div class="stat" data-ledger="H20"><div class="v">2,328</div><div class="l">backend tests collected (Linux Py 3.11, a16dd51)</div></div>
+    <div class="stat" data-ledger="H14"><div class="v">19</div><div class="l">API routers</div></div>
+    <div class="stat" data-ledger="H14"><div class="v">16</div><div class="l">frontend pages</div></div>
+    <div class="stat" data-ledger="H14"><div class="v">36</div><div class="l">agent skills (32 process + 4 domain)</div></div>
+    <div class="stat" data-ledger="H3"><div class="v">74</div><div class="l">golden eval cases (agent path)</div></div>
+    <div class="stat" data-ledger="H14"><div class="v">9</div><div class="l">CI jobs</div></div>
+    <div class="stat" data-ledger="H12"><div class="v">1,847</div><div class="l">commits · 19.5% agent git author</div></div>
+  </div>
+</header>
+
+<div class="wrap">
+<section id="journey">
+  <h2 data-exempt="navigation"><span class="num">01</span> The Patient Journey</h2>
+  <p class="sub" data-ledger="C10 C13">What a patient does — five stages. Patient data stays on this computer unless the opt-in cloud assistant is switched on (off by default). Each step lists the code that implements it.</p>
+  <div class="stepper" id="journeyBtns">
+    <div class="stepbtn on" data-panel="journey" data-i="0" data-ledger="C1"><div class="n">STEP 1</div><div class="t">Import</div><div class="s" style="font-size:10.5px;color:var(--dim2)">Drop a lab PDF, photo, or FHIR export</div></div>
+    <div class="stepbtn" data-panel="journey" data-i="1" data-ledger="C13"><div class="n">STEP 2</div><div class="t">Extract</div><div class="s" style="font-size:10.5px;color:var(--dim2)">Extraction proposes values</div></div>
+    <div class="stepbtn" data-panel="journey" data-i="2" data-ledger="C2"><div class="n">STEP 3</div><div class="t">Verify</div><div class="s" style="font-size:10.5px;color:var(--dim2)">Human-in-the-loop before data is trusted</div></div>
+    <div class="stepbtn" data-panel="journey" data-i="3" data-ledger="C13"><div class="n">STEP 4</div><div class="t">Trends</div><div class="s" style="font-size:10.5px;color:var(--dim2)">Longitudinal view across imports</div></div>
+    <div class="stepbtn" data-panel="journey" data-i="4" data-ledger="C3"><div class="n">STEP 5</div><div class="t">Ask</div><div class="s" style="font-size:10.5px;color:var(--dim2)">Cited, education-only answers</div></div>
+  </div>
+  <div class="stepdetail" data-group="journey" data-i="0">
+    <div class="cols"><div>
+      <h3 data-ledger="C1 C21 C30">Import</h3>
+      <p class="lede" data-ledger="C1 C21 C30">Patient drags a lab result PDF, a photo of a printout, or an HL7 FHIR export into the upload view. Uploaded files are stored AES-GCM encrypted with this profile's key. The upload goes to the backend on 127.0.0.1.</p>
+      <div style="margin-top:10px"><span class="tag t" data-ledger="C1">PDF</span><span class="tag t" data-ledger="C1">image/OCR</span><span class="tag t" data-ledger="C1">FHIR export</span></div>
+    </div>
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
+      <li data-ledger="C1 C13">POST /api/v1/documents — <code>api/documents.py:408</code></li>
+      <li data-ledger="C21">AES-GCM encrypted at rest</li>
+      <li data-ledger="C1 C13"><code>modules/ingest.py</code> — format detection + dedup</li>
+    </ul></div></div>
+  </div>
+  <div class="stepdetail" data-group="journey" data-i="1" hidden>
+    <div class="cols"><div>
+      <h3 data-ledger="C13">Extract</h3>
+      <p class="lede" data-ledger="C13">Extraction proposes values with units and dates.</p>
+    </div>
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
+      <li data-ledger="C13"><code>modules/extract*</code> — OCR via Tesseract when it is installed; text extraction for PDFs</li>
+      <li data-ledger="C13"><code>modules/normalize</code> + <code>glossary</code> — analyte synonyms → canonical names</li>
+      <li data-ledger="C13"><code>POST /{id}/reprocess</code> re-runs extraction</li>
+    </ul></div></div>
+  </div>
+  <div class="stepdetail" data-group="journey" data-i="2" hidden>
+    <div class="cols"><div>
+      <h3 data-ledger="C2">Verify</h3>
+      <p class="lede" data-ledger="C2">The Verification Workbench shows extracted values side-by-side with the source. The patient confirms or corrects each row. Extracted values land unverified until the patient confirms them. The default assistant, FHIR, visit-prep and pinboards use only values the patient has confirmed.</p>
+      <div style="margin-top:10px"><span class="tag t" data-ledger="C2">human gate</span></div>
+    </div>
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
+      <li data-ledger="C2">VerificationWorkbench page</li>
+      <li data-ledger="C2">a confirmation flag (<code>user_verified</code>) on each observation</li>
+      <li data-ledger="C24">Assistant feedback exports as a strict-redacted dataset after explicit confirmation</li>
+    </ul></div></div>
+  </div>
+  <div class="stepdetail" data-group="journey" data-i="3" hidden>
+    <div class="cols"><div>
+      <h3 data-ledger="C13">Trends</h3>
+      <p class="lede" data-ledger="C13">The Trends Dashboard charts each analyte over time.</p>
+      <div style="margin-top:10px"><span class="tag t" data-ledger="C13">longitudinal</span><span class="tag t" data-ledger="C13">per-analyte</span></div>
+    </div>
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
+      <li data-ledger="C13"><code>GET /api/v1/observations</code> — per-profile vault</li>
+      <li data-ledger="C13">TrendsDashboard page</li>
+    </ul></div></div>
+  </div>
+  <div class="stepdetail" data-group="journey" data-i="4" hidden>
+    <div class="cols"><div>
+      <h3 data-ledger="C3 C4 C24">Ask</h3>
+      <p class="lede" data-ledger="C3 C4 C24">The default assistant path attaches a source to each drafted sentence and drops sentences it cannot source; the legacy path checks <code>[cite:N]</code> markers. A prohibited-pattern suite blocks diagnosis and dosing language (tested; tests cannot prove the language is absent). Feedback thumbs/corrections export as redacted RL datasets (explicit confirmation required).</p>
+      <div style="margin-top:10px"><span class="tag t" data-ledger="C3">sourced sentences</span><span class="tag t" data-ledger="C3">education only</span></div>
+    </div>
+    <div><h4 data-exempt="navigation">Evidence path</h4><ul class="tight">
+      <li data-ledger="C14"><code>POST /api/v1/assistant/chat</code> — <code>api/assistant.py:842</code></li>
+      <li data-ledger="C3 C14">agent graph (default) or RAG path</li>
+      <li data-ledger="C3 C14 C4">agent: guard (groundedness + advice classifier); legacy: <code>validate_response</code> + <code>interpret_safety</code> patterns</li>
+    </ul></div></div>
+  </div>
+</section>
+
+<section id="pipeline">
+  <h2 data-exempt="navigation"><span class="num">02</span> Document → Observation Pipeline</h2>
+  <p class="sub" data-ledger="C13">A lab file becomes an observation the patient can verify. Each node names the module that does the work — click a node for the code path.</p>
+  <div class="pipe" id="pipeNodes">
+    <div class="pnode on" data-panel="pipe" data-i="0" data-exempt="pointer"><div class="ic">⇪</div><div class="t">Upload</div><div class="s">api/documents.py</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" data-panel="pipe" data-i="1" data-exempt="pointer"><div class="ic">⧉</div><div class="t">Ingest</div><div class="s">modules/ingest.py</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" data-panel="pipe" data-i="2" data-exempt="pointer"><div class="ic">◍</div><div class="t">Extract + normalize</div><div class="s">extract*, normalize, glossary</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" data-panel="pipe" data-i="3" data-exempt="pointer"><div class="ic">⛁</div><div class="t">Observations stored, unverified</div><div class="s">vault via ProfileDbSession</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" data-panel="pipe" data-i="4" data-exempt="pointer"><div class="ic">∿</div><div class="t">Chunk + embed</div><div class="s">documents.py:830</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" data-panel="pipe" data-i="5" data-exempt="pointer"><div class="ic">⌘</div><div class="t">Classify</div><div class="s">documents.py:931</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" data-panel="pipe" data-i="6" data-exempt="pointer"><div class="ic">✓</div><div class="t">Human verification</div><div class="s">Workbench</div></div>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="0">
+    <h3 data-ledger="C21 C19">Upload</h3>
+    <p class="lede" data-ledger="C21 C19">Multipart upload → file written AES-GCM-encrypted to the profile's document store. An audit event is emitted (the 13 document routes are audit-logged).</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C13"><code>api/documents.py:408</code> (upload route)</li>
+      <li data-ledger="C21"><code>core/document_crypto.py</code></li>
+      <li data-ledger="C19"><code>core/audit.py</code> helpers</li>
+    </ul>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="1" hidden>
+    <h3 data-ledger="C1 C13">Ingest</h3>
+    <p class="lede" data-ledger="C1 C13">Format detection (PDF / image / FHIR JSON), dedup, and job state. FHIR bundles take the structured path — no OCR needed.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C13"><code>modules/ingest.py</code></li>
+      <li data-ledger="C13">FHIR import (HC-M23)</li>
+    </ul>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="2" hidden>
+    <h3 data-ledger="C13">Extract + normalize</h3>
+    <p class="lede" data-ledger="C13">Text extraction for PDFs; OCR via Tesseract when installed. Analyte synonyms map to canonical names (<code>modules/normalize.py</code>, <code>modules/glossary.py</code>).</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C13"><code>modules/extract.py</code> + variants</li>
+      <li data-ledger="C13"><code>modules/normalize.py</code></li>
+      <li data-ledger="C13"><code>modules/glossary.py</code></li>
+    </ul>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="3" hidden>
+    <h3 data-ledger="C25 C16 C2">Observations stored, unverified</h3>
+    <p class="lede" data-ledger="C25 C16 C2">Observations are created unverified and written to the profile's own vault through ProfileDbSession, not the master DB. The vault is SQLCipher-encrypted where SQLCipher is installed.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C13"><code>api/documents.py:658,760</code> (<code>user_verified=False</code>)</li>
+      <li data-ledger="C25"><code>core/auth.py:315-341</code> (<code>ProfileDbSession</code>)</li>
+      <li data-ledger="C16"><code>core/profile_database.py</code>, <code>core/sqlcipher_driver.py</code>, <code>migrations/profile/</code></li>
+    </ul>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="4" hidden>
+    <h3 data-ledger="C13 C12">Chunk + embed</h3>
+    <p class="lede" data-ledger="C13 C12">Text is chunked and embedded with sentence-transformers; retrieval is a pure-Python cosine scan — FAISS was removed (2026-07-01). The embedding model is downloaded once with an explicit script and loads offline (fails closed if absent).</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C13"><code>_create_chunks_and_embeddings</code> <code>api/documents.py:830</code></li>
+      <li data-ledger="C13"><code>modules/chunking.py</code></li>
+      <li data-ledger="C12"><code>modules/embeddings.py</code> (<code>local_files_only=True</code>)</li>
+    </ul>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="5" hidden>
+    <h3 data-ledger="C13">Classify</h3>
+    <p class="lede" data-ledger="C13">Classifies the document and extracts entities; optional LLM assist.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C13"><code>_classify_and_extract_entities</code> <code>api/documents.py:931</code></li>
+    </ul>
+  </div>
+  <div class="pdetail" data-group="pipe" data-i="6" hidden>
+    <h3 data-ledger="C2">Human verification</h3>
+    <p class="lede" data-ledger="C2">The default assistant, FHIR, visit-prep and pinboards use only values the patient has confirmed. A reprocess path exists for bad extractions.</p><h4 style="margin-top:10px" data-exempt="navigation">Code evidence</h4>
+    <ul class="tight">
+      <li data-ledger="C2">VerificationWorkbench</li>
+      <li data-ledger="C13"><code>POST /{id}/reprocess</code></li>
+    </ul>
+  </div>
+</section>
+
+<section id="models">
+  <h2 data-exempt="navigation"><span class="num">03</span> Local LLM &amp; Model Selection</h2>
+  <p class="sub" data-ledger="H11 C10">Local inference runs through one facade (ModelRunner) over two local providers. An opt-in cloud runner sits outside it as a documented exception. Inference is local by default.</p>
+  <div class="router" id="provBtns">
+    <div class="prov on" data-panel="prov" data-i="0" data-ledger="C27 C14"><div class="pt">LlamaCppProvider</div><div class="ps">default · local GGUF</div></div>
+    <div class="prov" data-panel="prov" data-i="1" data-ledger="C26"><div class="pt">OllamaProvider</div><div class="ps">localhost-only by design</div></div>
+    <div class="prov" data-panel="prov" data-i="2" data-ledger="C10 H11"><div class="pt">External runner</div><div class="ps">opt-in · off by default · outside ModelRunner</div></div>
+  </div>
+  <div class="provdetail" data-group="prov" data-i="0">
+    <h3 data-ledger="C27 C14">LlamaCppProvider</h3>
+    <p class="lede" data-ledger="C27 C14">llama-cpp-python, lazily imported so the app boots without a model present. Model files come from an explicit download step (<code>src/backend/scripts/download_models.py</code>, Hugging Face or <code>ollama pull</code>). The default assistant path needs no model.</p><ul class="tight" style="margin-top:8px">
+      <li data-ledger="C27"><code>core/llm/llama_cpp_provider.py</code></li>
+      <li data-ledger="C14">no-LLM fallback stays functional</li>
+    </ul>
+  </div>
+  <div class="provdetail" data-group="prov" data-i="1" hidden>
+    <h3 data-ledger="C26">OllamaProvider</h3>
+    <p class="lede" data-ledger="C26">Optional provider for users who already run Ollama. The provider refuses any non-local URL when it is constructed; tested.</p><ul class="tight" style="margin-top:8px">
+      <li data-ledger="C26"><code>core/llm/ollama_provider.py</code></li>
+      <li data-ledger="C26">default <code>127.0.0.1:11434</code></li>
+    </ul>
+  </div>
+  <div class="provdetail" data-group="prov" data-i="2" hidden>
+    <h3 data-ledger="C10 H11">External runner</h3>
+    <p class="lede" data-ledger="C10 H11">An opt-in cloud runner sits outside the ModelRunner facade as a documented exception. It is off by default and redacts by default. Redaction is pattern-based. Two callers can reach it: the assistant and interpretations.</p><ul class="tight" style="margin-top:8px">
+      <li data-ledger="C10 H11"><code>core/external_runner.py</code></li>
+      <li data-ledger="C10"><code>modules/redaction.py</code> — strict by default</li>
+      <li data-ledger="C10">per-profile opt-in, off by default</li>
+      <li data-ledger="C10">callers: <code>api/assistant.py:870</code>, <code>api/interpretations.py:522</code></li>
+    </ul>
+  </div>
+</section>
+
+<section id="safety">
+  <h2 data-exempt="navigation"><span class="num">04</span> Assistant Safety: Two Roads, Two Checks</h2>
+  <p class="sub" data-ledger="C14 C3">The two assistant paths use different checks. Toggle to compare. The legacy path runs when the agent flag is off or the agent raises.</p>
+  <div class="toggle" id="pathToggle">
+    <button class="on" data-p="0" data-ledger="C14">Agent graph path (default ON)</button>
+    <button data-p="1" data-exempt="navigation">Legacy RAG path</button>
+  </div>
+  <div class="lane" data-group="lane" data-i="0">
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">CHAT</div><div class="s">POST /assistant/chat</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">PLAN</div><div class="s">modules/agent — plan node</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">ACT</div><div class="s">8 read-only tools · MAX_STEPS=5</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">REFLECT</div><div class="s">budget + self-check</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">DRAFT</div><div class="s">deterministic template, no LLM call</div></div>
+    <div class="parr">→</div>
+    <div class="gate" style="cursor:default" data-ledger="C3 C14"><div class="t" style="font-size:12px">GUARD</div><div class="s">groundedness + advice classifier</div></div>
+    <div class="parr">→</div><div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="C14 C3"><div class="t" style="font-size:12px;color:var(--green)">SOURCED ANSWER</div><div class="s">or abstention</div></div>
+  </div>
+  <div class="lane" data-group="lane" data-i="1" hidden>
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">CHAT</div><div class="s">POST /assistant/chat</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C3"><div class="t" style="font-size:12px">RETRIEVE</div><div class="s">observations + knowledge base</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C23"><div class="t" style="font-size:12px">COMPOSE</div><div class="s">memory + bounded history (non-citable)</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-ledger="C14"><div class="t" style="font-size:12px">RUN</div><div class="s">ModelRunner → provider</div></div>
+    <div class="parr">→</div>
+    <div class="gate" style="cursor:default" data-ledger="C3"><div class="t" style="font-size:12px">VALIDATE</div><div class="s">validate_response</div></div>
+    <div class="parr">→</div><div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="C28"><div class="t" style="font-size:12px;color:var(--green)">ANSWER SERVED OR ABSTAINED</div><div class="s">abstention template when is_valid=False; flag in payload</div></div>
+  </div>
+  <div class="grid g3" style="margin-top:18px">
+    <div class="card"><h4 data-exempt="navigation">Citation checks</h4><ul class="tight">
+      <li data-ledger="C3"><span class="cite yr">[YOUR_RESULTS:N]</span> labels the patient's own values in the legacy prompt. It is a context label; the validated marker is <code>[cite:N]</code>.</li>
+      <li data-ledger="C3"><span class="cite rf">[REFERENCE:N]</span> labels knowledge-base entries (<code>src/backend/scripts/seed_knowledge_base.py</code>).</li>
+      <li data-ledger="C23">Memory &amp; session history are labeled <b>non-citable</b></li>
+      <li data-ledger="C3 C14">Agent path: the guard drops any sentence it cannot map to a source. Legacy path: <code>validate_response</code> checks <code>[cite:N]</code> markers.</li></ul></div>
+    <div class="card"><h4 data-exempt="navigation">Constitutional limits</h4><ul class="tight">
+      <li data-ledger="C4">Education only — a prohibited-pattern suite blocks diagnosis and dosing language (tested; no test can prove "never").</li>
+      <li data-ledger="C4"><code>interpret_safety</code> prohibited-pattern suite must keep passing</li>
+      <li data-ledger="C14 C28">Agent path abstains when it cannot ground an answer. The legacy path replaces a failed validation with the same abstention template (W-4, merged #72 2026-10-16).</li>
+      <li data-ledger="H3">74 golden cases run in CI (agent path only). Whether the check is merge-required is not recorded in the repo.</li></ul></div>
+    <div class="card"><h4 data-ledger="H3">Scored on 6 axes</h4><ul class="tight">
+      <li data-ledger="H3">groundedness, citation accuracy, abstention correctness, injection resistance = 1.0; advice leakage, PHI leakage = 0</li>
+      <li data-ledger="C22"><code>consistency_score</code> is a fixed 1.0 placeholder. An NLI replacement (HC-M11) is approved only behind a default-off flag; changing production scoring is owner-gated.</li>
+      <li data-ledger="H3">CI job <code>agent-evals</code> runs <code>scripts/agent_eval_gate.py</code> with absolute bars</li></ul></div>
+  </div>
+</section>
+
+<section id="vault">
+  <h2 data-exempt="navigation"><span class="num">05</span> Vault Architecture &amp; The Right To Be Forgotten</h2>
+  <p class="sub" data-ledger="C18 C16 C5">One unencrypted master DB (profile names, password hashes, audit rows, knowledge base) + one vault per profile, SQLCipher-encrypted where SQLCipher is installed. Deletion is an ordered crypto-erase, not a row flag.</p>
+  <div class="vault">
+    <div class="db">
+      <div class="dt">master.db <span class="badge open" data-ledger="C18">unencrypted · names, hashes, audit rows</span></div>
+      <ul class="tight">
+        <li data-ledger="C29">Profile metadata &amp; auth (bcrypt, JWT HS256, token revocation)</li>
+        <li data-ledger="C19">Audit log for document and observation routes and 9 of 13 profile routes. Deleting a profile purges its audit rows.</li>
+        <li data-ledger="C18">Knowledge base (<span class="cite rf">[REFERENCE]</span> corpus)</li>
+        <li data-ledger="C18">Backup schedules</li>
+      </ul>
+    </div>
+    <div class="db">
+      <div class="dt">vault.db × N profiles <span class="badge enc" data-ledger="C16">SQLCipher where installed · sealed key</span></div>
+      <ul class="tight">
+        <li data-ledger="C25">Observations, chat sessions/turns, feedback, care tasks, pinboards</li>
+        <li data-ledger="C6">DEK sealed per profile + a second copy sealed by one-time recovery code (SEC-RECOV-001)</li>
+        <li data-ledger="C21">Documents at rest: AES-GCM encrypted files</li>
+        <li data-ledger="C25">Access only via <code>ProfileDbSession</code> — never the master session</li>
+      </ul>
+    </div>
+  </div>
+  <div class="db" style="margin-top:16px">
+    <div class="dt">Backup archive <span class="badge open" data-ledger="C17">unredacted by design</span></div>
+    <ul class="tight"><li data-ledger="C17">Backup archive: vault + sealed keys + plaintext master copy of this profile (by design, unredacted)</li></ul>
+  </div>
+  <h3 data-ledger="C5">Crypto-erase — <code>DELETE /profiles/{id}</code> with phrase <code>DELETE MY HEALTH DATA</code></h3>
+  <div class="erase">
+    <div class="estep" data-ledger="C5 C17"><div class="en">1 · commit point</div><div class="et">1 · Unlink the sealed key files first</div></div>
+    <div class="estep" data-ledger="C5"><div class="en">2</div><div class="et">Vault sweep — vault.db + encrypted documents</div></div>
+    <div class="estep" data-ledger="C5"><div class="en">3</div><div class="et">Backup sweep — this profile's backup sets</div></div>
+    <div class="estep" data-ledger="C5 C19"><div class="en">4</div><div class="et">Master txn — purge audit rows, write anonymized tombstone</div></div>
+  </div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h4 data-exempt="navigation">Backup ↔ restore</h4><ul class="tight">
+      <li data-ledger="C17">Deliberately <b>unredacted</b> — a redacted backup can't be restored</li>
+      <li data-ledger="C17">Profile-scoped restore: vault + sealed keys verbatim, only this profile's master row re-applied. The archive also carries a plaintext master copy of this profile's row and audit rows.</li>
+      <li data-ledger="C17">Gated on password + phrase <code>RESTORE MY DATA</code></li>
+      <li data-ledger="C32">A lifespan scheduler runs due backups and records <code>skipped_locked</code> when a vault is closed (code path; not run in the audit).</li></ul></div>
+    <div class="card"><h4 data-exempt="navigation">Recovery codes</h4><ul class="tight">
+      <li data-ledger="C6">Profile creation issues a one-time recovery code sealing a <i>second copy of the same DEK</i></li></ul></div>
+  </div>
+</section>
+
+<section id="harness">
+  <h2 data-exempt="navigation"><span class="num">06</span> The Harness — Engineering The Agent's Environment</h2>
+  <p class="sub" data-ledger="M5">The 2026-09-25 audit's qualitative rubric rated the harness L3, trending L4 (the auditors' judgment, not a measurement).</p>
+  <h3 data-exempt="navigation">Enforcement layers</h3>
+  <div class="gates">
+    <div class="gate2" data-ledger="H13"><div class="gt"><span class="dot g"></span>CLAUDE.md + AGENT.md</div><div class="gs">Constitution: hard invariants, protected files, "run verification — never assert it", Definition of Done.</div></div>
+    <div class="gate2" data-ledger="H14"><div class="gt"><span class="dot g"></span>36 skills</div><div class="gs">32 process skills (<code>.claude/skills/</code>) + 4 domain skills (<code>skills/asclexis-*</code>), with a routing table.</div></div>
+    <div class="gate2" data-ledger="H14"><div class="gt"><span class="dot g"></span>feature_list.json</div><div class="gs">27 items, each with verification commands, linted in CI.</div></div>
+    <div class="gate2" data-ledger="H3 H14"><div class="gt"><span class="dot g"></span>docs_lint</div><div class="gs">Rules numbered 1–13: Last-Updated headers, Historical banners, link resolution, index freshness.</div></div>
+    <div class="gate2" data-ledger="H3"><div class="gt"><span class="dot g"></span>agent_eval_gate</div><div class="gs">74 golden cases scored on 6 axes with absolute bars (agent path only).</div></div>
+    <div class="gate2" data-ledger="H19"><div class="gt"><span class="dot g"></span>security_gate</div><div class="gs">Fails closed since P1: a missing scan report exits 2 (measured 2026-10-22).</div></div>
+    <div class="gate2" data-ledger="H17"><div class="gt"><span class="dot a"></span>route_client harness</div><div class="gs"><code>route_client</code> runs route tests through real HTTP. Many route tests still call handlers directly.</div></div>
+    <div class="gate2"><div class="gt" data-exempt="navigation"><span class="dot a"></span>recurring-failures.md</div><div class="gs"><span data-ledger="H14">12 documented failure modes.</span> <span data-ledger="H7" data-kind="case-study">Several later findings match them — a match, not a prediction test.</span></div></div>
+  </div>
+  <h3 data-exempt="navigation">Recorded failure modes (docs/agentic/recurring-failures.md)</h3>
+  <div class="grid g4">
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">1. A green suite that could not have failed</h4><p style="font-size:12px;color:var(--dim)">“A restore endpoint returned 400 for every request”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">2. The fix that creates the next bug one layer over</h4><p style="font-size:12px;color:var(--dim)">“Every individually-correct fix in the backup subsystem propagated a new false statement or data-loss path somewhere adjacent”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">3. Figures asserted instead of measured</h4><p style="font-size:12px;color:var(--dim)">“CLAUDE.md and AGENT.md both claimed &quot;~620 backend tests&quot; for months.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">4. Environment-dependent results written as absolutes</h4><p style="font-size:12px;color:var(--dim)">“1245 pass in CI, 1244 pass and 1 fails locally, same commit.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">5. Gates run in a contaminated tree</h4><p style="font-size:12px;color:var(--dim)">“generate_docs_index.py --check reported fresh in the working tree while CI reported stale on the same commit.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">6. Documented commands nobody ran</h4><p style="font-size:12px;color:var(--dim)">“That script contains zero references to ollama and cannot download any Gemma 4 tier.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">7. SQL three-valued logic</h4><p style="font-size:12px;color:var(--dim)">“Scoping a backup with WHERE profile_id != ? silently kept every row where profile_id was NULL”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">8. Stale guidance that reads as authority</h4><p style="font-size:12px;color:var(--dim)">“The decision stood unchallenged for weeks because it was written down.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">9. An invariant enforced at one site, not across its class</h4><p style="font-size:12px;color:var(--dim)">“That is a rule about a class of data, enforced at exactly one table.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">10. A fully unit-tested feature that was never started</h4><p style="font-size:12px;color:var(--dim)">“The feature was dead on every boot for months”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">11. Harness rule text broader than the plan it summarises</h4><p style="font-size:12px;color:var(--dim)">“The queue row for E-3a, written by the orchestrator, told implementers to run ruff format as part of the cleanup.”</p></div>
+    <div class="card" data-ledger="H14"><h4 style="color:var(--pink)" data-exempt="navigation">12. A gate merged beside PRs built before it</h4><p style="font-size:12px;color:var(--dim)">“Main&#x27;s lint went red on d427868 with 5 I001 (unsorted import) errors”</p></div>
+  </div>
+</section>
+
+<section id="evidence">
+  <h2 data-exempt="navigation"><span class="num">07</span> Evidence — The Developer → Orchestrator Shift</h2>
+  <p class="sub" data-ledger="H12 H13">By git author name: 0 of 98 commits from Dec to May name an agent; 361 of 1,740 from 2026-06-23 do (at <code>a16dd51</code>). 28 of those Dec–May commits carry an agent co-author trailer, so author name is a proxy, not a measure of who did the work. CLAUDE.md and AGENT.md were committed 2026-06-13; the first agent-authored commit is 2026-06-23. The docs lint and security gate are older (2026-02).</p>
+  <div class="eras">
+    <div class="era" data-ledger="H12"><div class="et">E0 · 2025-12</div><div class="en">Import</div><div class="ed">2 commits (the second adds 14,397 lines in 70 files)</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/2 by author · 0/2 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12"><div class="et">E1 · Jan–Feb</div><div class="en">Human build</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/62 by author · 27/62 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12"><div class="et">E2 · Mar–May</div><div class="en">Course quiet</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/34 by author · 1/34 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12"><div class="et">E3 · Jun 11–13</div><div class="en">Agentic pivot</div><div class="ed">Human lays rails: provider layer, RAG memory, RL pipeline, CLAUDE.md/AGENT.md</div><div class="bar"><i style="width:0%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">0/9 by author · 0/9 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12 H18"><div class="et">E4 · Jun 23–Jul</div><div class="en">Agent factory</div><div class="ed">230 of 1847 commits; 12 fix(backup) commits 2026-07-29…31</div><div class="bar"><i style="width:97%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">222/230 by author · 222/230 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12"><div class="et">E5 · Aug 1–4</div><div class="en">Rename + failure memory</div><div class="ed">Rename; recurring-failures.md added 2026-08-04</div><div class="bar"><i style="width:100%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">17/17 by author · 17/17 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12 M9"><div class="et">E6 · Sep</div><div class="en">Backlog + research</div><div class="ed">PR #18; branches B and A merged in P1 (2026-09-29 and 2026-10-01)</div><div class="bar"><i style="width:37%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">24/65 by author · 58/65 with co-author trailer</div></div>
+    <div class="era" data-ledger="H12"><div class="et">E7 · Oct 1–21</div><div class="en">Hardening + parallel agents</div><div class="ed">The agent shows mostly as a co-author trailer; as git author only from 2026-10-20</div><div class="bar"><i style="width:7%"></i></div><div class="ed" style="margin-top:4px;font-family:var(--mono);font-size:10px">98/1428 by author · 967/1428 with co-author trailer</div></div>
+  </div>
+  <p class="note" data-ledger="H12">Git author name is a proxy, not a measure of who did the work.</p>
+  <h3 data-exempt="navigation">Lifetime authorship</h3>
+  <div class="authbar"><div class="h" style="width:80.5%"></div><div class="a" style="width:19.5%"></div></div>
+  <div class="legend"><span data-ledger="H12"><i style="background:var(--teal)"></i>Other git authors 80.5%</span><span data-ledger="H12"><i style="background:var(--violet)"></i>Agent git author 19.5% (361/1847 commits at a16dd51); 70% (1292/1847) with an agent author or co-author trailer</span></div>
+  <div class="grid g2" style="margin-top:20px">
+    <div class="card"><h4 data-exempt="navigation">What the artifacts let you measure</h4><ul class="tight">
+      <li data-ledger="H12">Authorship time-series (git-author proxy)</li>
+      <li data-ledger="H18">Defect taxonomy → agentic-specific failure modes with commit-hash evidence (July 2026 backup fixes: 12 fix(backup) commits, 2026-07-29…31)</li>
+      <li data-ledger="M2" data-kind="hypothesis">Hypothesis to test: docs drift where no gate runs. Observed drift sat on ungated surfaces; gated surfaces were not sampled.</li>
+      <li data-ledger="M1" data-kind="case-study">Case study: in the 2026-09-25 audit (reported as 6 agents), the reconciler caught 3 errors in sibling output. One run; no rate.</li></ul></div>
+    <div class="card"><h4 data-exempt="navigation">The honest counter-narrative (Part-2 material)</h4><ul class="tight">
+      <li data-ledger="H4" data-kind="finding">The security gate shipped green while failing open (<span data-ledger="H19" data-kind="current">fixed in P1</span>).</li>
+      <li data-ledger="H5" data-kind="finding"><code>.claude/agents/</code> was cited as evidence while <code>.gitignore</code> made it impossible to commit. Five definitions were authored new by owner decision D1 (2026-10-01).</li>
+      <li data-ledger="H6" data-kind="finding">The CS4610 report claims hook-based PHI enforcement; no PreToolUse hook that scans for PHI exists in the repo, and the user-level PreToolUse hooks are continuous-learning and GSD only — claims outran artifacts.</li>
+      <li data-ledger="M3" data-kind="finding">Three different docs cite three different test counts (620 / 1160 / 1245)</li></ul></div>
+  </div>
+</section>
+
+<section id="audit">
+  <h2 data-exempt="navigation"><span class="num">08</span> Audit Findings &amp; The Forward Roadmap</h2>
+  <p class="sub"><span data-exempt="metadata">Audit of 2026-09-25 (reported as 6 agents + reconciliation; the agent outputs are not packaged).</span> <span data-exempt="navigation">Filter by severity.</span> <span data-ledger="M10">8 audit plans (2026-09-25) and 14 follow-up plans (2026-09-27) were written;</span> <span data-ledger="M9">the table below says which have merged.</span> <span data-ledger="M1" data-kind="case-study">The planning pass itself caught 4 errors in this audit.</span></p>
+  <div class="filt" id="sevFilt">
+    <button class="on" data-s="all" data-exempt="navigation">All</button>
+    <button data-s="p1" data-exempt="navigation">P1</button>
+    <button data-s="p2" data-exempt="navigation">P2</button>
+    <button data-s="p3" data-exempt="navigation">P3 / hygiene</button>
+  </div>
+  <div class="card" style="padding:0;overflow-x:auto"><table id="findings">
+    <tr><th>Finding</th><th>Severity</th><th>Detail</th><th>Where</th></tr>
+    <tr data-s="p1" data-ledger="H4" data-kind="finding"><td>Security gate failed open</td><td><span class="sev p1">P1</span></td><td><span data-ledger="H19" data-kind="current">Fixed in P1; exit 2 on a missing report (measured 2026-10-22).</span></td><td class="file">scripts/security_gate.py + ci.yml</td></tr>
+    <tr data-s="p1" data-ledger="C7" data-kind="finding"><td>Notification scheduler had no production caller</td><td><span class="sev p1">P1</span></td><td>No production caller on main@40f590e. <span data-ledger="C31" data-kind="current">Since P2 (merged #31 2026-10-02) the lifespan starts a session-scoped scheduler (code read, <code>main.py:82-83</code>); reminders were not exercised in this pass.</span></td><td class="file">main.py lifespan</td></tr>
+    <tr data-s="p1" data-ledger="C11" data-kind="finding"><td>In-memory export stores</td><td><span class="sev p1">P1</span></td><td>Artifact dicts live in module memory — downloads 404 after restart; pinboards imports private _packet_store.</td><td class="file">api/export.py, api/pinboards.py</td></tr>
+    <tr data-s="p1" data-ledger="H9" data-kind="finding"><td>datetime.utcnow() systemic breach</td><td><span class="sev p1">P1</span></td><td>On 2026-09-27: 101 product lines (109 references) in 30 files. <span data-ledger="H21" data-kind="current">Measured 2026-10-20 after P5 (merged #54 2026-10-09): <code>git grep -n 'datetime\.utcnow' -- src/backend ':!src/backend/tests'</code> → 0 lines.</span></td><td class="file">src/backend (non-test)</td></tr>
+    <tr data-s="p1" data-ledger="C15" data-kind="finding"><td>SQL echo of bound values (default dev config)</td><td><span class="sev p1">P1</span></td><td>Fixed by S-1 (merged #29 2026-10-01): <code>sql_echo</code> defaults to False, separate from DEBUG. Leaked values seen in the probe are reported, not packaged.</td><td class="file">core/config.py, core/database.py</td></tr>
+    <tr data-s="p2" data-ledger="C12" data-kind="finding"><td>Implicit embedding download</td><td><span class="sev p2">P2</span></td><td>Fixed by W-8 (merged #168 2026-10-18): the model loads from a local directory with <code>local_files_only=True</code> and fails closed; it is fetched only by <code>scripts/download_models.py embedding</code>.</td><td class="file">modules/embeddings.py</td></tr>
+    <tr data-s="p2" data-ledger="C28" data-kind="finding"><td>Legacy path served failed validations</td><td><span class="sev p2">P2</span></td><td>Fixed by W-4 (merged #72 2026-10-16): a failed legacy validation is replaced by the abstention template.</td><td class="file">api/assistant.py</td></tr>
+    <tr data-s="p2" data-ledger="C18 C17" data-kind="finding"><td>Master DB holds names and hashes; backups carry a plaintext master copy</td><td><span class="sev p2">P2</span></td><td>The master database is plain SQLite and holds profile display names, password hashes and audit rows. Each backup archive includes a plaintext master copy reduced to that profile.</td><td class="file">core/config.py, models/profile.py, scripts/backup.py</td></tr>
+    <tr data-s="p2" data-ledger="C16" data-kind="finding"><td>Vaults are plain SQLite where SQLCipher is missing</td><td><span class="sev p2">P2</span></td><td>On a Windows dev install where sqlcipher3-binary will not install, dev.ps1 falls back to unencrypted vaults.</td><td class="file">dev.ps1</td></tr>
+    <tr data-s="p2" data-ledger="H10 M9" data-kind="finding"><td>FK cascades inert</td><td><span class="sev p2">P2</span></td><td>PRAGMA foreign_keys is set nowhere in product code (<code>api/profiles.py:940</code> is a comment). P6 (merged #113 2026-10-16) added a report-only orphan audit, not enforcement.</td><td class="file">api/profiles.py, core/fk_audit.py</td></tr>
+    <tr data-s="p2" data-ledger="C20" data-kind="finding"><td>Unredacted source_quote</td><td><span class="sev p2">P2</span></td><td>POST /export/questions returns source_quote unredacted.</td><td class="file">api/export.py</td></tr>
+    <tr data-s="p2" data-ledger="C22" data-kind="finding"><td>consistency_score = 1.0</td><td><span class="sev p2">P2</span></td><td>consistency_score is a fixed 1.0 placeholder. An NLI replacement (HC-M11) is approved only behind a default-off flag; changing production scoring is owner-gated.</td><td class="file">modules/faithfulness</td></tr>
+    <tr data-s="p3" data-ledger="H15" data-kind="finding"><td>Stale docstrings and hygiene items</td><td><span class="sev p3">P3</span></td><td>Resolved: docstrings corrected (fd3f287) and the duplicate download_models.py removed. Unbounded audit retention remains (owner-gated, P8).</td><td class="file">modules/, api/, scripts/</td></tr>
+  </table></div>
+
+  <h3 data-exempt="navigation">Program phases and the 2026-09-27 plan set (merge status)</h3>
+  <div class="card" style="padding:0;overflow-x:auto"><table>
+    <tr><th>Item</th><th>Plan scope (as proposed)</th><th>Status</th></tr>
+    <tr data-ledger="M9"><td>P1</td><td>Merge both repair branches (fail-closed gate, recovery UI)</td><td>merged: B #21 (2026-09-29), A #24 (2026-10-01)</td></tr>
+    <tr data-ledger="M9"><td>P2</td><td>Notification scheduler</td><td>merged #31 (2026-10-02)</td></tr>
+    <tr data-ledger="M9"><td>S-1</td><td>SQL echo PHI leak</td><td>merged #29 (2026-10-01)</td></tr>
+    <tr data-ledger="M9"><td>W-1</td><td>Commit the five named subagents (D1)</td><td>merged #35 (2026-10-02)</td></tr>
+    <tr data-ledger="M9"><td>W-2</td><td>Strict redaction of the doctor summary</td><td>merged #106 (2026-10-16)</td></tr>
+    <tr data-ledger="M9"><td>W-3</td><td>Plan scope: verified-only legacy RAG, labelled trend points</td><td>merged #136 (2026-10-17)</td></tr>
+    <tr data-ledger="M9"><td>W-4</td><td>Legacy RAG abstains on invalid answers</td><td>merged #72 (2026-10-16)</td></tr>
+    <tr data-ledger="M9"><td>W-5</td><td>Citation-marker prompt</td><td>merged #34 (2026-10-02)</td></tr>
+    <tr data-ledger="M9"><td>W-6</td><td>External runner hardening</td><td>merged #32 (2026-10-01)</td></tr>
+    <tr data-ledger="M9"><td>W-8</td><td>Bundled embedding model, offline load</td><td>merged #168 (2026-10-18)</td></tr>
+    <tr data-ledger="M9"><td>W-10</td><td>Governance invariant amendments</td><td>merged #53 (2026-10-08)</td></tr>
+    <tr data-ledger="M9"><td>W-11a</td><td>Test and gate hardening</td><td>PR-4 merged #39 (2026-10-06); other parts not checked here</td></tr>
+    <tr data-ledger="M9"><td>P5</td><td>utcnow migration</td><td>merged #54 (2026-10-09)</td></tr>
+    <tr data-ledger="M9"><td>P6</td><td>FK enforcement</td><td>report-only orphan audit merged #113 (2026-10-16); enforcement not enabled</td></tr>
+    <tr data-ledger="M9"><td>W-7</td><td>Tiered interpretation through ModelRunner</td><td>proposed — not merged</td></tr>
+    <tr data-ledger="M9"><td>W-11b</td><td>Roadmap items G-C1…G-C4</td><td>proposed — not merged</td></tr>
+  </table></div>
+  <p class="note" data-exempt="pointer">Owner-gated and not implemented: MFA / step-up re-auth, penetration-test scope, audit retention, HC-M11 production scoring. DEK rotation is owner-approved (2026-10-19) and not implemented. See GATED-01…05 and KEY-05 in specs-compliance-matrix.md.</p>
+</section>
+
+<section id="capstone">
+  <h2 data-exempt="navigation"><span class="num">09</span> Capstone Track — Audit → Plans → Orchestration</h2>
+  <p class="sub" data-ledger="M1" data-kind="case-study">The handoff pipeline itself is a research artifact: this page, the audit, and the plans were produced by orchestrated agents. Review found errors at several layers in these runs (case studies, no rates).</p>
+
+  <h3 data-exempt="navigation">Delivery pipeline</h3>
+  <div class="pipe">
+    <div class="pnode" style="cursor:default;border-color:var(--green)" data-exempt="metadata"><div class="ic">⛁</div><div class="t">Audit</div><div class="s">2026-09-25 · done</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="M9 M10"><div class="ic">▤</div><div class="t">Plans</div><div class="s">8 + 14 · most merged 2026-10-01…10-18; W-7 and W-11b proposed, not merged</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default;border-color:var(--green)" data-ledger="M4"><div class="ic">◎</div><div class="t">Contract, matrix, program</div><div class="s">matrix: 3 of 78 rows enforced</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default;border-color:var(--amber)" data-ledger="M9"><div class="ic">⚙</div><div class="t">Execution</div><div class="s">P1 merged 2026-09-29 and 2026-10-01; later phases in progress</div></div>
+    <div class="parr">→</div>
+    <div class="pnode" style="cursor:default" data-exempt="metadata"><div class="ic">✎</div><div class="t">Capstone report</div><div class="s">evidence-mapped · OPEN</div></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><h4 data-exempt="navigation">Knowledge base — <code>docs/capstone-report/</code></h4><ul class="tight">
+      <li data-exempt="pointer"><code>00-original-goal.md</code> — product + research goal restated</li>
+      <li data-exempt="pointer"><code>claims-ledger.md</code> — each report claim ↔ evidence ↔ verdict</li>
+      <li data-exempt="pointer"><code>report-outline.md</code> — sections mapped to backing artifacts</li>
+      <li data-exempt="pointer"><code>research/</code> — 4 scouting docs: agentic tools, harness techniques, RAG/local-LLM, papers+evals</li>
+      <li data-ledger="M4"><code>specs-compliance-matrix.md</code> (78 requirement rows, 3 enforced) and <code>implementation-program.md</code>, written 2026-09-27</li></ul></div>
+    <div class="card"><h4 data-ledger="M11">Claims ledger — honesty snapshot (64 rows)</h4>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px"><span class="tag g" style="font-size:12px;padding:5px 12px" data-ledger="M11">40 verified</span><span class="tag a" style="font-size:12px;padding:5px 12px" data-ledger="M11">10 partial</span><span class="tag r" style="font-size:12px;padding:5px 12px" data-ledger="M11">6 contradicted</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">3 not-evidenced</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">4 case-study</span><span class="tag " style="font-size:12px;padding:5px 12px" data-ledger="M11">1 hypothesis</span></div>
+      <ul class="tight">
+        <li data-ledger="H4 H5 H6" data-kind="finding">The <b>contradicted</b> rows are the report's strength — the audit caught its own project's overclaims (the phantom <code>.claude/agents/</code> layer, since authored by owner decision D1; the fail-open gate, <span data-ledger="H19" data-kind="current">fixed in P1</span>; AgentShield, not evidenced).</li>
+        <li data-exempt="metadata">Rule: a claim ships only with a ledger row + evidence pointer</li></ul></div>
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<footer>
+  Asclexis · CS4610 Senior Project · Danny Tran<br>
+  Claim-freeze build: figures measured 2026-10-22 at a16dd51. Owner sign-off O-6 is recorded in the showcase plan (§13, §15) and in owner-decisions, not on this page.<br>
+  Claims map to docs/capstone-report/claims-ledger.md · figures are as of the measurement ref a16dd51 · supersedes the 2026-09-25 showcase (kept unchanged in audit/2026-09-25/)<br>
+  <span class="print-note">Single self-contained file · no external requests · safe to embed in the report appendix</span>
+</footer>
+<script>
+function pick(group,i){
+  document.querySelectorAll('[data-group="'+group+'"]').forEach(function(e){e.hidden=(e.getAttribute('data-i')!==String(i));});
+  document.querySelectorAll('[data-panel="'+group+'"]').forEach(function(e){e.classList.toggle('on',e.getAttribute('data-i')===String(i));});
+}
+document.querySelectorAll('[data-panel]').forEach(function(e){
+  e.addEventListener('click',function(){pick(e.getAttribute('data-panel'),e.getAttribute('data-i'));});
+});
+document.querySelectorAll('#pathToggle button').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('#pathToggle button').forEach(function(x){x.classList.toggle('on',x===b);});
+    document.querySelectorAll('[data-group="lane"]').forEach(function(l){l.hidden=(l.getAttribute('data-i')!==b.getAttribute('data-p'));});
+  });
+});
+document.querySelectorAll('#sevFilt button').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('#sevFilt button').forEach(function(x){x.classList.toggle('on',x===b);});
+    var s=b.getAttribute('data-s');
+    document.querySelectorAll('#findings tr[data-s]').forEach(function(r){r.hidden=(s!=='all'&&r.getAttribute('data-s')!==s);});
+  });
+});
+var links=[].slice.call(document.querySelectorAll('nav a.nl'));
+var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
+if('IntersectionObserver' in window){
+  var spy=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){
+    links.forEach(function(l){l.classList.toggle('active',l.getAttribute('href')==='#'+e.target.id);});}});},{rootMargin:'-30% 0px -60% 0px'});
+  secs.forEach(function(s){if(s)spy.observe(s);});
+}
+</script>
+</body>
+</html>

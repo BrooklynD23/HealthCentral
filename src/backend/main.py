@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import router as api_router
 from core.config import settings
 from core.database import close_database, init_database
-from core.logging_setup import install_correlation_logging
+from core.logging_setup import install_access_log_query_scrub, install_correlation_logging
 from core.migrations import run_master_migrations_async
 from monitoring.correlation import CorrelationIdMiddleware
 from monitoring.health import health_router, metrics_router
@@ -84,6 +84,12 @@ async def lifespan(app: FastAPI):
     except Exception as _notif_exc:
         logger.warning("Notification scheduler not started: %s", _notif_exc)
 
+    # Serving from here: record this process so dev.ps1 can find a worker that
+    # outlives its launcher (WIN-ORPHAN-WORKER). No-op unless the launcher asked.
+    from core.worker_pidfile import remove_worker_pidfile, write_worker_pidfile
+
+    write_worker_pidfile()
+
     yield
 
     try:
@@ -99,11 +105,13 @@ async def lifespan(app: FastAPI):
         logger.warning("Backup scheduler shutdown issue: %s", _sched_exc)
 
     await close_database()
+    remove_worker_pidfile()
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     install_correlation_logging()
+    install_access_log_query_scrub()
 
     app = FastAPI(
         title="Asclexis API",
@@ -127,10 +135,7 @@ def create_app() -> FastAPI:
     # 1. Timing (innermost — measures route handling time)
     app.add_middleware(TimingMiddleware)
     # 2. Security audit logging
-    app.add_middleware(
-        SecurityAuditMiddleware,
-        log_to_db=settings.audit_security_events_to_db,
-    )
+    app.add_middleware(SecurityAuditMiddleware)
     # 3. Input validation
     app.add_middleware(
         InputValidationMiddleware,

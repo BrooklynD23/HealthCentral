@@ -1,0 +1,9 @@
+### cdpcount
+- probe base: 1 of 5 over 40 ms (pooled); per batch b1:1/5; unmeasured 0; max 64
+  gaps: timeline=39 search=64 med=32 notif=28 care=37
+  Ccdp.b1.cdpcount.base.probe.timeline	gap=39	gapStart=12	gapEnd=51	longtasks=-	load1=1.55/1.55
+  Ccdp.b1.cdpcount.base.probe.search	gap=64	gapStart=-3	gapEnd=61	longtasks=-	load1=1.55/1.55
+  Ccdp.b1.cdpcount.base.probe.med	gap=32	gapStart=63	gapEnd=95	longtasks=-	load1=1.55/1.5
+  Ccdp.b1.cdpcount.base.probe.notif	gap=28	gapStart=24	gapEnd=52	longtasks=-	load1=1.5/1.5
+  Ccdp.b1.cdpcount.base.probe.care	gap=37	gapStart=14	gapEnd=51	longtasks=-	load1=1.5/1.5
+

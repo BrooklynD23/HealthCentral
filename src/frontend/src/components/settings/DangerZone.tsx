@@ -7,14 +7,27 @@
  * The copy here is load-bearing. Deleting the sealed encryption key is what
  * makes the vault unreadable — we do not claim the bytes are overwritten,
  * because SSD wear-levelling makes that claim false.
+ *
+ * UI-PG-SECURITY: the steps live in an AlertDialog, in their original order
+ * (copy checkbox, password, typed phrase). The dialog and every warning in it
+ * are `still` and carry `data-t0` (plan 2.7): no entrance motion on T0 text.
  */
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@/components/ui';
+import { AlertDialog } from '@/components/ui/AlertDialog';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { useDeleteProfile, PROFILE_DELETE_CONFIRMATION } from '@/services/profiles';
 import { useAuthStore } from '@/stores/authStore';
 import { useCreateBackup, downloadBackupArchive } from '@/services/backup';
+
+const DELETE_WARNING =
+  'This removes your encrypted health record from this device: every ' +
+  'document, lab result, medication and note, along with any backups ' +
+  'this app is holding for you. Your encryption key is destroyed, which ' +
+  'makes the data unreadable. This cannot be undone, and there is no ' +
+  'cloud copy to restore from.';
 
 export function DangerZone() {
   const navigate = useNavigate();
@@ -57,6 +70,13 @@ export function DangerZone() {
     }
   };
 
+  const closeDialog = () => {
+    setExpanded(false);
+    setPassword('');
+    setPhrase('');
+    setError(null);
+  };
+
   const handleDelete = async () => {
     if (!profileId || !canDelete) return;
     setError(null);
@@ -87,24 +107,24 @@ export function DangerZone() {
       <CardContent className="space-y-4">
         <div>
           <h3 className="font-semibold">Delete this profile</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            This removes your encrypted health record from this device: every
-            document, lab result, medication and note, along with any backups
-            this app is holding for you. Your encryption key is destroyed, which
-            makes the data unreadable. This cannot be undone, and there is no
-            cloud copy to restore from.
+          <p className="text-sm text-ink-secondary mt-1" data-t0="">
+            {DELETE_WARNING}
           </p>
         </div>
 
-        {!expanded ? (
-          <Button variant="secondary" onClick={() => setExpanded(true)}>
-            Delete profile…
-          </Button>
-        ) : (
-          <div className="space-y-4 rounded-md border border-status-attention/40 p-4">
+        <AlertDialog
+          open={expanded}
+          onOpenChange={(next) => (next ? setExpanded(true) : closeDialog())}
+          still
+          className="top-8 max-h-[calc(100dvh-4rem)] max-w-lg translate-y-0"
+          title="Delete this profile?"
+          description={<span data-t0="">{DELETE_WARNING}</span>}
+          trigger={<Button variant="secondary">Delete profile…</Button>}
+        >
+          <div className="space-y-4">
             <div>
-              <p className="text-sm font-medium">1. Take a backup first</p>
-              <p className="text-xs text-muted-foreground mb-2">
+              <p className="text-sm font-medium text-ink">1. Take a backup first</p>
+              <p className="text-xs text-ink-secondary mb-2" data-t0="">
                 Deleting also removes the backups stored on this device, so a
                 downloaded copy is the only one that survives. A backup includes
                 your documents, results and the key that opens them, and can be
@@ -123,66 +143,54 @@ export function DangerZone() {
               {backupNote && (
                 <p className="text-xs text-ink-secondary mt-2">{backupNote}</p>
               )}
-              <label className="flex items-start gap-2 mt-2 text-sm">
-                <input
-                  type="checkbox"
+              <div className="flex items-start gap-3 mt-3">
+                <Checkbox
+                  id="danger-exported"
                   checked={exported}
-                  onChange={(e) => setExported(e.target.checked)}
-                  className="mt-1"
+                  onCheckedChange={(checked) => setExported(checked === true)}
                 />
                 {/* Self-attested: the app cannot verify that a copy was kept,
                     and the wording should not imply otherwise. */}
-                I confirm I have a copy, or I don&apos;t want one
-              </label>
+                <label htmlFor="danger-exported" className="text-sm text-ink">
+                  I confirm I have a copy, or I don&apos;t want one
+                </label>
+              </div>
             </div>
+
+            <Input
+              id="danger-password"
+              label="2. Confirm your password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
 
             <div>
               <label
-                htmlFor="danger-password"
-                className="text-sm font-medium block mb-1"
+                htmlFor="danger-phrase"
+                className="block text-sm font-medium text-ink mb-1.5"
               >
-                2. Confirm your password
-              </label>
-              <input
-                id="danger-password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="danger-phrase" className="text-sm font-medium block mb-1">
                 3. Type <code className="font-mono">{PROFILE_DELETE_CONFIRMATION}</code>
               </label>
-              <input
+              <Input
                 id="danger-phrase"
                 type="text"
                 value={phrase}
                 onChange={(e) => setPhrase(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm font-mono"
+                className="font-mono"
                 placeholder={PROFILE_DELETE_CONFIRMATION}
               />
             </div>
 
             {error && (
-              <p role="alert" className="text-sm text-status-attention">
+              <p role="alert" className="text-sm text-status-attention" data-t0="">
                 {error}
               </p>
             )}
 
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setExpanded(false);
-                  setPassword('');
-                  setPhrase('');
-                  setError(null);
-                }}
-              >
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" data-alert-cancel="" onClick={closeDialog}>
                 Cancel
               </Button>
               <Button
@@ -196,7 +204,7 @@ export function DangerZone() {
               </Button>
             </div>
           </div>
-        )}
+        </AlertDialog>
       </CardContent>
     </Card>
   );

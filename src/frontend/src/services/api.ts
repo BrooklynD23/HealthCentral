@@ -95,7 +95,15 @@ async function fetchOrExplain(url: string, init: RequestInit): Promise<Response>
   }
 }
 
-async function handleResponse<T>(response: Response): Promise<T> {
+/**
+ * `reauth: true` marks a password re-auth call (delete, restore, recovery code).
+ * A 401 there means "wrong password", not "session expired", so it must not log out.
+ */
+export interface ReauthOption {
+  reauth?: boolean;
+}
+
+async function handleResponse<T>(response: Response, reauth = false): Promise<T> {
   if (!response.ok) {
     const errorBody = await response.text();
     let message = errorBody;
@@ -106,8 +114,10 @@ async function handleResponse<T>(response: Response): Promise<T> {
       // Use raw text
     }
 
-    // Handle auth errors
-    handleAuthError(response.status);
+    // Handle auth errors (a re-auth 401 is a wrong password: keep the session)
+    if (!(reauth && response.status === 401)) {
+      handleAuthError(response.status);
+    }
 
     throw new ApiError(response.status, response.statusText, message);
   }
@@ -159,8 +169,9 @@ export async function apiGet<T>(
 export async function apiPost<T, D = unknown>(
   endpoint: string,
   data?: D,
-  init?: Omit<RequestInit, 'method' | 'body' | 'headers'>
+  init?: Omit<RequestInit, 'method' | 'body' | 'headers'> & ReauthOption
 ): Promise<T> {
+  const { reauth, ...fetchInit } = init ?? {};
   const url = buildApiUrl(endpoint);
 
   const response = await fetchOrExplain(url, {
@@ -171,10 +182,10 @@ export async function apiPost<T, D = unknown>(
     },
     credentials: 'include',
     body: data ? JSON.stringify(data) : undefined,
-    ...init,
+    ...fetchInit,
   });
 
-  return handleResponse<T>(response);
+  return handleResponse<T>(response, reauth);
 }
 
 export async function apiPut<T, D = unknown>(
@@ -217,7 +228,8 @@ export async function apiPatch<T, D = unknown>(
 
 export async function apiDelete<D = unknown>(
   endpoint: string,
-  data?: D
+  data?: D,
+  options?: ReauthOption
 ): Promise<void> {
   const url = buildApiUrl(endpoint);
 
@@ -233,7 +245,7 @@ export async function apiDelete<D = unknown>(
     ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
   });
 
-  return handleResponse<void>(response);
+  return handleResponse<void>(response, options?.reauth);
 }
 
 /**

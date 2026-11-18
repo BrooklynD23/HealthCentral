@@ -367,6 +367,7 @@ async def list_medications(
     session: RequireAuth,
     active_only: bool = Query(True, description="Only show active medications"),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """
     List medications for the authenticated profile.
@@ -385,6 +386,14 @@ async def list_medications(
     result = await profile_db.execute(query)
     medications = result.scalars().unique().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id="all",
+        details={"entity_type": "medication_list", "count": len(medications)},
+    )
     return [MedicationResponse.from_model(m) for m in medications]
 
 
@@ -396,6 +405,7 @@ async def get_medication(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get a single medication by ID."""
     validate_uuid(medication_id, "medication_id")
@@ -414,6 +424,14 @@ async def get_medication(
         )
 
     verify_medication_access(medication, session)
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication"},
+    )
     return MedicationResponse.from_model(medication)
 
 
@@ -789,6 +807,7 @@ async def list_schedules(
     medication_id: str,
     session: RequireAuth,
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List all schedules for a medication."""
     validate_uuid(medication_id, "medication_id")
@@ -814,6 +833,14 @@ async def list_schedules(
     )
     schedules = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={"entity_type": "medication_schedules", "count": len(schedules)},
+    )
     return [ScheduleResponse.from_model(s) for s in schedules]
 
 
@@ -994,6 +1021,7 @@ async def log_dose(
 
     # Calculate variance if schedule provided
     variance_minutes = None
+    schedule = None
     if schedule_id:
         schedule = await _schedule_for_medication(profile_db, schedule_id, medication_id)
         if schedule:
@@ -1015,7 +1043,7 @@ async def log_dose(
     dose_record = DoseTaken(
         id=str(uuid.uuid4()),
         medication_id=medication_id,
-        schedule_id=schedule_id,
+        schedule_id=schedule.id if schedule else None,
         taken_at=dose.taken_at,
         log_method=dose.log_method,
         dosage_amount=dose.dosage_amount or medication.dosage_amount,
@@ -1030,8 +1058,10 @@ async def log_dose(
     profile_db.add(dose_record)
     await profile_db.commit()
     await profile_db.refresh(dose_record)
-    # Bind now: the badge-failure rollback below expires dose_record.
+    # Bind the id and the response now: the badge-failure rollback below
+    # expires dose_record.
     dose_id = dose_record.id
+    dose_response = DoseResponse.from_model(dose_record)
 
     newly_earned_badges: list[BadgeInfo] = []
     if not dose_record.was_skipped:
@@ -1105,7 +1135,7 @@ async def log_dose(
         f"{'skipped' if dose.was_skipped else 'taken'} at {dose.taken_at}"
     )
     return DoseLogResponse(
-        dose=DoseResponse.from_model(dose_record),
+        dose=dose_response,
         newly_earned_badges=newly_earned_badges,
     )
 
@@ -1121,6 +1151,7 @@ async def list_doses(
     to_date: Optional[NaiveUtcDatetime] = Query(None, description="End date"),
     limit: int = Query(30, ge=1, le=100),
     profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """List dose records for a medication."""
     validate_uuid(medication_id, "medication_id")
@@ -1152,6 +1183,18 @@ async def list_doses(
     result = await profile_db.execute(query)
     doses = result.scalars().all()
 
+    await audit_and_commit(
+        master_db,
+        log_document_event,
+        event="view",
+        profile_id=session.profile_id,
+        document_id=medication_id,
+        details={
+            "entity_type": "medication_doses",
+            "count": len(doses),
+            "date_filter": bool(from_date or to_date),
+        },
+    )
     return [DoseResponse.from_model(d) for d in doses]
 
 
@@ -1382,7 +1425,12 @@ async def learn_patterns(
 
     verify_medication_access(medication, session)
     if schedule_id:
-        await _schedule_for_medication(profile_db, schedule_id, medication_id)
+        schedule = await _schedule_for_medication(profile_db, schedule_id, medication_id)
+        if schedule is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Schedule not found",
+            )
 
     # taken_at is naive UTC; bucket by the profile's wall clock (ADHERE-TZ).
     settings_result = await profile_db.execute(

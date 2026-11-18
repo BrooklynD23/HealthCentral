@@ -1,0 +1,9 @@
+### trace-search
+- probe base: 3 of 5 over 40 ms (pooled); per batch b1:3/5; unmeasured 0; max 56
+  gaps: search=56 search=36 search=36 search=44 search=44
+  Cs.b1.trace-search.base.probe.search.c1	gap=56	gapStart=-49	gapEnd=7	longtasks=-	load1=1.29/1.29
+  Cs.b1.trace-search.base.probe.search.c2	gap=36	gapStart=-8	gapEnd=28	longtasks=-	load1=1.29/1.29
+  Cs.b1.trace-search.base.probe.search.c3	gap=36	gapStart=16	gapEnd=52	longtasks=-	load1=1.29/1.18
+  Cs.b1.trace-search.base.probe.search.c4	gap=44	gapStart=-8	gapEnd=36	longtasks=-	load1=1.18/1.18
+  Cs.b1.trace-search.base.probe.search.c5	gap=44	gapStart=-9	gapEnd=35	longtasks=-	load1=1.18/1.09
+

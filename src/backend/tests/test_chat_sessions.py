@@ -655,7 +655,9 @@ class TestModelUnavailableFallback:
         rag = MagicMock()
         rag.query = AsyncMock(side_effect=A.ModelUnavailableError("no model"))
 
+        # SAFETY-MODE-STRICT: mock profile DB; pin OFF (L0 ruling, PR #355)
         with patch.object(A, "get_rag_module", return_value=rag), \
+             patch("api.assistant.is_strict_safety_mode", AsyncMock(return_value=False)), \
              patch.object(A, "_get_or_create_session", AsyncMock(return_value=chat_session)), \
              patch.object(A, "_load_session_history", AsyncMock(return_value=[])), \
              patch.object(A, "_effective_use_memory", AsyncMock(return_value=False)), \

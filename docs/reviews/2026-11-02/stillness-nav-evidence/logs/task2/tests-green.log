@@ -1,0 +1,104 @@
+(node:1902106) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1A[2K[2m[WebServer] [22mINFO:     Started server process [1902496]
+
+[1A[2K[2m[WebServer] [22mINFO:     Waiting for application startup.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+[2m[WebServer] [22mINFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade  -> 001_initial, Initial schema for master database.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 001_initial -> 002_backup_schedules, Per-profile backup schedules (BKUP-UX-001).
+
+[1A[2K[2m[WebServer] [22mINFO:     Application startup complete.
+
+[1A[2K[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade  -> 001_initial, Initial schema for per-profile encrypted database.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 001_initial -> 002_external_api, Add external API settings to user_model_settings.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 002_external_api -> 003_gamification_voice, Add timezone, voice settings, and gamification tables.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 003_gamification_voice -> 004_document_categories, Add document_category and document_entity tables.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 004_document_categories -> 005_memory_items, Add assistant memory items table.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 005_memory_items -> 006_ocr_preference, Add per-profile OCR preference (default on).
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 006_ocr_preference -> 007_chat_sessions, Add chat_sessions, chat_turns tables and assistant_memory_enabled column.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 007_chat_sessions -> 008_response_feedback, Add response_feedback table for RL preference dataset pipeline.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 008_response_feedback -> 009_agent_enabled, Add agent_enabled column to user_model_settings (default on).
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 009_agent_enabled -> 010_entity_source_spans, Add source-span and verification columns to document_entity.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 010_entity_source_spans -> 011_care_plan_tasks, Add care_plan_task table.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 011_care_plan_tasks -> 012_pinboards, Add user-curated pinboards.
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 012_pinboards -> 013_adaptive_windows_local, Adaptive windows move to the profile-local frame (D-2 SCHED-TZ).
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 013_adaptive_windows_local -> 014_streaks_hidden, Add streaks_hidden column to user_model_settings (default off).
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 014_streaks_hidden -> 015_data_donation, Add donation_consents and donated_records (opt-in data donation, PR-1).
+
+[1A[2K[2m[WebServer] [22mINFO  [alembic.runtime.migration] Running upgrade 015_data_donation -> 016_strict_safety_mode, Add strict_safety_mode column to user_model_settings (default off).
+
+
+Running 10 tests using 1 worker
+
+[1A[2K(node:1902727) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[1/10] [chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:817:1 › HC-UIG-010 (a) a request held from page load past the settle limit fails the navigation probe with StillnessSettleError
+HC-UIG-010 (a) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: http://localhost/gates/held; no route element
+
+[1A[2K[2/10] [chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:830:1 › HC-UIG-010 (b) a request started just before the probe is not invisible to the settle
+HC-UIG-010 (b) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: http://localhost/gates/held; no route element
+
+[1A[2K[3/10] [chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:846:1 › HC-UIG-010 (c1) a route container stuck at opacity .5 fails the navigation probe with StillnessSettleError naming the opacity
+HC-UIG-010 (c1) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: none; last route opacity 0.5
+
+[1A[2K[4/10] [chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:865:1 › HC-UIG-010 (c2) a page with no route element fails the navigation probe with StillnessSettleError
+HC-UIG-010 (c2) rejected with: StillnessSettleError: stillnessProbe: the start page did not settle within 15000 ms (needs no request in flight for 500 ms and the route element at opacity >= 0.99); in flight: none; no route element
+
+[1A[2K[5/10] [chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:889:1 › HC-UIG-010 (d) work that blocks the main thread after the trigger still fails the 70 ms gap bound
+HC-UIG-010 (d) rejected with: StillnessError: stillnessProbe failed (1):
+  - sampling gap of 187 ms (must be <= 70 ms for a page change, owner STILLNESS-NAV-70; G10 samples every 16-40 ms)
+
+[1A[2K[6/10] [chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:918:1 › HC-UIG-010 (e) a [data-t0] node the trigger moves after the settle still fails the probe
+HC-UIG-010 (e) rejected with: StillnessError: stillnessProbe failed (2):
+  - computed transform changed on [data-t0] p "Glucose 104 mg/dL": "none" -> "matrix(0.96, 0, 0, 0.96, 0, 0)" at 20 ms
+  - getBoundingClientRect changed on [data-t0] p "Glucose 104 mg/dL": [0,16,220,22.4] -> [4.4,16.4,211.2,21.5] at 20 ms
+
+[1A[2K[7/10] [chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute false)
+HC-UIG-010 (f) lazyRoute false: error=null report={"samples":41,"postTriggerSamples":40,"maxGapMs":22,"elapsedMs":806,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[8/10] [chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true)
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:943:3 › HC-UIG-010 (f) a settled start page lets a normal 200 ms route fade pass (lazyRoute true)
+HC-UIG-010 (f) lazyRoute true: error=null report={"samples":66,"postTriggerSamples":65,"maxGapMs":23,"elapsedMs":1302,"nodes":1,"routeKey":"/gates/next"}
+
+[1A[2K[9/10] [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the interaction probe does not wait for the start page to settle
+HC-UIG-010 (g) interaction: null
+
+[1A[2K[10/10] [chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+[1A[2K[chromium] › e2e/ui-gates.spec.ts:972:3 › HC-UIG-010 (g) the overlay probe does not wait for the start page to settle
+HC-UIG-010 (g) overlay: null
+
+[1A[2K  10 passed (2.0m)
+EXIT=0

@@ -25,7 +25,7 @@ Read section 3 before writing any user-facing string.
 
 The rename replaces "HealthCentral", which collided with the existing
 health-media brand healthcentral.com — see
-[`../plans/2026-07-07-rename-audit-and-shortlist.md`](../plans/2026-07-07-rename-audit-and-shortlist.md).
+[`../archive/plans/2026-07-07-rename-audit-and-shortlist.md`](../archive/plans/2026-07-07-rename-audit-and-shortlist.md).
 
 ## 2. What the product is, in one sentence
 

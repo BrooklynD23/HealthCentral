@@ -1,0 +1,14 @@
+--- precheck before M2 at 2026-11-02T22:48:54-08:00
+ 22:48:54 up 2 days, 12:25,  1 user,  load average: 1.39, 1.48, 3.88
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1987621 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1987624 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh npx vitest run src/__tests__/ui-export.test.tsx
+[FOREIGN] 1988804 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988805 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-documents.test.tsx src/__tests__/DocumentInbox.test.tsx
+[mine] 1995787 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 3000 --strictPort
+[FOREIGN] 1996690 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1996693 timeout 580 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.ou
+[FOREIGN] 1996694 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.out 2>/dev/nul
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:3000       0.0.0.0:*    users:(("node-MainThread",pid=1995787,fd=30))
+(own server pids: 1995787 )

@@ -1,6 +1,6 @@
 # Asclexis — Architecture & Integration Overview
 
-**Last Updated:** 2026-09-28
+**Last Updated:** 2026-10-20
 **Evidence basis:** main @ `40f590e` (working tree also carries the owner's uncommitted `.serena/project.yml` / `docs/INDEX.md` edits — neither affects code). Two unmerged branches are described only in §13 (proposed).
 
 This document separates **verified current architecture** (§1–§11) from **proposed change** (§13). Every current-state statement carries `path:line` evidence from the 2026-09-27 re-check (orchestrator + read-only mapping agents; load-bearing lines spot-verified by the orchestrator). Where the hand-drawn diagrams in [`docs/architecture/`](../architecture/README.md) disagree with code, §12 lists the divergence; code wins.
@@ -44,9 +44,10 @@ flowchart LR
     MR --> FAC["core/llm/factory"]
     FAC --> LCP["LlamaCppProvider (GGUF, default)"]
     FAC --> OLP["OllamaProvider — 127.0.0.1:11434 only"]
-    ASST -. "opt-in, redacted" .-> EXT["core/external_runner.py"]
+    ASST -. "opt-in; redaction always on" .-> EXT["core/external_runner.py"]
+    R -. "interpretations (opt-in)" .-> EXT
     DOC -. "first use" .-> ST["sentence-transformers"]
-    LIFE["lifespan: migrations, knowledge seed,<br/>backup_scheduler"]
+    LIFE["lifespan: migrations, knowledge seed,<br/>backup_scheduler, notification_scheduler (unlocked vaults only)"]
   end
 
   AUTH --> VAULT[("per-profile vault.db<br/>SQLCipher + AES-GCM doc files")]
@@ -66,7 +67,7 @@ flowchart LR
   class CLOUD,HF ext
 ```
 
-Dashed edges are network or conditional paths. Since W-8 (PR #168) the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. The notification scheduler is **not** drawn because nothing starts it.
+Dashed edges are network or conditional paths. Since W-8 (PR #168) the backend no longer fetches the embedding model implicitly: it loads it from a local directory offline and fails closed when it is absent. The model is fetched only by the explicit `scripts/download_models.py embedding` (and the other user-triggered model downloads); the cloud LLM path is off by default. Both `assistant` (`api/assistant.py:867`) and `interpretations` (`api/interpretations.py:522`) can reach the opt-in cloud runner; it is off by default. "Redaction always on" means strict redaction is forced on every call unless the audited break-glass flag is set (`core/external_runner.py:95-109`, W-6). The notification scheduler is started by the lifespan (`main.py:82-83`, P2) and serves only profiles whose vault is unlocked. The `api/assistant.py`, `api/interpretations.py` and `main.py` line cites in this caption are lines at `c529d19`, not at the `40f590e` evidence basis in the header.
 
 ## 3. Subsystem table
 
@@ -153,10 +154,12 @@ Lifespan (`src/backend/main.py`): master DB filename migration (`:35-37`) → `v
 
 | Chain | Revisions | Head | When applied | Evidence |
 |---|---|---|---|---|
-| Master | 2 (`001_initial_schema`, `002_backup_schedules`) | `002_backup_schedules` | at startup | `main.py:48`, `core/migrations.py:107-178` |
+| Master | 3 (`001_initial_schema`, `002_backup_schedules`, `003_kb_canonical_names`) | `003_kb_canonical_names` | at startup | `main.py:48`, `core/migrations.py:107-178` |
 | Profile | 12 (`001_initial_schema` … `012_pinboards`), linear | `012_pinboards` | every vault open (login, unlock, create, recover) | `core/profile_database.py:365-367`, `core/migrations.py:194-337` |
 
 Databases that already have tables but no `alembic_version` table are stamped to head rather than migrated (`core/migrations.py:145-150,302-307`). No test enforces a single head per chain.
+
+*Superseded 2026-11-06 (BATCH-1106C; the dated record is not rewritten):* the profile row above (12 revisions, head `012_pinboards`) and the stamping and "no test" sentences are as of 2026-10-20: the profile chain now has 18 revisions with head `018_ocr_opt_in` (`ls src/backend/migrations/profile/versions/`); `tests/test_migration_heads.py` (HC-MIGHEAD-001…003) enforces one head per chain; and an unversioned profile vault is matched to the oldest tied revision and then upgraded, not stamped to head (`core/migrations.py:651`, R2, #512).
 
 ## 11. CI and test gates
 

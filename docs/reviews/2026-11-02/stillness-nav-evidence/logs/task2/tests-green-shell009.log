@@ -1,0 +1,140 @@
+(node:1910422) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[1A[2K[2m[WebServer] [22mINFO:     Started server process [1910786]
+
+[1A[2K[2m[WebServer] [22mINFO:     Waiting for application startup.
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker triglycerides already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker glucose_fasting already exists, skipping
+[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker hemoglobin already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker wbc already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker platelets already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker tsh already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker creatinine already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Biomarker vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Revised 0 installed biomarker text(s)
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Saturated Fat Intake for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Increase Soluble Fiber for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for ldl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Aerobic Exercise for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Quit Smoking for hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Reduce Refined Carbohydrates for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Regular Physical Activity for hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Vitamin D Supplementation for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Intervention Safe Sun Exposure for vitamin_d already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship total_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> hdl_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship ldl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship hdl_cholesterol -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship triglycerides -> total_cholesterol already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship tsh -> free_t4 already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Relationship glucose_fasting -> hemoglobin_a1c already exists, skipping
+
+[1A[2K[2m[WebServer] [22mINFO:scripts.seed_knowledge_base:Seeding complete: {'biomarkers': 0, 'interventions': 0, 'relationships': 0}
+
+[1A[2K[2m[WebServer] [22mINFO:modules.backup_scheduler:Backup scheduler started
+
+[1A[2K[2m[WebServer] [22mINFO:modules.platform_notifications:Notification service initialized with desktop_notifier
+
+[1A[2K[2m[WebServer] [22mINFO:modules.notification_scheduler:Notification scheduler started
+[2m[WebServer] [22mINFO:     Application startup complete.
+
+[1A[2K[2m[WebServer] [22mINFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+
+[1A[2K[2m[WebServer] [22mINFO:core.audit:AUDIT: profile.login - profile.login
+
+[1A[2K[2m[WebServer] [22mINFO:api.profiles:Profile logged in: fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Running profile database migrations for data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db...
+
+[1A[2K[2m[WebServer] [22mINFO:alembic.runtime.migration:Context impl SQLiteImpl.
+[2m[WebServer] [22mINFO:alembic.runtime.migration:Will assume non-transactional DDL.
+
+[1A[2K[2m[WebServer] [22mINFO:core.migrations:Profile database at data/vaults/fdcea85c-66f5-43c3-b461-7ca76ab796df/vault.db already at head revision 016_strict_safety_mode.
+
+[1A[2K[2m[WebServer] [22mINFO:core.profile_database:Opened encrypted database for profile fdcea85c-66f5-43c3-b461-7ca76ab796df
+[2m[WebServer] [22mINFO:core.auth:Opened profile database for fdcea85c-66f5-43c3-b461-7ca76ab796df
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/login", "client_ip": "127.0.0.1", "status": 200, "duration_ms": 2803.14, "correlation_id": "fa9dd374-c182-4473-b7b5-59d9ca3b3bb7"}
+
+[1A[2K[2m[WebServer] [22mINFO:security.audit_middleware:SECURITY_AUDIT: {"event": "security.request", "method": "POST", "path": "/api/v1/profiles/test/reset", "client_ip": "127.0.0.1", "status": 204, "duration_ms": 822.76, "correlation_id": "4ada3510-1638-4dda-b331-44feacbdb166"}
+
+
+Running 40 tests using 1 worker
+
+[1A[2K(node:1911034) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[2K[1/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /inbox
+[1A[2K[2/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /inbox
+[1A[2K[3/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /verify
+[1A[2K[4/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /verify
+[1A[2K[5/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /trends
+[1A[2K[6/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /trends
+[1A[2K[7/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /timeline
+[1A[2K[8/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /timeline
+[1A[2K[9/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /search
+[1A[2K[10/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /search
+[1A[2K[11/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /interpret
+[1A[2K[12/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /interpret
+[1A[2K[13/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /medications
+[1A[2K[14/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /medications
+[1A[2K[15/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /medications/med-fixture-1
+[1A[2K[16/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /medications/med-fixture-1
+[1A[2K[17/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /care-tasks
+[1A[2K[18/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /care-tasks
+[1A[2K[19/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /pinboards
+[1A[2K[20/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /pinboards
+[1A[2K[21/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /explain
+[1A[2K[22/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /explain
+[1A[2K[23/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /export
+[1A[2K[24/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /export
+[1A[2K[25/40] [chromium] › e2e/ui-shell.spec.ts:298:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: opacity-only route fade on /settings
+[1A[2K[26/40] [chromium] › e2e/ui-shell.spec.ts:305:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-003: no fade under reduced motion on /settings
+[1A[2K[27/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /inbox
+[1A[2K[28/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /verify
+[1A[2K[29/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /trends
+[1A[2K[30/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /timeline
+[1A[2K[31/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /search
+[1A[2K[32/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /interpret
+[1A[2K[33/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /medications
+[1A[2K[34/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /medications/med-fixture-1
+[1A[2K[35/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /notifications
+[1A[2K[36/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /care-tasks
+[1A[2K[37/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /pinboards
+[1A[2K[38/40] [chromium] › e2e/ui-shell.spec.ts:319:5 › HC-UISH-003 route fade and HC-UISH-009 rail stillness › HC-UISH-009: the Safety Rail stays still through the navigation to /export
+[1A[2K[39/40] [chromium] › e2e/ui-shell.spec.ts:341:3 › HC-UISH-009 phone toggle label stays still › HC-UISH-009: at 390 the Safety Rail and the toggle label stay still through a tab-bar navigation
+[1A[2K[40/40] [chromium] › e2e/ui-shell.spec.ts:1000:3 › Inherited stillness and focus halves (L0 rulings #363, #364, #365) › HC-UISH-009: the safety-toggle popover mounts with no motion at 390 (M0)
+[1A[2K  40 passed (2.9m)
+EXIT=0

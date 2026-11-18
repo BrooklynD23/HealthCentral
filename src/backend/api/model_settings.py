@@ -59,6 +59,14 @@ _live_progress_lock = threading.Lock()
 
 _PROGRESS_THROTTLE_SECS = 1.0  # min seconds between in-memory updates
 
+# Keys ("{profile_id}:{tier}") of downloads that have a task running in this process.
+# The stored row alone cannot say: a killed process, or a logout before the final write,
+# leaves it pending/downloading for good. Added by POST /download before it commits the
+# pending row, removed by _download_model_task on every exit. Guarded by _live_progress_lock.
+_active_downloads: set[str] = set()
+
+_DEAD_DOWNLOAD_ERROR = "The download stopped before it finished. Try again."
+
 
 def _make_progress_key(profile_id: str, tier: str) -> str:
     return f"{profile_id}:{tier}"
@@ -175,7 +183,7 @@ class ModelSettingsResponse(BaseModel):
     auto_detect_enabled: bool
     hardware_info: HardwareInfoResponse
     tier_availability: dict[str, TierStatusResponse]
-    ocr_preference_enabled: bool = True
+    ocr_preference_enabled: bool = False
     ocr_effective: bool = False
     ocr_blockers: list[str] = Field(default_factory=list)
     agent_enabled: bool = True
@@ -258,7 +266,7 @@ class ProviderInfoResponse(BaseModel):
     llm_provider: str
     llm_model: str
     ollama_base_url: str
-    available: bool
+    available: Optional[bool]
     capabilities: dict
 
 
@@ -389,15 +397,25 @@ def _diagnostics_list_response() -> DiagnosticsListResponse:
 async def get_model_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get current model settings and hardware information."""
     selector = get_model_selector()
 
     # Run hardware detection
-    hardware = selector.detect_hardware_tier()
+    hardware = await asyncio.to_thread(selector.detect_hardware_tier)
 
     # Get user settings from database
     user_settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.model.view",
+        action="settings.model.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="model",
+    )
 
     # Determine current tier
     if user_settings and user_settings.preferred_tier:
@@ -585,7 +603,7 @@ async def list_tiers(
 ):
     """List all available tiers with their status."""
     selector = get_model_selector()
-    hardware = selector.detect_hardware_tier()
+    hardware = await asyncio.to_thread(selector.detect_hardware_tier)
 
     tiers = []
     for tier in TIER_ORDER:
@@ -635,6 +653,12 @@ async def get_download_progress(
     """Get download progress for all tiers from database, merged with live in-memory data."""
     selector = get_model_selector()
 
+    # Copied before the row is read. A task that finishes between the read and the key check below
+    # has already dropped its key, and the row held here is the one from before its terminal write:
+    # a key that was set when the read began still counts as running (the next poll reads the new row).
+    with _live_progress_lock:
+        active_before_read = frozenset(_active_downloads)
+
     progress = await selector.get_download_progress(
         profile_id=session.profile_id,
         db=profile_db,
@@ -648,7 +672,23 @@ async def get_download_progress(
         pct = prog.progress
 
         if prog.status in ("pending", "downloading"):
-            live = _get_live_progress(_make_progress_key(session.profile_id, tier))
+            progress_key = _make_progress_key(session.profile_id, tier)
+            with _live_progress_lock:
+                # Also the set as it is now: a POST can add its key and commit the pending row after the copy.
+                running = progress_key in active_before_read or progress_key in _active_downloads
+            if not running:
+                # Reported, not written: no task holds this row, so nothing will move it on.
+                response[tier] = DownloadProgressResponse(
+                    tier=prog.tier,
+                    status="failed",
+                    progress=0.0,
+                    downloaded_bytes=0,
+                    total_bytes=0,
+                    path=None,
+                    error=_DEAD_DOWNLOAD_ERROR,
+                )
+                continue
+            live = _get_live_progress(progress_key)
             if live:
                 downloaded_bytes = live["downloaded_bytes"]
                 total_bytes = live["total_bytes"]
@@ -700,23 +740,38 @@ async def start_model_download(
             "status": "completed",
         }
 
-    # Initialize progress
-    progress = DownloadProgress(
-        tier=tier,
-        status="pending",
-        progress=0.0,
-        started_at=utcnow(),
-    )
-    await selector.update_download_progress(
-        profile_id=session.profile_id,
-        tier=tier,
-        progress=progress,
-        db=profile_db,
-    )
-    await profile_db.commit()
-    await _audit_settings_change(
-        master_db, session.profile_id, "settings.model_download.start", "model_download", None,
-    )
+    # The key goes in before the pending row is committed, so a GET that sees the row
+    # never finds a task-less key-less row for a download that is about to start.
+    progress_key = _make_progress_key(session.profile_id, tier)
+    with _live_progress_lock:
+        added_key = progress_key not in _active_downloads
+        _active_downloads.add(progress_key)
+
+    try:
+        # Initialize progress
+        progress = DownloadProgress(
+            tier=tier,
+            status="pending",
+            progress=0.0,
+            started_at=utcnow(),
+        )
+        await selector.update_download_progress(
+            profile_id=session.profile_id,
+            tier=tier,
+            progress=progress,
+            db=profile_db,
+        )
+        await profile_db.commit()
+        await _audit_settings_change(
+            master_db, session.profile_id, "settings.model_download.start", "model_download", None,
+        )
+    except BaseException:
+        # No task will be added, so nothing would ever clear this key. Only undo a key this
+        # request added: a download already running under the same key keeps its own.
+        if added_key:
+            with _live_progress_lock:
+                _active_downloads.discard(progress_key)
+        raise
 
     # Start background download
     # Note: Background tasks in FastAPI run after the response is sent
@@ -747,9 +802,19 @@ async def start_model_download(
 async def get_external_api_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get external API settings with masked key."""
     user_settings = await _get_user_settings(session.profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.external_api.view",
+        action="settings.external_api.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="external_api",
+    )
 
     if not user_settings:
         return ExternalApiSettingsResponse(
@@ -824,8 +889,12 @@ async def save_external_api_settings(
     summary="Get active LLM provider",
     description="Return the active LLM provider and its capability flags.",
 )
-async def get_llm_provider(session: RequireAuth):
-    """Return active provider info and capability flags."""
+async def get_llm_provider(session: RequireAuth, probe: bool = True):
+    """Return active provider info and capability flags.
+
+    CHAT-MODEL-BADGE: probe=false skips is_available() (a synchronous model load
+    on llama_cpp) and returns available=null; the chat page only needs names.
+    """
     _ = session
     from core.config import settings as app_settings
     from core.llm.factory import get_provider
@@ -837,7 +906,7 @@ async def get_llm_provider(session: RequireAuth):
         llm_provider=app_settings.llm_provider,
         llm_model=app_settings.llm_model or "(auto)",
         ollama_base_url=app_settings.ollama_base_url,
-        available=provider.is_available(),
+        available=provider.is_available() if probe else None,
         capabilities={
             "context_len": caps.context_len,
             "multimodal": caps.multimodal,
@@ -883,7 +952,7 @@ async def set_llm_provider(
     object.__setattr__(app_settings, "llm_model", request.llm_model)
 
     # Drop the cached provider so get_provider() builds a fresh one.
-    reset_provider()
+    await asyncio.to_thread(reset_provider)
 
     from core.llm.factory import get_provider
     provider = get_provider()
@@ -1005,16 +1074,33 @@ async def _download_model_task(
         logger.error(f"Download failed for tier '{tier}': {e}")
         _clear_live_progress(progress_key)
         await _write_download_status(profile_id, tier, selector, "failed", 0.0, str(e))
+    finally:
+        # After the terminal write. A GET that starts once the key is gone reads the terminal row. A GET that
+        # started earlier copied the key before it read the row, so it reports the row it read (the one from
+        # before this write) as running, for one poll, and the next poll reads the terminal row.
+        # discard: tests call this task directly with no key set. Runs on cancellation too.
+        with _live_progress_lock:
+            _active_downloads.discard(progress_key)
 
 
 @router.get("/timezone", response_model=TimezoneResponse)
 async def get_timezone(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get profile timezone setting."""
     profile_id = session.profile_id
     settings = await _get_user_settings(profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.timezone.view",
+        action="settings.timezone.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="timezone",
+    )
     return TimezoneResponse(timezone=settings.timezone if settings else "UTC")
 
 
@@ -1051,10 +1137,20 @@ async def set_timezone(
 async def get_voice_settings(
     session: RequireAuth,
     profile_db: ProfileDbSession,
+    master_db: AsyncSession = Depends(get_db),
 ):
     """Get voice logging preferences."""
     profile_id = session.profile_id
     settings = await _get_user_settings(profile_id, profile_db)
+    await audit_and_commit(
+        master_db,
+        create_audit_log,
+        event_type="settings.voice.view",
+        action="settings.voice.view",
+        profile_id=session.profile_id,
+        entity_type="settings",
+        entity_id="voice",
+    )
     return VoiceSettingsResponse(
         voice_logging_enabled=settings.voice_logging_enabled if settings else False,
         voice_modal_seen=settings.voice_modal_seen if settings else False,
@@ -1153,7 +1249,7 @@ async def update_gamification_settings(
 async def get_environment_diagnostics(session: RequireAuth):
     """Report status of local tools (OCR, models, SQLCipher, GPU)."""
     _ = session
-    return _diagnostics_list_response()
+    return await asyncio.to_thread(_diagnostics_list_response)
 
 
 @router.post(
@@ -1164,14 +1260,14 @@ async def get_environment_diagnostics(session: RequireAuth):
 )
 async def recheck_environment_diagnostics(session: RequireAuth):
     _ = session
-    return _diagnostics_list_response()
+    return await asyncio.to_thread(_diagnostics_list_response)
 
 
 @router.patch(
     "/ocr",
     response_model=OcrSettingsResponse,
     summary="Update OCR preference",
-    description="Per-profile toggle for scanned PDF and image OCR (subject to server config and Tesseract).",
+    description="Per-profile toggle for scanned PDF and image OCR (subject to server config and an OCR engine).",
 )
 async def update_ocr_settings(
     data: OcrSettingsUpdate,

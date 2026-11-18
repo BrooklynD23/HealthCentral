@@ -10,6 +10,7 @@ from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 from api.observations import ObservationResponse
 
@@ -132,6 +133,24 @@ class TestObservationResponseBbox:
         assert resp.source_bbox_json is None
 
 
+@pytest_asyncio.fixture
+async def profile_db():
+    """In-memory profile DB session (the entity_profile_db pattern, kept local)."""
+    from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+    from core.profile_database import ProfileDatabaseBase
+
+    engine = create_async_engine("sqlite+aiosqlite://")
+    async with engine.begin() as conn:
+        await conn.run_sync(ProfileDatabaseBase.metadata.create_all)
+    session = AsyncSession(engine, expire_on_commit=False)
+    try:
+        yield session
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
 # ---------------------------------------------------------------------------
 # Page image endpoint validation
 # ---------------------------------------------------------------------------
@@ -139,10 +158,53 @@ class TestObservationResponseBbox:
 class TestPageImageEndpoint:
     """Test the page image endpoint's validation logic (unit-level)."""
 
-    def test_page_number_must_be_positive(self):
-        """Page numbers < 1 should be rejected."""
-        # This is tested at the route level — here we verify the constraint is documented
-        assert True  # Placeholder; full integration test requires TestClient + fixtures
+    @pytest.mark.asyncio
+    async def test_page_number_must_be_positive(self, profile_db):
+        """Page numbers < 1 should be rejected over HTTP, before any audit write."""
+        from datetime import datetime
+
+        from api.documents import router as documents_router
+        from core.auth import get_profile_db_session
+        from models import Document
+        from tests.support.routes import route_client
+
+        document_id = "11111111-1111-4111-8111-111111111111"
+        profile_db.add(
+            Document(
+                id=document_id,
+                profile_id="profile-a",
+                path_hash="p" * 64,
+                content_hash="c" * 64,
+                doc_type="lab_pdf",
+                status="parsed",
+                imported_at=datetime(2026, 1, 1),
+            )
+        )
+        await profile_db.commit()
+
+        master_db = AsyncMock()
+        with route_client(documents_router, "/documents", master_db=master_db) as client:
+
+            async def _override_profile_db():
+                return profile_db
+
+            client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+
+            zero = client.get(f"/documents/{document_id}/pages/0/image")
+            assert zero.status_code == 400
+            assert zero.json()["detail"] == "Page number must be >= 1"
+
+            negative = client.get(f"/documents/{document_id}/pages/-1/image")
+            assert negative.status_code == 400
+            assert negative.json()["detail"] == "Page number must be >= 1"
+
+            # FastAPI path-param coercion fails before the handler runs.
+            non_integer = client.get(f"/documents/{document_id}/pages/abc/image")
+            assert non_integer.status_code == 422
+
+        # The 400/422 rejections happen before render, so the audit write
+        # (which lands only after a successful render) never runs.
+        assert master_db.commit.await_count == 0
 
     def test_validate_uuid_rejects_traversal(self):
         """UUID validation should reject path traversal attempts."""

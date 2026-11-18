@@ -305,7 +305,7 @@ def _get_required_profile_connection(profile_id: str) -> ProfileDatabaseConnecti
     if not connection:
         logger.error(f"Profile database not connected for {profile_id}")
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Profile database not available. Please log in again.",
         )
 

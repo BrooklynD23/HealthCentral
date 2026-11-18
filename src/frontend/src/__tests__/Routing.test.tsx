@@ -34,7 +34,7 @@ describe('Routing', () => {
     window.history.replaceState({}, '', '/');
   });
 
-  it('HC-ROUTE-001: unknown path redirects to /inbox', async () => {
+  it('HC-ROUTE-001: unknown path redirects to /overview', async () => {
     useAuthStore.getState().setAuth({
       token: 'test-token',
       profileId: 'profile-123',
@@ -45,7 +45,7 @@ describe('Routing', () => {
 
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/inbox'));
+    await waitFor(() => expect(window.location.pathname).toBe('/overview'));
   });
 
   it('HC-ROUTE-002: navigate() with a backslash target never pushes another origin (GHSA-wrjc-x8rr-h8h6)', async () => {

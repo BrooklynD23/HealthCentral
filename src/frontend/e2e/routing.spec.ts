@@ -1,7 +1,7 @@
 /**
  * Routing E2E (React Router 7 migration guard)
  *
- * - Unknown path falls back to /inbox through the real router.
+ * - Unknown path falls back to /overview through the real router (UI-OVERVIEW: the index moved from /inbox).
  * - Lazy navigation never leaves <main> empty (Suspense fallback / startTransition).
  */
 
@@ -9,11 +9,11 @@ import { test, expect } from '@playwright/test';
 import { openAuthenticatedPage } from './support/auth';
 
 test.describe('Routing', () => {
-  test('E2E-ROUTE-001: unknown path redirects to /inbox', async ({ page, request }) => {
+  test('E2E-ROUTE-001: unknown path redirects to /overview', async ({ page, request }) => {
     await openAuthenticatedPage(page, request, '/no-such-page');
 
-    await expect(page).toHaveURL(/\/inbox$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Document Inbox' })).toBeVisible();
+    await expect(page).toHaveURL(/\/overview$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
   });
 
   test('E2E-ROUTE-002: lazy navigation never shows an empty main', async ({ page, request }) => {
@@ -43,9 +43,9 @@ test.describe('Routing', () => {
     const nav = page.locator('nav[aria-label="Main navigation"]');
 
     // Each route has its own lazyRoute Suspense; RouteFallback (sr-only 'Loading page...') is expected on both legs.
-    await nav.getByRole('link', { name: 'Trends' }).click();
-    await expect(page).toHaveURL(/\/trends$/);
-    await expect(main.getByRole('heading', { level: 1, name: 'Trends Dashboard' })).toBeVisible({ timeout: 15_000 });
+    await nav.getByRole('link', { name: 'Results' }).click();
+    await expect(page).toHaveURL(/\/results$/);
+    await expect(main.getByRole('heading', { level: 1, name: 'Results' })).toBeVisible({ timeout: 15_000 });
 
     await nav.getByRole('link', { name: 'Timeline' }).click();
     await expect(page).toHaveURL(/\/timeline$/);

@@ -1,5 +1,7 @@
 # Frontend UI/UX + Accessibility Plan (Draft v0 — pending PM approval)
 
+> **2026-10-23:** the "Clinical Calm" aesthetic and motion brief below is superseded to the extent of owner decision UI-SAAS-MEANING in [owner-decisions](capstone-report/owner-decisions-2026-09-27.md); the current design rules are in the [frontend revamp plan](plans/2026-10-23-frontend-revamp-plan.md).
+
 ## UX goals
 - Reduce confusion and anxiety via clarity, provenance, and conservative language
 - Make “verify and correct” the default for extracted values

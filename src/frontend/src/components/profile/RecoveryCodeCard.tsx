@@ -11,7 +11,7 @@
  * user otherwise would be a false promise.
  */
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
 
 interface RecoveryCodeCardProps {
@@ -53,12 +53,24 @@ export function RecoveryCodeCard({
           print it, and keep it somewhere safe and private.
         </p>
 
+        {/* Groups of 4 never split across lines (no break-all): a line breaks only between groups, on either side of
+            a hyphen, so a line may begin with one. textContent stays the code exactly, hyphens included. T0: the
+            code never moves. */}
         <div
-          className="rounded-md bg-surface-muted p-4 font-mono text-lg tracking-wider break-all select-all text-center"
+          className="rounded-xl bg-surface-muted p-4 font-mono text-lg tracking-wider select-all text-center"
           data-testid="recovery-code"
+          data-t0=""
+          role="group"
           aria-label="Your recovery code"
         >
-          {code}
+          {code.split('-').map((group, index) => (
+            <Fragment key={index}>
+              {index > 0 && '-'}
+              <span data-code-group="" className="inline-block whitespace-nowrap">
+                {group}
+              </span>
+            </Fragment>
+          ))}
         </div>
 
         <div className="flex gap-2">
@@ -70,7 +82,7 @@ export function RecoveryCodeCard({
           </Button>
         </div>
 
-        <p className="text-sm text-status-attention">
+        <p data-t0="" className="text-sm text-status-caution">
           If you lose both your password and this code, your health record
           cannot be recovered by anyone — including us. Everything stays
           encrypted on this device, so there is no copy to restore from.

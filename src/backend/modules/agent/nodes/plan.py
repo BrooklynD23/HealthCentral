@@ -56,6 +56,9 @@ _ANALYTE_KEYWORDS: dict[str, str] = {
 #      literal string "Cholesterol" finds nothing if the vault's row is
 #      named "LDL" (golden case ``mixed-partial-grounding``: drafts zero
 #      evidence even though a real, verified LDL row exists).
+#      Since CHAT-FACT-ROUTING, ``query_observations`` expands the label
+#      through ``NormalizeModule.canonical_keys_for``, so "Cholesterol" now
+#      matches the stored ``total_cholesterol`` (pinned by HC-ANS-003).
 #   2. A multi-analyte question ("...cholesterol AND kidney function?")
 #      compounds the problem — there is no single ``analyte`` string that
 #      is correct for both topics at once.

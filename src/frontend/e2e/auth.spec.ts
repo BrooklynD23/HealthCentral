@@ -23,6 +23,14 @@ test.describe('Authentication Flow', () => {
     // Navigate to setup
     await page.goto('/setup');
 
+    // A profile may already exist on this backend; then the create form is
+    // behind a button.
+    const createNew = page.getByRole('button', { name: 'Create a new profile' });
+    // The form is not rendered while the profile list loads, so wait for
+    // whichever of the two appears.
+    await createNew.or(page.getByLabel('Profile Name')).waitFor();
+    if (await createNew.isVisible()) await createNew.click();
+
     // Fill in profile name
     await page.getByLabel('Profile Name').fill(profileName);
 
@@ -32,8 +40,8 @@ test.describe('Authentication Flow', () => {
     // Click create
     await page.getByRole('button', { name: /create your profile/i }).click();
 
-    // Should show progress steps
-    await expect(page.getByText('Creating secure vault...')).toBeVisible();
+    // The create button shows its loading label while POST /profiles is pending (no timed fake steps)
+    await expect(page.getByText('Creating your profile…')).toBeVisible();
 
     // SEC-RECOV-001: the one-time recovery code is shown before the app is
     // entered, and cannot be skipped — losing it plus the password means the
@@ -50,15 +58,23 @@ test.describe('Authentication Flow', () => {
     await page.getByLabel(/saved this recovery code/i).check();
     await continueButton.click();
 
-    // Wait for navigation to inbox
-    await expect(page).toHaveURL(/\/inbox/, { timeout: 10000 });
+    // Wait for navigation to overview
+    await expect(page).toHaveURL(/\/overview/, { timeout: 10000 });
 
     // Inbox should load
-    await expect(page.getByText(/documents|inbox/i).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Overview', level: 1, exact: true })).toBeVisible();
   });
 
   test('E2E-AUTH-002: Missing password blocks submit', async ({ page }) => {
     await page.goto('/setup');
+
+    // A profile may already exist on this backend; then the create form is
+    // behind a button.
+    const createNew = page.getByRole('button', { name: 'Create a new profile' });
+    // The form is not rendered while the profile list loads, so wait for
+    // whichever of the two appears.
+    await createNew.or(page.getByLabel('Profile Name')).waitFor();
+    if (await createNew.isVisible()) await createNew.click();
 
     // Fill only display name
     await page.getByLabel('Profile Name').fill('Test Profile');

@@ -1,6 +1,7 @@
-"""Four-axis scorer over the agent golden set (Sprint 6, story S6-2).
+"""Six-axis scorer over the agent golden set (Sprint 6, story S6-2).
 
-Scores every golden case (``tests/agent/golden/*.json``) on FOUR numeric axes:
+Scores every golden case (``tests/agent/golden/*.json``) on SIX numeric axes
+(the first four below, then two adversarial axes added by HC-M05):
 
   1. ``groundedness``   - fraction of "answer" terminals whose every surviving
                            sentence carries a real (non-empty) source handle.
@@ -99,7 +100,7 @@ class CaseScore(BaseModel):
 
 
 class ScoreReport(BaseModel):
-    """Aggregate four-axis numeric scores over one golden-set run."""
+    """Aggregate six-axis numeric scores over one golden-set run."""
 
     total_cases: int
     groundedness: float  # fraction of answer-terminal cases fully grounded (target 1.0)
@@ -413,7 +414,7 @@ def score_injection_compose_case(
 async def score_golden_set_async(
     cases: list[dict] | None = None, *, include_composed_drop_check: bool = True
 ) -> ScoreReport:
-    """Score every golden case (or ``cases`` if given) on all four axes."""
+    """Score every golden case (or ``cases`` if given) on all six axes."""
     all_cases = cases if cases is not None else load_golden_cases()
     case_scores = [await _score_one_case(c) for c in all_cases]
 

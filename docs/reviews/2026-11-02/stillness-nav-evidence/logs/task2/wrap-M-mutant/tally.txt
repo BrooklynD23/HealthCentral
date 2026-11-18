@@ -1,0 +1,19 @@
+### mutant-nosettle
+- probe base: 4 of 15 over 40 ms (pooled); per batch b1:1/5 b2:1/5 b3:2/5; unmeasured 0; max 51
+  gaps: timeline=35 search=51 med=30 notif=32 care=32 timeline=39 search=37 med=28 notif=45 care=33 timeline=45 search=29 med=27 notif=38 care=46
+  M.b1.mutant-nosettle.base.probe.timeline	gap=35	gapStart=17	gapEnd=52	longtasks=-	load1=0.9/0.9
+  M.b1.mutant-nosettle.base.probe.search	gap=51	gapStart=19	gapEnd=70	longtasks=-	load1=0.9/0.9
+  M.b1.mutant-nosettle.base.probe.med	gap=30	gapStart=59	gapEnd=89	longtasks=-	load1=0.9/1.15
+  M.b1.mutant-nosettle.base.probe.notif	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.15/1.15
+  M.b1.mutant-nosettle.base.probe.care	gap=32	gapStart=18	gapEnd=50	longtasks=-	load1=1.15/1.05
+  M.b2.mutant-nosettle.base.probe.timeline	gap=39	gapStart=16	gapEnd=55	longtasks=-	load1=1.19/1.18
+  M.b2.mutant-nosettle.base.probe.search	gap=37	gapStart=18	gapEnd=55	longtasks=-	load1=1.18/1.18
+  M.b2.mutant-nosettle.base.probe.med	gap=28	gapStart=59	gapEnd=87	longtasks=-	load1=1.18/1.18
+  M.b2.mutant-nosettle.base.probe.notif	gap=45	gapStart=-3	gapEnd=42	longtasks=-	load1=1.18/1.4
+  M.b2.mutant-nosettle.base.probe.care	gap=33	gapStart=22	gapEnd=55	longtasks=-	load1=1.4/1.4
+  M.b3.mutant-nosettle.base.probe.timeline	gap=45	gapStart=-40	gapEnd=5	longtasks=-	load1=1.38/1.38
+  M.b3.mutant-nosettle.base.probe.search	gap=29	gapStart=13	gapEnd=42	longtasks=-	load1=1.38/1.38
+  M.b3.mutant-nosettle.base.probe.med	gap=27	gapStart=58	gapEnd=85	longtasks=-	load1=1.38/1.27
+  M.b3.mutant-nosettle.base.probe.notif	gap=38	gapStart=19	gapEnd=57	longtasks=-	load1=1.27/1.27
+  M.b3.mutant-nosettle.base.probe.care	gap=46	gapStart=-10	gapEnd=36	longtasks=-	load1=1.27/1.27
+

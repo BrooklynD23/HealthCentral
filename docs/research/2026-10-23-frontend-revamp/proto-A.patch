@@ -1,0 +1,2974 @@
+diff --git a/src/frontend/index.html b/src/frontend/index.html
+index d8656d1..7053103 100644
+--- a/src/frontend/index.html
++++ b/src/frontend/index.html
+@@ -6,8 +6,8 @@
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <meta name="description" content="Asclexis - Your personal medical results companion" />
+     <!-- Theme color for browser UI (Chrome, Safari, Edge) - gracefully ignored by unsupported browsers -->
+-    <meta name="theme-color" content="#2D7D6F" media="(prefers-color-scheme: light)" />
+-    <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
++    <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)" />
++    <meta name="theme-color" content="#141412" media="(prefers-color-scheme: dark)" />
+     <!-- Apple-specific meta tags for iOS PWA support -->
+     <meta name="apple-mobile-web-app-capable" content="yes" />
+     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+@@ -15,6 +15,15 @@
+     <!-- Microsoft tile color for Windows -->
+     <meta name="msapplication-TileColor" content="#2D7D6F" />
+     <title>Asclexis</title>
++    <script>
++      /* Resolve theme before first paint (no flash). Preference: light | dark | system. */
++      (function () {
++        var pref = 'system';
++        try { pref = localStorage.getItem('asclexis-theme') || 'system'; } catch (e) {}
++        var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
++        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
++      })();
++    </script>
+   </head>
+   <body class="bg-surface text-ink antialiased">
+     <div id="root"></div>
+diff --git a/src/frontend/package.json b/src/frontend/package.json
+index 3ad17f7..fefb12e 100644
+--- a/src/frontend/package.json
++++ b/src/frontend/package.json
+@@ -20,17 +20,26 @@
+     "@fontsource-variable/fraunces": "^5.0.19",
+     "@fontsource-variable/source-sans-3": "^5.0.19",
+     "@fontsource/jetbrains-mono": "^5.0.19",
++    "@radix-ui/react-dialog": "^1.1.15",
+     "@radix-ui/react-dropdown-menu": "^2.0.6",
++    "@radix-ui/react-popover": "^1.3.1",
+     "@radix-ui/react-slot": "^1.0.2",
++    "@radix-ui/react-switch": "^1.4.1",
++    "@radix-ui/react-tabs": "^1.2.1",
++    "@radix-ui/react-tooltip": "^1.4.1",
+     "@tanstack/react-query": "^5.17.0",
++    "border-beam": "^1.4.1",
+     "class-variance-authority": "^0.7.0",
+     "clsx": "^2.1.0",
++    "cmdk": "^1.1.1",
+     "framer-motion": "^10.18.0",
+     "lucide-react": "^0.303.0",
++    "motion": "^14.6.0",
+     "react": "^18.2.0",
+     "react-dom": "^18.2.0",
+     "react-router-dom": "^7.18.4",
+     "recharts": "^3.9.1",
++    "sonner": "^2.0.8",
+     "tailwind-merge": "^3.7.0",
+     "zustand": "^4.4.7"
+   },
+diff --git a/src/frontend/src/App.tsx b/src/frontend/src/App.tsx
+index 230d6e1..ab77149 100644
+--- a/src/frontend/src/App.tsx
++++ b/src/frontend/src/App.tsx
+@@ -11,13 +11,20 @@ import { Suspense, lazy, type ReactNode } from 'react';
+ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+ import { Skeleton } from './components/ui';
++import { MotionProvider } from './motion/MotionProvider';
++
+ 
+ // Layout
+ import { AppLayout } from './components/layout';
+ import { ProtectedRoute } from './components/auth';
+ 
+ // Eager pages
+-import { ProfileSetup, DocumentInbox, VerificationWorkbench, SettingsPage } from './pages';
++import { ProfileSetup } from './pages/ProfileSetup';
++const DocumentInbox = lazy(async () => ({ default: (await import('./pages/DocumentInbox')).DocumentInbox }));
++const VerificationWorkbench = lazy(async () => ({ default: (await import('./pages/VerificationWorkbench')).VerificationWorkbench }));
++const SettingsPage = lazy(async () => ({ default: (await import('./pages/SettingsPage')).SettingsPage }));
++const ResultsPage = lazy(async () => ({ default: (await import('./pages/ResultsPage')).ResultsPage }));
++const OverviewPlaceholder = lazy(async () => ({ default: (await import('./pages/ResultsPage')).OverviewPlaceholder }));
+ 
+ const TrendsDashboard = lazy(async () => {
+   const module = await import('./pages/TrendsDashboard');
+@@ -101,6 +108,7 @@ function lazyRoute(element: ReactNode) {
+ function App() {
+   return (
+     <QueryClientProvider client={queryClient}>
++      <MotionProvider>
+       <BrowserRouter>
+         <Routes>
+           {/* First run / no profile */}
+@@ -112,9 +120,11 @@ function App() {
+           {/* Protected routes - require authentication */}
+           <Route element={<ProtectedRoute />}>
+             <Route path="/" element={<AppLayout />}>
+-              <Route index element={<Navigate to="/inbox" replace />} />
+-              <Route path="inbox" element={<DocumentInbox />} />
+-              <Route path="verify" element={<VerificationWorkbench />} />
++              <Route index element={<Navigate to="/overview" replace />} />
++              <Route path="overview" element={lazyRoute(<OverviewPlaceholder />)} />
++              <Route path="results" element={lazyRoute(<ResultsPage />)} />
++              <Route path="inbox" element={lazyRoute(<DocumentInbox />)} />
++              <Route path="verify" element={lazyRoute(<VerificationWorkbench />)} />
+               <Route path="trends" element={lazyRoute(<TrendsDashboard />)} />
+               <Route path="timeline" element={lazyRoute(<TimelinePage />)} />
+               <Route path="search" element={lazyRoute(<SearchPage />)} />
+@@ -126,7 +136,7 @@ function App() {
+               <Route path="pinboards" element={lazyRoute(<PinboardsPage />)} />
+               <Route path="explain" element={lazyRoute(<ExplainAssistant />)} />
+               <Route path="export" element={lazyRoute(<ExportPage />)} />
+-              <Route path="settings" element={<SettingsPage />} />
++              <Route path="settings" element={lazyRoute(<SettingsPage />)} />
+             </Route>
+           </Route>
+ 
+@@ -134,6 +144,7 @@ function App() {
+           <Route path="*" element={<Navigate to="/" replace />} />
+         </Routes>
+       </BrowserRouter>
++      </MotionProvider>
+     </QueryClientProvider>
+   );
+ }
+diff --git a/src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx b/src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx
+index 7028499..b3dd7cc 100644
+--- a/src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx
++++ b/src/frontend/src/components/lab-interpreter/InterpretedResultCard.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   Brain,
+   ChevronDown,
+@@ -63,7 +63,7 @@ export function InterpretedResultCard({
+   const variant = severityVariant[interpretation.severity_level] ?? 'default';
+ 
+   return (
+-    <motion.div
++    <m.div
+       initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
+       animate={{ opacity: 1, y: 0 }}
+       transition={{ duration: 0.3 }}
+@@ -204,6 +204,6 @@ export function InterpretedResultCard({
+           </div>
+         </CardContent>
+       </Card>
+-    </motion.div>
++    </m.div>
+   );
+ }
+diff --git a/src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx b/src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx
+index 5ca0811..1f312ec 100644
+--- a/src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx
++++ b/src/frontend/src/components/lab-interpreter/PanelInterpretationDashboard.tsx
+@@ -1,4 +1,4 @@
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   Loader2,
+   AlertTriangle,
+@@ -72,7 +72,7 @@ export function PanelInterpretationDashboard({
+   const variant = statusVariant[interpretation.overall_status] ?? 'default';
+ 
+   return (
+-    <motion.div
++    <m.div
+       initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
+       animate={{ opacity: 1, y: 0 }}
+     >
+@@ -129,7 +129,7 @@ export function PanelInterpretationDashboard({
+                 </div>
+                 <div className="grid gap-2">
+                   {interpretation.relationship_insights.map((insight, i) => (
+-                    <motion.div
++                    <m.div
+                       key={i}
+                       initial={prefersReducedMotion ? {} : { opacity: 0, x: -4 }}
+                       animate={{ opacity: 1, x: 0 }}
+@@ -153,7 +153,7 @@ export function PanelInterpretationDashboard({
+                           {insight.interpretation}
+                         </p>
+                       </div>
+-                    </motion.div>
++                    </m.div>
+                   ))}
+                 </div>
+               </div>
+@@ -178,6 +178,6 @@ export function PanelInterpretationDashboard({
+           </div>
+         </CardContent>
+       </Card>
+-    </motion.div>
++    </m.div>
+   );
+ }
+diff --git a/src/frontend/src/components/layout/AppLayout.tsx b/src/frontend/src/components/layout/AppLayout.tsx
+index 87ab8a4..d271901 100644
+--- a/src/frontend/src/components/layout/AppLayout.tsx
++++ b/src/frontend/src/components/layout/AppLayout.tsx
+@@ -1,31 +1,62 @@
+-import { Outlet } from 'react-router-dom';
+-import { AnimatePresence } from 'framer-motion';
++import { Outlet, useLocation } from 'react-router-dom';
++import { Toaster } from 'sonner';
+ import { Sidebar } from './Sidebar';
+ import { TopBar } from './TopBar';
+-import { PageTransition } from '@/components/ui';
+-import { useLocation } from 'react-router-dom';
++import { MobileNav } from './MobileNav';
++import { lazy, Suspense, useEffect, useState } from 'react';
++const CommandPalette = lazy(async () => ({ default: (await import('./CommandPalette')).CommandPalette }));
++import { useTheme } from '@/theme/theme';
+ 
++/**
++ * Shell: CSS grid, no fixed pl-64. Route change = the new page fades up once
++ * (180ms, CSS, no exit phase), so there is never a blank frame between pages
++ * (audit: AnimatePresence mode="wait" blanked ~450ms on every click).
++ */
+ export function AppLayout() {
+-  const location = useLocation();
+-
++  const { pathname } = useLocation();
++  const { resolved } = useTheme();
+   return (
+-    <div className="flex min-h-screen bg-surface">
++    <div className="flex min-h-dvh bg-surface">
++      <a
++        href="#main"
++        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-[10px] focus:bg-accent focus:px-4 focus:py-3 focus:text-on-accent"
++      >
++        Skip to content
++      </a>
+       <Sidebar />
+-      
+-      <div className="flex-1 flex flex-col pl-64">
++      <div className="flex min-w-0 flex-1 flex-col">
+         <TopBar />
+-        
+-        <main className="flex-1 p-8">
+-          <AnimatePresence mode="wait">
+-            <PageTransition
+-              key={location.pathname}
+-              className="max-w-7xl mx-auto"
+-            >
+-              <Outlet />
+-            </PageTransition>
+-          </AnimatePresence>
++        <main id="main" tabIndex={-1} className="flex-1 px-4 pb-28 pt-6 outline-none sm:px-6 lg:px-10 lg:pb-12 lg:pt-8">
++          <div key={pathname} className="route-in mx-auto w-full max-w-[1200px]">
++            <Outlet />
++          </div>
+         </main>
+       </div>
++      <MobileNav />
++      <PaletteLoader />
++      <Toaster
++        theme={resolved}
++        position="bottom-right"
++        offset={{ bottom: 24, right: 24 }}
++        mobileOffset={{ bottom: 88 }}
++        toastOptions={{ className: 'font-body', classNames: { actionButton: '!bg-accent !text-on-accent !font-semibold' } }}
++      />
+     </div>
+   );
+ }
++
++/** Palette code loads on first Ctrl/Cmd+K or search click, then stays mounted. */
++function PaletteLoader() {
++  const [want, setWant] = useState(false);
++  useEffect(() => {
++    if (want) return;
++    const on = (e: Event) => {
++      if (e instanceof KeyboardEvent && !((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) return;
++      setWant(true);
++    };
++    window.addEventListener('keydown', on);
++    window.addEventListener('asclexis:open-palette', on);
++    return () => { window.removeEventListener('keydown', on); window.removeEventListener('asclexis:open-palette', on); };
++  }, [want]);
++  return want ? <Suspense fallback={null}><CommandPalette initialOpen /></Suspense> : null;
++}
+diff --git a/src/frontend/src/components/layout/BrandMark.tsx b/src/frontend/src/components/layout/BrandMark.tsx
+new file mode 100644
+index 0000000..3563896
+--- /dev/null
++++ b/src/frontend/src/components/layout/BrandMark.tsx
+@@ -0,0 +1,11 @@
++/** Two strokes: a pencil line becoming an ink line. Authored SVG, no glyph. */
++export function BrandMark({ className = 'h-8 w-8' }: { className?: string }) {
++  return (
++    <span className={`inline-grid place-items-center rounded-[9px] bg-accent ${className}`} aria-hidden>
++      <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none">
++        <path d="M4 15.5 9 10l4 4 7-8" stroke="var(--on-accent)" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
++        <path d="M4 19.5h16" stroke="var(--on-accent)" strokeOpacity="0.55" strokeWidth="1.75" strokeLinecap="round" strokeDasharray="2 3" />
++      </svg>
++    </span>
++  );
++}
+diff --git a/src/frontend/src/components/layout/CommandPalette.tsx b/src/frontend/src/components/layout/CommandPalette.tsx
+new file mode 100644
+index 0000000..bac6fe2
+--- /dev/null
++++ b/src/frontend/src/components/layout/CommandPalette.tsx
+@@ -0,0 +1,86 @@
++import { useEffect, useState } from 'react';
++import { useNavigate } from 'react-router-dom';
++import { Command } from 'cmdk';
++import * as Dialog from '@radix-ui/react-dialog';
++import { allNavItems } from './navConfig';
++import { analytes } from '@/components/results/fixtures';
++
++import { OPEN_EVENT } from './paletteEvents';
++
++/**
++ * Keyboard-first, opened 100+ times a day by power users: NO open/close animation
++ * (Emil: never animate keyboard-initiated, high-frequency actions).
++ */
++export function CommandPalette({ initialOpen = false }: { initialOpen?: boolean }) {
++  const [open, setOpen] = useState(initialOpen);
++  const navigate = useNavigate();
++
++  useEffect(() => {
++    const onKey = (e: KeyboardEvent) => {
++      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
++        e.preventDefault();
++        setOpen((o) => !o);
++      }
++    };
++    const onOpen = () => setOpen(true);
++    window.addEventListener('keydown', onKey);
++    window.addEventListener(OPEN_EVENT, onOpen);
++    return () => {
++      window.removeEventListener('keydown', onKey);
++      window.removeEventListener(OPEN_EVENT, onOpen);
++    };
++  }, []);
++
++  const go = (to: string) => {
++    setOpen(false);
++    navigate(to);
++  };
++
++  const item =
++    'flex min-h-[44px] cursor-pointer items-center gap-3 rounded-[8px] px-3 text-[0.9375rem] text-ink data-[selected=true]:bg-accent-subtle data-[selected=true]:text-accent-ink';
++
++  return (
++    <Dialog.Root open={open} onOpenChange={setOpen}>
++      <Dialog.Portal>
++      <Dialog.Overlay className="fixed inset-0 z-50 bg-[var(--scrim)]" />
++      <Dialog.Content
++        aria-describedby={undefined}
++        className="fixed left-1/2 top-[12vh] z-50 w-[min(40rem,calc(100vw-32px))] -translate-x-1/2 overflow-hidden rounded-[14px] border border-line bg-surface-elevated shadow-[var(--shadow-3)]"
++      >
++      <Dialog.Title className="sr-only">Search and commands</Dialog.Title>
++      <Command label="Search and commands">
++      <Command.Input
++        placeholder="Search results, documents, actions…"
++        className="h-14 w-full border-b border-line bg-transparent px-4 text-base text-ink outline-none placeholder:text-ink-tertiary"
++      />
++      <Command.List className="max-h-[50vh] overflow-y-auto p-2">
++        <Command.Empty className="px-3 py-6 text-sm text-ink-secondary">
++          No match. Press Enter to search all records.
++        </Command.Empty>
++        <Command.Group heading="Results" className="text-xs font-semibold text-ink-tertiary [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2">
++          {analytes.map((a) => (
++            <Command.Item key={a.id} value={`result ${a.name}`} onSelect={() => go(`/results?analyte=${a.id}`)} className={item}>
++              {a.name}
++              <span className="ml-auto tabular text-sm text-ink-secondary">
++                {a.points[a.points.length - 1].value} {a.unit}
++              </span>
++            </Command.Item>
++          ))}
++        </Command.Group>
++        <Command.Group heading="Go to" className="text-xs font-semibold text-ink-tertiary [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-2">
++          {allNavItems.map((n) => (
++            <Command.Item key={n.to} value={`go ${n.label}`} onSelect={() => go(n.to)} className={item}>
++              <n.icon className="h-4 w-4 text-ink-secondary" aria-hidden /> {n.label}
++            </Command.Item>
++          ))}
++          <Command.Item value="go settings" onSelect={() => go('/settings')} className={item}>
++            Settings
++          </Command.Item>
++        </Command.Group>
++      </Command.List>
++      </Command>
++      </Dialog.Content>
++      </Dialog.Portal>
++    </Dialog.Root>
++  );
++}
+diff --git a/src/frontend/src/components/layout/MobileNav.tsx b/src/frontend/src/components/layout/MobileNav.tsx
+new file mode 100644
+index 0000000..a70a57d
+--- /dev/null
++++ b/src/frontend/src/components/layout/MobileNav.tsx
+@@ -0,0 +1,90 @@
++import { useState } from 'react';
++import { NavLink, useLocation } from 'react-router-dom';
++import * as Dialog from '@radix-ui/react-dialog';
++import { MoreHorizontal, X, Settings } from 'lucide-react';
++import { cn } from '@/utils/cn';
++import { allNavItems, isItemActive, mobileTabs, navGroups } from './navConfig';
++
++/** < 1024px: bottom tab bar (4 + More). The sidebar does not shrink; it is replaced. */
++export function MobileNav() {
++  const { pathname } = useLocation();
++  const [open, setOpen] = useState(false);
++  const tabs = mobileTabs.map((to) => allNavItems.find((i) => i.to === to)!);
++  const moreActive = !tabs.some((t) => isItemActive(t, pathname));
++
++  const tabClass = (active: boolean) =>
++    cn(
++      'pressable flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 text-xs font-semibold',
++      active ? 'text-accent-ink' : 'text-ink-secondary'
++    );
++
++  return (
++    <nav
++      aria-label="Main"
++      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
++    >
++      <ul className="mx-auto flex max-w-lg">
++        {tabs.map((t) => {
++          const active = isItemActive(t, pathname);
++          return (
++            <li key={t.to} className="flex flex-1">
++              <NavLink to={t.to} aria-current={active ? 'page' : undefined} className={tabClass(active)}>
++                <span className={cn('grid h-7 w-12 place-items-center rounded-full transition-colors duration-150', active && 'bg-accent-subtle')}>
++                  <t.icon className="h-5 w-5" aria-hidden strokeWidth={active ? 2.25 : 1.75} />
++                </span>
++                {t.label}
++              </NavLink>
++            </li>
++          );
++        })}
++        <li className="flex flex-1">
++          <Dialog.Root open={open} onOpenChange={setOpen}>
++            <Dialog.Trigger className={tabClass(moreActive)}>
++              <span className={cn('grid h-7 w-12 place-items-center rounded-full', moreActive && 'bg-accent-subtle')}>
++                <MoreHorizontal className="h-5 w-5" aria-hidden />
++              </span>
++              More
++            </Dialog.Trigger>
++            <Dialog.Portal>
++              <Dialog.Overlay className="scrim fixed inset-0 z-50 bg-[var(--scrim)]" />
++              <Dialog.Content className="sheet-bottom fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-[20px] border-t border-line bg-surface-elevated px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-2 shadow-[var(--shadow-3)]">
++                <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-surface-sunken" aria-hidden />
++                <div className="flex items-center justify-between">
++                  <Dialog.Title className="text-lg font-semibold text-ink">All sections</Dialog.Title>
++                  <Dialog.Close className="pressable grid h-11 w-11 place-items-center rounded-full text-ink-secondary hover:bg-surface-muted" aria-label="Close">
++                    <X className="h-5 w-5" aria-hidden />
++                  </Dialog.Close>
++                </div>
++                {navGroups.map((g, i) => (
++                  <section key={i} className="mt-3">
++                    {g.label && <h3 className="px-1 pb-1 text-xs font-semibold uppercase tracking-[0.06em] text-ink-tertiary">{g.label}</h3>}
++                    <ul className="grid grid-cols-2 gap-2">
++                      {g.items.map((it) => (
++                        <li key={it.to}>
++                          <NavLink
++                            to={it.to}
++                            onClick={() => setOpen(false)}
++                            className="pressable flex min-h-[52px] items-center gap-3 rounded-[12px] bg-surface-muted px-3 text-[0.9375rem] font-medium text-ink"
++                          >
++                            <it.icon className="h-5 w-5 text-accent" aria-hidden /> {it.label}
++                          </NavLink>
++                        </li>
++                      ))}
++                    </ul>
++                  </section>
++                ))}
++                <NavLink
++                  to="/settings"
++                  onClick={() => setOpen(false)}
++                  className="pressable mt-4 flex min-h-[52px] items-center gap-3 rounded-[12px] border border-line px-3 text-[0.9375rem] font-medium text-ink"
++                >
++                  <Settings className="h-5 w-5 text-ink-secondary" aria-hidden /> Settings
++                </NavLink>
++              </Dialog.Content>
++            </Dialog.Portal>
++          </Dialog.Root>
++        </li>
++      </ul>
++    </nav>
++  );
++}
+diff --git a/src/frontend/src/components/layout/ProfileMenu.tsx b/src/frontend/src/components/layout/ProfileMenu.tsx
+new file mode 100644
+index 0000000..0b6307d
+--- /dev/null
++++ b/src/frontend/src/components/layout/ProfileMenu.tsx
+@@ -0,0 +1,82 @@
++import { useNavigate } from 'react-router-dom';
++import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
++import { ChevronsUpDown, Lock, Settings, Sun, Moon, Monitor } from 'lucide-react';
++import { useAuthStore } from '@/stores/authStore';
++import { useTheme, type ThemePref } from '@/theme/theme';
++
++/**
++ * Profile identity in the chrome (audit: none existed). "Lock now" is drawn but
++ * disabled in the prototype: the unlock flow is an owner gate (auth).
++ */
++export function ProfileMenu({ compact = false }: { compact?: boolean }) {
++  const navigate = useNavigate();
++  const name = useAuthStore((s) => s.profileName) ?? 'Profile';
++  const { pref, setPref } = useTheme();
++  const themes: { v: ThemePref; label: string; icon: typeof Sun }[] = [
++    { v: 'light', label: 'Light', icon: Sun },
++    { v: 'dark', label: 'Dark', icon: Moon },
++    { v: 'system', label: 'Match system', icon: Monitor },
++  ];
++
++  return (
++    <DropdownMenu.Root>
++      <DropdownMenu.Trigger
++        className={
++          compact
++            ? 'pressable grid h-11 w-11 place-items-center rounded-full'
++            : 'pressable flex w-full min-h-[48px] items-center gap-3 rounded-[10px] px-2 text-left hover:bg-surface-muted'
++        }
++        aria-label={`Profile: ${name}`}
++      >
++        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-sunken text-sm font-semibold text-ink">
++          {name.slice(0, 1).toUpperCase()}
++        </span>
++        {!compact && (
++          <>
++            <span className="min-w-0 flex-1">
++              <span className="block truncate text-sm font-semibold text-ink">{name}</span>
++              <span className="block text-xs text-ink-tertiary">Locks after 60 min idle</span>
++            </span>
++            <ChevronsUpDown className="h-4 w-4 text-ink-tertiary" aria-hidden />
++          </>
++        )}
++      </DropdownMenu.Trigger>
++      <DropdownMenu.Portal>
++        <DropdownMenu.Content
++          side="top"
++          align="start"
++          sideOffset={8}
++          className="popover z-50 w-60 rounded-[12px] border border-line bg-surface-elevated p-1.5 shadow-[var(--shadow-2)]"
++          style={{ transformOrigin: 'var(--radix-dropdown-menu-content-transform-origin)' }}
++        >
++          <DropdownMenu.Item
++            onSelect={() => navigate('/settings')}
++            className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-[8px] px-2.5 text-sm text-ink outline-none data-[highlighted]:bg-surface-muted"
++          >
++            <Settings className="h-4 w-4" aria-hidden /> Settings
++          </DropdownMenu.Item>
++          <DropdownMenu.Item
++            disabled
++            className="flex min-h-[44px] items-center gap-2.5 rounded-[8px] px-2.5 text-sm text-ink-tertiary outline-none"
++          >
++            <Lock className="h-4 w-4" aria-hidden /> Lock now
++            <span className="ml-auto text-xs">owner gate</span>
++          </DropdownMenu.Item>
++          <DropdownMenu.Separator className="my-1 h-px bg-line" />
++          <DropdownMenu.Label className="px-2.5 py-1 text-xs font-semibold text-ink-tertiary">Appearance</DropdownMenu.Label>
++          <DropdownMenu.RadioGroup value={pref} onValueChange={(v) => setPref(v as ThemePref)}>
++            {themes.map((t) => (
++              <DropdownMenu.RadioItem
++                key={t.v}
++                value={t.v}
++                className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-[8px] px-2.5 text-sm text-ink outline-none data-[highlighted]:bg-surface-muted data-[state=checked]:font-semibold data-[state=checked]:text-accent-ink"
++              >
++                <t.icon className="h-4 w-4" aria-hidden /> {t.label}
++              </DropdownMenu.RadioItem>
++            ))}
++          </DropdownMenu.RadioGroup>
++        </DropdownMenu.Content>
++      </DropdownMenu.Portal>
++    </DropdownMenu.Root>
++  );
++}
+diff --git a/src/frontend/src/components/layout/SafetyNote.tsx b/src/frontend/src/components/layout/SafetyNote.tsx
+new file mode 100644
+index 0000000..ca7cfa1
+--- /dev/null
++++ b/src/frontend/src/components/layout/SafetyNote.tsx
+@@ -0,0 +1,37 @@
++import * as Popover from '@radix-ui/react-popover';
++import { ShieldCheck } from 'lucide-react';
++
++/**
++ * Replaces the placebo "Safety Mode ON/OFF" toggle (TopBar.tsx useState). Not a
++ * switch: the guards are always on, so the chrome states that instead. Opens on
++ * click/tap (never hover-only).
++ */
++export function SafetyNote({ compact = false }: { compact?: boolean }) {
++  return (
++    <Popover.Root>
++      <Popover.Trigger
++        className="pressable inline-flex min-h-[44px] items-center gap-2 rounded-full border border-line bg-surface-elevated px-3.5 text-sm font-medium text-ink-secondary hover:text-ink"
++      >
++        <ShieldCheck className="h-4 w-4 text-status-verified" aria-hidden />
++        {compact ? <span>Educational</span> : <span>Educational use · not medical advice</span>}
++      </Popover.Trigger>
++      <Popover.Portal>
++        <Popover.Content
++          align="end"
++          sideOffset={8}
++          collisionPadding={16}
++          className="popover z-50 w-[min(22rem,calc(100vw-32px))] rounded-[14px] border border-line bg-surface-elevated p-5 text-sm text-ink-secondary shadow-[var(--shadow-2)]"
++        >
++          <p className="text-base font-semibold text-ink">What Asclexis does, and doesn't</p>
++          <ul className="mt-3 space-y-2 leading-relaxed">
++            <li>It explains what your own reports say, with a link to the line each number came from.</li>
++            <li>It does not diagnose, suggest doses or replace your clinician.</li>
++            <li>The safety checks on every explanation are always on. There is no switch to turn them off.</li>
++            <li>Everything stays on this device unless you export it.</li>
++          </ul>
++          <Popover.Arrow className="fill-[var(--surface-1)]" />
++        </Popover.Content>
++      </Popover.Portal>
++    </Popover.Root>
++  );
++}
+diff --git a/src/frontend/src/components/layout/Sidebar.tsx b/src/frontend/src/components/layout/Sidebar.tsx
+index 03a8717..c10998e 100644
+--- a/src/frontend/src/components/layout/Sidebar.tsx
++++ b/src/frontend/src/components/layout/Sidebar.tsx
+@@ -1,100 +1,84 @@
++import { useLayoutEffect, useRef, useState } from 'react';
+ import { NavLink, useLocation } from 'react-router-dom';
+-import { motion } from 'framer-motion';
+-import {
+-  Inbox,
+-  CheckCircle,
+-  ClipboardList,
+-  Pin,
+-  TrendingUp,
+-  History,
+-  MessageCircle,
+-  FileOutput,
+-  Heart,
+-  Brain,
+-  Pill,
+-  Bell,
+-  Settings,
+-} from 'lucide-react';
++import { HardDrive } from 'lucide-react';
+ import { cn } from '@/utils/cn';
+-import { useReducedMotion } from '@/hooks/useReducedMotion';
+-
+-const navItems = [
+-  { to: '/inbox', icon: Inbox, label: 'Inbox' },
+-  { to: '/verify', icon: CheckCircle, label: 'Verify' },
+-  { to: '/trends', icon: TrendingUp, label: 'Trends' },
+-  { to: '/timeline', icon: History, label: 'Timeline' },
+-  { to: '/interpret', icon: Brain, label: 'Interpret' },
+-  { to: '/medications', icon: Pill, label: 'Meds' },
+-  { to: '/notifications', icon: Bell, label: 'Alerts' },
+-  { to: '/care-tasks', icon: ClipboardList, label: 'Tasks' },
+-  { to: '/pinboards', icon: Pin, label: 'Pinboards' },
+-  { to: '/explain', icon: MessageCircle, label: 'Explain' },
+-  { to: '/export', icon: FileOutput, label: 'Export' },
+-  { to: '/settings', icon: Settings, label: 'Settings' },
+-];
++import { navGroups, isItemActive } from './navConfig';
++import { ProfileMenu } from './ProfileMenu';
++import { BrandMark } from './BrandMark';
+ 
++/**
++ * Active indicator is ONE absolutely-positioned element moved with a CSS transform
++ * transition (compositor thread). The old framer layoutId pill ran on the main
++ * thread exactly while the next route was loading.
++ */
+ export function Sidebar() {
+-  const location = useLocation();
+-  const prefersReducedMotion = useReducedMotion();
++  const { pathname } = useLocation();
++  const listRef = useRef<HTMLDivElement>(null);
++  const [pill, setPill] = useState<{ y: number; h: number } | null>(null);
++
++  useLayoutEffect(() => {
++    const el = listRef.current?.querySelector<HTMLElement>('[data-active="true"]');
++    setPill(el ? { y: el.offsetTop, h: el.offsetHeight } : null);
++  }, [pathname]);
+ 
+   return (
+-    <aside className="fixed left-0 top-0 bottom-0 w-64 bg-white/60 backdrop-blur-xl border-r border-black/6 flex flex-col">
+-      <div className="p-6 border-b border-black/4">
+-        <div className="flex items-center gap-3">
+-          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-accent to-accent/80 flex items-center justify-center shadow-soft">
+-            <Heart className="w-5 h-5 text-white" strokeWidth={2.5} />
+-          </div>
+-          <div>
+-            <h1 className="font-display text-lg font-semibold text-ink tracking-tight">
+-              Asclexis
+-            </h1>
+-            <p className="text-xs text-ink-secondary">Your health companion</p>
+-          </div>
+-        </div>
++    <aside className="hidden lg:flex sticky top-0 h-dvh w-[248px] shrink-0 flex-col border-r border-line bg-surface">
++      <div className="flex h-16 items-center gap-2.5 px-5">
++        <BrandMark />
++        <span className="font-display text-[1.25rem] font-semibold tracking-tight text-ink">Asclexis</span>
+       </div>
+ 
+-      <nav className="flex-1 p-4 space-y-1" role="navigation" aria-label="Main navigation">
+-        {navItems.map((item) => {
+-          const isActive = location.pathname === item.to || 
+-            (item.to === '/inbox' && location.pathname === '/');
+-          
+-          return (
+-            <NavLink
+-              key={item.to}
+-              to={item.to}
+-              className={({ isActive: linkActive }) =>
+-                cn(
+-                  'relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200',
+-                  'min-h-target focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
+-                  linkActive || isActive
+-                    ? 'text-accent'
+-                    : 'text-ink-secondary hover:text-ink hover:bg-black/3'
+-                )
+-              }
+-            >
+-              {isActive && (
+-                <motion.div
+-                  layoutId={prefersReducedMotion ? undefined : 'sidebar-active'}
+-                  className="absolute inset-0 bg-accent-subtle rounded-xl"
+-                  transition={{ type: 'spring', bounce: 0.2, duration: 0.4 }}
+-                />
++      <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 pb-4">
++        <div ref={listRef} className="relative">
++          <div
++            aria-hidden
++            className="absolute left-0 right-0 top-0 rounded-[10px] bg-accent-subtle"
++            style={{
++              height: pill?.h ?? 0,
++              transform: `translateY(${pill?.y ?? 0}px)`,
++              opacity: pill ? 1 : 0,
++              transition: 'transform 220ms var(--ease-out), opacity 150ms ease',
++            }}
++          />
++          {navGroups.map((group, gi) => (
++            <div key={gi} className={cn(gi > 0 && 'mt-5')}>
++              {group.label && (
++                <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-ink-tertiary">
++                  {group.label}
++                </p>
+               )}
+-              <item.icon className="w-5 h-5 relative z-10" />
+-              <span className="relative z-10">{item.label}</span>
+-            </NavLink>
+-          );
+-        })}
++              <ul className="space-y-0.5">
++                {group.items.map((item) => {
++                  const active = isItemActive(item, pathname);
++                  return (
++                    <li key={item.to}>
++                      <NavLink
++                        to={item.to}
++                        data-active={active}
++                        aria-current={active ? 'page' : undefined}
++                        className={cn(
++                          'pressable relative flex min-h-[44px] items-center gap-3 rounded-[10px] px-3 text-[0.9375rem] font-medium',
++                          active ? 'text-accent-ink' : 'text-ink-secondary hover:bg-surface-muted hover:text-ink'
++                        )}
++                      >
++                        <item.icon className="relative h-[18px] w-[18px]" strokeWidth={active ? 2.25 : 1.75} aria-hidden />
++                        <span className="relative">{item.label}</span>
++                      </NavLink>
++                    </li>
++                  );
++                })}
++              </ul>
++            </div>
++          ))}
++        </div>
+       </nav>
+ 
+-      <div className="p-4 border-t border-black/4">
+-        <div className="px-4 py-3 rounded-xl bg-surface-muted">
+-          <p className="text-xs text-ink-tertiary">
+-            All data stored locally
+-          </p>
+-          <p className="text-xs font-medium text-ink-secondary mt-0.5">
+-            Offline-first • Private
+-          </p>
+-        </div>
++      <div className="border-t border-line p-3 space-y-2">
++        <p className="flex items-center gap-2 px-3 text-xs text-ink-tertiary">
++          <HardDrive className="h-3.5 w-3.5" aria-hidden />
++          Stored on this device only
++        </p>
++        <ProfileMenu />
+       </div>
+     </aside>
+   );
+diff --git a/src/frontend/src/components/layout/TopBar.tsx b/src/frontend/src/components/layout/TopBar.tsx
+index a40278d..efca657 100644
+--- a/src/frontend/src/components/layout/TopBar.tsx
++++ b/src/frontend/src/components/layout/TopBar.tsx
+@@ -1,81 +1,37 @@
+-import { useState } from 'react';
+-import { useNavigate } from 'react-router-dom';
+-import { Search, Shield, ShieldCheck, User } from 'lucide-react';
+-import { cn } from '@/utils/cn';
+-import { Button } from '@/components/ui';
++import { Search } from 'lucide-react';
++import { SafetyNote } from './SafetyNote';
++import { ProfileMenu } from './ProfileMenu';
++import { BrandMark } from './BrandMark';
++import { openCommandPalette } from './paletteEvents';
+ 
+ export function TopBar() {
+-  const navigate = useNavigate();
+-  const [safeMode, setSafeMode] = useState(true);
+-  const [searchQuery, setSearchQuery] = useState('');
+-
+-  const submitSearch = (event: React.FormEvent) => {
+-    event.preventDefault();
+-    const q = searchQuery.trim();
+-    if (q) navigate(`/search?${new URLSearchParams({ q }).toString()}`);
+-  };
+-
++  const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+   return (
+-    <header className="sticky top-0 z-40 h-16 px-8 flex items-center justify-between gap-6 bg-surface/80 backdrop-blur-md border-b border-black/4">
+-      <form className="flex-1 max-w-md" role="search" onSubmit={submitSearch}>
+-        <div className="relative group">
+-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-tertiary group-focus-within:text-accent transition-colors" />
+-          <input
+-            type="search"
+-            placeholder="Search health records..."
+-            value={searchQuery}
+-            onChange={(e) => setSearchQuery(e.target.value)}
+-            className={cn(
+-              'w-full pl-10 pr-4 py-2 rounded-xl h-10',
+-              'bg-white border border-black/6',
+-              'text-sm text-ink placeholder:text-ink-tertiary',
+-              'focus:outline-hidden focus:ring-2 focus:ring-accent focus:border-accent focus:ring-offset-0',
+-              'transition-all duration-200'
+-            )}
+-            aria-label="Search health records"
+-          />
+-        </div>
+-      </form>
++    <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur-md sm:px-6 lg:px-8">
++      <span className="flex items-center gap-2 lg:hidden">
++        <BrandMark className="h-8 w-8" />
++        <span className="sr-only">Asclexis</span>
++      </span>
+ 
+-      <div className="flex items-center gap-3">
+-        <Button
+-          variant="secondary"
+-          size="sm"
+-          onClick={() => setSafeMode(!safeMode)}
+-          className={cn(
+-            'gap-2 h-10 px-4 rounded-xl font-medium border-black/6',
+-            safeMode && 'bg-status-verified-subtle text-status-verified border-status-verified/20 hover:bg-status-verified-subtle'
+-          )}
+-          aria-pressed={safeMode ? "true" : "false"}
+-          aria-label={`Safety mode ${safeMode ? 'enabled' : 'disabled'}`}
+-        >
+-          {safeMode ? (
+-            <ShieldCheck className="w-4 h-4" />
+-          ) : (
+-            <Shield className="w-4 h-4" />
+-          )}
+-          <span>Safety Mode</span>
+-          <span
+-            className={cn(
+-              'px-1.5 py-0.5 rounded-sm text-[10px] font-bold tracking-wider',
+-              safeMode ? 'bg-status-verified/20' : 'bg-black/10'
+-            )}
+-          >
+-            {safeMode ? 'ON' : 'OFF'}
+-          </span>
+-        </Button>
++      {/* Search is a button that opens the palette: one search, not two. */}
++      <button
++        type="button"
++        onClick={openCommandPalette}
++        className="pressable group flex min-h-[44px] min-w-[44px] items-center justify-center gap-2.5 rounded-[10px] border border-line bg-surface-elevated px-3 text-left text-[0.9375rem] text-ink-tertiary hover:border-line-strong sm:min-w-0 sm:flex-1 sm:justify-start sm:max-w-md"
++        aria-keyshortcuts="Control+K Meta+K"
++        aria-label="Search and commands"
++      >
++        <Search className="h-4 w-4 shrink-0" aria-hidden />
++        <span className="hidden flex-1 truncate sm:block">Search results, documents, actions…</span>
++        <kbd className="hidden rounded-[6px] border border-line bg-surface-muted px-1.5 py-0.5 font-body text-xs font-semibold text-ink-secondary sm:inline">
++          {isMac ? '⌘' : 'Ctrl'} K
++        </kbd>
++      </button>
+ 
+-        <Button
+-          type="button"
+-          variant="secondary"
+-          size="icon"
+-          className="h-10 w-10 rounded-xl border-black/6"
+-          aria-label="Profile and settings"
+-          title="Profile and settings"
+-          onClick={() => navigate('/settings')}
+-        >
+-          <User className="w-5 h-5" />
+-        </Button>
++      <div className="ml-auto flex items-center gap-2">
++        <span className="hidden sm:inline-flex"><SafetyNote /></span>
++        <span className="sm:hidden"><SafetyNote compact /></span>
++        <span className="lg:hidden"><ProfileMenu compact /></span>
+       </div>
+     </header>
+   );
+diff --git a/src/frontend/src/components/layout/navConfig.ts b/src/frontend/src/components/layout/navConfig.ts
+new file mode 100644
+index 0000000..804dc4e
+--- /dev/null
++++ b/src/frontend/src/components/layout/navConfig.ts
+@@ -0,0 +1,68 @@
++import {
++  LayoutGrid,
++  FileText,
++  CheckCheck,
++  History,
++  LineChart,
++  MessageCircle,
++  Pill,
++  ClipboardList,
++  Pin,
++  FileOutput,
++  type LucideIcon,
++} from 'lucide-react';
++
++export interface NavItem {
++  to: string;
++  label: string;
++  icon: LucideIcon;
++  /** Extra path prefixes that keep this item active (e.g. /medications/:id). */
++  match?: string[];
++}
++export interface NavGroup {
++  label: string | null;
++  items: NavItem[];
++}
++
++/**
++ * 12 flat items -> 4 named groups + Overview (9 destinations). Alerts moves into
++ * Medications (reminders) and Settings; Interpret merges into Results; Settings
++ * lives in the profile menu. Labels are plain nouns, no "smart" names.
++ */
++export const navGroups: NavGroup[] = [
++  { label: null, items: [{ to: '/overview', label: 'Overview', icon: LayoutGrid }] },
++  {
++    label: 'Records',
++    items: [
++      { to: '/inbox', label: 'Documents', icon: FileText },
++      { to: '/verify', label: 'Review', icon: CheckCheck },
++      { to: '/timeline', label: 'Timeline', icon: History },
++    ],
++  },
++  {
++    label: 'Understand',
++    items: [
++      { to: '/results', label: 'Results', icon: LineChart, match: ['/trends', '/interpret'] },
++      { to: '/explain', label: 'Ask', icon: MessageCircle },
++    ],
++  },
++  {
++    label: 'Care',
++    items: [
++      { to: '/medications', label: 'Medications', icon: Pill, match: ['/notifications'] },
++      { to: '/care-tasks', label: 'Tasks', icon: ClipboardList },
++      { to: '/pinboards', label: 'Pinboards', icon: Pin },
++    ],
++  },
++  { label: 'Share', items: [{ to: '/export', label: 'Doctor summary', icon: FileOutput }] },
++];
++
++export const allNavItems = navGroups.flatMap((g) => g.items);
++
++export function isItemActive(item: NavItem, pathname: string) {
++  const prefixes = [item.to, ...(item.match ?? [])];
++  return prefixes.some((p) => pathname === p || pathname.startsWith(p + '/'));
++}
++
++/** Mobile tab bar: the four most-used destinations + More. */
++export const mobileTabs = ['/overview', '/results', '/inbox', '/explain'];
+diff --git a/src/frontend/src/components/layout/paletteEvents.ts b/src/frontend/src/components/layout/paletteEvents.ts
+new file mode 100644
+index 0000000..ee6c91e
+--- /dev/null
++++ b/src/frontend/src/components/layout/paletteEvents.ts
+@@ -0,0 +1,4 @@
++export const OPEN_EVENT = 'asclexis:open-palette';
++export function openCommandPalette() {
++  window.dispatchEvent(new Event(OPEN_EVENT));
++}
+diff --git a/src/frontend/src/components/medication-coach/BadgeToast.tsx b/src/frontend/src/components/medication-coach/BadgeToast.tsx
+index 6b18c25..392ca45 100644
+--- a/src/frontend/src/components/medication-coach/BadgeToast.tsx
++++ b/src/frontend/src/components/medication-coach/BadgeToast.tsx
+@@ -3,7 +3,8 @@
+  */
+ 
+ import { useEffect } from 'react';
+-import { motion, AnimatePresence } from 'framer-motion';
++import { AnimatePresence } from 'motion/react';
++import * as m from 'motion/react-m';
+ import { X } from 'lucide-react';
+ import { cn } from '@/utils/cn';
+ import type { BadgeInfo } from '@/services/types';
+@@ -36,7 +37,7 @@ export function BadgeToast({ badge, onDismiss }: BadgeToastProps) {
+   return (
+     <AnimatePresence>
+       {badge && (
+-        <motion.div
++        <m.div
+           initial={prefersReducedMotion ? { opacity: 0, y: 20 } : { opacity: 0, y: -50, scale: 0.9, rotate: -5 }}
+           animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+           exit={prefersReducedMotion ? { opacity: 0, scale: 0.95 } : { opacity: 0, y: -20, scale: 0.9 }}
+@@ -66,7 +67,7 @@ export function BadgeToast({ badge, onDismiss }: BadgeToastProps) {
+           >
+             <X className="w-4 h-4" />
+           </button>
+-        </motion.div>
++        </m.div>
+       )}
+     </AnimatePresence>
+   );
+diff --git a/src/frontend/src/components/medication-coach/DoseLoggingModal.tsx b/src/frontend/src/components/medication-coach/DoseLoggingModal.tsx
+index b5550d7..9ab1151 100644
+--- a/src/frontend/src/components/medication-coach/DoseLoggingModal.tsx
++++ b/src/frontend/src/components/medication-coach/DoseLoggingModal.tsx
+@@ -1,6 +1,7 @@
+ import { useState } from 'react';
+ import { CheckCircle, X, Loader2, SkipForward } from 'lucide-react';
+-import { motion, AnimatePresence } from 'framer-motion';
++import { AnimatePresence } from 'motion/react';
++import * as m from 'motion/react-m';
+ import { Button, Card, CardContent, CardHeader, CardTitle, modalVariants, backdropVariants } from '@/components/ui';
+ import { cn } from '@/utils/cn';
+ import type { DoseLog, MedicationSchedule } from '@/services/types';
+@@ -71,7 +72,7 @@ export function DoseLoggingModal({
+   return (
+     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+       {/* Backdrop */}
+-      <motion.div
++      <m.div
+         initial="initial"
+         animate="animate"
+         exit="exit"
+@@ -82,7 +83,7 @@ export function DoseLoggingModal({
+       />
+ 
+       {/* Modal */}
+-      <motion.div
++      <m.div
+         initial="initial"
+         animate="animate"
+         exit="exit"
+@@ -143,7 +144,7 @@ export function DoseLoggingModal({
+             {/* Skip Reason */}
+             <AnimatePresence mode="wait">
+               {mode === 'skipped' && (
+-                <motion.div
++                <m.div
+                   initial={{ opacity: 0, height: 0 }}
+                   animate={{ opacity: 1, height: 'auto' }}
+                   exit={{ opacity: 0, height: 0 }}
+@@ -168,7 +169,7 @@ export function DoseLoggingModal({
+                       </button>
+                     ))}
+                   </div>
+-                </motion.div>
++                </m.div>
+               )}
+             </AnimatePresence>
+ 
+@@ -208,7 +209,7 @@ export function DoseLoggingModal({
+             </Button>
+           </CardContent>
+         </Card>
+-      </motion.div>
++      </m.div>
+     </div>
+   );
+ }
+diff --git a/src/frontend/src/components/medication-coach/MedicationCard.tsx b/src/frontend/src/components/medication-coach/MedicationCard.tsx
+index 0ff081c..46360ad 100644
+--- a/src/frontend/src/components/medication-coach/MedicationCard.tsx
++++ b/src/frontend/src/components/medication-coach/MedicationCard.tsx
+@@ -1,4 +1,4 @@
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   Pill,
+   Clock,
+@@ -42,7 +42,7 @@ export function MedicationCard({
+   const nextSchedule = medication.schedules.find((s) => s.is_active);
+ 
+   return (
+-    <motion.div
++    <m.div
+       initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
+       animate={{ opacity: 1, y: 0 }}
+       transition={{ delay: index * 0.05 }}
+@@ -136,6 +136,6 @@ export function MedicationCard({
+           </div>
+         </CardContent>
+       </Card>
+-    </motion.div>
++    </m.div>
+   );
+ }
+diff --git a/src/frontend/src/components/results/ProvenanceSheet.tsx b/src/frontend/src/components/results/ProvenanceSheet.tsx
+new file mode 100644
+index 0000000..d67f8cb
+--- /dev/null
++++ b/src/frontend/src/components/results/ProvenanceSheet.tsx
+@@ -0,0 +1,130 @@
++import * as Dialog from '@radix-ui/react-dialog';
++import { FileText, X, CheckCheck, PencilLine } from 'lucide-react';
++import { fmtDate, rangeText, type Analyte, type ResultPoint } from './fixtures';
++
++/**
++ * SOURCE TRACE (signature moment 3): any value opens the exact row it came from.
++ * Side sheet on desktop, bottom sheet on phones. Built on Radix Dialog for focus
++ * trap, Escape, focus return and aria-modal (audit: none of the 6 overlays had them).
++ */
++interface Props {
++  open: boolean;
++  onOpenChange: (o: boolean) => void;
++  analyte: Analyte;
++  point: ResultPoint;
++  onVerify: () => void;
++}
++
++export function ProvenanceSheet({ open, onOpenChange, analyte, point, onVerify }: Props) {
++  const { source } = point;
++  const rowIndex = source.row - 2;
++  return (
++    <Dialog.Root open={open} onOpenChange={onOpenChange}>
++      <Dialog.Portal>
++        <Dialog.Overlay className="scrim fixed inset-0 z-50 bg-[var(--scrim)]" />
++        <Dialog.Content
++          className={[
++            'fixed z-50 flex flex-col bg-surface-elevated shadow-[var(--shadow-3)] outline-none',
++            // phone: bottom sheet
++            'sheet-responsive inset-x-0 bottom-0 max-h-[88dvh] rounded-t-[20px] border-t border-line',
++            // desktop: side sheet
++            'sm:inset-y-3 sm:left-auto sm:right-3 sm:bottom-3 sm:max-h-none sm:w-[440px] sm:rounded-[16px] sm:border',
++          ].join(' ')}
++        >
++          <div className="flex items-start justify-between gap-4 border-b border-line px-6 pb-4 pt-5">
++            <div>
++              <Dialog.Title className="text-lg font-semibold text-ink">Where this number came from</Dialog.Title>
++              <Dialog.Description className="mt-0.5 text-sm text-ink-secondary">
++                This is what your report states.
++              </Dialog.Description>
++            </div>
++            <Dialog.Close
++              className="pressable -mr-2 grid h-11 w-11 shrink-0 place-items-center rounded-full text-ink-secondary hover:bg-surface-muted"
++              aria-label="Close"
++            >
++              <X className="h-5 w-5" aria-hidden />
++            </Dialog.Close>
++          </div>
++
++          <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
++            <div>
++              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
++                <FileText className="h-4 w-4 text-ink-secondary" aria-hidden />
++                {source.doc}
++                <span className="font-normal text-ink-tertiary">· row {source.row}</span>
++              </p>
++              {/* The excerpt is the raw source, so monospace is earned here (data, not costume). */}
++              <div className="mt-3 overflow-x-auto rounded-[10px] border border-line bg-surface-muted" tabIndex={0} role="region" aria-label={`Excerpt from ${source.doc}`}>
++                <pre className="min-w-max p-3 font-mono text-[12.5px] leading-6 text-ink-secondary">
++                  <span className="block text-ink-tertiary">{source.csvHeader}</span>
++                  {source.csvRows.map((r, i) => (
++                    <span key={i} className="relative block">
++                      {i === rowIndex && (
++                        <span aria-hidden className="trace-mark absolute -inset-x-1.5 inset-y-0 rounded-[4px] bg-accent-subtle" />
++                      )}
++                      <span className={i === rowIndex ? 'relative font-semibold text-ink' : 'relative'}>
++                        {r}
++                      </span>
++                      {i === rowIndex && <span className="sr-only"> (this value)</span>}
++                    </span>
++                  ))}
++                </pre>
++              </div>
++            </div>
++
++            <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-[0.9375rem]">
++              <dt className="text-ink-secondary">Result</dt>
++              <dd className="tabular font-semibold text-ink">
++                {point.value} {analyte.unit}
++              </dd>
++              <dt className="text-ink-secondary">Collected</dt>
++              <dd className="text-ink">{fmtDate(point.date)}</dd>
++              <dt className="text-ink-secondary">Reference range</dt>
++              <dd className="text-ink">{rangeText(analyte)} (per report)</dd>
++              <dt className="text-ink-secondary">Read by Asclexis</dt>
++              <dd className="text-ink">
++                Medium confidence ({Math.round(point.confidence * 100)}%). Worth a glance.
++              </dd>
++            </dl>
++
++            <div className="rounded-[12px] border border-line p-4">
++              {point.verified ? (
++                <p className="flex items-center gap-2 font-semibold text-status-verified">
++                  <CheckCheck className="h-5 w-5" aria-hidden /> Verified by you
++                </p>
++              ) : (
++                <>
++                  <p className="flex items-center gap-2 font-semibold text-ink">
++                    <PencilLine className="h-5 w-5 text-pencil" aria-hidden /> In pencil: not yet checked
++                  </p>
++                  <p className="mt-1 text-sm text-ink-secondary">
++                    Compare the highlighted row with your paper or PDF report. If they match, mark it verified.
++                  </p>
++                  <div className="mt-3 flex flex-wrap gap-2">
++                    <button
++                      type="button"
++                      onClick={onVerify}
++                      className="pressable inline-flex min-h-[44px] items-center gap-2 rounded-[10px] bg-accent px-4 text-[0.9375rem] font-semibold text-on-accent hover:bg-accent-hover"
++                    >
++                      <CheckCheck className="h-4 w-4" aria-hidden /> It matches, mark verified
++                    </button>
++                    <a
++                      href="/verify"
++                      className="pressable inline-flex min-h-[44px] items-center rounded-[10px] border border-line px-4 text-[0.9375rem] font-semibold text-ink hover:bg-surface-muted"
++                    >
++                      Correct it in Review
++                    </a>
++                  </div>
++                </>
++              )}
++            </div>
++          </div>
++
++          <p className="border-t border-line px-6 py-3 text-sm text-ink-secondary">
++            Educational information from your own records, not medical advice.
++          </p>
++        </Dialog.Content>
++      </Dialog.Portal>
++    </Dialog.Root>
++  );
++}
+diff --git a/src/frontend/src/components/results/RangeRibbon.tsx b/src/frontend/src/components/results/RangeRibbon.tsx
+new file mode 100644
+index 0000000..78ce16b
+--- /dev/null
++++ b/src/frontend/src/components/results/RangeRibbon.tsx
+@@ -0,0 +1,249 @@
++import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
++import { fmtDate, rangeStatus, statusText, type Analyte } from './fixtures';
++
++/**
++ * RANGE RIBBON (signature moment 2).
++ * - Reference range is a band, not a dashed line; label says "(per report)".
++ * - Straight segments between real points on a true time axis (no monotone
++ *   smoothing inventing values between draws).
++ * - Verified points are ink (filled); unverified points are pencil (dashed ring).
++ * - The line is revealed once per analyte per session with clip-path (640ms,
++ *   ease-out). Values never tween. Switching analytes later is a 150ms fade.
++ * - It is a slider: arrows/Home/End move the selection with NO animation
++ *   (keyboard); pointer moves glide the cursor (180ms transform).
++ */
++const seen = new Set<string>();
++
++interface Props {
++  analyte: Analyte;
++  selected: number;
++  onSelect: (i: number) => void;
++  height?: number;
++}
++
++function niceTicks(min: number, max: number, count = 4) {
++  const span = max - min || 1;
++  const raw = span / count;
++  const mag = 10 ** Math.floor(Math.log10(raw));
++  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? raw;
++  const start = Math.floor(min / step) * step;
++  const ticks: number[] = [];
++  for (let v = start; v <= max + step * 0.001; v += step) ticks.push(+v.toFixed(6));
++  return ticks;
++}
++
++export function RangeRibbon({ analyte, selected, onSelect, height = 280 }: Props) {
++  const wrapRef = useRef<HTMLDivElement>(null);
++  const [width, setWidth] = useState(640);
++  const [input, setInput] = useState<'pointer' | 'key'>('key');
++  // Captured once at mount (the parent keys this component by analyte id).
++  const [firstView] = useState(() => !seen.has(analyte.id));
++  const [revealed, setRevealed] = useState(!firstView);
++
++  useLayoutEffect(() => {
++    const el = wrapRef.current;
++    if (!el) return;
++    setWidth(Math.max(280, Math.round(el.getBoundingClientRect().width)));
++    const ro = new ResizeObserver(([e]) => setWidth(Math.max(280, Math.round(e.contentRect.width))));
++    ro.observe(el);
++    return () => ro.disconnect();
++  }, []);
++
++  useEffect(() => {
++    if (!firstView) return;
++    seen.add(analyte.id);
++    const id = requestAnimationFrame(() => requestAnimationFrame(() => setRevealed(true)));
++    return () => cancelAnimationFrame(id);
++  }, [analyte.id, firstView]);
++
++  const pad = { l: 44, r: 20, t: 30, b: 34 };
++  const { points, refLow, refHigh } = analyte;
++
++  const geo = useMemo(() => {
++    const vals = points.map((p) => p.value);
++    const lo = Math.min(...vals, refLow ?? Infinity);
++    const hi = Math.max(...vals, refHigh ?? -Infinity);
++    const span = hi - lo || 1;
++    const ticks = niceTicks(lo - span * 0.12, hi + span * 0.12);
++    const y0 = ticks[0];
++    const y1 = ticks[ticks.length - 1];
++    const t = points.map((p) => new Date(p.date + 'T00:00:00').getTime());
++    const t0 = t[0];
++    const t1 = t[t.length - 1] === t0 ? t0 + 1 : t[t.length - 1];
++    const innerW = width - pad.l - pad.r;
++    const innerH = height - pad.t - pad.b;
++    const x = (ms: number) => pad.l + ((ms - t0) / (t1 - t0)) * innerW;
++    const y = (v: number) => pad.t + (1 - (v - y0) / (y1 - y0)) * innerH;
++    const xy = points.map((p, i) => ({ x: x(t[i]), y: y(p.value) }));
++    const band =
++      refLow != null || refHigh != null
++        ? {
++            top: y(Math.min(refHigh ?? y1, y1)),
++            bottom: y(Math.max(refLow ?? y0, y0)),
++          }
++        : null;
++    return { ticks, y, xy, band, innerW };
++  }, [points, refLow, refHigh, width, height, pad.l, pad.r, pad.t, pad.b]);
++
++  const nearest = (clientX: number) => {
++    const rect = wrapRef.current!.getBoundingClientRect();
++    const px = clientX - rect.left;
++    let best = 0;
++    geo.xy.forEach((p, i) => {
++      if (Math.abs(p.x - px) < Math.abs(geo.xy[best].x - px)) best = i;
++    });
++    return best;
++  };
++
++  const onPointer = (e: PointerEvent) => {
++    if (e.pointerType === 'mouse' && e.buttons === 0 && e.type === 'pointerdown') return;
++    setInput('pointer');
++    const i = nearest(e.clientX);
++    if (i !== selected) onSelect(i);
++  };
++
++  const onKey = (e: KeyboardEvent) => {
++    const last = points.length - 1;
++    const next =
++      e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? Math.max(0, selected - 1)
++      : e.key === 'ArrowRight' || e.key === 'ArrowUp' ? Math.min(last, selected + 1)
++      : e.key === 'Home' ? 0
++      : e.key === 'End' ? last
++      : null;
++    if (next == null) return;
++    e.preventDefault();
++    setInput('key');
++    onSelect(next);
++  };
++
++  const sel = points[selected];
++  const status = rangeStatus(sel.value, refLow, refHigh);
++  const valueText = `${fmtDate(sel.date)}: ${sel.value} ${analyte.unit}. ${statusText[status]}. ${
++    sel.verified ? 'Verified by you.' : 'Not yet verified.'
++  }`;
++
++  const segs = geo.xy.slice(1).map((p, i) => ({
++    a: geo.xy[i],
++    b: p,
++    pencil: !points[i].verified || !points[i + 1].verified,
++  }));
++  const cursorX = geo.xy[selected].x;
++
++  return (
++    <div
++      ref={wrapRef}
++      role="slider"
++      tabIndex={0}
++      aria-label={`${analyte.name} results over time`}
++      aria-valuemin={0}
++      aria-valuemax={points.length - 1}
++      aria-valuenow={selected}
++      aria-valuetext={valueText}
++      onKeyDown={onKey}
++      onPointerMove={(e) => e.pointerType === 'mouse' && onPointer(e)}
++      onPointerDown={onPointer}
++      className="relative touch-pan-y select-none rounded-[10px] outline-offset-4"
++      style={{ height }}
++    >
++      <svg width={width} height={height} className="block overflow-visible" aria-hidden>
++        {/* ruled lines: the chart is a measuring tool, so it earns a grid */}
++        {geo.ticks.map((t) => (
++          <g key={t}>
++            <line x1={44} x2={width - 20} y1={geo.y(t)} y2={geo.y(t)} stroke="var(--line)" strokeWidth={1} />
++            <text x={36} y={geo.y(t)} dy="0.32em" textAnchor="end" className="tabular fill-[var(--ink-3)] text-[12px]">
++              {t}
++            </text>
++          </g>
++        ))}
++
++        {geo.band && (
++          <g>
++            <rect
++              x={44}
++              y={geo.band.top}
++              width={geo.innerW}
++              height={Math.max(0, geo.band.bottom - geo.band.top)}
++              fill="var(--band)"
++              rx={4}
++            />
++          </g>
++        )}
++
++        {/* x labels */}
++        {geo.xy.map((p, i) => (
++          <text
++            key={i}
++            x={p.x}
++            y={height - 10}
++            textAnchor={i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle'}
++            className="tabular fill-[var(--ink-3)] text-[12px]"
++          >
++            {fmtDate(points[i].date, { month: 'short', year: '2-digit' })}
++          </text>
++        ))}
++
++        {/* selection cursor: glides for pointer input, jumps for keyboard */}
++        <g
++          style={{
++            transform: `translateX(${cursorX}px)`,
++            transition: input === 'pointer' ? 'transform 180ms var(--ease-out)' : 'none',
++          }}
++        >
++          <line x1={0} x2={0} y1={8} y2={height - 28} stroke="var(--line-strong)" strokeWidth={1} strokeDasharray="1 3" />
++        </g>
++
++        {/* data: revealed once with clip-path; this is the authored moment */}
++        <g
++          key={analyte.id}
++          style={{
++            clipPath: revealed ? 'inset(-12px -12px -12px -12px)' : `inset(-12px ${width}px -12px -12px)`,
++            transition: revealed && firstView ? 'clip-path var(--dur-reveal) var(--ease-out)' : 'none',
++            animation: firstView ? undefined : 'scrimIn 150ms ease both',
++          }}
++          className="ribbon-data"
++        >
++          {segs.map((s, i) => (
++            <line
++              key={i}
++              x1={s.a.x}
++              y1={s.a.y}
++              x2={s.b.x}
++              y2={s.b.y}
++              stroke={s.pencil ? 'var(--pencil)' : 'var(--accent)'}
++              strokeWidth={s.pencil ? 1.75 : 2.25}
++              strokeDasharray={s.pencil ? '4 4' : undefined}
++              strokeLinecap="round"
++            />
++          ))}
++          {geo.xy.map((p, i) => {
++            const pt = points[i];
++            const isSel = i === selected;
++            return (
++              <g key={i} transform={`translate(${p.x} ${p.y})`}>
++                <circle r={11} fill="none" stroke="var(--accent)" strokeWidth={1.5} style={{ opacity: isSel ? 1 : 0, transition: 'opacity 150ms ease' }} />
++                <circle
++                  r={5.5}
++                  className="ink-dot"
++                  data-verified={pt.verified}
++                  style={{
++                    fill: pt.verified ? 'var(--accent)' : 'var(--surface-1)',
++                    stroke: pt.verified ? 'var(--surface-1)' : 'var(--pencil)',
++                    strokeWidth: pt.verified ? 2 : 1.75,
++                    strokeDasharray: pt.verified ? '40 0' : '2.6 2.6',
++                  }}
++                />
++                {rangeStatus(pt.value, refLow, refHigh) !== 'within' && (
++                  // outside-range marker: a shape, not only a colour (WCAG 1.4.1)
++                  <path
++                    d={rangeStatus(pt.value, refLow, refHigh) === 'below' ? 'M-4 13 L4 13 L0 19 Z' : 'M-4 -13 L4 -13 L0 -19 Z'}
++                    fill="var(--outside)"
++                  />
++                )}
++              </g>
++            );
++          })}
++        </g>
++      </svg>
++    </div>
++  );
++}
+diff --git a/src/frontend/src/components/results/fixtures.ts b/src/frontend/src/components/results/fixtures.ts
+new file mode 100644
+index 0000000..1830ba9
+--- /dev/null
++++ b/src/frontend/src/components/results/fixtures.ts
+@@ -0,0 +1,153 @@
++/**
++ * Prototype fixtures shaped like services/types.ts TrendData/TrendPoint, using the
++ * same values the UI review seeded through the real API (glucose 92/104/118/101,
++ * ref 70-99 mg/dL; LDL 142; HbA1c 6.1 …). Source rows mirror the seeded CSVs.
++ */
++export interface ResultPoint {
++  date: string; // ISO date
++  value: number;
++  verified: boolean;
++  confidence: number; // 0..1, extraction confidence
++  source: { doc: string; row: number; csvHeader: string; csvRows: string[] };
++}
++export interface Analyte {
++  id: string;
++  name: string;
++  panel: 'Metabolic' | 'Lipids' | 'Blood count' | 'Thyroid';
++  unit: string;
++  refLow: number | null;
++  refHigh: number | null;
++  points: ResultPoint[];
++}
++
++const header = 'test_name,value,unit,reference_range,collected_date';
++function series(
++  doc: string,
++  test: string,
++  unit: string,
++  range: string,
++  rows: [string, number, boolean][]
++): ResultPoint[] {
++  const csvRows = rows.map(([d, v]) => `${test},${v},${unit},${range},${d}`);
++  return rows.map(([date, value, verified], i) => ({
++    date,
++    value,
++    verified,
++    confidence: 0.6,
++    source: { doc, row: i + 2, csvHeader: header, csvRows },
++  }));
++}
++
++export const analytes: Analyte[] = [
++  {
++    id: 'glucose',
++    name: 'Glucose',
++    panel: 'Metabolic',
++    unit: 'mg/dL',
++    refLow: 70,
++    refHigh: 99,
++    points: series('glucose.csv', 'Glucose', 'mg/dL', '70-99', [
++      ['2025-10-10', 92, true],
++      ['2026-01-10', 104, true],
++      ['2026-04-10', 118, false],
++      ['2026-07-10', 101, true],
++    ]),
++  },
++  {
++    id: 'hba1c',
++    name: 'Hemoglobin A1c',
++    panel: 'Metabolic',
++    unit: '%',
++    refLow: 4,
++    refHigh: 5.6,
++    points: series('a1c.csv', 'Hemoglobin A1c', '%', '4-5.6', [
++      ['2025-10-10', 5.3, true],
++      ['2026-01-10', 5.4, true],
++      ['2026-04-10', 5.9, false],
++      ['2026-07-10', 6.1, false],
++    ]),
++  },
++  {
++    id: 'ldl',
++    name: 'LDL cholesterol',
++    panel: 'Lipids',
++    unit: 'mg/dL',
++    refLow: 0,
++    refHigh: 99,
++    points: series('lipids.csv', 'LDL Cholesterol', 'mg/dL', '0-99', [
++      ['2025-07-10', 128, true],
++      ['2026-01-10', 135, true],
++      ['2026-07-10', 142, true],
++    ]),
++  },
++  {
++    id: 'hdl',
++    name: 'HDL cholesterol',
++    panel: 'Lipids',
++    unit: 'mg/dL',
++    refLow: 40,
++    refHigh: null,
++    points: series('lipids.csv', 'HDL Cholesterol', 'mg/dL', '>=40', [
++      ['2025-07-10', 52, true],
++      ['2026-07-10', 48, true],
++    ]),
++  },
++  {
++    id: 'tg',
++    name: 'Triglycerides',
++    panel: 'Lipids',
++    unit: 'mg/dL',
++    refLow: 0,
++    refHigh: 149,
++    points: series('lipids.csv', 'Triglycerides', 'mg/dL', '0-149', [
++      ['2025-07-10', 140, true],
++      ['2026-07-10', 160, false],
++    ]),
++  },
++  {
++    id: 'hgb',
++    name: 'Hemoglobin',
++    panel: 'Blood count',
++    unit: 'g/dL',
++    refLow: 13.2,
++    refHigh: 16.6,
++    points: series('cbc.csv', 'Hemoglobin', 'g/dL', '13.2-16.6', [
++      ['2026-01-10', 14.2, true],
++      ['2026-07-10', 13.9, true],
++    ]),
++  },
++  {
++    id: 'tsh',
++    name: 'TSH',
++    panel: 'Thyroid',
++    unit: 'mIU/L',
++    refLow: 0.4,
++    refHigh: 4,
++    points: series('thyroid.csv', 'TSH', 'mIU/L', '0.4-4', [
++      ['2025-10-10', 2.4, true],
++      ['2026-07-10', 2.1, true],
++    ]),
++  },
++];
++
++export type RangeStatus = 'above' | 'below' | 'within' | 'unknown';
++export function rangeStatus(v: number, lo: number | null, hi: number | null): RangeStatus {
++  if (lo == null && hi == null) return 'unknown';
++  if (hi != null && v > hi) return 'above';
++  if (lo != null && v < lo) return 'below';
++  return 'within';
++}
++export const statusText: Record<RangeStatus, string> = {
++  above: 'Above the reference range (per report)',
++  below: 'Below the reference range (per report)',
++  within: 'Within the reference range (per report)',
++  unknown: 'No reference range on the report',
++};
++export function rangeText(a: Pick<Analyte, 'refLow' | 'refHigh' | 'unit'>) {
++  if (a.refLow != null && a.refHigh != null) return `${a.refLow}–${a.refHigh} ${a.unit}`;
++  if (a.refLow != null) return `${a.refLow} ${a.unit} or more`;
++  if (a.refHigh != null) return `up to ${a.refHigh} ${a.unit}`;
++  return 'not stated';
++}
++export const fmtDate = (iso: string, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }) =>
++  new Date(iso + 'T00:00:00').toLocaleDateString('en-US', opts);
+diff --git a/src/frontend/src/components/ui/Motion.tsx b/src/frontend/src/components/ui/Motion.tsx
+index d750ef7..661991b 100644
+--- a/src/frontend/src/components/ui/Motion.tsx
++++ b/src/frontend/src/components/ui/Motion.tsx
+@@ -1,4 +1,5 @@
+-import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
++import { type HTMLMotionProps, type Variants } from 'motion/react';
++import * as m from 'motion/react-m';
+ import { useReducedMotion } from '@/hooks/useReducedMotion';
+ import { cn } from '@/utils/cn';
+ 
+@@ -32,7 +33,7 @@ export function PageTransition({ children, className, ...props }: HTMLMotionProp
+   const prefersReducedMotion = useReducedMotion();
+ 
+   return (
+-    <motion.div
++    <m.div
+       initial="initial"
+       animate="animate"
+       exit="exit"
+@@ -42,7 +43,7 @@ export function PageTransition({ children, className, ...props }: HTMLMotionProp
+       {...props}
+     >
+       {children}
+-    </motion.div>
++    </m.div>
+   );
+ }
+ 
+@@ -51,7 +52,7 @@ export function PageTransition({ children, className, ...props }: HTMLMotionProp
+  */
+ export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<'div'>) {
+   return (
+-    <motion.div
++    <m.div
+       initial="initial"
+       animate="animate"
+       variants={staggerContainerVariants}
+@@ -59,7 +60,7 @@ export function StaggerGroup({ children, className, ...props }: HTMLMotionProps<
+       {...props}
+     >
+       {children}
+-    </motion.div>
++    </m.div>
+   );
+ }
+ 
+@@ -70,13 +71,13 @@ export function StaggerItem({ children, className, ...props }: HTMLMotionProps<'
+   const prefersReducedMotion = useReducedMotion();
+ 
+   return (
+-    <motion.div
++    <m.div
+       variants={prefersReducedMotion ? fadeVariants : slideUpVariants}
+       className={className}
+       {...props}
+     >
+       {children}
+-    </motion.div>
++    </m.div>
+   );
+ }
+ 
+diff --git a/src/frontend/src/motion/MotionProvider.tsx b/src/frontend/src/motion/MotionProvider.tsx
+new file mode 100644
+index 0000000..563cbf1
+--- /dev/null
++++ b/src/frontend/src/motion/MotionProvider.tsx
+@@ -0,0 +1,18 @@
++import type { ReactNode } from 'react';
++import { LazyMotion, MotionConfig } from 'motion/react';
++
++// Feature bundle loads after first paint: initial cost ~9 kB gz instead of ~36 kB.
++const loadFeatures = () => import('./features').then((m) => m.default);
++
++/**
++ * reducedMotion="user": transform/layout animations are dropped when the OS asks,
++ * opacity and colour keep running. Replaces the hand-rolled useReducedMotion hook,
++ * which initialised to false and animated the first render (audit §2a).
++ */
++export function MotionProvider({ children }: { children: ReactNode }) {
++  return (
++    <LazyMotion features={loadFeatures} strict>
++      <MotionConfig reducedMotion="user">{children}</MotionConfig>
++    </LazyMotion>
++  );
++}
+diff --git a/src/frontend/src/motion/features.ts b/src/frontend/src/motion/features.ts
+new file mode 100644
+index 0000000..344d3a1
+--- /dev/null
++++ b/src/frontend/src/motion/features.ts
+@@ -0,0 +1 @@
++export { domAnimation as default } from "motion/react";
+diff --git a/src/frontend/src/motion/tokens.ts b/src/frontend/src/motion/tokens.ts
+new file mode 100644
+index 0000000..6f1bcbb
+--- /dev/null
++++ b/src/frontend/src/motion/tokens.ts
+@@ -0,0 +1,35 @@
++/**
++ * Motion tokens (mirror of the CSS custom properties in globals.css).
++ * One easing family; durations in seconds for Motion, ms in CSS.
++ *
++ * Zones (the reconciliation rule):
++ *  - chrome: nav, overlays, toasts, palette — springs and transforms allowed.
++ *  - data:   lab values, charts — opacity and clip-path only, once per view;
++ *            numbers never tween.
++ *  - safety: disclaimers, citations, range status — never animated.
++ */
++export const ease = {
++  out: [0.23, 1, 0.32, 1] as const,
++  inOut: [0.77, 0, 0.175, 1] as const,
++  drawer: [0.32, 0.72, 0, 1] as const,
++};
++
++export const dur = {
++  press: 0.12,
++  hover: 0.15,
++  small: 0.18,
++  route: 0.18,
++  overlay: 0.24,
++  overlayExit: 0.16,
++  sheet: 0.32,
++  ink: 0.36,
++  reveal: 0.64,
++};
++
++export const spring = {
++  snappy: { type: 'spring', visualDuration: 0.25, bounce: 0.12 } as const,
++  sheet: { type: 'spring', visualDuration: 0.35, bounce: 0 } as const,
++};
++
++/** Stagger between list items, and the cap on total stagger. */
++export const stagger = { each: 0.04, maxItems: 6 };
+diff --git a/src/frontend/src/pages/DocumentInbox.tsx b/src/frontend/src/pages/DocumentInbox.tsx
+index 36d733a..6049c6e 100644
+--- a/src/frontend/src/pages/DocumentInbox.tsx
++++ b/src/frontend/src/pages/DocumentInbox.tsx
+@@ -1,7 +1,7 @@
+ import { useState, useRef } from 'react';
+ import { Link, useNavigate } from 'react-router-dom';
+ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   Upload,
+   FileText,
+@@ -336,14 +336,14 @@ export function DocumentInbox() {
+               <p>No documents yet. Import your first lab report above.</p>
+             </div>
+           ) : (
+-            <motion.div
++            <m.div
+               variants={containerVariants}
+               initial="hidden"
+               animate="show"
+               className="divide-y divide-black/4"
+             >
+               {documents.map((doc) => (
+-                <motion.div
++                <m.div
+                   key={doc.id}
+                   variants={itemVariants}
+                   className="flex items-center gap-4 p-4 hover:bg-surface-muted/50 transition-colors group"
+@@ -450,9 +450,9 @@ export function DocumentInbox() {
+                       </DropdownMenu.Portal>
+                     </DropdownMenu.Root>
+                   </div>
+-                </motion.div>
++                </m.div>
+               ))}
+-            </motion.div>
++            </m.div>
+           )}
+         </CardContent>
+       </Card>
+diff --git a/src/frontend/src/pages/ExplainAssistant.tsx b/src/frontend/src/pages/ExplainAssistant.tsx
+index fa6055b..96e8f53 100644
+--- a/src/frontend/src/pages/ExplainAssistant.tsx
++++ b/src/frontend/src/pages/ExplainAssistant.tsx
+@@ -1,6 +1,7 @@
+ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+ import { useNavigate } from 'react-router-dom';
+-import { motion, AnimatePresence } from 'framer-motion';
++import { AnimatePresence } from 'motion/react';
++import * as m from 'motion/react-m';
+ import {
+   Send,
+   FileText,
+@@ -521,7 +522,7 @@ export function ExplainAssistant() {
+ 
+             <AnimatePresence mode="popLayout">
+               {messages.map((message) => (
+-                <motion.div
++                <m.div
+                   key={message.id}
+                   initial={prefersReducedMotion ? {} : { opacity: 0, y: 12 }}
+                   animate={{ opacity: 1, y: 0 }}
+@@ -750,12 +751,12 @@ export function ExplainAssistant() {
+                       );
+                     })()}
+                   </div>
+-                </motion.div>
++                </m.div>
+               ))}
+             </AnimatePresence>
+ 
+             {sendMessage.isPending && (
+-              <motion.div
++              <m.div
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 1 }}
+                 className="flex justify-start"
+@@ -770,7 +771,7 @@ export function ExplainAssistant() {
+                     <span className="text-sm">Searching documents and generating response...</span>
+                   </div>
+                 </div>
+-              </motion.div>
++              </m.div>
+             )}
+ 
+             <div ref={messagesEndRef} />
+diff --git a/src/frontend/src/pages/ExportPage.tsx b/src/frontend/src/pages/ExportPage.tsx
+index a6149f8..fc7a18e 100644
+--- a/src/frontend/src/pages/ExportPage.tsx
++++ b/src/frontend/src/pages/ExportPage.tsx
+@@ -5,7 +5,7 @@
+  */
+ 
+ import { useState } from 'react';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   FileText,
+   Download,
+@@ -341,7 +341,7 @@ export function ExportPage() {
+                   <span>Failed to generate summary. Please try again.</span>
+                 </div>
+               ) : summary ? (
+-                <motion.div
++                <m.div
+                   initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                   animate={{ opacity: 1 }}
+                   className="prose prose-sm max-w-none"
+@@ -422,7 +422,7 @@ export function ExportPage() {
+                       all results with your healthcare provider.
+                     </p>
+                   </footer>
+-                </motion.div>
++                </m.div>
+               ) : (
+                 <div className="text-center py-12">
+                   <FileText className="w-12 h-12 text-ink-tertiary mx-auto mb-4" />
+diff --git a/src/frontend/src/pages/LabInterpreter.tsx b/src/frontend/src/pages/LabInterpreter.tsx
+index f93b097..3ad02d8 100644
+--- a/src/frontend/src/pages/LabInterpreter.tsx
++++ b/src/frontend/src/pages/LabInterpreter.tsx
+@@ -1,5 +1,5 @@
+ import { useState, useMemo } from 'react';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   Brain,
+   Loader2,
+@@ -321,7 +321,7 @@ export function LabInterpreter() {
+             <CardContent className="p-0">
+               <div className="divide-y divide-black/4">
+                 {analyteList.map((obs, index) => (
+-                  <motion.button
++                  <m.button
+                     key={obs.analyte_canonical}
+                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -8 }}
+                     animate={{ opacity: 1, x: 0 }}
+@@ -350,7 +350,7 @@ export function LabInterpreter() {
+                       )}
+                       <ChevronRight className="w-4 h-4 text-ink-tertiary" />
+                     </div>
+-                  </motion.button>
++                  </m.button>
+                 ))}
+               </div>
+             </CardContent>
+diff --git a/src/frontend/src/pages/MedicationDetail.tsx b/src/frontend/src/pages/MedicationDetail.tsx
+index b592e5e..b476448 100644
+--- a/src/frontend/src/pages/MedicationDetail.tsx
++++ b/src/frontend/src/pages/MedicationDetail.tsx
+@@ -1,6 +1,6 @@
+ import { useState } from 'react';
+ import { useParams, useNavigate } from 'react-router-dom';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   ArrowLeft,
+   Pill,
+@@ -290,7 +290,7 @@ export function MedicationDetail() {
+               ) : (
+                 <div className="divide-y divide-black/4">
+                   {doses.map((dose, i) => (
+-                    <motion.div
++                    <m.div
+                       key={dose.id}
+                       initial={prefersReducedMotion ? {} : { opacity: 0 }}
+                       animate={{ opacity: 1 }}
+@@ -330,7 +330,7 @@ export function MedicationDetail() {
+                           {dose.was_skipped ? 'Skipped' : 'Taken'}
+                         </Badge>
+                       </div>
+-                    </motion.div>
++                    </m.div>
+                   ))}
+                 </div>
+               )}
+diff --git a/src/frontend/src/pages/ProfileSetup.tsx b/src/frontend/src/pages/ProfileSetup.tsx
+index 7ac3884..ec637a2 100644
+--- a/src/frontend/src/pages/ProfileSetup.tsx
++++ b/src/frontend/src/pages/ProfileSetup.tsx
+@@ -9,7 +9,7 @@
+ 
+ import { useState } from 'react';
+ import { Link, useNavigate } from 'react-router-dom';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   Heart,
+   Lock,
+@@ -203,24 +203,24 @@ export function ProfileSetup() {
+         <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 rounded-full blur-3xl" />
+       </div>
+ 
+-      <motion.div
++      <m.div
+         variants={containerVariants}
+         initial="hidden"
+         animate="show"
+         className="w-full max-w-lg relative z-10"
+       >
+         {restoreNotice && (
+-          <motion.div variants={itemVariants} className="mb-6">
++          <m.div variants={itemVariants} className="mb-6">
+             <div
+               role="status"
+               className="rounded-lg border border-status-info/30 bg-status-info-subtle px-4 py-3 text-sm text-ink"
+             >
+               {restoreNotice}
+             </div>
+-          </motion.div>
++          </m.div>
+         )}
+ 
+-        <motion.div variants={itemVariants} className="text-center mb-10">
++        <m.div variants={itemVariants} className="text-center mb-10">
+           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-accent to-accent/80 shadow-card mb-6">
+             <Heart className="w-8 h-8 text-white" strokeWidth={2} />
+           </div>
+@@ -232,14 +232,14 @@ export function ProfileSetup() {
+             <br />
+             Private, offline-first, and always grounded.
+           </p>
+-        </motion.div>
++        </m.div>
+ 
+-        <motion.div variants={itemVariants}>
++        <m.div variants={itemVariants}>
+           <Card className="mb-6">
+             <CardContent className="p-6">
+               <div className="space-y-4">
+                 {features.map((feature, index) => (
+-                  <motion.div
++                  <m.div
+                     key={feature.title}
+                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -10 }}
+                     animate={{ opacity: 1, x: 0 }}
+@@ -255,14 +255,14 @@ export function ProfileSetup() {
+                         {feature.description}
+                       </p>
+                     </div>
+-                  </motion.div>
++                  </m.div>
+                 ))}
+               </div>
+             </CardContent>
+           </Card>
+-        </motion.div>
++        </m.div>
+ 
+-        <motion.div variants={itemVariants}>
++        <m.div variants={itemVariants}>
+           {!isCreating ? (
+             <Card>
+               <CardContent className="p-6 space-y-4">
+@@ -385,17 +385,17 @@ export function ProfileSetup() {
+               </div>
+             </div>
+           )}
+-        </motion.div>
++        </m.div>
+ 
+-        <motion.p
++        <m.p
+           variants={itemVariants}
+           className="text-center text-xs text-ink-tertiary mt-6"
+         >
+           By creating a profile, you agree to our Terms of Service.
+           <br />
+           Your data is stored locally and never uploaded.
+-        </motion.p>
+-      </motion.div>
++        </m.p>
++      </m.div>
+     </div>
+   );
+ }
+diff --git a/src/frontend/src/pages/ResultsPage.tsx b/src/frontend/src/pages/ResultsPage.tsx
+new file mode 100644
+index 0000000..679ba38
+--- /dev/null
++++ b/src/frontend/src/pages/ResultsPage.tsx
+@@ -0,0 +1,300 @@
++import { useMemo, useState } from 'react';
++import { Link, useSearchParams } from 'react-router-dom';
++import { toast } from 'sonner';
++import { ArrowDown, ArrowUp, Circle, FileSearch, PencilLine, CheckCheck, MessageCircle, Info } from 'lucide-react';
++import { cn } from '@/utils/cn';
++import { RangeRibbon } from '@/components/results/RangeRibbon';
++import { ProvenanceSheet } from '@/components/results/ProvenanceSheet';
++import {
++  analytes as seed,
++  fmtDate,
++  rangeStatus,
++  rangeText,
++  statusText,
++  type Analyte,
++  type RangeStatus,
++} from '@/components/results/fixtures';
++
++function StatusLine({ status, short = false }: { status: RangeStatus; short?: boolean }) {
++  const Icon = status === 'above' ? ArrowUp : status === 'below' ? ArrowDown : Circle;
++  const label = short
++    ? { above: 'Above range', below: 'Below range', within: 'In range', unknown: 'No range' }[status]
++    : statusText[status];
++  return (
++    <span
++      className={cn(
++        'inline-flex items-center gap-1.5',
++        status === 'above' || status === 'below' ? 'text-status-attention' : 'text-ink-secondary'
++      )}
++    >
++      <Icon className={cn('shrink-0', status === 'within' || status === 'unknown' ? 'h-2.5 w-2.5' : 'h-4 w-4')} aria-hidden strokeWidth={2.5} />
++      {label}
++    </span>
++  );
++}
++
++const panels: Analyte['panel'][] = ['Metabolic', 'Lipids', 'Blood count', 'Thyroid'];
++
++export function ResultsPage() {
++  const [params, setParams] = useSearchParams();
++  const [data, setData] = useState<Analyte[]>(seed);
++  const analyteId = params.get('analyte') ?? data[0].id;
++  const analyte = data.find((a) => a.id === analyteId) ?? data[0];
++  const [selectedBy, setSelectedBy] = useState<Record<string, number>>({});
++  const selected = selectedBy[analyte.id] ?? analyte.points.length - 1;
++  const point = analyte.points[selected];
++  const status = rangeStatus(point.value, analyte.refLow, analyte.refHigh);
++  const [sourceOpen, setSourceOpen] = useState(false);
++
++  const pencilCount = useMemo(() => data.reduce((n, a) => n + a.points.filter((p) => !p.verified).length, 0), [data]);
++  const first = analyte.points[0];
++
++  const setVerified = (aid: string, idx: number, verified: boolean) =>
++    setData((d) =>
++      d.map((a) => (a.id !== aid ? a : { ...a, points: a.points.map((p, i) => (i === idx ? { ...p, verified } : p)) }))
++    );
++
++  const verify = () => {
++    const aid = analyte.id;
++    const idx = selected;
++    setVerified(aid, idx, true);
++    setSourceOpen(false);
++    toast(`${analyte.name}, ${fmtDate(point.date)} is now verified.`, {
++      description: 'It is drawn in ink on every chart.',
++      action: { label: 'Undo', onClick: () => setVerified(aid, idx, false) },
++    });
++  };
++
++  const choose = (id: string) => setParams({ analyte: id }, { replace: true });
++
++  return (
++    <div className="space-y-6">
++      <header className="flex flex-wrap items-end justify-between gap-4">
++        <div>
++          <h1 className="text-[2rem] leading-tight text-ink sm:text-[2.375rem]">Results</h1>
++          <p className="mt-1 max-w-[60ch] text-base text-ink-secondary">
++            What your reports say, over time. Checked values are drawn in ink; values you haven’t checked yet are in pencil.
++          </p>
++        </div>
++        {pencilCount > 0 && (
++          <Link
++            to="/verify"
++            className="pressable inline-flex min-h-[44px] items-center gap-2 rounded-[10px] border border-line bg-surface-elevated px-4 text-[0.9375rem] font-semibold text-ink hover:border-line-strong"
++          >
++            <PencilLine className="h-4 w-4 text-pencil" aria-hidden />
++            {pencilCount} {pencilCount === 1 ? 'value' : 'values'} in pencil
++            <span className="text-accent-ink">Review</span>
++          </Link>
++        )}
++      </header>
++
++      {/* Phone/tablet: analyte picker scrolls inside itself, never the page */}
++      <div className="-mx-4 overflow-x-auto px-4 pb-1 lg:hidden" role="group" aria-label="Choose a result">
++        <div className="flex w-max gap-2">
++          {data.map((a) => {
++            const active = a.id === analyte.id;
++            return (
++              <button
++                key={a.id}
++                aria-pressed={active}
++                onClick={() => choose(a.id)}
++                className={cn(
++                  'pressable min-h-[44px] rounded-full border px-4 text-[0.9375rem] font-medium',
++                  active ? 'border-accent bg-accent-subtle text-accent-ink' : 'border-line bg-surface-elevated text-ink-secondary'
++                )}
++              >
++                {a.name}
++              </button>
++            );
++          })}
++        </div>
++      </div>
++
++      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
++        <section
++          aria-labelledby="analyte-title"
++          className="min-w-0 rounded-[16px] border border-line bg-surface-elevated shadow-[var(--shadow-1)]"
++        >
++          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4 px-5 pt-5 sm:px-7 sm:pt-6">
++            <div className="min-w-0">
++              <p className="text-sm font-semibold text-ink-tertiary">
++                {analyte.panel} · reference {rangeText(analyte)}
++              </p>
++              <h2 id="analyte-title" className="mt-0.5 text-[1.75rem] leading-tight text-ink">
++                {analyte.name}
++              </h2>
++            </div>
++            {/* Readout: the selected point. Numbers swap instantly, never count up. */}
++            <div className="min-w-0 text-left sm:text-right" aria-live="polite">
++              <p className="tabular text-[2.5rem] font-semibold leading-none tracking-tight text-ink">
++                {point.value}
++                <span className="ml-1.5 text-lg font-medium text-ink-secondary">{analyte.unit}</span>
++              </p>
++              <p className="mt-2 text-[0.9375rem] text-ink-secondary">{fmtDate(point.date)}</p>
++            </div>
++          </div>
++
++          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 px-5 text-[0.9375rem] sm:px-7">
++            <StatusLine status={status} />
++            {point.verified ? (
++              <span className="inline-flex items-center gap-1.5 text-status-verified">
++                <CheckCheck className="h-4 w-4" aria-hidden /> Verified by you
++              </span>
++            ) : (
++              <span className="inline-flex items-center gap-1.5 text-ink-secondary">
++                <PencilLine className="h-4 w-4 text-pencil" aria-hidden /> In pencil
++              </span>
++            )}
++            <button
++              type="button"
++              onClick={() => setSourceOpen(true)}
++              className="pressable ml-auto inline-flex min-h-[44px] items-center gap-2 rounded-[10px] px-3 font-semibold text-accent-ink hover:bg-accent-subtle"
++            >
++              <FileSearch className="h-4 w-4" aria-hidden /> Show source
++            </button>
++          </div>
++
++          {/* Legend explains every shape, so nothing depends on colour alone. */}
++          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 px-5 text-sm text-ink-secondary sm:px-7" aria-label="Chart key">
++            <li className="inline-flex items-center gap-2">
++              <span className="h-3 w-5 rounded-[3px] bg-band" aria-hidden /> Reference range (per report)
++            </li>
++            <li className="inline-flex items-center gap-2">
++              <svg width="12" height="12" aria-hidden><circle cx="6" cy="6" r="4.5" fill="var(--accent)" /></svg> Verified (ink)
++            </li>
++            <li className="inline-flex items-center gap-2">
++              <svg width="12" height="12" aria-hidden><circle cx="6" cy="6" r="4.5" fill="none" stroke="var(--pencil)" strokeWidth="1.5" strokeDasharray="2.4 2.4" /></svg> Not yet checked (pencil)
++            </li>
++            <li className="inline-flex items-center gap-2">
++              <svg width="10" height="10" aria-hidden><path d="M1 9 L9 9 L5 2 Z" fill="var(--outside)" /></svg> Outside range
++            </li>
++          </ul>
++
++          <div className="px-3 pt-1 sm:px-5">
++            <RangeRibbon
++              key={analyte.id}
++              analyte={analyte}
++              selected={selected}
++              onSelect={(i) => setSelectedBy((s) => ({ ...s, [analyte.id]: i }))}
++              height={260}
++            />
++          </div>
++
++          <div className="space-y-3 px-5 pb-5 sm:px-7">
++            <p className="text-[0.9375rem] text-ink-secondary">
++              {analyte.points.length} results since {fmtDate(first.date, { month: 'short', year: 'numeric' })}, from {first.value} to{' '}
++              {analyte.points[analyte.points.length - 1].value} {analyte.unit}. Use ← → to step through them.
++            </p>
++            <details className="group rounded-[10px] border border-line">
++              <summary className="flex min-h-[44px] cursor-pointer items-center px-4 text-[0.9375rem] font-semibold text-ink">
++                Show as a table
++              </summary>
++              <div className="overflow-x-auto px-4 pb-3">
++                <table className="w-full text-left text-[0.9375rem]">
++                  <thead className="text-sm text-ink-tertiary">
++                    <tr>
++                      <th className="py-2 font-semibold">Date</th>
++                      <th className="py-2 font-semibold">Result</th>
++                      <th className="py-2 font-semibold">Range</th>
++                      <th className="py-2 font-semibold">Checked</th>
++                    </tr>
++                  </thead>
++                  <tbody>
++                    {analyte.points.map((p, i) => (
++                      <tr key={i} className="border-t border-line">
++                        <td className="py-2">{fmtDate(p.date)}</td>
++                        <td className="tabular py-2 font-semibold">{p.value} {analyte.unit}</td>
++                        <td className="py-2"><StatusLine short status={rangeStatus(p.value, analyte.refLow, analyte.refHigh)} /></td>
++                        <td className="py-2">{p.verified ? 'Verified' : 'In pencil'}</td>
++                      </tr>
++                    ))}
++                  </tbody>
++                </table>
++              </div>
++            </details>
++          </div>
++
++          {/* Safety zone: never animated, never hover-only. */}
++          <p className="flex items-start gap-2 rounded-b-[16px] border-t border-line bg-surface-muted px-5 py-3 text-sm text-ink-secondary sm:px-7">
++            <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
++            Educational information from your own records, not medical advice. A result outside the report’s range is something to
++            discuss with your clinician, not a diagnosis.
++          </p>
++        </section>
++
++        <aside className="hidden space-y-4 lg:block" aria-label="All results">
++          <nav className="overflow-hidden rounded-[16px] border border-line bg-surface-elevated">
++            {panels.map((panel) => {
++              const list = data.filter((a) => a.panel === panel);
++              if (!list.length) return null;
++              return (
++                <div key={panel}>
++                  <p className="border-b border-line bg-surface-muted/60 px-4 py-2 text-xs font-semibold uppercase tracking-[0.06em] text-ink-tertiary">
++                    {panel}
++                  </p>
++                  <ul>
++                    {list.map((a) => {
++                      const last = a.points[a.points.length - 1];
++                      const active = a.id === analyte.id;
++                      const pencil = a.points.filter((p) => !p.verified).length;
++                      return (
++                        <li key={a.id} className="border-b border-line last:border-b-0">
++                          <button
++                            type="button"
++                            onClick={() => choose(a.id)}
++                            aria-current={active ? 'true' : undefined}
++                            className={cn(
++                              'flex min-h-[60px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-150',
++                              active ? 'bg-accent-subtle' : 'hover:bg-surface-muted'
++                            )}
++                          >
++                            <span className="min-w-0 flex-1">
++                              <span className={cn('block truncate text-[0.9375rem] font-semibold', active ? 'text-accent-ink' : 'text-ink')}>
++                                {a.name}
++                              </span>
++                              <span className="mt-0.5 flex items-center gap-2 text-sm">
++                                <StatusLine short status={rangeStatus(last.value, a.refLow, a.refHigh)} />
++                                {pencil > 0 && (
++                                  <span className="inline-flex items-center gap-1 text-ink-tertiary">
++                                    <PencilLine className="h-3.5 w-3.5" aria-hidden /> {pencil}
++                                  </span>
++                                )}
++                              </span>
++                            </span>
++                            <span className="tabular text-right text-[0.9375rem] font-semibold text-ink">
++                              {last.value}
++                              <span className="block text-xs font-normal text-ink-tertiary">{a.unit}</span>
++                            </span>
++                          </button>
++                        </li>
++                      );
++                    })}
++                  </ul>
++                </div>
++              );
++            })}
++          </nav>
++
++          <Link
++            to={`/explain?q=${encodeURIComponent(`What does my ${analyte.name.toLowerCase()} history show?`)}`}
++            className="pressable flex min-h-[56px] items-center gap-3 rounded-[16px] border border-line bg-surface-elevated px-4 text-[0.9375rem] font-semibold text-ink hover:border-line-strong"
++          >
++            <MessageCircle className="h-5 w-5 text-accent" aria-hidden />
++            Ask about your {analyte.name.toLowerCase()} history
++          </Link>
++        </aside>
++      </div>
++
++      <ProvenanceSheet open={sourceOpen} onOpenChange={setSourceOpen} analyte={analyte} point={point} onVerify={verify} />
++    </div>
++  );
++}
++
++export function OverviewPlaceholder() {
++  return (
++    <div className="space-y-2">
++      <h1 className="text-[2.375rem] text-ink">Overview</h1>
++      <p className="text-ink-secondary">Planned in row FE-C1. The prototype proves the shell and the Results screen.</p>
++    </div>
++  );
++}
+diff --git a/src/frontend/src/pages/SettingsPage.tsx b/src/frontend/src/pages/SettingsPage.tsx
+index 555b790..65c34d4 100644
+--- a/src/frontend/src/pages/SettingsPage.tsx
++++ b/src/frontend/src/pages/SettingsPage.tsx
+@@ -26,7 +26,8 @@ import {
+   Settings as SettingsIcon,
+ } from 'lucide-react';
+ import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Skeleton, StaggerGroup, StaggerItem, modalVariants, backdropVariants } from '@/components/ui';
+-import { motion, AnimatePresence } from 'framer-motion';
++import { AnimatePresence } from 'motion/react';
++import * as m from 'motion/react-m';
+ import { MemoryManager } from '@/components/MemoryManager';
+ import { BackupCard } from '@/components/settings/BackupCard';
+ import { RecoveryCodeCard } from '@/components/settings/RecoveryCodeCard';
+@@ -641,7 +642,7 @@ export function SettingsPage() {
+                   const isIndeterminate = pct === 0;
+                   const label = progress.status === 'pending' ? 'Preparing…' : `${pct}%`;
+                   return (
+-                    <motion.div
++                    <m.div
+                       key={progressTier}
+                       initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                       animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+@@ -659,7 +660,7 @@ export function SettingsPage() {
+                         {isIndeterminate ? (
+                           <div className="h-2 w-1/3 bg-accent rounded-full animate-shimmer" />
+                         ) : (
+-                          <motion.div
++                          <m.div
+                             className="bg-accent rounded-full h-2"
+                             initial={{ width: 0 }}
+                             animate={{ width: `${pct}%` }}
+@@ -672,7 +673,7 @@ export function SettingsPage() {
+                           {(progress.downloaded_bytes / 1_073_741_824).toFixed(2)} GB / {(progress.total_bytes / 1_073_741_824).toFixed(2)} GB
+                         </p>
+                       )}
+-                    </motion.div>
++                    </m.div>
+                   );
+                 })}
+               </AnimatePresence>
+@@ -767,7 +768,7 @@ export function SettingsPage() {
+ 
+               <AnimatePresence>
+                 {externalEnabled && (
+-                  <motion.div
++                  <m.div
+                     initial={{ opacity: 0, height: 0 }}
+                     animate={{ opacity: 1, height: 'auto' }}
+                     exit={{ opacity: 0, height: 0 }}
+@@ -805,7 +806,7 @@ export function SettingsPage() {
+                         className="w-full px-3 py-2.5 h-11 rounded-xl bg-surface-elevated text-sm text-ink border border-black/8 focus:outline-hidden focus:ring-2 focus:ring-accent transition-all"
+                       />
+                     </div>
+-                  </motion.div>
++                  </m.div>
+                 )}
+               </AnimatePresence>
+             </CardContent>
+@@ -888,13 +889,13 @@ export function SettingsPage() {
+       <AnimatePresence>
+         {showExportDialog && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+-            <motion.div
++            <m.div
+               initial="initial" animate="animate" exit="exit"
+               variants={backdropVariants}
+               className="absolute inset-0 bg-black/40 backdrop-blur-xs"
+               onClick={() => setShowExportDialog(false)}
+             />
+-            <motion.div
++            <m.div
+               initial="initial" animate="animate" exit="exit"
+               variants={modalVariants}
+               className="relative bg-surface rounded-2xl shadow-2xl p-6 max-w-md w-full z-10 space-y-4"
+@@ -931,7 +932,7 @@ export function SettingsPage() {
+                   {exportDataset.isPending ? 'Exporting…' : 'Confirm Export'}
+                 </Button>
+               </div>
+-            </motion.div>
++            </m.div>
+           </div>
+         )}
+       </AnimatePresence>
+@@ -961,7 +962,7 @@ export function SettingsPage() {
+       <AnimatePresence>
+         {focusedDiag && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+-            <motion.div
++            <m.div
+               initial="initial"
+               animate="animate"
+               exit="exit"
+@@ -970,7 +971,7 @@ export function SettingsPage() {
+               onClick={() => setDiagToolId(null)}
+               aria-hidden
+             />
+-            <motion.div
++            <m.div
+               initial="initial"
+               animate="animate"
+               exit="exit"
+@@ -1049,7 +1050,7 @@ export function SettingsPage() {
+               <Button type="button" variant="ghost" className="mt-6 w-full" onClick={() => setDiagToolId(null)}>
+                 Close
+               </Button>
+-            </motion.div>
++            </m.div>
+           </div>
+         )}
+       </AnimatePresence>
+@@ -1058,7 +1059,7 @@ export function SettingsPage() {
+       <AnimatePresence>
+         {showConsentDialog && (
+           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+-            <motion.div
++            <m.div
+               initial="initial"
+               animate="animate"
+               exit="exit"
+@@ -1067,7 +1068,7 @@ export function SettingsPage() {
+               onClick={() => setShowConsentDialog(false)}
+               aria-hidden
+             />
+-            <motion.div
++            <m.div
+               initial="initial"
+               animate="animate"
+               exit="exit"
+@@ -1135,7 +1136,7 @@ export function SettingsPage() {
+                   </div>
+                 </div>
+               </Card>
+-            </motion.div>
++            </m.div>
+           </div>
+         )}
+       </AnimatePresence>
+diff --git a/src/frontend/src/pages/TrendsDashboard.tsx b/src/frontend/src/pages/TrendsDashboard.tsx
+index acd45d1..3f1dd9c 100644
+--- a/src/frontend/src/pages/TrendsDashboard.tsx
++++ b/src/frontend/src/pages/TrendsDashboard.tsx
+@@ -1,5 +1,5 @@
+ import { useState, useMemo, useRef, useCallback } from 'react';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   TrendingUp,
+   TrendingDown,
+@@ -561,7 +561,7 @@ export function TrendsDashboard() {
+             <CardContent className="p-0">
+               <div className="divide-y divide-black/4">
+                 {analyteList.map((obs, index) => (
+-                  <motion.button
++                  <m.button
+                     key={obs.analyte_canonical}
+                     initial={prefersReducedMotion ? {} : { opacity: 0, x: -8 }}
+                     animate={{ opacity: 1, x: 0 }}
+@@ -594,7 +594,7 @@ export function TrendsDashboard() {
+                     >
+                       {getTrendIcon(obs.value ?? undefined, undefined)}
+                     </div>
+-                  </motion.button>
++                  </m.button>
+                 ))}
+               </div>
+             </CardContent>
+diff --git a/src/frontend/src/pages/VerificationWorkbench.tsx b/src/frontend/src/pages/VerificationWorkbench.tsx
+index ccf3009..5c8ddad 100644
+--- a/src/frontend/src/pages/VerificationWorkbench.tsx
++++ b/src/frontend/src/pages/VerificationWorkbench.tsx
+@@ -1,6 +1,6 @@
+ import { useState, useEffect, useCallback, useRef } from 'react';
+ import { Link, useSearchParams } from 'react-router-dom';
+-import { motion } from 'framer-motion';
++import * as m from 'motion/react-m';
+ import {
+   CheckCircle,
+   AlertTriangle,
+@@ -587,7 +587,7 @@ export function VerificationWorkbench() {
+                   </thead>
+                   <tbody>
+                     {observations.map((observation, index) => (
+-                      <motion.tr
++                      <m.tr
+                         key={observation.id}
+                         id={`observation-row-${observation.id}`}
+                         initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
+@@ -684,7 +684,7 @@ export function VerificationWorkbench() {
+                             </Button>
+                           </div>
+                         </td>
+-                      </motion.tr>
++                      </m.tr>
+                     ))}
+                   </tbody>
+                 </table>
+diff --git a/src/frontend/src/styles/globals.css b/src/frontend/src/styles/globals.css
+index 801fe39..2eb5b7e 100644
+--- a/src/frontend/src/styles/globals.css
++++ b/src/frontend/src/styles/globals.css
+@@ -1,46 +1,140 @@
+ @import 'tailwindcss';
+ 
++/* ── Asclexis "Ink & Paper" tokens (Designer A). Raw values live on :root and are
++   remapped for dark; @theme only points at them, so every existing utility
++   (bg-surface, text-ink-secondary, …) inherits the contrast fix and dark mode. ── */
++:root {
++  --paper: #f6f5f1;
++  --surface-1: #ffffff;
++  --surface-2: #efede7;
++  --surface-3: #e7e4dc;
++  --ink-1: #1c1b19;
++  --ink-2: #4f4c46;
++  --ink-3: #68645d;
++  --ink-disabled: #a8a49c;
++  --line: #e2dfd7;
++  --line-strong: #8a857b;
++  --accent: #1d6b5e;
++  --accent-hover: #185a4f;
++  --accent-pressed: #134a41;
++  --accent-ink: #165247;
++  --accent-subtle: #e2efeb;
++  --on-accent: #ffffff;
++  --caution: #7f5410;
++  --caution-bg: #faf0df;
++  --outside: #9c3f2e;
++  --outside-bg: #fae9e4;
++  --verified: #2c6542;
++  --verified-bg: #e4f1e8;
++  --info: #365a80;
++  --info-bg: #e6eef6;
++  --band: #dcebe5;
++  --pencil: #68645d;
++  --scrim: rgb(28 27 25 / 0.32);
++  --shadow-1: 0 1px 2px rgb(28 27 25 / 0.04), 0 4px 16px -6px rgb(28 27 25 / 0.08);
++  --shadow-2: 0 2px 6px rgb(28 27 25 / 0.06), 0 16px 40px -12px rgb(28 27 25 / 0.18);
++  --shadow-3: 0 4px 12px rgb(28 27 25 / 0.08), 0 32px 80px -16px rgb(28 27 25 / 0.28);
++  color-scheme: light;
++
++  /* Motion tokens: one easing family. Durations in ms. */
++  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
++  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
++  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
++  --dur-press: 120ms;
++  --dur-hover: 150ms;
++  --dur-small: 180ms;
++  --dur-route: 180ms;
++  --dur-overlay: 240ms;
++  --dur-overlay-exit: 160ms;
++  --dur-sheet: 320ms;
++  --dur-sheet-exit: 220ms;
++  --dur-ink: 360ms;
++  --dur-reveal: 640ms;
++  --motion-distance: 1; /* multiplied into every translate; 0 under reduced motion */
++}
++
++:root[data-theme='dark'] {
++  --paper: #141412;
++  --surface-1: #1c1c19;
++  --surface-2: #262521;
++  --surface-3: #302f2a;
++  --ink-1: #eeece6;
++  --ink-2: #c2beb5;
++  --ink-3: #a29e95;
++  --ink-disabled: #6b6862;
++  --line: #2f2e2a;
++  --line-strong: #77736b;
++  --accent: #6fc6b3;
++  --accent-hover: #86d1c0;
++  --accent-pressed: #5ab3a0;
++  --accent-ink: #8ad3c2;
++  --accent-subtle: #1d332e;
++  --on-accent: #0b1d19;
++  --caution: #e7b867;
++  --caution-bg: #2e2615;
++  --outside: #f09c88;
++  --outside-bg: #33201b;
++  --verified: #8fcb9f;
++  --verified-bg: #1c2b21;
++  --info: #9dbee3;
++  --info-bg: #1c2633;
++  --band: #1f3530;
++  --pencil: #a29e95;
++  --scrim: rgb(0 0 0 / 0.56);
++  --shadow-1: 0 0 0 1px rgb(255 255 255 / 0.04), 0 4px 16px -6px rgb(0 0 0 / 0.5);
++  --shadow-2: 0 0 0 1px rgb(255 255 255 / 0.05), 0 16px 40px -12px rgb(0 0 0 / 0.6);
++  --shadow-3: 0 0 0 1px rgb(255 255 255 / 0.06), 0 32px 80px -16px rgb(0 0 0 / 0.7);
++  color-scheme: dark;
++}
++
++@media (prefers-reduced-motion: reduce) {
++  :root { --motion-distance: 0; }
++}
++
+ @theme {
+   --font-display: 'Fraunces Variable', Georgia, serif;
+   --font-body: 'Source Sans 3 Variable', system-ui, sans-serif;
+   --font-mono: 'JetBrains Mono', Consolas, monospace;
+ 
+-  --color-surface: #fafaf8;
+-  --color-surface-elevated: #ffffff;
+-  --color-surface-muted: #f5f5f3;
+-  --color-surface-sunken: #eeedeb;
+-
+-  --color-ink: #1f1f1f;
+-  --color-ink-secondary: #6b6b6b;
+-  --color-ink-tertiary: #9a9a9a;
+-  --color-ink-disabled: #bfbfbf;
+-
+-  --color-accent: #2d7d6f;
+-  --color-accent-subtle: #e8f4f2;
+-  --color-accent-hover: #256b5f;
+-  --color-accent-pressed: #1e5a50;
+-
+-  --color-status-caution: #d4a574;
+-  --color-status-caution-subtle: #fdf6ef;
+-  --color-status-attention: #c9857a;
+-  --color-status-attention-subtle: #fdf2f0;
+-  --color-status-verified: #7ba387;
+-  --color-status-verified-subtle: #f0f7f2;
+-  --color-status-info: #6b8cae;
+-  --color-status-info-subtle: #f0f4f8;
+-  --color-status-critical: #c9857a;
+-  --color-status-critical-subtle: #fdf2f0;
+-
+-  --color-dark-surface: #1a1a1a;
+-  --color-dark-surface-elevated: #242424;
+-  --color-dark-surface-muted: #2e2e2e;
+-
+-  --color-dark-ink: #f5f5f5;
+-  --color-dark-ink-secondary: #a0a0a0;
+-  --color-dark-ink-tertiary: #6b6b6b;
+-
+-  --text-xs: 0.75rem;
+-  --text-xs--line-height: 1rem;
++  --color-surface: var(--paper);
++  --color-surface-elevated: var(--surface-1);
++  --color-surface-muted: var(--surface-2);
++  --color-surface-sunken: var(--surface-3);
++
++  --color-ink: var(--ink-1);
++  --color-ink-secondary: var(--ink-2);
++  --color-ink-tertiary: var(--ink-3);
++  --color-ink-disabled: var(--ink-disabled);
++  --color-line: var(--line);
++  --color-line-strong: var(--line-strong);
++
++  --color-accent: var(--accent);
++  --color-accent-subtle: var(--accent-subtle);
++  --color-accent-hover: var(--accent-hover);
++  --color-accent-pressed: var(--accent-pressed);
++  --color-accent-ink: var(--accent-ink);
++  --color-on-accent: var(--on-accent);
++
++  --color-status-caution: var(--caution);
++  --color-status-caution-subtle: var(--caution-bg);
++  --color-status-attention: var(--outside);
++  --color-status-attention-subtle: var(--outside-bg);
++  --color-status-verified: var(--verified);
++  --color-status-verified-subtle: var(--verified-bg);
++  --color-status-info: var(--info);
++  --color-status-info-subtle: var(--info-bg);
++  --color-status-critical: var(--outside);
++  --color-status-critical-subtle: var(--outside-bg);
++  /* Aliases for classes components already use but nobody defined (audit §3b). */
++  --color-status-success: var(--verified);
++  --color-status-success-subtle: var(--verified-bg);
++  --color-status-danger: var(--outside);
++  --color-status-danger-subtle: var(--outside-bg);
++  --color-band: var(--band);
++  --color-pencil: var(--pencil);
++
++  --text-xs: 0.8125rem;
++  --text-xs--line-height: 1.125rem;
+   --text-sm: 0.875rem;
+   --text-sm--line-height: 1.25rem;
+   --text-base: 1rem;
+@@ -60,10 +154,10 @@
+   --radius-2xl: 16px;
+   --radius-3xl: 24px;
+ 
+-  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
+-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
+-  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.08);
+-  --shadow-focus: 0 0 0 3px rgba(45, 125, 111, 0.3);
++  --shadow-soft: var(--shadow-1);
++  --shadow-card: var(--shadow-1);
++  --shadow-elevated: var(--shadow-2);
++  --shadow-overlay: var(--shadow-3);
+ 
+   --animate-fade-in: fadeIn 0.3s ease-out;
+   --animate-slide-up: slideUp 0.3s ease-out;
+@@ -139,7 +233,7 @@
+   ::before,
+   ::backdrop,
+   ::file-selector-button {
+-    border-color: #e5e7eb;
++    border-color: var(--line);
+   }
+ 
+   button:not(:disabled),
+@@ -149,7 +243,7 @@
+ 
+   input::placeholder,
+   textarea::placeholder {
+-    color: #9ca3af;
++    color: var(--ink-3);
+   }
+ 
+   /* v4 preflight makes form controls transparent; v3 kept the browser default. */
+@@ -239,11 +333,6 @@
+     --font-display: 'Fraunces Variable', Georgia, serif;
+     --font-body: 'Source Sans 3 Variable', system-ui, sans-serif;
+     --font-mono: 'JetBrains Mono', Consolas, monospace;
+-
+-
+-    --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.04);
+-    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
+-    --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.08);
+   }
+ 
+   html {
+@@ -251,45 +340,98 @@
+     font-size: 16px;
+     -webkit-font-smoothing: antialiased;
+     -moz-osx-font-smoothing: grayscale;
+-    scroll-behavior: smooth;
+   }
+ 
++  /* Reduced motion: movement goes (via --motion-distance), opacity/colour stay.
++     Spinners become a calm opacity pulse instead of freezing (audit §2c). */
+   @media (prefers-reduced-motion: reduce) {
+-    html {
+-      scroll-behavior: auto;
+-    }
+-    
+-    *,
+-    *::before,
+-    *::after {
+-      animation-duration: 0.01ms !important;
+-      animation-iteration-count: 1 !important;
+-      transition-duration: 0.01ms !important;
+-    }
++    .animate-spin { animation: pulseSoft 1.6s ease-in-out infinite; }
++    .animate-bounce, .animate-ping { animation: none; }
+   }
+ 
+   body {
+     @apply bg-surface text-ink min-h-screen;
+-    background-image: 
+-      radial-gradient(ellipse at 0% 0%, rgba(45, 125, 111, 0.03) 0%, transparent 50%),
+-      radial-gradient(ellipse at 100% 100%, rgba(45, 125, 111, 0.02) 0%, transparent 50%);
+   }
+ 
+-  h1, h2, h3, h4 {
++  /* Fraunces is a display face: only h1/h2 (>=24px). Smaller headings use the body face. */
++  h1, h2 {
+     font-family: var(--font-display);
+     font-weight: 500;
+     letter-spacing: -0.02em;
++    text-wrap: balance;
+   }
++  h3, h4 { font-weight: 600; letter-spacing: -0.005em; }
++  p { text-wrap: pretty; }
++  .tabular { font-variant-numeric: tabular-nums; }
+ 
+   code, pre, kbd {
+     font-family: var(--font-mono);
+   }
+ 
++  /* Focus ring is instant (never transitions) and uses outline so transition-* on the
++     element cannot fade it in (audit: ring faded over 200ms). */
+   *:focus-visible {
+-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-surface;
++    outline: 2px solid var(--accent);
++    outline-offset: 2px;
++    transition-property: none;
+   }
++  ::-webkit-scrollbar { width: 10px; height: 10px; }
++  ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 999px; border: 2px solid var(--paper); }
++  input, textarea { caret-color: var(--accent); }
+ 
+   ::selection {
+     @apply bg-accent/20 text-ink;
+   }
+ }
++
++
++/* ── Motion primitives (CSS, off the main thread) ── */
++@keyframes routeIn {
++  from { opacity: 0; transform: translateY(calc(6px * var(--motion-distance))); }
++  to { opacity: 1; transform: none; }
++}
++.route-in { animation: routeIn var(--dur-route) var(--ease-out) both; }
++
++@keyframes sheetUp { from { transform: translateY(calc(100% * var(--motion-distance))); opacity: 0.6; } to { transform: none; opacity: 1; } }
++@keyframes sheetDown { from { transform: none; opacity: 1; } to { transform: translateY(calc(100% * var(--motion-distance))); opacity: 0.6; } }
++@keyframes sheetLeft { from { transform: translateX(calc(24px * var(--motion-distance))); opacity: 0; } to { transform: none; opacity: 1; } }
++@keyframes sheetRight { from { transform: none; opacity: 1; } to { transform: translateX(calc(24px * var(--motion-distance))); opacity: 0; } }
++@keyframes scrimIn { from { opacity: 0; } to { opacity: 1; } }
++@keyframes scrimOut { from { opacity: 1; } to { opacity: 0; } }
++@keyframes popIn { from { opacity: 0; transform: scale(calc(1 - 0.04 * var(--motion-distance))); } to { opacity: 1; transform: none; } }
++@keyframes popOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(calc(1 - 0.04 * var(--motion-distance))); } }
++
++.scrim[data-state='open'] { animation: scrimIn var(--dur-overlay) var(--ease-out); }
++.scrim[data-state='closed'] { animation: scrimOut var(--dur-overlay-exit) var(--ease-out); }
++.sheet-bottom[data-state='open'] { animation: sheetUp var(--dur-sheet) var(--ease-drawer); }
++.sheet-bottom[data-state='closed'] { animation: sheetDown var(--dur-sheet-exit) var(--ease-out); }
++.sheet-side[data-state='open'] { animation: sheetLeft var(--dur-overlay) var(--ease-out); }
++.sheet-side[data-state='closed'] { animation: sheetRight var(--dur-overlay-exit) var(--ease-out); }
++.popover[data-state='open'] { transform-origin: var(--radix-popover-content-transform-origin); animation: popIn var(--dur-small) var(--ease-out); }
++.popover[data-state='closed'] { transform-origin: var(--radix-popover-content-transform-origin); animation: popOut 120ms var(--ease-out); }
++
++/* Press feedback: one frame, everything pressable. */
++.pressable { transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-hover) ease, color var(--dur-hover) ease, border-color var(--dur-hover) ease; }
++.pressable:active:not(:disabled) { transform: scale(0.97); }
++@media (prefers-reduced-motion: reduce) { .pressable:active:not(:disabled) { transform: none; } }
++
++/* "Reading" line: the import/processing state (replaces border-beam). */
++@keyframes readLine { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
++.reading-line { animation: readLine 1.6s linear infinite; }
++@media (prefers-reduced-motion: reduce) { .reading-line { animation: pulseSoft 1.6s ease-in-out infinite; transform: none; } }
++
++/* "Ink" (signature moment 1): pencil -> ink when a value is verified. */
++.ink-dot { transition: fill var(--dur-ink) var(--ease-out), stroke var(--dur-ink) var(--ease-out), stroke-dasharray var(--dur-ink) var(--ease-out); }
++@media (prefers-reduced-motion: reduce) {
++  .ribbon-data { transition: none !important; clip-path: none !important; }
++}
++/* "Source trace" (signature moment 3): the highlight draws over the cited row once. */
++@keyframes traceIn { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
++.trace-mark { animation: traceIn 420ms var(--ease-out) 160ms both; }
++@media (prefers-reduced-motion: reduce) { .trace-mark { animation: scrimIn 150ms ease both; } }
++.sheet-responsive[data-state='open'] { animation: sheetUp var(--dur-sheet) var(--ease-drawer); }
++.sheet-responsive[data-state='closed'] { animation: sheetDown var(--dur-sheet-exit) var(--ease-out); }
++@media (min-width: 640px) {
++  .sheet-responsive[data-state='open'] { animation: sheetLeft var(--dur-overlay) var(--ease-out); }
++  .sheet-responsive[data-state='closed'] { animation: sheetRight var(--dur-overlay-exit) var(--ease-out); }
++}
+diff --git a/src/frontend/src/theme/theme.ts b/src/frontend/src/theme/theme.ts
+new file mode 100644
+index 0000000..ab3f434
+--- /dev/null
++++ b/src/frontend/src/theme/theme.ts
+@@ -0,0 +1,46 @@
++import { useCallback, useEffect, useState } from 'react';
++
++export type ThemePref = 'light' | 'dark' | 'system';
++const KEY = 'asclexis-theme';
++
++function readPref(): ThemePref {
++  try {
++    const v = localStorage.getItem(KEY);
++    return v === 'light' || v === 'dark' ? v : 'system';
++  } catch {
++    return 'system';
++  }
++}
++
++function resolve(pref: ThemePref): 'light' | 'dark' {
++  if (pref !== 'system') return pref;
++  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
++}
++
++export function useTheme() {
++  const [pref, setPref] = useState<ThemePref>(readPref);
++  const [resolved, setResolved] = useState<'light' | 'dark'>(() => resolve(readPref()));
++
++  useEffect(() => {
++    const apply = () => {
++      const r = resolve(pref);
++      setResolved(r);
++      document.documentElement.setAttribute('data-theme', r);
++    };
++    apply();
++    const mq = window.matchMedia('(prefers-color-scheme: dark)');
++    mq.addEventListener('change', apply);
++    return () => mq.removeEventListener('change', apply);
++  }, [pref]);
++
++  const set = useCallback((next: ThemePref) => {
++    try {
++      localStorage.setItem(KEY, next);
++    } catch {
++      /* private mode: preference lasts for this session only */
++    }
++    setPref(next);
++  }, []);
++
++  return { pref, resolved, setPref: set };
++}

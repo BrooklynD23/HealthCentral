@@ -37,18 +37,18 @@ export function TierCapabilities({ capabilities }: TierCapabilitiesProps) {
   return (
     <div className="flex flex-wrap items-center gap-1.5 mt-2">
       {hasModel ? (
-        <Badge variant="default" className="gap-1 text-[10px] font-medium">
+        <Badge variant="default" className="gap-1 text-xs font-medium">
           <Cpu className="w-3 h-3" aria-hidden="true" />
           {formatContext(context_size)}
         </Badge>
       ) : (
-        <Badge variant="default" className="gap-1 text-[10px] font-medium">
+        <Badge variant="default" className="gap-1 text-xs font-medium">
           No local model — templated answers only
         </Badge>
       )}
 
       {multimodal && (
-        <Badge variant="info" className="gap-1 text-[10px] font-medium">
+        <Badge variant="info" className="gap-1 text-xs font-medium">
           <ImageIcon className="w-3 h-3" aria-hidden="true" />
           Reads images
         </Badge>
@@ -56,7 +56,7 @@ export function TierCapabilities({ capabilities }: TierCapabilitiesProps) {
 
       {hasModel &&
         (agentic_capable ? (
-          <Badge variant="verified" className="gap-1 text-[10px] font-medium">
+          <Badge variant="verified" className="gap-1 text-xs font-medium">
             <Wrench className="w-3 h-3" aria-hidden="true" />
             Assistant tools
           </Badge>
@@ -65,7 +65,7 @@ export function TierCapabilities({ capabilities }: TierCapabilitiesProps) {
           // TIER_MODEL_CONFIG, and most tiers simply don't declare it — Phi-4-mini
           // and BioMistral can call tools whether or not the config says so.
           // Asserting absence here would present a config gap as a model property.
-          <Badge variant="default" className="gap-1 text-[10px] font-medium">
+          <Badge variant="default" className="gap-1 text-xs font-medium">
             <Wrench className="w-3 h-3" aria-hidden="true" />
             Tool support unconfirmed
           </Badge>

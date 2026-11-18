@@ -1,6 +1,6 @@
 # Grounding — Agent Overhaul
 
-**Last Updated:** 2026-06-23
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: profile baseline stamping note only; the rest is as of 2026-06-23)
 **Owner:** [Owner] (solo client/engineer)
 **Refresh Trigger:** Live route surface, data-layer split, middleware stack, or
 feature-flag mechanism changes on `main`
@@ -49,8 +49,10 @@ feature-flag mechanism changes on `main`
   `user_verified == True` for the current profile. `Chunk`/`Embedding` carry no
   own verified flag — they inherit it via the parent `Document.status`.
 - **Migrations (dual-environment Alembic):** master migrations run at app startup;
-  profile migrations run on vault open; baseline detection **stamps** pre-existing
-  DBs instead of migrating. A change touching both schemas ships migrations for both.
+  profile migrations run on vault open; baseline detection **stamps** a pre-existing
+  master DB at head, and stamps a pre-existing profile vault at the oldest
+  revision its schema matches, then upgrades it to head (`core/migrations.py`,
+  updated 2026-11-06). A change touching both schemas ships migrations for both.
 
 ## 4. Live `/assistant/` surface (today = single-shot RAG)
 

@@ -4,6 +4,7 @@ Alembic environment for master database migrations.
 Master database contains:
 - profiles (user accounts)
 - audit_logs (HIPAA-compliant audit trail)
+- backup_schedules (scheduled backups, migration 002_backup_schedules)
 - biomarker_knowledge, intervention_mappings, biomarker_relationships (knowledge base)
 
 This env.py is used for both offline (SQL generation) and online (direct DB) modes.

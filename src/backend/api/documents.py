@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import and_, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.observations import observation_range_status, status_is_abnormal
 from core.audit import audit_and_commit, audit_intent, log_document_event
 from core.auth import ProfileDbSession, RequireAuth, Session
 from core.config import compute_ocr_effective, settings, user_ocr_preference_enabled
@@ -99,7 +100,12 @@ _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES = 2_000_000  # avoid unbounded memory growth
 
 _PageImageCacheKey = tuple[str, str, int, int]  # (profile_id, document_id, page_number, resolution)
 _page_image_cache: "OrderedDict[_PageImageCacheKey, tuple[float, bytes]]" = OrderedDict()
-_page_image_cache_lock = threading.Lock()
+# Reentrant: `_page_image_cache_set_if_fresh` holds it across its check and the public store.
+_page_image_cache_lock = threading.RLock()
+# MEM-PURGE-RACE-PAGES: a purge that lands while a page renders must not be undone by that
+# request's put. Both are guarded by `_page_image_cache_lock`.
+_page_image_purge_seq = 0
+_page_image_purged_at: dict[str, int] = {}  # profile_id -> seq of its latest purge
 
 
 def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
@@ -120,6 +126,12 @@ def _page_image_cache_get(key: _PageImageCacheKey) -> bytes | None:
         return value
 
 
+def _page_image_cache_mark() -> int:
+    """Purge sequence now. Take it before any await of a request; pass it to `_page_image_cache_set_if_fresh`."""
+    with _page_image_cache_lock:
+        return _page_image_purge_seq
+
+
 def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
     if len(value) > _PAGE_IMAGE_CACHE_MAX_ITEM_BYTES:
         return
@@ -133,6 +145,36 @@ def _page_image_cache_set(key: _PageImageCacheKey, value: bytes) -> None:
         _page_image_cache.move_to_end(key)
         while len(_page_image_cache) > _PAGE_IMAGE_CACHE_MAX_ENTRIES:
             _page_image_cache.popitem(last=False)
+
+
+def _page_image_cache_set_if_fresh(key: _PageImageCacheKey, value: bytes, mark: int) -> None:
+    """Cache a page picture unless its profile was purged after `mark` (MEM-PURGE-RACE-PAGES).
+
+    The check and the store run under one lock hold, so a purge cannot land between them.
+    The store goes through the module-level `_page_image_cache_set`, looked up at call time.
+    """
+    with _page_image_cache_lock:
+        if _page_image_purged_at.get(key[0], 0) > mark:
+            logger.debug("Page image not cached: its profile was purged during the render")
+            return
+        _page_image_cache_set(key, value)
+
+
+def purge_page_images(profile_id: str) -> int:
+    """Drop every cached page picture of `profile_id` (lock, logout, delete, restore).
+
+    Other profiles' entries stay. Returns how many went. This dereferences the bytes; it
+    does not zero them. It also marks the profile purged, even with no entries, so a render
+    already in flight does not re-cache its picture (MEM-PURGE-RACE-PAGES).
+    """
+    global _page_image_purge_seq
+    with _page_image_cache_lock:
+        _page_image_purge_seq += 1
+        _page_image_purged_at[profile_id] = _page_image_purge_seq
+        keys = [k for k in _page_image_cache if k[0] == profile_id]
+        for k in keys:
+            del _page_image_cache[k]
+    return len(keys)
 
 
 def _parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
@@ -289,6 +331,13 @@ class DocumentImportResponse(BaseModel):
     # Only set for CSV/FHIR structured imports (HC-M23); optional so
     # existing PDF/image import clients are unaffected.
     import_summary: Optional[ImportSummary] = None
+    # 1-based pages with no readable text, so their values were not read
+    # (IMPORT-SCANNED-PAGE). Null when the pipeline did not run, on the
+    # pre-extraction pending_ocr early return, or when extraction failed.
+    pages_without_text: Optional[list[int]] = None
+    # Exception type name when extraction failed (e.g. "RuntimeError") —
+    # never the exception message, which can carry paths/secrets/PHI.
+    extraction_error: Optional[str] = None
 
 
 class DocumentVerifyResponse(BaseModel):
@@ -481,6 +530,8 @@ async def import_document(
     needs_verification = True
     extracted_text: Optional[str] = None
     import_summary: Optional[ImportSummary] = None
+    pages_without_text: Optional[list[int]] = None
+    extraction_error: Optional[str] = None
 
     if import_result.doc_type in _STRUCTURED_IMPORT_DOC_TYPES:
         # CSV/FHIR structured import (HC-M23): parse + persist directly,
@@ -505,6 +556,8 @@ async def import_document(
             observations_extracted = extraction_outcome["observations_extracted"]
             needs_verification = extraction_outcome["needs_verification"]
             extracted_text = extraction_outcome.get("extracted_text")
+            pages_without_text = extraction_outcome.get("pages_without_text")
+            extraction_error = extraction_outcome.get("extraction_error")
 
         # Classify document and extract entities (runs for all doc types)
         await _classify_and_extract_entities(
@@ -563,6 +616,8 @@ async def import_document(
         needs_verification=needs_verification,
         duplicate_warning=duplicate_warning,
         import_summary=import_summary,
+        pages_without_text=pages_without_text,
+        extraction_error=extraction_error,
     )
 
 
@@ -601,7 +656,9 @@ async def _run_extraction_pipeline(
         decrypted_doc = get_decrypted_document(profile_id, document.id)
         extract_module = ExtractModule()
         if document.doc_type == "lab_pdf":
-            extraction_result = await extract_module.extract_from_pdf(decrypted_doc, document.id)
+            extraction_result = await extract_module.extract_from_pdf(
+                decrypted_doc, document.id, ocr_pages=ocr_effective
+            )
         elif document.doc_type == "lab_pdf_scanned":
             extraction_result = await extract_module.extract_from_scanned_pdf(
                 decrypted_doc,
@@ -624,6 +681,7 @@ async def _run_extraction_pipeline(
                 "observations_extracted": 0,
                 "needs_verification": True,
                 "extracted_text": extraction_result.extracted_text,
+                "pages_without_text": extraction_result.pages_without_text,
             }
 
         if refresh_existing:
@@ -648,7 +706,14 @@ async def _run_extraction_pipeline(
                 ref_high=extracted_obs.ref_high,
                 ref_range_text=extracted_obs.ref_range_text,
                 flag=extracted_obs.flag,
-                is_abnormal=extracted_obs.flag is not None,
+                is_abnormal=status_is_abnormal(
+                    observation_range_status(
+                        extracted_obs.flag, extracted_obs.value,
+                        extracted_obs.ref_low, extracted_obs.ref_high,
+                        bool((extracted_obs.ref_range_text or "").strip()),
+                    ),
+                    extracted_obs.flag is not None,
+                ),
                 extraction_confidence=extracted_obs.confidence,
                 source_page=extracted_obs.provenance.page if extracted_obs.provenance else None,
                 source_bbox_json=json.dumps(list(extracted_obs.provenance.bbox))
@@ -684,7 +749,9 @@ async def _run_extraction_pipeline(
                 f"Created {chunks_created} chunks with embeddings for document {document.id}"
             )
         except Exception as chunk_error:
-            logger.warning(f"Chunking failed for document {document.id}: {chunk_error}")
+            logger.warning(
+                f"Chunking failed for document {document.id}: {type(chunk_error).__name__}"
+            )
 
         await profile_db.commit()
         logger.info(
@@ -694,9 +761,10 @@ async def _run_extraction_pipeline(
             "observations_extracted": observations_extracted,
             "needs_verification": needs_verification,
             "extracted_text": extraction_result.extracted_text,
+            "pages_without_text": extraction_result.pages_without_text,
         }
     except Exception as e:
-        logger.error(f"Extraction failed for document {document.id}: {e}")
+        logger.error(f"Extraction failed for document {document.id}: {type(e).__name__}")
         document.status = "extraction_failed"
         document.parsed_at = None
         document.verified_at = None
@@ -705,6 +773,7 @@ async def _run_extraction_pipeline(
             "observations_extracted": 0,
             "needs_verification": True,
             "extracted_text": None,
+            "extraction_error": type(e).__name__,
         }
 
 
@@ -754,7 +823,14 @@ async def _run_structured_import_pipeline(
             ref_high=obs_data.get("ref_high"),
             ref_range_text=obs_data.get("ref_range_text"),
             flag=obs_data.get("flag"),
-            is_abnormal=obs_data.get("flag") is not None,
+            is_abnormal=status_is_abnormal(
+                observation_range_status(
+                    obs_data.get("flag"), obs_data.get("value"),
+                    obs_data.get("ref_low"), obs_data.get("ref_high"),
+                    bool((obs_data.get("ref_range_text") or "").strip()),
+                ),
+                obs_data.get("flag") is not None,
+            ),
             extraction_confidence=obs_data.get("confidence"),
             collected_at=_parse_date_string(obs_data.get("collected_at")),
             user_verified=False,
@@ -977,7 +1053,7 @@ async def _classify_and_extract_entities(
         except Exception as e:
             logger.warning(
                 f"Entity extraction failed for {doc_id} "
-                f"(category={result.category}): {e}"
+                f"(category={result.category}): {type(e).__name__}"
             )
             # Continue — we can still persist the category without entities
 
@@ -985,7 +1061,9 @@ async def _classify_and_extract_entities(
         try:
             entities.extend(await llm_assist_visit_entities(text, entities))
         except Exception as e:
-            logger.warning(f"LLM-assist entity pass failed for {doc_id}: {e}")
+            logger.warning(
+                f"LLM-assist entity pass failed for {doc_id}: {type(e).__name__}"
+            )
 
     # --- Stage 4: DB persistence ---
     try:
@@ -1212,6 +1290,8 @@ async def reprocess_document(
     observations_extracted = extraction_outcome["observations_extracted"] if extraction_outcome else 0
     needs_verification = extraction_outcome["needs_verification"] if extraction_outcome else True
     extracted_text = extraction_outcome.get("extracted_text") if extraction_outcome else None
+    pages_without_text = extraction_outcome.get("pages_without_text") if extraction_outcome else None
+    extraction_error = extraction_outcome.get("extraction_error") if extraction_outcome else None
 
     await _classify_and_extract_entities(
         profile_db=profile_db,
@@ -1249,6 +1329,8 @@ async def reprocess_document(
         document=DocumentResponse.from_model(document),
         observations_extracted=observations_extracted,
         needs_verification=needs_verification,
+        pages_without_text=pages_without_text,
+        extraction_error=extraction_error,
     )
 
 
@@ -1276,13 +1358,20 @@ async def verify_document(
     )
     observations = result.scalars().all()
     now = utcnow()
+    # VERIFY-NOOP (a): skip rows the patient already checked; their date and
+    # version stay, and the count below is only the rows checked by this request.
+    checked_now = 0
     for obs in observations:
+        if obs.user_verified:
+            continue
         obs.user_verified = True
         obs.verified_at = now
         obs.version += 1
+        checked_now += 1
 
+    if document.status != "verified" or document.verified_at is None:
+        document.verified_at = now
     document.status = "verified"
-    document.verified_at = now
     await profile_db.commit()
 
     await log_document_event(
@@ -1291,13 +1380,13 @@ async def verify_document(
         profile_id=session.profile_id,
         document_id=document_id,
         filename=document.source,
-        details={"verified_count": len(observations)},
+        details={"verified_count": checked_now},
     )
     await master_db.commit()
 
     return DocumentVerifyResponse(
         document=DocumentResponse.from_model(document),
-        verified_count=len(observations),
+        verified_count=checked_now,
     )
 
 
@@ -1726,6 +1815,8 @@ async def get_page_image(
 
     OCR-BOX-001: Returns the page as image/png for visual provenance display.
     """
+    # First, before any await: a purge during the document lookup or the render drops the put.
+    mark = _page_image_cache_mark()
     validate_uuid(document_id, "document_id")
 
     result = await profile_db.execute(select(Document).where(Document.id == document_id))
@@ -1763,21 +1854,25 @@ async def get_page_image(
 
             import pdfplumber
 
-            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
-            with pdfplumber.open(decrypted_doc) as pdf:
-                if page_number > len(pdf.pages):
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
-                    )
-                page = pdf.pages[page_number - 1]
-                img = page.to_image(resolution=resolution)
+            from modules.extract import _PDFIUM_LOCK
 
-                buf = BytesIO()
-                img.save(buf, format="PNG")
-                buf.seek(0)
-                content = buf.getvalue()
-                is_freshly_rendered = True
+            decrypted_doc = get_decrypted_document(document.profile_id, document_id)
+            # PDFium is not thread-safe: OCR workers render pages on other threads.
+            with _PDFIUM_LOCK:
+                with pdfplumber.open(decrypted_doc) as pdf:
+                    if page_number > len(pdf.pages):
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Page {page_number} not found (document has {len(pdf.pages)} pages)",
+                        )
+                    page = pdf.pages[page_number - 1]
+                    img = page.to_image(resolution=resolution)
+
+                    buf = BytesIO()
+                    img.save(buf, format="PNG")
+                    buf.seek(0)
+                    content = buf.getvalue()
+                    is_freshly_rendered = True
     except HTTPException:
         raise
     except FileNotFoundError:
@@ -1807,7 +1902,7 @@ async def get_page_image(
     )
 
     if is_freshly_rendered:
-        _page_image_cache_set(cache_key, content)
+        _page_image_cache_set_if_fresh(cache_key, content, mark)
 
     return Response(
         content=content,
@@ -1858,9 +1953,11 @@ async def delete_document(
         profile_db, document_id, include_document=True
     )
 
-    # Entities/categories have no ORM cascade from Document (and SQLite FK
-    # enforcement is off); delete them explicitly so entity quotes — verbatim
-    # document text — cannot outlive the document into exports or pins.
+    # Entities/categories have no ORM cascade from Document. Their FK is
+    # ON DELETE CASCADE and the pragma is now ON, but delete them explicitly
+    # anyway (the privacy guarantee must not depend on connection setup) so
+    # entity quotes, verbatim document text, cannot outlive the document into
+    # exports or pins.
     await profile_db.execute(delete(DocumentEntity).where(DocumentEntity.doc_id == document_id))
     await profile_db.execute(delete(DocumentCategory).where(DocumentCategory.doc_id == document_id))
 

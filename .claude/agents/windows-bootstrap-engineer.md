@@ -2,7 +2,7 @@
 name: windows-bootstrap-engineer
 description: Bounded implementer for the Windows one-click bootstrap of Asclexis (dev.ps1 and its dev.bat launcher, feature HC-M02). Use it only when the whole change lives in those two files. Edits existing files only and cannot run commands.
 tools: Read, Grep, Glob, Edit
-model: opus
+model: sonnet
 write_scope:
   - dev.ps1
   - dev.bat

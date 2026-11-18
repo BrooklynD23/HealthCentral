@@ -372,7 +372,9 @@ class TestQuestionsRoute:
         clarification = next(item for item in result if item.category == "clarification")
         assert clarification.source_kind == "care_task"
         assert clarification.source_id == task["id"]
-        assert clarification.source_quote == "Follow up with endocrinology"
+        # EXPORT-QUESTIONS-CONTEXT: source_quote no longer rides the wire.
+        for item in result:
+            assert "source_quote" not in item.model_dump()
 
         audit_mock.assert_awaited_once()
         assert audit_mock.await_args.kwargs["export_type"] == "questions"
@@ -441,3 +443,79 @@ async def test_hc_exptz_002_task_on_last_local_window_day_has_question(tz_profil
         tz_profile_db, monkeypatch, date(2026, 1, 29)
     )
     assert [q for q in questions if q["category"] == "follow_up"]
+
+
+# ---------------------------------------------------------------------------
+# EXPORT-QUESTIONS-CONTEXT: the response carries no flag text and no source_quote.
+_EQC_FLAG = "Called Dr Smith 555-123-4567"
+_EQC_QUOTE = "Repeat labs jane@example.com"
+
+
+def _eqc_obs(flag):
+    return [
+        {
+            "id": str(uuid.uuid4()),
+            "analyte_canonical": "glucose",
+            "analyte_raw": "Glucose",
+            "value": 130.0,
+            "value_text": None,
+            "unit": "mg/dL",
+            "ref_low": 70.0,
+            "ref_high": 100.0,
+            "flag": flag,
+            "is_abnormal": True,
+            "user_verified": True,
+            "collected_at": datetime(2026, 6, 1, tzinfo=timezone.utc),
+        }
+    ]
+
+
+def _eqc_post(monkeypatch, obs, tasks):
+    monkeypatch.setattr("api.export._fetch_observations", AsyncMock(return_value=obs))
+    monkeypatch.setattr("api.export._fetch_care_task_dicts", AsyncMock(return_value=tasks))
+    monkeypatch.setattr("api.export._fetch_question_entity_dicts", AsyncMock(return_value=[]))
+    monkeypatch.setattr("api.export.profile_timezone_name", AsyncMock(return_value="UTC"))
+    monkeypatch.setattr("api.export.log_export_event", AsyncMock())
+    with route_client(export_api.router, "/export", profile_id="eqc-profile") as client:
+        async def _override_profile_db():
+            return AsyncMock()
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.post("/export/questions")
+    assert resp.status_code == 200, resp.text
+    return resp
+
+
+def test_hc_eqc_001_response_has_no_flag_text_email_or_source_quote(monkeypatch):
+    task = _task(status="needs_review", source_quote=_EQC_QUOTE)
+    resp = _eqc_post(monkeypatch, _eqc_obs(_EQC_FLAG), [task])
+    items = resp.json()
+    assert {i["category"] for i in items} >= {"abnormal", "clarification"}
+    assert "555-123-4567" not in resp.text
+    assert "Dr Smith" not in resp.text
+    for item in items:
+        assert "source_quote" not in item
+        for key in ("question", "context", "category", "related_analytes"):
+            assert key in item
+
+
+def test_hc_eqc_002_abnormal_context_is_the_new_string(monkeypatch):
+    items = _eqc_post(monkeypatch, _eqc_obs(_EQC_FLAG), []).json()
+    abnormal = next(i for i in items if i["category"] == "abnormal")
+    assert abnormal["context"] == "Value: 130.0 mg/dL \u2014 outside the printed range."
+    assert "flagged as" not in abnormal["context"]
+    items = _eqc_post(monkeypatch, _eqc_obs(None), []).json()
+    abnormal = next(i for i in items if i["category"] == "abnormal")
+    assert "130.0" in abnormal["context"] and "mg/dL" in abnormal["context"]
+
+
+def test_hc_eqc_003_question_text_still_embeds_the_quote(monkeypatch):
+    task = _task(status="needs_review", source_quote="Follow up with endocrinology")
+    items = _eqc_post(monkeypatch, [], [task]).json()
+    clarification = next(i for i in items if i["category"] == "clarification")
+    assert "Follow up with endocrinology" in clarification["question"]
+
+
+def test_hc_eqc_004_wire_model_drops_source_quote_dataclass_keeps_it():
+    assert "source_quote" not in export_api.QuestionItem.model_fields
+    assert "source_quote" in QuestionPrompt.__dataclass_fields__

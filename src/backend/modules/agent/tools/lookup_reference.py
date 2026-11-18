@@ -55,11 +55,15 @@ class LookupReferenceTool:
         try:
             from core.database import async_session_maker
 
+            from ...normalize import NormalizeModule
             from .. import knowledge_lookup  # local import to keep this seam swappable
 
+            # Question-side label ("LDL") -> stored/seeded key; no key -> as before.
+            keys = NormalizeModule.canonical_keys_for(args.analyte)
+            lookup_name = keys[0] if keys else args.analyte
             async with async_session_maker() as session:
                 reference = await knowledge_lookup.lookup_reference_range(
-                    args.analyte, session
+                    lookup_name, session
                 )
         except Exception as exc:  # noqa: BLE001 - graceful degradation, not a crash
             logger.debug("lookup_reference: knowledge base unreachable for %s: %s", args.analyte, exc)

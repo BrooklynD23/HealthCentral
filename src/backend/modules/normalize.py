@@ -182,7 +182,7 @@ class NormalizeModule:
         "tibc": ["total iron binding capacity", "iron binding capacity"],
 
         # Vitamins
-        "vitamin_d": ["25-hydroxy vitamin d", "25-oh vitamin d", "vitamin d 25-oh", "25(oh)d"],
+        "vitamin_d": ["25-hydroxy vitamin d", "25-oh vitamin d", "vitamin d 25-oh", "25(oh)d", "vitamin d, 25-hydroxy"],
         "vitamin_b12": ["b12", "cobalamin"],
         "folate": ["folic acid", "serum folate"],
 
@@ -215,6 +215,16 @@ class NormalizeModule:
         "vitamin": ["vitamin_d", "vitamin_b12", "folate"],
         "inflammation": ["crp", "esr"],
         "diabetes": ["glucose", "hba1c"],
+    }
+
+    # ExplainAssistant panel-select labels -> analytes (ANALYTE-NAME-SWEEP).
+    # Kept apart from ANALYTE_CATEGORIES so _get_category() is unaffected.
+    PANEL_LABELS = {
+        "lipid panel": ANALYTE_CATEGORIES["lipid"],
+        "metabolic panel": ANALYTE_CATEGORIES["cmp"],
+        "thyroid panel": ANALYTE_CATEGORIES["thyroid"],
+        "liver panel": ["alt", "ast", "alkaline_phosphatase", "bilirubin_total", "albumin"],
+        "kidney panel": ["creatinine", "bun"],
     }
 
     # Display names
@@ -291,6 +301,14 @@ class NormalizeModule:
         # Look up canonical name
         canonical = self._synonym_to_canonical.get(cleaned)
 
+        if not canonical:
+            # Miss only: retry once with a trailing ", total" or specimen
+            # qualifier removed (whitespace around the comma tolerated).
+            # ", urine" is deliberately absent: keys are serum analytes.
+            base, comma, qualifier = cleaned.rpartition(",")
+            if comma and qualifier.strip() in ("total", "serum", "plasma", "blood", "whole blood"):
+                canonical = self._synonym_to_canonical.get(base.rstrip())
+
         if canonical:
             display_name = self.DISPLAY_NAMES.get(canonical, canonical.replace("_", " ").title())
             category = self._get_category(canonical)
@@ -316,4 +334,5 @@ class NormalizeModule:
 
     def get_panel_analytes(self, panel_name: str) -> list[str]:
         """Get list of analytes in a panel."""
-        return self.ANALYTE_CATEGORIES.get(panel_name.lower(), [])
+        key = panel_name.strip().lower()
+        return self.ANALYTE_CATEGORIES.get(key) or self.PANEL_LABELS.get(key, [])

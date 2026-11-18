@@ -1,0 +1,120 @@
+hold_slots: holding pytest slots 1-8, TMPDIR=/dev/shm
+quiet_run: prechecks passed after 0s
+ 22:44:20 up 2 days, 12:21,  1 user,  load average: 1.38, 1.46, 4.66
+pgrep: (empty)  ss 3000/4173/5173/8000: (empty)
+=== wrap P start 2026-11-02T22:44:21-08:00 host=Danny-PC head=41747d1906d514353447212a94514dad71b51f47 base=05eabb49f3b1ff6546b6b3b68b0484a010603351
+ 22:44:22 up 2 days, 12:21,  1 user,  load average: 1.35, 1.45, 4.64
+ok
+gates diff lines vs src: 31
+<     const t = Math.round(performance.now());
+<     return { t, pathname: location.pathname, route, nodes, expectedHits };
+<   const tracker: NetworkTracker = { inFlight, lastEventAt: Date.now(), stop: () => undefined };
+--- precheck before pre-start at 2026-11-02T22:44:22-08:00
+ 22:44:22 up 2 days, 12:21,  1 user,  load average: 1.35, 1.45, 4.64
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1983740 npm exec vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983755 sh -c "vite" --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983756 node /dev/shm/rv453/src/frontend/node_modules/.bin/vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1987621 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1987624 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh npx vitest run src/__tests__/ui-export.test.tsx
+[FOREIGN] 1988222 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988804 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988805 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-documents.test.tsx src/__tests__/DocumentInbox.test.tsx
+[FOREIGN] 1988843 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988852 timeout 580 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.ou
+[FOREIGN] 1988853 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.out 2>/dev/nul
+[FOREIGN] 1990269 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1990270 timeout 280 /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE 
+[FOREIGN] 1990271 bash /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE G on /e
+ss (3000|4173|5173|8000):
+(own server pids: )
+server preview up on :4173 pid=1993380 (mine)
+--- precheck before warmP at 2026-11-02T22:44:23-08:00
+ 22:44:23 up 2 days, 12:21,  1 user,  load average: 1.35, 1.45, 4.64
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1983740 npm exec vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983755 sh -c "vite" --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983756 node /dev/shm/rv453/src/frontend/node_modules/.bin/vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1987621 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1987624 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh npx vitest run src/__tests__/ui-export.test.tsx
+[FOREIGN] 1988222 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988804 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988805 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-documents.test.tsx src/__tests__/DocumentInbox.test.tsx
+[FOREIGN] 1988843 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988852 timeout 580 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.ou
+[FOREIGN] 1988853 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.out 2>/dev/nul
+[FOREIGN] 1990269 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1990270 timeout 280 /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE 
+[FOREIGN] 1990271 bash /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE G on /e
+[mine] 1993380 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir /tmp/clau
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:4173       0.0.0.0:*    users:(("node-MainThread",pid=1993380,fd=30))
+(own server pids: 1993380 )
+batch warmP done: 0 RESULT lines; 5 jsonl rows
+--- precheck before P1 at 2026-11-02T22:45:05-08:00
+ 22:45:05 up 2 days, 12:22,  1 user,  load average: 1.31, 1.45, 4.51
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1983740 npm exec vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983755 sh -c "vite" --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983756 node /dev/shm/rv453/src/frontend/node_modules/.bin/vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1987621 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1987624 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh npx vitest run src/__tests__/ui-export.test.tsx
+[FOREIGN] 1988222 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988804 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988805 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-documents.test.tsx src/__tests__/DocumentInbox.test.tsx
+[FOREIGN] 1988843 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988852 timeout 580 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.ou
+[FOREIGN] 1988853 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.out 2>/dev/nul
+[FOREIGN] 1990269 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1990270 timeout 280 /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE 
+[FOREIGN] 1990271 bash /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE G on /e
+[mine] 1993380 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir /tmp/clau
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:4173       0.0.0.0:*    users:(("node-MainThread",pid=1993380,fd=30))
+(own server pids: 1993380 )
+batch P1 done: 0 RESULT lines; 5 jsonl rows
+--- precheck before P2 at 2026-11-02T22:45:30-08:00
+ 22:45:30 up 2 days, 12:22,  1 user,  load average: 1.06, 1.39, 4.42
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1983740 npm exec vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983755 sh -c "vite" --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983756 node /dev/shm/rv453/src/frontend/node_modules/.bin/vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1987621 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1987624 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh npx vitest run src/__tests__/ui-export.test.tsx
+[FOREIGN] 1988222 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988804 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988805 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-documents.test.tsx src/__tests__/DocumentInbox.test.tsx
+[FOREIGN] 1988843 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988852 timeout 580 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.ou
+[FOREIGN] 1988853 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.out 2>/dev/nul
+[FOREIGN] 1990269 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1990270 timeout 280 /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE 
+[FOREIGN] 1990271 bash /mnt/e/Programming/Github Repo/hc-ui-pg-ask/scripts/pyslot.sh npx playwright test -c rv.pw.config.ts e2e/ui-shell.spec.ts -g GATE G6 on /explain|GATE G on /e
+[mine] 1993380 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir /tmp/clau
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:4173       0.0.0.0:*    users:(("node-MainThread",pid=1993380,fd=30))
+(own server pids: 1993380 )
+batch P2 done: 0 RESULT lines; 5 jsonl rows
+--- precheck before P3 at 2026-11-02T22:46:43-08:00
+ 22:46:43 up 2 days, 12:23,  1 user,  load average: 1.33, 1.47, 4.23
+pgrep (playwright|vite|pytest|chrom|cargo|rustc|rust-lld):
+[FOREIGN] 1983740 npm exec vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983755 sh -c "vite" --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1983756 node /dev/shm/rv453/src/frontend/node_modules/.bin/vite --config rv.vite.config.ts --host 127.0.0.1 --port 3453 --strictPort
+[FOREIGN] 1987621 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1987624 bash /mnt/e/Programming/Github Repo/hc-ui-pg-export/scripts/pyslot.sh npx vitest run src/__tests__/ui-export.test.tsx
+[FOREIGN] 1988804 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988805 bash /mnt/e/Programming/Github Repo/hc-ui-pg-documents/scripts/pyslot.sh npx vitest run src/__tests__/ui-documents.test.tsx src/__tests__/DocumentInbox.test.tsx
+[FOREIGN] 1988843 /bin/bash -c source /home/danny/.claude/shell-snapshots/snapshot-bash-1793431603897-0qoijl.sh 2>/dev/null || true && export CODEX_COMPANION_SESSION_ID='f0f0543b-1
+[FOREIGN] 1988852 timeout 580 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.ou
+[FOREIGN] 1988853 bash -c until grep -q '^EXIT=' /tmp/claude-1000/-mnt-e-Programming-Github-Repo-HealthCentral/f0f0543b-10e5-4cc2-94a6-9a0b9cd63943/scratchpad/vitest.out 2>/dev/nul
+[mine] 1993380 node /mnt/e/Programming/Github Repo/hc-stillness-nav-late/src/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 --strictPort --outDir /tmp/clau
+ss (3000|4173|5173|8000):
+  LISTEN 0      511         127.0.0.1:4173       0.0.0.0:*    users:(("node-MainThread",pid=1993380,fd=30))
+(own server pids: 1993380 )
+batch P3 done: 0 RESULT lines; 5 jsonl rows
+=== all batches done
+=== cleanup: stopping own servers: 1993380 
+=== wrap P end 2026-11-02T22:47:10-08:00
+ 22:47:10 up 2 days, 12:23,  1 user,  load average: 1.29, 1.45, 4.15
+EXIT=0

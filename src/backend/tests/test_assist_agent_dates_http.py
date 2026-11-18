@@ -20,6 +20,7 @@ HC-AAD-010).
 
 from __future__ import annotations
 
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -33,10 +34,12 @@ import api.assistant as A
 from api.assistant import router as assistant_router
 from core.auth import get_profile_db_session
 from core.profile_database import ProfileDatabaseBase
-from models import chat_session, model_settings  # noqa: F401  register tables
+from models import care_plan_task, chat_session, medication, model_settings  # noqa: F401  register tables
+from models.care_plan_task import CarePlanTask
 from models.chunk import Chunk
 from models.document import Document
-from models.document_category import DocumentCategory
+from models.document_category import DocumentCategory, DocumentEntity
+from models.medication import Medication
 from models.observation import Observation
 from modules.agent.cache import clear_cache
 from modules.agent.graph import RunContext
@@ -342,3 +345,161 @@ async def test_hc_cfr_009_cache_key_includes_profile_time_zone(profile_db):
     second = _answer_text(_post(profile_db, question))
     assert "Jan 16, 2026" in second, second
     assert "Jan 15, 2026" not in second, second
+
+
+async def _tz_answer(profile_db, obs_id: str, collected_at: datetime) -> str:
+    from models import UserModelSettings
+
+    profile_db.add(Observation(
+        id=obs_id, profile_id=PROFILE, doc_id="doc-jun", analyte_canonical="ldl",
+        analyte_raw="LDL", value=130.0, unit="mg/dL", collected_at=collected_at,
+        user_verified=True, verified_at=JUN,
+    ))
+    profile_db.add(UserModelSettings(profile_id=PROFILE, timezone="America/Los_Angeles"))
+    await profile_db.commit()
+    return _answer_text(_post(profile_db, {"question": "Is my LDL cholesterol high?"}))
+
+
+@pytest.mark.asyncio
+async def test_hc_adt_001_date_only_collection_date_is_its_calendar_day(profile_db):
+    """A date-only lab date (naive midnight) is a calendar day, not an instant:
+    it must not slide to the previous day in a western zone."""
+    text = await _tz_answer(profile_db, "obs-ldl-dateonly", datetime(2026, 3, 2, 0, 0, 0))
+    assert "Mar 02, 2026" in text, text
+    assert "Mar 01, 2026" not in text, text
+
+
+@pytest.mark.asyncio
+async def test_hc_adt_002_timed_value_still_converts_to_profile_zone(profile_db):
+    """Pin: 03:00 UTC is a real instant, so it is still Mar 01 in Los Angeles."""
+    text = await _tz_answer(profile_db, "obs-ldl-timed", datetime(2026, 3, 2, 3, 0, 0))
+    assert "Mar 01, 2026" in text, text
+    assert "Mar 02, 2026" not in text, text
+
+
+# --- HC-CACHE-VER-004..008: the cache key covers every source the agent's
+# tools read (AGENT-CACHE-CARETASKS, owner gate CACHE-STALE (c)). Each test
+# asks, changes data a tool reads WITHOUT touching the verified-observation or
+# verified-document fingerprint, and asks again: a stale cached answer fails.
+
+
+def _unverified_doc(doc_id: str | None = None) -> Document:
+    doc_id = doc_id or str(uuid.uuid4())
+    return Document(
+        id=doc_id, profile_id=PROFILE, path_hash=doc_id, content_hash=doc_id,
+        doc_type="pdf", status="parsed", imported_at=JUN,
+    )
+
+
+@pytest.mark.asyncio
+async def test_hc_cache_ver_004_closing_a_care_task_changes_the_answer(profile_db):
+    task = CarePlanTask(id=str(uuid.uuid4()), title="Book MRI", status="open")
+    profile_db.add(task)
+    await profile_db.commit()
+
+    question = {"question": "Which follow-up tasks are open?"}
+    assert "Book MRI" in _answer_text(_post(profile_db, question))
+
+    task.status = "done"
+    await profile_db.commit()
+
+    second = _answer_text(_post(profile_db, question))
+    assert "Book MRI" not in second, second
+
+
+@pytest.mark.asyncio
+async def test_hc_cache_ver_005_deleted_document_quote_is_not_replayed(
+    profile_db, monkeypatch, tmp_path
+):
+    """Privacy. The task survives a document delete but its verbatim clinician
+    quote is cleared (CARE-QUOTE-001); a cached answer must not replay it."""
+    from api import documents as documents_api
+    from api.documents import router as documents_router
+
+    monkeypatch.setattr(
+        type(documents_api.settings), "app_data_path", property(lambda self: tmp_path)
+    )
+    doc = _unverified_doc()
+    profile_db.add(doc)
+    profile_db.add(DocumentCategory(
+        doc_id=doc.id, category="visit_notes", confidence=1.0, classified_by="t",
+    ))
+    profile_db.add(CarePlanTask(
+        id=str(uuid.uuid4()), title="Book knee scan", status="open",
+        source_document_id=doc.id, source_quote="Schedule MRI of the left knee",
+    ))
+    await profile_db.commit()
+
+    question = {"question": "Which follow-up tasks are open?"}
+    first = _answer_text(_post(profile_db, question))
+    assert "Schedule MRI of the left knee" in first, first
+
+    with route_client(documents_router, "/documents", profile_id=PROFILE) as client:
+
+        async def _override_profile_db():
+            return profile_db
+
+        client.app.dependency_overrides[get_profile_db_session] = _override_profile_db
+        resp = client.delete(f"/documents/{doc.id}")
+    assert resp.status_code == 204, resp.text
+    profile_db.expire_all()
+
+    second = _answer_text(_post(profile_db, question))
+    assert "Book knee scan" in second, second
+    assert "Schedule MRI of the left knee" not in second, second
+
+
+@pytest.mark.asyncio
+async def test_hc_cache_ver_006_verifying_a_medication_change_changes_the_answer(profile_db):
+    doc = _unverified_doc()
+    entity = DocumentEntity(
+        id=str(uuid.uuid4()), doc_id=doc.id, category="visit_notes",
+        entity_type="medication_change", entity_value="Start metformin 500 mg",
+        confidence=0.9, quote="Start metformin 500 mg", verified_by_user=None,
+    )
+    profile_db.add(doc)
+    await profile_db.commit()
+    profile_db.add(entity)
+    await profile_db.commit()
+
+    question = {"question": "Show all medication changes"}
+    assert "metformin" not in _answer_text(_post(profile_db, question)).lower()
+
+    entity.verified_by_user = True
+    await profile_db.commit()
+
+    assert "metformin" in _answer_text(_post(profile_db, question)).lower()
+
+
+@pytest.mark.asyncio
+async def test_hc_cache_ver_007_new_medication_changes_the_timeline_answer(profile_db):
+    profile_db.add(Medication(
+        id=str(uuid.uuid4()), profile_id=PROFILE, name="Atorvastatin",
+        started_at=datetime(2026, 2, 1),
+    ))
+    await profile_db.commit()
+
+    question = {"question": "What changed since my last visit?"}
+    assert "Started medication: Atorvastatin" in _answer_text(_post(profile_db, question))
+
+    profile_db.add(Medication(
+        id=str(uuid.uuid4()), profile_id=PROFILE, name="Lisinopril",
+        started_at=datetime(2026, 3, 1),
+    ))
+    await profile_db.commit()
+
+    assert "Started medication: Lisinopril" in _answer_text(_post(profile_db, question))
+
+
+@pytest.mark.asyncio
+async def test_hc_cache_ver_008_unchanged_data_is_still_a_cache_hit(profile_db):
+    """No regression: the fingerprint must be stable across two reads (a
+    salted ``hash()`` would make every ask a miss)."""
+    real = A.run_agent
+    spy = AsyncMock(side_effect=real)
+    question = {"question": "Is my glucose high?"}
+    with patch.object(A, "run_agent", spy):
+        first = _answer_text(_post(profile_db, question))
+        second = _answer_text(_post(profile_db, question))
+    assert first == second
+    assert spy.await_count == 1

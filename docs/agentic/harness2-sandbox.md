@@ -1,8 +1,8 @@
 # harness2 Sandbox Runbook
 
-**Last Updated:** 2026-10-21
+**Last Updated:** 2026-10-22 (superseded by H2-ALT); 2026-10-21
 **Owner:** Project owner (sandbox build, both stage runs and teardown are owner actions)
-**Status:** PROPOSED. No owner approval of this runbook is recorded. The owner gates it relies on are answered (RRSI-OQ-2, H2-SOURCE (c)); H2-SETUP is an owner action not yet taken.
+**Status:** SUPERSEDED 2026-10-22 by owner H2-ALT (`docs/capstone-report/owner-decisions-2026-09-27.md`, row H2-ALT: Codex as second proposer in rsi-loop; harness2 dropped, H2-SETUP closed). Kept as a record; nothing here will be run. Before: PROPOSED. No owner approval of this runbook is recorded. The owner gates it relies on are answered (RRSI-OQ-2, H2-SOURCE (c)); H2-SETUP is an owner action not yet taken.
 **Refresh Trigger:** a harness2 version bump (this runbook describes v0.1.0), a change to H2-SOURCE or H2-SETUP, a change to the egress allow-list or to an endpoint harness2 calls, or a change to the files under `.claude/mods/asclexis-rsi/`.
 
 How to run google-research/harness2 as a dev-only tool inside an isolated sandbox. Plan: `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md` section 2.26 (RRSI-H2-SANDBOX). Every harness2 fact below cites [01-harness2.md](../research/2026-10-20-rrsi-harness2/01-harness2.md) (section 3 "What it needs to run", section 4 "Safety posture"), which verified them against the harness2 source. Nothing here is invented beyond it.

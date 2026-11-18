@@ -1,0 +1,218 @@
+# Developer Setup and Commands
+
+**Last Updated:** 2026-11-06 (DOCS-AUDIT-1106: unversioned profile vaults are stamped at their matching revision, then upgraded)
+**Owner:** Project Lead
+**Refresh Trigger:** A launcher (`dev.ps1`, `dev.sh`), prerequisite, model tier, migration command, or CI test command changes
+
+Moved verbatim from the repository [README](../../README.md) on 2026-10-25 so the README can stay a short entry point. Behavioural rules are in [`CLAUDE.md`](../../CLAUDE.md); the collected-test baseline and the definition of done are in [`AGENT.md`](../../AGENT.md).
+
+## Prerequisites
+- Python 3.11+
+- Node.js 22.12+ (Node.js 24 LTS recommended)
+- Browser: Safari 16.4+, Chrome 111+, Firefox 128+
+- Optional: Tesseract and Poppler (`pdftoppm`) for OCR of scanned documents
+
+## Quick Start (Windows, `dev.ps1`)
+
+Windows is the native development environment. From the repository root:
+
+```powershell
+.\dev.bat        # one-click launcher
+.\dev.ps1        # or run the PowerShell script directly
+```
+
+`dev.ps1`:
+- checks for Python and Node.js;
+- creates the backend virtual environment at `src/backend/venv` if needed, installs the pinned, hash-checked `sqlcipher3` wheel from `src/backend/requirements-sqlcipher-win.txt`, proves with `scripts/check_sqlcipher.py --file-probe` that it writes ciphertext, then installs `requirements.txt`. **If SQLCipher cannot be installed or fails the probe, `dev.bat` stops ("dev.bat stopped so your health data is never stored unencrypted; .env was not changed") and never switches encryption off by itself.** The only override is `HC_ALLOW_UNENCRYPTED=1` (development only): it prints a red banner and writes `DATABASE_ENCRYPTION_REQUIRED=false`. When the probe passes, `dev.ps1` sets `DATABASE_ENCRYPTION_REQUIRED=true` (see [SQLCipher Setup](#sqlcipher-setup));
+- runs `npm ci` when `src/frontend/package-lock.json` changes;
+- creates the data directory structure and `.env`;
+- resolves the next free backend/frontend ports if 8000/3000 are busy and syncs `src/frontend/.env.local` with the resolved API URL;
+- starts both servers and opens the browser.
+
+Default URLs: frontend http://localhost:3000, backend http://localhost:8000
+(`/docs` serves the interactive API docs when `DEBUG=true`). If a port is busy,
+use the URLs `dev.ps1` prints. `Ctrl+C` stops both servers.
+
+The backend worker (the process that serves requests) writes its PID, parent PID and start time to
+`logs/dev-backend.pid` and removes the file on a clean shutdown. This is how `dev.bat` finds a worker
+that outlived its window (the venv `python.exe` is a stub, and `uvicorn --reload` starts the worker as
+a child, so closing the window or killing a parent can leave it running with a vault open). On start,
+`dev.bat` refuses if anything from this folder is still running: the recorded worker (a live
+Python/uvicorn process created before the file was written) and, walking up from it, the top-most
+uvicorn/venv Python parent (the reloader and the venv stub, which a plain `taskkill /PID <worker> /T`
+leaves behind), plus any frontend `node` still listening on 3000-3010. It prints one line per leftover
+(PID, image, what it is) and one command, for example `taskkill /PID 53176 /PID 10132 /T /F`; run it and
+start again. A file whose process is gone, or is some other program that reused the PID, is deleted
+with one info line. On `Ctrl+C` or a backend restart, `dev.bat` stops the recorded worker's whole tree
+(`taskkill /PID <root> /T /F`) after the same check. The file is outside `data/`, so backups never include it. Linux `dev.sh` does not use it.
+
+Every `dev.bat` run writes a transcript of what its window showed to `logs\launcher\dev-<yyyyMMdd-HHmmss>.log`
+(the newest 20 are kept) and prints "Launcher log: <path>" at the top and again before any error or
+refusal exit. When it refuses to start, the log also holds a snapshot: `tasklist` for `python.exe` and
+`node.exe`, and every listener on 8000-8010 and 3000-3010 with its PID and command line. It holds screen
+output only (no `.env` contents); attach it when reporting a launcher problem. `logs/` is gitignored.
+
+## Quick Start on WSL/Linux (`dev.sh`)
+
+Clone into your Linux home (for example `~/HealthCentral`), **not** under `/mnt/c`: the Windows mount is slow, file watching is unreliable, and Windows and Linux cannot share the venv or `node_modules`. `dev.sh` refuses to run from `/mnt/*` unless `HC_ALLOW_WINDOWS_MOUNT=1` is set.
+
+```bash
+git clone <repo-url> ~/HealthCentral && cd ~/HealthCentral
+./dev.sh
+```
+
+It mirrors `dev.ps1`, with these differences:
+- Uses its own venv at `src/backend/.venv-linux` (never the Windows `src/backend/venv`).
+- Never installs system packages; it prints an install hint when Python 3.11+, Node.js 22.12+, `tesseract` or `pdftoppm` is missing.
+- Stops the same way `dev.bat` does when SQLCipher cannot be installed or fails `scripts/check_sqlcipher.py --file-probe`: it prints an install hint (`sudo apt install libsqlcipher-dev` on Debian/Ubuntu) and leaves `.env` unchanged. The only override is `HC_ALLOW_UNENCRYPTED=1` (development only), which prints a banner and writes `DATABASE_ENCRYPTION_REQUIRED=false`. When the probe passes, it sets `DATABASE_ENCRYPTION_REQUIRED=true`.
+- Picks the next free port when 8000/3000 are busy, but does not stop the process holding them.
+- Binds both servers to `127.0.0.1`, writes `logs/dev-backend.log` and `logs/dev-frontend.log`, does not open a browser and does not restart a crashed server.
+
+## Model setup
+
+The app works without any model: the assistant falls back to a no-LLM
+knowledge path, and the agent path makes no model call. A local model enables
+the legacy RAG explainer and model-backed interpretations. Run these from
+`src/backend` (`scripts/download_models.py`):
+
+```bash
+python scripts/download_models.py list                   # tiers, RAM/disk needs, download status, Ollama tags
+python scripts/download_models.py auto                   # download the tier recommended for this hardware
+python scripts/download_models.py download --tier mid    # or a specific tier (low, mid, high, gemma4-*)
+python scripts/download_models.py embedding              # one-time fetch of the embedding bundle (needed for retrieval)
+python scripts/download_models.py nli                    # optional: NLI cross-encoder (HC-M11, flag-gated)
+```
+
+- **llama.cpp (default).** `LLM_PROVIDER=llama_cpp` loads GGUF files from
+  `models/` in-process. The Gemma 4 tier repos are marked as placeholders in
+  `download_models.py`; `python scripts/download_models.py verify` checks every
+  tier repo exists on Hugging Face (needs network).
+- **Ollama.** Set `LLM_PROVIDER=ollama` and `LLM_MODEL` (for example
+  `gemma4:12b`), and pull the model with
+  `ollama pull <tag>` or `python scripts/download_models.py ollama --tag <tag>`.
+  The provider connects to the local default `127.0.0.1:11434`, and switching
+  provider in Settings rejects a non-localhost `OLLAMA_BASE_URL`. If the daemon
+  is unreachable the factory falls back to llama.cpp. The provider
+  can also be switched in Settings (`PUT /api/v1/settings/model/provider`).
+- **Embedding bundle.** The pinned `all-MiniLM-L6-v2` revision is fetched once,
+  sha256-checked per file, and loaded with `local_files_only=True`; the backend
+  never downloads it at runtime and fails closed if it is absent. Without it,
+  exactly 5 backend tests fail (see [AGENT.md](../../AGENT.md#commands-windows-is-the-native-dev-environment)).
+
+Configuration lives in `src/backend/.env`, created from
+[`config/.env.example`](../../config/.env.example).
+
+## SQLCipher Setup
+
+Each profile database is an AES-256 SQLCipher database. On Windows it is the official
+`sqlcipher3` wheel, pinned to `0.6.5` with one sha256 (`requirements-sqlcipher-win.txt`):
+it needs 64-bit Python 3.11 and installs with `--only-binary=:all: --no-deps
+--require-hashes`. On Linux and macOS, `sqlcipher3-binary` (in `requirements.txt`) ships
+pre-built wheels; on Debian/Ubuntu install `libsqlcipher-dev` first if the wheel fails to
+build, and on macOS `brew install sqlcipher`. A manual `pip install` on Windows is not
+hash-checked: use `dev.bat`, which installs the pinned wheel with `--require-hashes`.
+Verify with:
+
+```python
+import sqlcipher3
+print(sqlcipher3.connect(":memory:").execute("PRAGMA cipher_version").fetchone())  # ('4.x.x',)
+```
+
+`DATABASE_ENCRYPTION_REQUIRED=false` in `.env` allows unencrypted profile
+databases for development only. **Never use it with real data.**
+
+**Vaults saved before SQLCipher was installed.** A profile vault written as plain SQLite
+(an earlier `dev.bat` run without the wheel) is converted to an encrypted vault the next
+time that profile signs in. The app copies it to `vault.plain.bak`, writes and verifies an
+encrypted copy (integrity checks, per-table row counts, `alembic_version`), swaps it in,
+reopens it with the key, and only then deletes `vault.plain.bak` and any plaintext
+`vault.pre017.snapshot*` files. If any check fails, the original stays as it was (or, after the swap, the plain copy
+is kept) and the sign-in fails with a server error (HTTP 500); the cause is one line in
+the app log with no patient data. The conversion runs on Windows only, and only one at a
+time per profile (`vault.convert.lock`). If another Asclexis window or program still has the vault open (for example a backend left
+running by an earlier `dev.bat`), the conversion stops at once without copying anything and
+asks you to close it; `dev.bat` itself refuses to start while Asclexis is already running
+from the same folder. A failed profile is not retried for 30 seconds. A clear sign-in
+message is the follow-up SQLC-LOGIN-ERROR-MAP. Back the data folder up before the first run on a machine
+that has real data.
+
+## Database migrations
+
+Two independent Alembic chains: `migrations/master/` (profiles, audit log,
+knowledge base) and `migrations/profile/` (each SQLCipher vault). Master
+migrations run on startup; profile migrations run when a vault is opened.
+A master DB without `alembic_version` is stamped to head; a profile vault without
+it is stamped at the oldest revision its schema matches exactly, then upgraded
+to head (a vault that matches none is refused). Manual use, from
+`src/backend`:
+
+```bash
+python -m scripts.migrate master                          # master chain
+python -m scripts.migrate status                          # migration status
+python -m scripts.migrate profile --profile-id <uuid>     # one profile (prompts for its password)
+```
+
+## Running tests
+
+```bash
+# Backend (from src/backend)
+python -m pytest tests/ -p no:cacheprovider -q
+
+# Frontend (from src/frontend)
+npx tsc --noEmit
+npx vitest run
+npx playwright test --project chromium       # e2e, as CI runs it
+
+# Eval gates, docs and hygiene (from the repo root, as CI runs them)
+python3 scripts/agent_eval_gate.py           # CI: Agent Eval Gate
+python3 scripts/legacy_eval_gate.py          # CI: Legacy RAG Eval Gate
+python3 scripts/docs_lint.py
+python3 scripts/repo_hygiene_check.py
+```
+
+The current collected-test baseline and the known environment-only failures
+are recorded in [`AGENT.md`](../../AGENT.md#commands-windows-is-the-native-dev-environment);
+the full definition of done is in [`AGENT.md`](../../AGENT.md#definition-of-done).
+On WSL with a Windows-mounted checkout, clear `__pycache__` before pytest and
+prefer running the frontend toolchain on Windows. The contributor proof bundle
+is in [`CONTRIBUTING.md`](../../CONTRIBUTING.md).
+
+## Supported Local Verification Bootstrap (WSL/Linux)
+
+Creates the repo-root verifier environment that the contributor proof bundle
+expects. Run from the repository root, with a venv created by the WSL/Linux
+interpreter (never activate a Windows-created venv from `/mnt/c/...`):
+
+```bash
+python3 -m venv .wsl-pytest-venv
+./.wsl-pytest-venv/bin/python -m pip install --upgrade pip
+./.wsl-pytest-venv/bin/python -m pip install -r src/backend/requirements.txt
+npm --prefix src/frontend install
+
+python3 scripts/docs_lint.py
+npx --prefix src/frontend tsc --noEmit -p src/frontend/tsconfig.json
+PYTHONPATH=src/backend ./.wsl-pytest-venv/bin/python -m pytest src/backend/tests/test_bootstrap_check.py -q
+```
+
+`.wsl-pytest-venv/` and `.bg-shell/` are local-only and gitignored. If
+`sqlcipher3-binary` fails to install on Debian/Ubuntu, install
+`libsqlcipher-dev` first. OCR-heavy tests and features also need
+`tesseract-ocr` and Poppler; the bootstrap smoke test does not.
+
+## Full UI verification (optional)
+
+The manual sweep in
+[`src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`](../../src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md),
+and the real-PDF Playwright project (`--project real-pdf-local`, set
+`HC_E2E_REAL_PDF`; see
+[`src/frontend/e2e/ui-full-verification.spec.ts`](../../src/frontend/e2e/ui-full-verification.spec.ts)).
+
+## Manual development
+
+```bash
+# Terminal 1: backend (from src/backend, inside its venv)
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+# Terminal 2: frontend (from src/frontend)
+npm run dev
+```

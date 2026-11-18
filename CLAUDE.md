@@ -22,21 +22,23 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 - Modify only what the task requires. No drive-by reformatting, no touching adjacent comments, no surprise refactors.
 - Never weaken a safety check, lower a test threshold, or relax a validation to make something pass. If a guard blocks you, the guard is probably right — stop and ask.
-- All LLM calls go through the `ModelRunner` facade. Never import `llama_cpp` or call Ollama directly from feature code. One named exception, owner decision D12 (2026-09-27): the opt-in cloud runner in `core/external_runner.py` does not go through `ModelRunner`. It is off by default, its redaction rule is under Hard invariants, and it licenses no other runner outside `ModelRunner`.
+- All LLM calls go through the `ModelRunner` facade. Never import `llama_cpp` or call Ollama directly from feature code. One named exception, owner decision D12 (2026-09-27): the opt-in cloud runner in `core/external_runner.py` does not go through `ModelRunner`. It is off by default, its redaction rule is under Hard invariants, and it licenses no other runner outside `ModelRunner`. `modules/model_selector.py`'s dormant `load_model` still imports `llama_cpp` (line 456 on `main`); B-5 removes it (D7). It licenses nothing.
 
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **2118 backend tests collected.** Since W-8 the embedding model is
+- Baseline: **5114 backend tests collected.** Since W-8 the embedding model is
   a fetched, gitignored bundle. Without it, exactly 5 tests fail:
   `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
   in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
   `test_api_rag_index_002c` and `test_search_vectors_async_calculates_similarity`.
   Those failures are environmental — they are not yours; fix them by fetching
-  the model (`python scripts/download_models.py embedding`), and you must not
+  the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
   "fix" them by lowering the 0.7 threshold. Judge yourself on the
-  **collected** count, which does not vary by environment: if it differs from
-  2118, the line may lag merges: PRs never edit it; the orchestrator updates
+  **collected** count, which can vary by installed optional deps (e.g. ±2 for
+  `sentence-transformers`): judge on your own measured count + delta against
+  the posted baseline; if it still differs from
+  5114, the line may lag merges: PRs never edit it; the orchestrator updates
   it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
@@ -51,20 +53,21 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
   cannot see a broken `Depends(...)`. Use `tests/support/routes.py::route_client`
   for anything asserting auth, path scoping, or status codes.
 - **Read [docs/agentic/recurring-failures.md](docs/agentic/recurring-failures.md)
-  before claiming done.** Twelve failure modes this repo has actually produced,
+  before claiming done.** Twenty-one failure modes this repo has actually produced,
   each with the evidence that exposed it and a specific recheck. Catch a new
   instance of one — or a mode that is not listed — and add it in the same commit.
 - Done is defined once, in [AGENT.md](AGENT.md#definition-of-done). It requires seeing the output, not believing it.
 
 ## Hard invariants (violations = broken build or broken trust)
 
-- **Target Python 3.11+.** Do not use Python 3.12+ only syntax or APIs unless the project explicitly raises the minimum version. Use `core.time.utcnow` as the single timestamp helper.
+- **Target Python 3.11+.** Do not use Python 3.12+ only syntax or APIs unless the project explicitly raises the minimum version. Use `core.time.utcnow` for stored naive-UTC timestamps; aware `datetime.now(timezone.utc)` is allowed for token and session expiry and for file-name dates.
 - **Per-profile data isolation.** Patient data lives in per-profile SQLCipher DBs via `ProfileDbSession`. Never query profile data through the master `get_db()`.
 - **Local-first.** No network calls in product code paths. Ollama provider is localhost-only by design — keep it that way.
 - **Redaction before anything leaves.** Any path that writes user text to exportable files or external runners must pass through `modules/redaction.py` first. Named exceptions, owner decision D3 (2026-09-27): only `GET /export/csv` and `GET /export/json` are exempt (the patient's own data export, full-fidelity, like backups (BKUP-UX-001)); no other export is exempt. The doctor summary goes to a third party and must be redacted at `strict`. The opt-in external runner must apply `strict` redaction on every call (owner decision D12); break-glass is the only bypass, and only with an audit record and a UI warning (D12: "keep break-glass only with audit + UI warning"). Record: `docs/capstone-report/owner-decisions-2026-09-27.md`. Code conformance is tracked in `docs/capstone-report/specs-compliance-matrix.md` rows PRIV-04 and LOCAL-04.
 - **Audit logging** on every route that touches documents, observations, or profile data.
 - **No medical advice.** Outputs are educational, grounded, and cited. On the legacy RAG path `[cite:N]` is the validated citation marker (`modules/rag.py`, `RAGModule.validate_response`); `[YOUR_RESULTS:N]` / `[REFERENCE:N]` are context labels, not citation markers (owner decision D11, 2026-09-27). `interpret_safety` prohibited patterns (diagnosis, dosing) must keep passing.
 - **Dual migrations.** Master DB and per-profile DB have separate Alembic chains (`migrations/master/`, `migrations/profile/`). New profile tables = new profile migration, linear `down_revision`.
+- **Model routing (owner, 2026-10-29): Sonnet 5.5 implements (`model: "sonnet"`); Haiku 5.5 at effort `medium` runs test scripts only (`model: "haiku"`, `effort: "medium"`) and never edits; Haiku 5.5 at effort `xhigh` does exploration, web search, finding files and symbols, scanning/triage, summarization and other tasks that do not implement or write code (`model: "haiku"`, `effort: "xhigh"`); Sonnet implementers run at effort `high`; Opus reviews and orchestrates.** It supersedes the 2026-10-24 "never use Sonnet 5.5" rule. Owner-decisions rows: MODEL-ROUTING-SONNET and MODEL-ROUTING-SONNET-IMPL (`docs/capstone-report/owner-decisions-2026-09-27.md`).
 
 ## OpenWiki usage
 

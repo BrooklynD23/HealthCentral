@@ -106,7 +106,8 @@ async function restoreBackup(
 ): Promise<RestoreResponse> {
   return apiPost<RestoreResponse, RestoreRequest>(
     `/backup/${backupId}/restore`,
-    data
+    data,
+    { reauth: true }
   );
 }
 

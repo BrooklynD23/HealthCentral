@@ -41,7 +41,7 @@ function BadgeCard({ badge }: { badge: BadgeStatus }) {
           {badge.earned ? (ICON_MAP[badge.icon] ?? '🏅') : ''}
         </span>
         {!badge.earned && (
-          <div className="h-8 w-8 flex items-center justify-center bg-black/5 rounded-full">
+          <div className="h-8 w-8 flex items-center justify-center bg-surface-sunken rounded-full">
             <Lock className="w-4 h-4 text-ink-tertiary" />
           </div>
         )}

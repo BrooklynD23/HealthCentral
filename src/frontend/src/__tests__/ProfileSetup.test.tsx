@@ -10,11 +10,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ProfileSetup } from '@/pages/ProfileSetup';
+import { useLogin } from '@/services';
 import * as api from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -73,6 +74,8 @@ describe('ProfileSetup', () => {
     localStorage.clear();
     // Reset auth store
     useAuthStore.getState().clearAuth();
+    // The real zero-profiles state: an empty list, not an errored query.
+    vi.mocked(api.apiGet).mockResolvedValue([]);
   });
 
   describe('FE-AUTH-001: test_create_profile_with_password', () => {
@@ -93,7 +96,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill in display name using label
-      const displayNameInput = screen.getByLabelText('Profile Name');
+      const displayNameInput = await screen.findByLabelText('Profile Name');
       await user.type(displayNameInput, 'My Health Profile');
 
       // Fill in password using placeholder since label matches multiple
@@ -149,7 +152,7 @@ describe('ProfileSetup', () => {
 
       // Verify navigation to inbox
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/inbox');
+        expect(mockNavigate).toHaveBeenCalledWith('/overview');
       });
     });
   });
@@ -160,7 +163,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill only display name
-      const displayNameInput = screen.getByLabelText('Profile Name');
+      const displayNameInput = await screen.findByLabelText('Profile Name');
       await user.type(displayNameInput, 'My Health Profile');
 
       // Submit without password
@@ -182,7 +185,7 @@ describe('ProfileSetup', () => {
       const user = userEvent.setup();
       renderWithProviders(<ProfileSetup />);
 
-      const passwordInput = screen.getByPlaceholderText(
+      const passwordInput = await screen.findByPlaceholderText(
         'Create a secure password'
       );
 
@@ -213,7 +216,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill form
-      await user.type(screen.getByLabelText('Profile Name'), 'Test Profile');
+      await user.type(await screen.findByLabelText('Profile Name'), 'Test Profile');
       await user.type(
         screen.getByPlaceholderText('Create a secure password'),
         'SecurePass123'
@@ -243,7 +246,7 @@ describe('ProfileSetup', () => {
       renderWithProviders(<ProfileSetup />);
 
       // Fill form
-      await user.type(screen.getByLabelText('Profile Name'), 'Test Profile');
+      await user.type(await screen.findByLabelText('Profile Name'), 'Test Profile');
       await user.type(
         screen.getByPlaceholderText('Create a secure password'),
         'SecurePass123'
@@ -279,7 +282,7 @@ describe('ProfileSetup', () => {
     };
 
     async function fillAndSubmit(user: ReturnType<typeof userEvent.setup>) {
-      await user.type(screen.getByLabelText('Profile Name'), 'My Health Profile');
+      await user.type(await screen.findByLabelText('Profile Name'), 'My Health Profile');
       await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
       await user.click(screen.getByRole('button', { name: /create your profile/i }));
     }
@@ -291,7 +294,7 @@ describe('ProfileSetup', () => {
       const pw = watchCacheFor(queryClient, PASSWORD);
       const code = watchCacheFor(queryClient, CODE);
 
-      await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+      await user.type(await screen.findByPlaceholderText('Create a secure password'), PASSWORD);
       expect(reactStateContains(container, PASSWORD)).toBe(true); // positive control
       await user.clear(screen.getByPlaceholderText('Create a secure password'));
       await fillAndSubmit(user);
@@ -331,5 +334,286 @@ describe('ProfileSetup', () => {
         expect(cachedMutationsContaining(queryClient, CODE)).toBe(0);
       });
     }, 15000);
+  });
+
+  describe('SESSION-REENTRY: unlock an existing profile with its password', () => {
+    const PROFILE = {
+      id: 'profile-uuid-123',
+      display_name: 'Maria Lopez',
+      is_locked: false,
+      created_at: '2026-01-01T00:00:00Z',
+      last_accessed_at: null,
+    };
+    const PASSWORD = 'SecurePass123';
+
+    function mockOneProfile() {
+      vi.mocked(api.apiGet).mockResolvedValue([PROFILE]);
+    }
+
+    it('HC-SRE-001: with a profile on file, /setup offers "Unlock your profile"', async () => {
+      mockOneProfile();
+      renderWithProviders(<ProfileSetup />);
+
+      expect(await screen.findByText('Unlock your profile')).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Maria Lopez' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Unlock password')).toHaveAttribute('type', 'password');
+      expect(screen.getByRole('button', { name: /^unlock$/i })).toBeInTheDocument();
+      // The recovery-code route stays reachable.
+      expect(screen.getByRole('link', { name: /use your recovery code/i })).toBeInTheDocument();
+    });
+
+    it('HC-SRE-002: unlocking posts {profile_id, password}, stores the token and goes to /overview', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'unlocked-token-456',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: PROFILE.id,
+        profile_name: PROFILE.display_name,
+      });
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      const pw = watchCacheFor(queryClient, PASSWORD);
+
+      await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      await waitFor(() => {
+        expect(api.apiPost).toHaveBeenCalledWith('/profiles/login', {
+          profile_id: PROFILE.id,
+          password: PASSWORD,
+        });
+      });
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
+      expect(useAuthStore.getState().token).toBe('unlocked-token-456');
+      // RCC-2: positive control, then the password must leave the cache.
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0));
+    });
+
+    it('HC-SRE-002b: after reset() with no queryClient.clear(), gcTime drops the settled login mutation', async () => {
+      // The component's success path clears the whole cache, so it cannot
+      // prove gcTime: 0 (services/profiles.ts) is what collects a settled
+      // login mutation. Drive the hook directly: reset() detaches the
+      // observer and nothing else empties the cache.
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'unlocked-token-456',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: PROFILE.id,
+        profile_name: PROFILE.display_name,
+      });
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      });
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { result } = renderHook(() => useLogin(), { wrapper });
+      const pw = watchCacheFor(queryClient, PASSWORD);
+
+      await result.current.mutateAsync({ profile_id: PROFILE.id, password: PASSWORD });
+      result.current.reset();
+
+      // RCC-2: positive control, then the password must leave the cache.
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, PASSWORD)).toBe(0));
+    });
+
+    it('HC-SRE-003: a 401 shows "Incorrect password" in an alert and stays on /setup', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(401, 'Unauthorized', 'Invalid credentials')
+      );
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      const pw = watchCacheFor(queryClient, 'WrongPass999');
+
+      await user.type(await screen.findByLabelText('Unlock password'), 'WrongPass999');
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Incorrect password');
+      expect(mockNavigate).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().token).toBeNull();
+      // The wrong password is not kept in the field.
+      expect(screen.getByLabelText('Unlock password')).toHaveValue('');
+      // RCC-2: positive control, then the password must leave the cache.
+      expect(pw.seen.value).toBe(true);
+      pw.unsubscribe();
+      await waitFor(() => expect(cachedMutationsContaining(queryClient, 'WrongPass999')).toBe(0));
+    });
+
+    it('HC-SRE-006: with two profiles, the one selected in the picker is the one unlocked', async () => {
+      const user = userEvent.setup();
+      const second = { ...PROFILE, id: 'profile-uuid-456', display_name: 'Sam Lee' };
+      vi.mocked(api.apiGet).mockResolvedValue([PROFILE, second]);
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'second-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: second.id,
+        profile_name: second.display_name,
+      });
+      renderWithProviders(<ProfileSetup />);
+
+      await user.selectOptions(await screen.findByLabelText('Profile'), second.id);
+      await user.type(screen.getByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      await waitFor(() => {
+        expect(api.apiPost).toHaveBeenCalledWith('/profiles/login', {
+          profile_id: second.id,
+          password: PASSWORD,
+        });
+      });
+    });
+
+    it('HC-SRE-007: a 429 tells the patient to wait and try again', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(429, 'Too Many Requests', 'rate limited')
+      );
+      renderWithProviders(<ProfileSetup />);
+
+      await user.type(await screen.findByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(/too many attempts.*try again/i);
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('HC-SRE-008: unlocking clears the query cache so no other profile\'s data survives', async () => {
+      const user = userEvent.setup();
+      mockOneProfile();
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'unlocked-token-456',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: PROFILE.id,
+        profile_name: PROFILE.display_name,
+      });
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      await screen.findByText('Unlock your profile');
+      // Data fetched under a previous profile's session, including the
+      // per-profile detail query that shares the 'profiles' key prefix.
+      queryClient.setQueryData(['medications', { activeOnly: true }], [{ name: 'Metformin' }]);
+      queryClient.setQueryData(['profiles', 'old-profile-id'], { id: 'old-profile-id' });
+      expect(queryClient.getQueryData(['medications', { activeOnly: true }])).toBeDefined();
+
+      await user.type(screen.getByLabelText('Unlock password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /^unlock$/i }));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/overview'));
+
+      // The mounted profiles-list observer may re-create its own list query
+      // after the clear (exactly ['profiles']); everything else must be gone.
+      const leftover = queryClient
+        .getQueryCache()
+        .getAll()
+        .filter((q) => !(q.queryKey.length === 1 && q.queryKey[0] === 'profiles'));
+      expect(leftover.map((q) => q.queryKey)).toEqual([]);
+    });
+
+    it('HC-SRE-010: creating a profile also clears the query cache', async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.apiPost).mockResolvedValueOnce({
+        access_token: 'new-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        profile_id: 'profile-uuid-new',
+        profile_name: 'New Person',
+        recovery_code: 'H4K2-9QMR-7TXB-3VWZ-5CDF-8GHJ-2NPS-6KTV',
+      });
+      const { queryClient } = renderWithProviders(<ProfileSetup />);
+      // A previous profile's documents, still cached after an SPA redirect.
+      queryClient.setQueryData(['documents', {}], [{ id: 'doc-of-previous-profile' }]);
+
+      await user.type(await screen.findByLabelText('Profile Name'), 'New Person');
+      await user.type(screen.getByPlaceholderText('Create a secure password'), PASSWORD);
+      await user.click(screen.getByRole('button', { name: /create your profile/i }));
+      await screen.findByTestId('recovery-code', {}, { timeout: 5000 });
+
+      expect(queryClient.getQueryData(['documents', {}])).toBeUndefined();
+    }, 15000);
+
+    it('HC-SRE-009: while the profile list is loading, neither the create button nor the create form is shown', async () => {
+      vi.mocked(api.apiGet).mockReturnValue(new Promise(() => {}));
+      renderWithProviders(<ProfileSetup />);
+
+      // The page itself rendered (a crash or blank render must not pass).
+      expect(
+        await screen.findByRole('heading', { name: /welcome to asclexis/i })
+      ).toBeInTheDocument();
+      // Let the first render settle; the list never arrives.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByRole('button', { name: /create a new profile/i })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Profile Name')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /create your profile/i })).not.toBeInTheDocument();
+    });
+  });
+  describe('PROFILE-NAME-UNIQUE: duplicate display names', () => {
+    it('HC-PNU-FE-001: a 409 shows the message in the setup form and keeps the typed input', async () => {
+      const user = userEvent.setup();
+      const message =
+        'A profile named Maria Lopez already exists. Choose a different name.';
+      vi.mocked(api.apiPost).mockRejectedValueOnce(
+        new api.ApiError(409, 'Conflict', message)
+      );
+      renderWithProviders(<ProfileSetup />);
+
+      const nameInput = await screen.findByLabelText('Profile Name');
+      await user.type(nameInput, 'Maria Lopez');
+      const passwordInput = screen.getByPlaceholderText('Create a secure password');
+      await user.type(passwordInput, 'SecurePass123');
+      await user.click(screen.getByRole('button', { name: /create your profile/i }));
+
+      const alert = await screen.findByText(message);
+      expect(alert).toHaveAttribute('role', 'alert');
+      // The message belongs to the name field, so it is announced with it.
+      expect(screen.getByLabelText('Profile Name')).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByLabelText('Profile Name')).toHaveAttribute(
+        'aria-describedby',
+        alert.id
+      );
+      expect(screen.getByLabelText('Profile Name')).toHaveValue('Maria Lopez');
+      expect(screen.getByPlaceholderText('Create a secure password')).toHaveValue(
+        'SecurePass123'
+      );
+      expect(mockNavigate).not.toHaveBeenCalled();
+
+      // Editing the name clears the stale message.
+      await user.type(screen.getByLabelText('Profile Name'), ' B');
+      expect(screen.queryByText(message)).not.toBeInTheDocument();
+    });
+
+    it('HC-PNU-FE-002: the picker shows created dates only for profiles that share a name', async () => {
+      const profiles = [
+        { id: 'p-1', display_name: 'Maria Lopez', is_locked: true,
+          created_at: '2026-03-04T12:00:00Z', last_accessed_at: null },
+        { id: 'p-2', display_name: '  maria   LOPEZ', is_locked: true,
+          created_at: '2026-05-06T12:00:00Z', last_accessed_at: null },
+        { id: 'p-3', display_name: 'Sam Chen', is_locked: true,
+          created_at: '2026-07-08T12:00:00Z', last_accessed_at: null },
+      ];
+      vi.mocked(api.apiGet).mockResolvedValue(profiles);
+      renderWithProviders(<ProfileSetup />);
+
+      await screen.findByText('Unlock your profile');
+      const options = screen.getAllByRole('option').map((o) => o.textContent);
+      const created = (iso: string) =>
+        new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+      expect(options).toEqual([
+        `Maria Lopez (created ${created(profiles[0].created_at)})`,
+        `  maria   LOPEZ (created ${created(profiles[1].created_at)})`,
+        'Sam Chen',
+      ]);
+      expect(options[0]).not.toEqual(options[1]);
+      expect(options[0]).toContain('2026');
+    });
   });
 });

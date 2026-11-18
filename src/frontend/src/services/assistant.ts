@@ -143,6 +143,10 @@ export interface MemorySettingsResponse {
   global_default: boolean;
 }
 
+export interface SafetyModeResponse {
+  strict_safety_mode: boolean;
+}
+
 const QUERY_KEY = 'assistant';
 
 // API functions
@@ -189,6 +193,16 @@ async function updateMemorySettings(enabled: boolean): Promise<MemorySettingsRes
     '/assistant/memory-settings',
     { assistant_memory_enabled: enabled },
   );
+}
+
+export async function getSafetyMode(): Promise<SafetyModeResponse> {
+  return apiGet<SafetyModeResponse>('/assistant/safety-mode');
+}
+
+export async function setSafetyMode(strict: boolean): Promise<SafetyModeResponse> {
+  return apiPatch<SafetyModeResponse, { strict_safety_mode: boolean }>('/assistant/safety-mode', {
+    strict_safety_mode: strict,
+  });
 }
 
 // React Query hooks

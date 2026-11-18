@@ -38,7 +38,6 @@ export default defineConfig(({ mode }) => {
         '@hooks': resolve(__dirname, './src/hooks'),
         '@utils': resolve(__dirname, './src/utils'),
         '@stores': resolve(__dirname, './src/stores'),
-        '@types': resolve(__dirname, './src/types'),
         '@services': resolve(__dirname, './src/services'),
       },
     },

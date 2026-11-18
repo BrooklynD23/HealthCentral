@@ -73,7 +73,7 @@ Typical workflow:
 2. Run trainer on a GPU machine (can be separate from the patient device).
 3. Convert output to GGUF (`llama.cpp/convert_hf_to_gguf.py`) or keep as a LoRA adapter.
 
-**Safety review gate:** Before deploying a fine-tuned model, verify it still passes the `interpret_safety` prohibited-pattern tests (`pytest tests/test_interpret_safety.py`). A model that starts giving medical advice or dosing instructions must not be deployed.
+**Safety review gate:** Before deploying a fine-tuned model, verify it still passes the `interpret_safety` prohibited-pattern tests (from `src/backend`: `python -m pytest tests/test_interpret_safety_adversarial.py`). A model that starts giving medical advice or dosing instructions must not be deployed.
 
 ---
 

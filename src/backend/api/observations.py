@@ -10,6 +10,7 @@ Uses ProfileDbSession for database access instead of master database.
 
 import json
 import logging
+import math
 import re
 from collections import defaultdict
 from datetime import date
@@ -74,24 +75,81 @@ def verify_observation_access(observation: Observation, session: Session) -> Non
 
 router = APIRouter()
 
+# Words (after strip().upper()) that mean "within range". A plain Verify
+# recalculates a row with a value whose stored flag is one of these, or that
+# has no flag; any other stored flag is kept, even one that disagrees with
+# the number. NO, FALSE and 0 are the plain negative of an `abnormal` column
+# (modules/import_structured.py:115, the `abnormal` alias).
+_NORMAL_FLAGS = frozenset({"NORMAL", "N", "WNL", "NO", "FALSE", "0"})
+_HIGH_FLAGS = frozenset({"H", "HH", "HIGH"})
+_LOW_FLAGS = frozenset({"L", "LL", "LOW"})
 
-# Panel definitions - maps panel IDs to canonical analyte names
+
+def observation_range_status(flag, value, ref_low, ref_high, has_range_text=False) -> str:
+    """Read a result from its printed flag and its numeric range (VALUE-RANGE-COMPARE).
+
+    Returns one of: "above", "below", "within", "normal_uncompared", "disagrees", "keep".
+    "disagrees" is a printed normal word against a value outside the range, or a printed
+    H/L word against a value on the other side or inside: no wording is decided for it,
+    so callers fall back to the stored is_abnormal. "keep" is any case this helper does
+    not decide (another flag, or no flag and nothing to compare).
+
+    A value equal to a bound is inside, a bound of 0.0 is a real bound, and low is checked
+    first, as Verify and InterpretModule._classify_severity do. ref_range_text is never parsed;
+    callers pass only whether it is non-blank. A printed normal word on a numeric value whose
+    range exists only as text cannot be compared, and nothing says it is normal, so that
+    case is "keep" (today's sentence by the stored is_abnormal), not "normal_uncompared".
+    """
+    if value is None or (ref_low is None and ref_high is None):
+        place = None
+    elif ref_low is not None and value < ref_low:
+        place = "below"
+    elif ref_high is not None and value > ref_high:
+        place = "above"
+    else:
+        place = "inside"
+
+    if flag is None:
+        return {"above": "above", "below": "below", "inside": "within"}.get(place, "keep")
+    word = flag.strip().upper()
+    if word in _NORMAL_FLAGS:
+        if place is None and value is not None and has_range_text:
+            return "keep"
+        return {"inside": "within", None: "normal_uncompared"}.get(place, "disagrees")
+    if word in _HIGH_FLAGS:
+        return "above" if place in (None, "above") else "disagrees"
+    if word in _LOW_FLAGS:
+        return "below" if place in (None, "below") else "disagrees"
+    return "keep"
+
+
+def status_is_abnormal(status: str, fallback) -> bool:
+    """is_abnormal for a status; "disagrees" and "keep" return the fallback (the stored value)."""
+    if status in ("above", "below"):
+        return True
+    if status in ("within", "normal_uncompared"):
+        return False
+    return bool(fallback)
+
+
+# Panel definitions - maps panel IDs to the analyte names the normalizer stores, plus the
+# older names listed before it, kept so existing matches still match (order = display order).
 PANEL_DEFINITIONS = {
     "cbc": {
         "name": "Complete Blood Count",
-        "analytes": ["wbc", "rbc", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
+        "analytes": ["wbc", "white_blood_cells", "rbc", "red_blood_cells", "hemoglobin", "hematocrit", "mcv", "mch", "mchc", "rdw", "platelets", "mpv"],
     },
     "cmp": {
         "name": "Comprehensive Metabolic Panel",
-        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "calcium", "protein_total", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
+        "analytes": ["glucose", "bun", "creatinine", "sodium", "potassium", "chloride", "co2", "carbon_dioxide", "calcium", "protein_total", "total_protein", "albumin", "bilirubin_total", "alkaline_phosphatase", "ast", "alt"],
     },
     "lipid": {
         "name": "Lipid Panel",
-        "analytes": ["cholesterol_total", "triglycerides", "hdl", "ldl", "vldl"],
+        "analytes": ["cholesterol_total", "total_cholesterol", "triglycerides", "hdl", "hdl_cholesterol", "ldl", "ldl_cholesterol", "vldl"],
     },
     "thyroid": {
         "name": "Thyroid Panel",
-        "analytes": ["tsh", "t3_free", "t4_free", "t3_total", "t4_total"],
+        "analytes": ["tsh", "t3_free", "free_t3", "t4_free", "free_t4", "t3_total", "t4_total"],
     },
 }
 
@@ -170,6 +228,10 @@ class TrendPoint(BaseModel):
     # D4 (owner, 2026-09-27): trends may show unverified points but must mark
     # them. Defaults to False so a point is never presented as verified by omission.
     user_verified: bool = False
+    # KEPT-FLAG-DISAGREES: this row's printed flag disagrees with this row's own printed range
+    # (observation_range_status == "disagrees"). Read from the row's raw value and bounds, not
+    # the converted point value or the chart's combined band. Defaults to False.
+    flag_range_disagree: bool = False
 
 
 class TrendResponse(BaseModel):
@@ -322,8 +384,8 @@ async def list_observations(
     if to_date:
         query = query.where(Observation.collected_at <= to_date)
 
-    if abnormal_only:
-        query = query.where(Observation.is_abnormal == True)
+    # abnormal_only is filtered below in Python, not here: the stored is_abnormal alone
+    # cannot say that an unflagged 300 against 70-100 is abnormal (VALUE-RANGE-COMPARE).
 
     if needs_verification:
         query = query.where(Observation.user_verified == False)
@@ -332,6 +394,18 @@ async def list_observations(
 
     result = await profile_db.execute(query)
     observations = result.scalars().all()
+
+    if abnormal_only:
+        observations = [
+            obs for obs in observations
+            if status_is_abnormal(
+                observation_range_status(
+                    obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                    bool((obs.ref_range_text or "").strip()),
+                ),
+                obs.is_abnormal,
+            )
+        ]
 
     await audit_and_commit(
         master_db,
@@ -414,6 +488,30 @@ async def verify_observation(
     # Verify session has access to this observation
     verify_observation_access(observation, session)
 
+    # Fail closed on bad numbers before any write or audit row. Pydantic
+    # accepts NaN/+-inf for Optional[float]; a NaN comparison is always
+    # False, so the recalculation below would silently erase a stored flag
+    # (VERIFY-NONFINITE). A schema-level Field(allow_inf_nan=False) returns
+    # 422, not the specified 400, so the check lives here. An inverted pair
+    # the patient typed is rejected, never silently reordered (owner answer
+    # RANGE-ORDER-STORE-VERIFY, 2026-11-07).
+    for field_name in ("value", "ref_low", "ref_high"):
+        field_value = getattr(verify_data, field_name)
+        if field_value is not None and not math.isfinite(field_value):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{field_name} must be a finite number",
+            )
+    if (
+        verify_data.ref_low is not None
+        and verify_data.ref_high is not None
+        and verify_data.ref_low > verify_data.ref_high
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ref_low must not exceed ref_high",
+        )
+
     # Store original values if this is first edit
     if not observation.original_value_json:
         original = {
@@ -423,6 +521,9 @@ async def verify_observation(
             "ref_low": observation.ref_low,
             "ref_high": observation.ref_high,
             "collected_at": observation.collected_at.isoformat() if observation.collected_at else None,
+            # FLAG-OLD-ON-REWRITE: the printed flag survives a recalculation.
+            "flag": observation.flag,
+            "is_abnormal": observation.is_abnormal,
         }
         observation.original_value_json = json.dumps(original)
 
@@ -435,6 +536,29 @@ async def verify_observation(
     if verify_data.value_text is not None:
         changes["value_text"] = {"old": observation.value_text, "new": verify_data.value_text}
         observation.value_text = verify_data.value_text
+
+        # VERIFY-EDIT-LT-VALUE-SEMANTICS: text alone must not leave the old number
+        # standing as "checked". Non-numeric text clears value, flag and
+        # is_abnormal (nothing numeric remains to compare); text that parses as a
+        # finite number sets value, and the recalculation below runs on it.
+        if verify_data.value is None:
+            text = verify_data.value_text.strip()
+            try:
+                parsed = float(text)
+                if not math.isfinite(parsed) or "_" in text:
+                    parsed = None
+            except ValueError:
+                parsed = None
+            if observation.value != parsed:
+                changes["value"] = {"old": observation.value, "new": parsed}
+                observation.value = parsed
+            if parsed is None:
+                if observation.flag is not None:
+                    changes["flag"] = {"old": observation.flag, "new": None}
+                    observation.flag = None
+                if observation.is_abnormal:
+                    changes["is_abnormal"] = {"old": True, "new": False}
+                observation.is_abnormal = False
 
     if verify_data.unit is not None:
         changes["unit"] = {"old": observation.unit, "new": verify_data.unit}
@@ -463,8 +587,30 @@ async def verify_observation(
     observation.verified_at = utcnow()
     observation.version += 1
 
-    # Recalculate abnormal status
-    if observation.value is not None:
+    # Recalculate abnormal status when this request really changed value,
+    # ref_low or ref_high AND a range exists after the edit, or whenever the
+    # row has no flag or a normal word (_NORMAL_FLAGS). Any other stored flag
+    # is kept with its is_abnormal exactly, by a plain Verify (even one that
+    # disagrees with the number) and by a real edit with both bounds null after
+    # the edit (owner row VERIFY-EDIT-NO-RANGE; normal words per
+    # VERIFY-FLAG-WORDS and the L0 ruling on #479): with no range there is
+    # nothing to recalculate against, and the report's own flag must not be
+    # erased by a corrected number. The bounds are read from the row after the
+    # edit block, never from verify_data, where None means "not sent".
+    # A value_text-only edit has already cleared value/flag/is_abnormal (or set
+    # value) in the edit block above (VERIFY-EDIT-LT-VALUE-SEMANTICS).
+    numbers_changed = any(
+        f in changes and changes[f]["old"] != changes[f]["new"]
+        for f in ("value", "ref_low", "ref_high")
+    )
+    keeps_flag = (
+        observation.flag is not None
+        and observation.flag.strip().upper() not in _NORMAL_FLAGS
+    )
+    has_range = observation.ref_low is not None or observation.ref_high is not None
+    recalculate = (numbers_changed and has_range) or not keeps_flag
+    if recalculate and observation.value is not None:
+        old_flag, old_abnormal = observation.flag, observation.is_abnormal
         if observation.ref_low is not None and observation.value < observation.ref_low:
             observation.is_abnormal = True
             observation.flag = "L"
@@ -474,6 +620,11 @@ async def verify_observation(
         else:
             observation.is_abnormal = False
             observation.flag = None
+        # The audit records every field the route changed (L0 ruling R14).
+        if observation.flag != old_flag and "flag" not in changes:
+            changes["flag"] = {"old": old_flag, "new": observation.flag}
+        if observation.is_abnormal != old_abnormal and "is_abnormal" not in changes:
+            changes["is_abnormal"] = {"old": old_abnormal, "new": observation.is_abnormal}
 
     await profile_db.flush()
 
@@ -506,6 +657,69 @@ async def verify_observation(
         # master DB. Which fields the user corrected is the auditable fact; what
         # they corrected them to lives in the encrypted profile DB.
         details={"changed_fields": sorted(changes)} if changes else None,
+    )
+    await master_db.commit()
+
+    return ObservationResponse.from_model(observation)
+
+
+@router.post("/{observation_id}/unverify", response_model=ObservationResponse)
+async def unverify_observation(
+    observation_id: str,
+    session: RequireAuth,
+    profile_db: ProfileDbSession = None,
+    master_db: AsyncSession = Depends(get_db),
+):
+    """Re-open a verified observation (VERIFY-UNDO, flag-only).
+
+    Clears user_verified and verified_at and keeps every edit the user made;
+    original_value_json is not restored (owner answers VERIFY-UNDO and
+    VERIFY-UNDO-SCOPE). A verified parent document drops back to parsed.
+    """
+    validate_uuid(observation_id, "observation_id")
+
+    result = await profile_db.execute(select(Observation).where(Observation.id == observation_id))
+    observation = result.scalar_one_or_none()
+
+    if not observation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Observation not found"
+        )
+
+    verify_observation_access(observation, session)
+
+    # VERIFY-UNDO-NOOP (owner answer VERIFY-NOOP): an empty undo is refused, with
+    # no version bump, no audit row and no write.
+    if observation.user_verified is not True:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Observation is not verified",
+        )
+
+    observation.user_verified = False
+    observation.verified_at = None
+    observation.version += 1
+
+    if observation.doc_id:
+        doc_result = await profile_db.execute(
+            select(Document).where(Document.id == observation.doc_id)
+        )
+        document = doc_result.scalar_one_or_none()
+        if document is not None and document.status == "verified":
+            document.status = "parsed"
+            document.verified_at = None
+
+    await profile_db.commit()
+
+    await log_observation_event(
+        db=master_db,
+        event="unverify",
+        profile_id=observation.profile_id,
+        observation_id=observation_id,
+        analyte=observation.analyte_canonical,
+        # AUDIT-PHI-001: field names only.
+        details={"changed_fields": ["user_verified"]},
     )
     await master_db.commit()
 
@@ -620,6 +834,10 @@ async def get_analyte_trend(
                     original_value=original_value,
                     original_unit=original_unit,
                     user_verified=obs.user_verified is True,
+                    flag_range_disagree=observation_range_status(
+                        obs.flag, obs.value, obs.ref_low, obs.ref_high,
+                        bool((obs.ref_range_text or "").strip()),
+                    ) == "disagrees",
                 ))
             elif obs.value is not None:
                 # Has a value but no date — count it so the summary is accurate
@@ -723,7 +941,7 @@ async def get_analyte_trend(
         log_observation_event,
         event="view",
         profile_id=profile_id,
-        observation_id=analyte,
+        observation_id="all",
         analyte=analyte,
         details={"action": "trend", "count": len(data_points)},
     )
@@ -811,7 +1029,7 @@ async def get_panel(
         log_observation_event,
         event="view",
         profile_id=profile_id,
-        observation_id=panel_id.lower(),
+        observation_id="all",
         analyte=panel_def["name"],
         details={"action": "panel", "count": len(obs_responses)},
     )

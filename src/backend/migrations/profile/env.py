@@ -1,11 +1,9 @@
 """
 Alembic environment for per-profile SQLCipher database migrations.
 
-Profile databases contain:
-- documents, observations, chunks, embeddings (RAG pipeline)
-- lab_interpretations, panel_interpretations (AI interpretations)
-- medications, medication_schedules, doses_taken, adherence_patterns, reminder_logs
-- user_model_settings
+Profile databases contain the per-profile vault tables. The table list is
+not repeated here because it goes stale: see the `models` package and
+`ProfileDatabaseBase.metadata` (core/profile_database.py) for the current set.
 
 This env.py requires runtime configuration:
 - vault_path: Path to the SQLCipher database file
@@ -127,7 +125,8 @@ def run_migrations_online() -> None:
     if settings.database_encryption_required and not is_sqlcipher_available():
         raise RuntimeError(
             "SQLCipher is required but not available. "
-            "Install: pip install sqlcipher3-binary"
+            "Install: Windows: pip install --only-binary=:all: --no-deps --require-hashes "
+            "-r requirements-sqlcipher-win.txt; Linux/macOS: pip install sqlcipher3-binary"
         )
 
     # Convert key to hex format for PRAGMA key
@@ -158,6 +157,9 @@ def run_migrations_online() -> None:
     else:
         engine = create_engine(url, poolclass=pool.NullPool)
 
+    # PRAGMA foreign_keys stays OFF here on purpose: batch table rebuilds require
+    # it off, and migration 017 cleans orphans before the runtime engines turn it
+    # on (SQL-FK-001).
     # Register event to set PRAGMA key on every connection
     @event.listens_for(engine, "connect")
     def set_cipher_key(dbapi_connection, connection_record):

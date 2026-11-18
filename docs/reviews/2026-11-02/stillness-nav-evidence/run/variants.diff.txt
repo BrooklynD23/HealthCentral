@@ -1,0 +1,26 @@
+### diff gates.instrumented.ts gates.v1.ts
+834a835
+>   await sleep(100); // VARIANT v1: 100 ms between startSampler and the trigger
+
+### diff gates.instrumented.ts gates.v4a.ts
+590c590,595
+<   state.timer = window.setInterval(tick, config.intervalMs);
+---
+>   // VARIANT v4a: rAF-driven ticks instead of setInterval (diagnostic only)
+>   const raf = () => {
+>     tick();
+>     if (state.running) requestAnimationFrame(raf);
+>   };
+>   requestAnimationFrame(raf);
+
+### diff gates.instrumented.ts gates.v4b.ts
+542c542
+<     const t = Math.round(tx);
+---
+>     const t = tx; // VARIANT v4b: unrounded stamp (diagnostic only)
+
+### diff gates.instrumented.ts gates.v5.ts
+542a543,544
+>     // VARIANT v5: a bare stamp push; no style, layout or DOM read
+>     if (t >= 0) return { t, pathname: '', route: null, nodes: [], expectedHits: config.expected.map(() => false), dur: performance.now() - tx, n: 0 };
+

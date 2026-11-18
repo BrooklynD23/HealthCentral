@@ -85,6 +85,21 @@ class InterpretationSafetyGuard:
         "sodium": {"critical_low": 120, "critical_high": 160},
         "platelets": {"critical_low": 50, "critical_high": 1000},
         "wbc": {"critical_low": 2.0, "critical_high": 30.0},
+        "white_blood_cells": {"critical_low": 2.0, "critical_high": 30.0},
+    }
+
+    # CRIT-DEFAULT-UNITS: the unit each row above is written in. First entry = the row's unit;
+    # the rest are same-unit spellings. mEq/L equals mmol/L numerically for monovalent K+ and
+    # Na+ only; it is not a conversion factor and is listed for no other analyte (L0 ruling
+    # 6684499411 R-a).
+    DEFAULT_CRITICAL_UNITS = {
+        "glucose": ("mg/dL",),
+        "hemoglobin": ("g/dL",),
+        "potassium": ("mmol/L", "mEq/L"),
+        "sodium": ("mmol/L", "mEq/L"),
+        "platelets": ("10^3/uL",),
+        "wbc": ("10^3/uL",),
+        "white_blood_cells": ("10^3/uL",),
     }
 
     def __init__(self):
@@ -97,6 +112,10 @@ class InterpretationSafetyGuard:
             re.compile(pattern, re.IGNORECASE)
             for pattern in self.REQUIRED_DISCLAIMER_KEYWORDS
         ]
+
+    def _has_required_disclaimers(self, text: str) -> bool:
+        """The validator's disclaimer rule: at least two of the three keyword groups."""
+        return sum(1 for pattern in self._compiled_required if pattern.search(text)) >= 2
 
     def validate_interpretation(
         self,
@@ -133,12 +152,7 @@ class InterpretationSafetyGuard:
             result.checks_passed.append("no_prohibited_content")
 
         # Check for required disclaimers
-        disclaimers_found = 0
-        for pattern in self._compiled_required:
-            if pattern.search(full_text):
-                disclaimers_found += 1
-
-        if disclaimers_found >= 2:
+        if self._has_required_disclaimers(full_text):
             result.checks_passed.append("has_required_disclaimers")
         else:
             result.passed = False
@@ -192,7 +206,8 @@ class InterpretationSafetyGuard:
             )
             result.warnings.append("critical_low_value")
             logger.warning(
-                f"Critical value detected: {analyte_canonical}={value} < {c_low}"
+                "Critical value detected: %s below critical threshold",
+                analyte_canonical,
             )
 
         if c_high is not None and value > c_high:
@@ -202,7 +217,8 @@ class InterpretationSafetyGuard:
             )
             result.warnings.append("critical_high_value")
             logger.warning(
-                f"Critical value detected: {analyte_canonical}={value} > {c_high}"
+                "Critical value detected: %s above critical threshold",
+                analyte_canonical,
             )
 
         if not result.requires_physician_review:
@@ -265,14 +281,6 @@ class InterpretationSafetyGuard:
                 disclaimer_present = True
                 break
 
-        if not disclaimer_present:
-            # Add standard disclaimer to end of interpretation
-            disclaimer = (
-                "\n\nThis information is for educational purposes only. "
-                "Please consult your healthcare provider for personalized medical advice."
-            )
-            interpretation_text = interpretation_text + disclaimer
-
         # Ensure advice has disclaimer if present
         if advice_text:
             advice_disclaimer_present = False
@@ -287,6 +295,21 @@ class InterpretationSafetyGuard:
                     "any changes to your diet, exercise, or lifestyle."
                 )
                 advice_text = advice_text + advice_disclaimer
+
+        # The text the validator will see (interpretation + advice, as appended above).
+        full_text = interpretation_text
+        if advice_text:
+            full_text = f"{interpretation_text}\n{advice_text}"
+
+        # First condition keeps every already-passing card byte-identical; the second
+        # appends where the validator would otherwise withhold (DISCLAIMER-GUARD-QUIRK).
+        if not disclaimer_present or not self._has_required_disclaimers(full_text):
+            # Add standard disclaimer to end of interpretation
+            disclaimer = (
+                "\n\nThis information is for educational purposes only. "
+                "Please consult your healthcare provider for personalized medical advice."
+            )
+            interpretation_text = interpretation_text + disclaimer
 
         return interpretation_text, advice_text or ""
 

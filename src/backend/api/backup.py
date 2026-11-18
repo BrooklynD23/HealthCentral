@@ -7,12 +7,14 @@ reimplementing it.
 
 Two decisions worth stating up front:
 
-**Backups are not redacted.** Every other export path in this app passes
-through `modules/redaction.py`, and that is correct: those exports go to a
-third party. A backup is the opposite — it is the user's own full-fidelity
+**Backups are not redacted.** The exports that go to a third party (for
+example the doctor summary) pass through `modules/redaction.py`, and that is
+correct. A backup is the opposite — it is the user's own full-fidelity
 record, going to their own machine, and a redacted backup cannot be restored,
-which defeats the entire feature. This is the one export-shaped path that is
-deliberately unredacted. Do not "fix" it to match `export.py`.
+which defeats the entire feature. Backups, `GET /export/csv` and
+`GET /export/json` are the deliberately unredacted paths (the patient's own
+data, owner decision D3). Do not "fix" the backup to match the redacted
+exports in `export.py`.
 
 **Restore is destructive and gated accordingly.** It overwrites live vaults, so
 it requires password re-auth plus a confirmation phrase, closes the profile
@@ -33,6 +35,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.export import purge_profile_exports
 from core.audit import audit_and_commit, audit_intent, create_audit_log, log_export_event
 from core.auth import (
     RequireAuth,
@@ -492,6 +495,13 @@ async def restore_backup(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Restore failed; nothing was changed and safety copies remain.",
         )
+
+    # The vault just rewound, so a packet generated from the pre-restore data is no
+    # longer true and must not stay downloadable (EXPORT-RESTORE-PURGE). The vault was
+    # closed above, so this clears the in-process stores; rows inside the restored vault
+    # are bounded by the serving rule (TTL, session_exp, logout cutoff, contracts I-20).
+    # Success branch only: a refused or failed restore left the vault unchanged.
+    await purge_profile_exports(session.profile_id)
 
     await audit_intent(
         master_db, "completed", create_audit_log,

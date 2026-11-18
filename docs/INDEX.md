@@ -12,7 +12,7 @@
 
 Onboarding for any AI agent or new contributor. Behavioral rules are in CLAUDE.md. Treat this file like a new-hire briefing: what the project is, where things live, how to verify your work.
 
-Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/recurring-failures.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
+Links to: `.claude/skills/README.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/recurring-failures.md`, `docs/architecture/frontend.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`, `skills/README.md`
 
 ## `CLAUDE.md`
 
@@ -28,7 +28,7 @@ Links to: `AGENT.md`, `docs/agentic/recurring-failures.md`
 
 **Local-First Medical Results Companion**
 
-Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_plan.md`, `docs/05_backend_integration_status.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/GROUNDING.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/agile/sprints/SPRINT_7.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/archive/agile-sprints/SPRINT_0.md`, `docs/archive/agile-sprints/SPRINT_1.md`, `docs/archive/agile-sprints/SPRINT_2.md`, `docs/archive/agile-sprints/SPRINT_3.md`, `docs/archive/agile-sprints/SPRINT_4.md`, `docs/archive/agile-sprints/SPRINT_5.md`, `docs/archive/agile-sprints/SPRINT_6.md`, `docs/archive/agile/EXPLORATION_SUMMARY.md`, `docs/archive/agile/RECONCILIATION.md`, `docs/archive/agile/RETRO.md`, `docs/archive/agile/STANDUP.md`, `docs/archive/agile/audience_expectations_main_vs_branch.md`, `docs/archive/prd-phases/PHASE_0_foundation.md`, `docs/archive/prd-phases/PHASE_1_first_tool.md`, `docs/archive/prd-phases/PHASE_2_loop.md`, `docs/archive/prd-phases/PHASE_3_guardrails.md`, `docs/archive/prd-phases/PHASE_4_phi_gate.md`, `docs/archive/prd-phases/PHASE_5_cutover_cache.md`, `docs/archive/prd-phases/PHASE_6_evals_ci.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/features/TASK_LIST.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/backend-api.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-backend/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
+Links to: `.claude/skills/README.md`, `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agentic/rsi-runs/README.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/capstone-report/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/README.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-29-session-handoff.md`, `docs/research`, `docs/roles/00_roles_index.md`, `docs/user/README.md`, `docs/user/getting-started.md`, `skills/README.md`
 
 ## `docs/00_architecture_plans_index.md`
 
@@ -36,7 +36,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/01_backend_architecture_p
 
 This index defines the canonical documentation order and marks legacy planning files that are kept only for history.
 
-Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`, `docs/superpowers/plans/2026-07-13-hc-m21-search.md`, `openwiki/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/archive/plans/2026-02-15-sprint-06-handoff-prompt.md`, `docs/archive/plans/2026-03-04-handoff.md`, `docs/archive/plans/2026-03-28-roadmap-gsd-m001-m003-historical.md`, `docs/archive/plans/2026-05-11-dynamic-port-selection.md`, `docs/archive/plans/2026-07-02-fable5-architect-handoff-prompt.md`, `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`, `docs/archive/plans/2026-07-13-hc-m21-search.md`, `docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`, `docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/archive/plans/UI-implementation-2-4.md`, `docs/archive/plans/next-agent-documentation-consolidation.md`, `docs/archive/plans/remaining-features-implementation.md`, `docs/archive/plans/sprint-phase-2026-02-13-implementation-plan.md`, `docs/dev/setup.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-29-session-handoff.md`, `docs/plans/implementation-log`, `docs/plans/implementation-log/README.md`, `docs/plans/ingest-imaging-pathology-spec.md`, `docs/plans/roadmap_gap_closure.md`, `docs/roles/00_roles_index.md`, `openwiki/README.md`
 
 ## `docs/01_backend_architecture_plan.md`
 
@@ -51,6 +51,8 @@ Links to: `docs/api/endpoints.md`
 **Frontend UI/UX + Accessibility Plan (Draft v0 — pending PM approval)**
 
 - Reduce confusion and anxiety via clarity, provenance, and conservative language - Make “verify and correct” the default for extracted values - Optimize for older patients and non-medical users:…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`
 
 ## `docs/03_data_confidentiality_pipeline_plan.md`
 
@@ -88,6 +90,22 @@ This board is a repo-aligned, test-first execution plan. It is meant to be used 
 
 Local-first application for patients to import medical documents, extract structured information with user verification, visualize trends, and generate grounded explanations and clinician-ready…
 
+## `docs/agentic/alignment-judge-prompt.md`
+
+**Alignment Judge Prompt (AGENTIC-EVAL-JUDGE)**
+
+The fixed prompt for the recording-only alignment judge. `scripts/alignment_judge.py` reads the fenced block under "Prompt" verbatim (`load_prompt()`), sends it with the packet (row brief, facts,…
+
+Links to: `docs/agentic/eval-cards/agentic-alignment.md`
+
+## `docs/agentic/eval-cards/agentic-alignment.md`
+
+**Agentic Alignment Eval Card (AGENTIC-EVAL)**
+
+What it measures: whether an agent-built PR did what its queue row licensed and nothing else. This card is extended by each AGENTIC-EVAL row; today it holds the licence gate and the test-weakening…
+
+Links to: `docs/agentic/alignment-judge-prompt.md`, `docs/agentic/evals.md`
+
 ## `docs/agentic/eval-cards/extraction.md`
 
 **Extraction Eval Card (HC-M06)**
@@ -100,7 +118,7 @@ What it measures: precision/recall of `ExtractModule.extract_from_pdf` on a synt
 
 What "verified" means in this repo. Every task in feature_list.json names its verification steps; this file catalogs the evaluation categories and the concrete commands behind them.
 
-Links to: `CLAUDE.md`, `docs/agentic/eval-cards/extraction.md`, `feature_list.json`
+Links to: `CLAUDE.md`, `docs/agentic/eval-cards/agentic-alignment.md`, `docs/agentic/eval-cards/extraction.md`, `feature_list.json`
 
 ## `docs/agentic/harness.md`
 
@@ -140,13 +158,15 @@ Links to: `AGENT.md`, `CLAUDE.md`, `audit/2026-09-25/README.md`, `audit/2026-09-
 
 Session-by-session record of agent work: what changed, what was verified, what failed, and the next priority. This supplements git history with verification evidence — it does not replace it. Newest…
 
-Links to: `docs/brand/brand-guidelines.md`, `docs/plans/2026-07-07-rename-audit-and-shortlist.md`, `feature_list.json`
+Links to: `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`, `docs/brand/brand-guidelines.md`, `feature_list.json`
 
 ## `docs/agentic/recurring-failures.md`
 
 **Recurring Failure Modes**
 
 Mistakes this codebase has actually produced, with the evidence that exposed each one. Not hypothetical risks — every entry below shipped, or nearly shipped, and was caught late.
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`
 
 ## `docs/agentic/roadmap.md`
 
@@ -155,6 +175,14 @@ Mistakes this codebase has actually produced, with the evidence that exposed eac
 Why this project exists as an agentic-engineering exercise, and what "done well" looks like. The working loop is in harness.md; verification is in evals.md; the live task inventory is…
 
 Links to: `docs/agentic/evals.md`, `docs/agentic/harness.md`, `docs/agentic/mcp-tools.md`, `docs/agentic/progress.md`, `docs/compliance/README.md`, `docs/compliance/ai-safety.md`, `docs/research/2026-09-08/00-brief.md`, `docs/research/2026-09-08/01-codebase-audit.md`, `docs/research/2026-09-08/02-inference-serving.md`, `docs/research/2026-09-08/03-agentic-loops.md`, `docs/research/2026-09-08/04-mcp-interop.md`, `docs/research/2026-09-08/05-models-voice.md`, `docs/research/2026-09-08/06-competitive-landscape.md`, `docs/research/2026-09-08/07-data-control.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-09-08/09-roadmap.md`, `docs/research/2026-09-08/FRONTIER-AUDIT-PROMPT.md`, `docs/research/2026-09-08/PLAN.md`, `feature_list.json`
+
+## `docs/agentic/rsi-runs/README.md`
+
+**RSI run archive**
+
+rsi-loop reads two logs that are git-ignored, so they stay on the machine that wrote them: - `.claude/logs/rsi/<date>.jsonl`, written by the `asclexis-rsi` mod when the session starts with…
+
+Links to: `docs/agentic/rsi-runs/2026-10-21-laptop/summary.json`, `docs/agentic/rsi-runs/2026-10-22-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-24-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-26-gpubox/summary.json`, `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`
 
 ## `docs/agile/AGILE_PLAN.md`
 
@@ -222,7 +250,7 @@ cd src/backend python main.py
 
 Hand-authored mermaid diagrams of the running system, kept here so the whole structure can be reviewed in one place. Mermaid rather than image files on purpose: diagrams render on GitHub, and they…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/00_architecture_plans_index.md`, `docs/api/endpoints.md`, `docs/architecture/backend.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/architecture/frontend.md`, `docs/architecture/overview.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/compliance/hipaa-controls.md`, `docs/dev/setup.md`
 
 ## `docs/architecture/backend.md`
 
@@ -244,9 +272,17 @@ Links to: `CLAUDE.md`, `docs/architecture/README.md`
 
 **Frontend Architecture**
 
-Part of the architecture diagram set.
+Part of the architecture diagram set. Paths are relative to `src/frontend/src/` unless they start with `src/`.
 
-Links to: `docs/architecture/README.md`
+Links to: `docs/architecture/README.md`, `docs/architecture/ci-and-quality-gates.md`
+
+## `docs/architecture/overview.md`
+
+**System Overview**
+
+Moved verbatim from the repository README on 2026-10-25 so the README can stay a short entry point. Part of the architecture diagram set.
+
+Links to: `AGENT.md`, `CLAUDE.md`, `README.md`, `docs/00_architecture_plans_index.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/agile/AGILE_PLAN.md`, `docs/agile/RELEASE_CHECKLIST.md`, `docs/api/README.md`, `docs/api/endpoints.md`, `docs/architecture/README.md`, `docs/architecture/performance-scalability-review.md`, `docs/architecture/pipelines.md`, `docs/archive/README.md`, `docs/compliance/README.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/hipaa-controls.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/00_roles_index.md`, `docs/user/faq.md`, `docs/user/getting-started.md`, `docs/user/troubleshooting.md`, `docs/user/workflows.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-backend/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
 
 ## `docs/architecture/performance-scalability-review.md`
 
@@ -270,7 +306,7 @@ Links to: `docs/architecture/README.md`, `docs/capstone-report/owner-decisions-2
 
 This directory holds documentation that is retained for history only. Nothing here is an active tracker, and nothing here should be read as describing current plans, current status, or open work.
 
-Links to: `docs/features/TASK_LIST.md`
+Links to: `docs/features/TASK_LIST.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/archive/agile-sprints/SPRINT_0.md`
 
@@ -388,6 +424,12 @@ Links to: `docs/features/TASK_LIST.md`
 
 Reconstruct the current project state after inactivity by auditing branch history, validating the live functionality baseline, and establishing GSD as the canonical roadmap and context layer for…
 
+## `docs/archive/plans/2026-05-11-dynamic-port-selection.md`
+
+**Dynamic Port Selection Implementation Plan**
+
+---
+
 ## `docs/archive/plans/2026-07-02-consolidated-findings-report.md`
 
 **HealthCentral — Consolidated Findings Report (2026-07-02)**
@@ -404,6 +446,12 @@ session, asking it to review `2026-07-02-consolidated-findings-report.md` as a s
 
 Links to: `docs/archive/plans/2026-07-02-consolidated-findings-report.md`, `docs/features/TASK_LIST.md`
 
+## `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`
+
+**Product Rename: Surface Audit + Candidate Shortlist (HC-M10, stage 1)**
+
+Owner decision (2026-07-07): rename the product — "HealthCentral" collides with the existing health-media brand healthcentral.com. This document is stage 1 of the plan: how big the rename is, and a…
+
 ## `docs/archive/plans/2026-07-12-phase-c-handoff-prompt.md`
 
 **Handoff Prompt — Phase C (Pinboards, Search, Confidence UX)**
@@ -411,6 +459,146 @@ Links to: `docs/archive/plans/2026-07-02-consolidated-findings-report.md`, `docs
 Copy everything below the line into the new session.
 
 Links to: `docs/features/TASK_LIST.md`
+
+## `docs/archive/plans/2026-07-13-hc-m21-search.md`
+
+**HC-M21 Search & Filtering Implementation Plan**
+
+---
+
+## `docs/archive/plans/2026-07-30-phase-b-asclexis-rename.md`
+
+**Phase B: Asclexis Rename and Branding Implementation Plan**
+
+- **Preserve, do not rename:** `HC-*` ticket and test prefixes (111 identifiers), `HC_*` environment variables, vault filenames (`vaults/{profile_id}/vault.db`, `key.bin`, `key.method` — these never…
+
+## `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
+**NPM-MAJORS (b) — React Router 6 → 7 Migration Plan**
+
+1. On v6, turn on the 2 future flags that apply to a declarative-mode app. This is a separate, small commit, and it proves the behaviour change before the major. 2. Bump to v7 while keeping the…
+
+Links to: `audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md`, `audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
+
+**NPM-MAJORS (a) — Tailwind CSS 3 → 4 Migration Plan**
+
+- moves `tailwind.config.js` into CSS `@theme`; - swaps `@tailwind` directives for `@import "tailwindcss"`; - moves the PostCSS plugin to `@tailwindcss/postcss`; - renames the utilities whose…
+
+Links to: `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`
+
+## `docs/archive/plans/2026-10-04-NPM-audit-fix.md`
+
+**NPM-AUDIT — Non-Breaking `npm audit fix` for the Frontend Implementation Plan**
+
+- Owner gate NPM-AUDIT-SCHED (2026-10-04), verbatim: "L1 measures, runs `npm audit fix` without --force, then Windows vitest + E2E. Any breaking major upgrade comes back to you." - Never `npm audit…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`
+
+**RCC — Recovery Code Out of the TanStack Mutation Cache Implementation Plan**
+
+- Owner gate W3-SEC-SCHED (2026-10-04), verbatim: "RECOVERY-CODE-CACHE: `gcTime: 0` or `reset()` in `RecoveryCodeCard.tsx`." - Frontend only. No backend file, no auth/encryption backend code, no…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`
+
+**RCC-2 — Password and Recovery-Code Retention in Create, Recover and Delete Implementation Plan**
+
+- Owner gate RCC-2 (2026-10-04), verbatim: "Plan RCC-2 with the same fix (gcTime 0 + reset) and tests in all 3 hooks, plus clearing component state. One PR." - L0 scope note (2026-10-04):…
+
+Links to: `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`
+
+**RCC-3 — Restore Password Out of the Mutation Cache Implementation Plan**
+
+- Owner gate RCC-3 (2026-10-04), verbatim: "Same small fix as RCC-2, done by L1-B." L0 scope note: "useRestoreBackup (services/backup.ts:173, BackupCard.tsx:113) — gcTime 0 + reset() on settle,…
+
+Links to: `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/archive/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`
+
+**DEV-PS1-INSTALL — `dev.ps1` Reinstalls Frontend Dependencies When the Lockfile Changed**
+
+- Owner gate DEV-PS1-FIRST (2026-10-07), verbatim: "A small PR before Tailwind 4 (owner item DEV-PS1-INSTALL): dev.ps1 reinstalls when package-lock.json is newer than node_modules. Tailwind 4…
+
+Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
+
+## `docs/archive/plans/2026-10-17-session-handoff.md`
+
+**Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
+
+**Superseded by 2026-10-18 handoff.**
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-18-session-handoff.md`
+
+**Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-17-session-handoff.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-19-session-handoff.md`
+
+**Session handoff: 2026-10-18 → 2026-10-19 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-18 handoff. Every PR number and sha below was checked with `gh pr view` when it was written, but treat this…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-20-session-handoff.md`
+
+**Session handoff: 2026-10-19 → 2026-10-20 (L0, Opus 5.5)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-19 handoff. The session ended because the owner moved development to another machine ("Please push…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-19-session-handoff.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-20b-session-handoff.md`
+
+**Session handoff: 2026-10-20 cloud session → local machine (L0)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20 handoff. This session ran in a Claude Code cloud container; the owner moved development back to a local…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20-session-handoff.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+
+## `docs/archive/plans/2026-10-20c-session-handoff.md`
+
+**Session handoff: 2026-10-20 local session → GPU machine (L0)**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20b handoff. This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit &…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20b-session-handoff.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-21-session-handoff.md`
+
+**Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20c handoff. This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
+
+## `docs/archive/plans/2026-10-21b-session-handoff.md`
+
+**Session handoff: 2026-10-21 cloud L0 → local dev machine**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21 GPU handoff. This session ran as a **cloud** L0 (claude.ai/code container, Linux, 4 CPUs, no GPU, no…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`
+
+## `docs/archive/plans/2026-10-21c-session-handoff.md`
+
+**Session handoff: 2026-10-21 local L0 (laptop) → GPU box tonight**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21b handoff. This session ran as a **local** L0 on the laptop: Danny-Lenovo, WSL, 6 vCPU, no GPU and no…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/archive/plans/2026-10-21b-session-handoff.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-22-session-handoff.md`
 
 ## `docs/archive/plans/UI-implementation-2-4.md`
 
@@ -502,7 +690,7 @@ Links to: `docs/features/TASK_LIST.md`
 
 This is mostly a safety document. The largest brand risk for this product is not visual inconsistency — it is copy that implies medical advice. That is both a compliance risk and a violation of an…
 
-Links to: `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
+Links to: `docs/archive/plans/2026-07-07-rename-audit-and-shortlist.md`
 
 ## `docs/capstone-report/00-original-goal.md`
 
@@ -518,7 +706,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/architecture-o
 
 Knowledge base for the CS4610 capstone report. It tracks the distance between the project's original goal, the repository's verified state, and the claims the report makes. Everything here is…
 
-Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
+Links to: `audit/2026-09-25/Devin-Audit-report.md`, `audit/2026-09-25/handoff-2026-09-27-execution.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/asclexis-showcase-2026-10-22.html`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/fit-decoder-journey.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/research`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`
 
 ## `docs/capstone-report/architecture-engineering-contract.md`
 
@@ -544,13 +732,21 @@ Every load-bearing claim headed for the capstone report, with its evidence and i
 
 Links to: `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/README.md`
 
+## `docs/capstone-report/fit-decoder-journey.md`
+
+**FIT decoder journey: licence ambiguity, measurement, choice (senior project report section)**
+
+- WEAR-11b exists to read Garmin metrics that are present only in `.FIT` files and absent from the JSON export (`docs/plans/2026-10-13-wearables-11-garmin-parser.md:17`). Its in-scope metrics are…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`
+
 ## `docs/capstone-report/implementation-program.md`
 
 **Asclexis — Implementation Program**
 
 This program orders the eight audit plans (`audit/2026-09-25/plans/01`–`08`) and the gaps found on 2026-09-27 that no plan covers. It includes the independent review's corrections (follow-up). The…
 
-Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md`, `audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md`, `audit/2026-09-25/waves/scaffold/RSI-TPM-MMR.md`, `audit/2026-09-25/waves/wave-3.md`, `audit/2026-09-25/waves/wave-4.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`, `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/plans/2026-10-04-NPM-audit-fix.md`, `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/plans/2026-10-04-RCC2-secret-retention.md`, `docs/plans/2026-10-04-RCC3-restore-backup.md`, `docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md`, `docs/plans/2026-10-04-SAFE-INTERP-grounded.md`
+Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audit/2026-09-25/review/2026-09-27-followup.md`, `audit/2026-09-25/swarm-2026-09-27/ledger.md`, `audit/2026-09-25/swarm-2026-09-27/wave3/3a-integration.md`, `audit/2026-09-25/swarm-2026-09-27/wave3/3b-evidence.md`, `audit/2026-09-25/waves/scaffold/RSI-TPM-MMR.md`, `audit/2026-09-25/waves/wave-3.md`, `audit/2026-09-25/waves/wave-4.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-react-router7.md`, `docs/archive/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/archive/plans/2026-10-04-NPM-audit-fix.md`, `docs/archive/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/archive/plans/2026-10-04-RCC2-secret-retention.md`, `docs/archive/plans/2026-10-04-RCC3-restore-backup.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-P08-gated-packet-hipaa-aligned-amendment.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W03-verified-only-rag-and-trend-labels.md`, `docs/plans/2026-09-27-W04-legacy-abstain-and-eval-gate.md`, `docs/plans/2026-09-27-W05-citation-marker-prompt.md`, `docs/plans/2026-09-27-W06-external-runner-hardening.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/plans/2026-09-29-S02-agent-cache-profile-isolation.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-04-DDI-doc-delete-interpretation.md`, `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`, `docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md`, `docs/plans/2026-10-04-SAFE-INTERP-grounded.md`
 
 ## `docs/capstone-report/owner-decisions-2026-09-27.md`
 
@@ -558,7 +754,7 @@ Links to: `audit/2026-09-25/handoff-2026-09-28-execution-orchestrator.md`, `audi
 
 1. **Governance edits are now approved:** amend `CLAUDE.md` (D3: CSV/JSON as named exceptions; D12: the external runner as a named ModelRunner exception) and `docs/compliance/data-privacy.md` (D3,…
 
-Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`
+Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-27-W08-bundled-embedding-model.md`, `docs/plans/2026-09-30-CI01-cpu-torch-ci-disk.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
 
 ## `docs/capstone-report/report-outline.md`
 
@@ -566,7 +762,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation
 
 Working outline. Each section names the artifacts that back it — the report is an assembly of verifiable evidence, not narrative invention. Item status: ✅ ready · 🔶 needs work · ⬜ pending.
 
-Links to: `audit/2026-09-25/asclexis-showcase.html`, `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/research`, `docs/capstone-report/research/04-papers-evals.md`, `docs/capstone-report/specs-compliance-matrix.md`
+Links to: `audit/2026-09-25/review/2026-09-27-followup.md`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/asclexis-showcase-2026-10-22.html`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/fit-decoder-journey.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/research`, `docs/capstone-report/research/04-papers-evals.md`, `docs/capstone-report/specs-compliance-matrix.md`
 
 ## `docs/capstone-report/research/01-agentic-swe-tools.md`
 
@@ -614,7 +810,7 @@ Links to: `docs/capstone-report/README.md`, `docs/capstone-report/implementation
 
 Capstone report section. Status labels are strict: nothing here is described as merged unless the source says so. The research package it cites is in PR #122…
 
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`
 
 ## `docs/capstone-report/specs-compliance-matrix.md`
 
@@ -690,6 +886,14 @@ Date: 2026-02-22 Scope (Sprint 06 commits): `a2d25cc` (OPS-003), `1662f0e` (OPS-
 
 A **dev-only** knowledge layer that gives coding agents (Claude Code, etc.) precise, **always-fresh** understanding of this codebase via Serena, an LSP-over-MCP server. It exposes language-server…
 
+## `docs/dev/setup.md`
+
+**Developer Setup and Commands**
+
+Moved verbatim from the repository README on 2026-10-25 so the README can stay a short entry point. Behavioural rules are in `CLAUDE.md`; the collected-test baseline and the definition of done are…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `README.md`, `config/.env.example`, `src/frontend/e2e/BROWSER_MCP_PLAYBOOK.md`, `src/frontend/e2e/ui-full-verification.spec.ts`
+
 ## `docs/features/00_features_index.md`
 
 **HealthCentral Features Index (Current)**
@@ -728,7 +932,7 @@ Links to: `docs/00_architecture_plans_index.md`
 
 ---
 
-Links to: `audit/2026-09-25/gated-items-decision-packet.md`, `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-13-wearables-00-program.md`
+Links to: `AGENT.md`, `audit/2026-09-25/gated-items-decision-packet.md`, `docs/agentic/recurring-failures.md`, `docs/plans/2026-07-02-architect-review-proposal-tickets.md`, `docs/plans/2026-09-08-backlog-closure-plan.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-10-13-wearables-00-program.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
 ## `docs/model_tiers/README.md`
 
@@ -774,7 +978,7 @@ Premium tier with specialized medical knowledge. Requires significant resources.
 
 The repo already has most primitives, but they are disconnected:
 
-Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/backend/api/export.py`, `src/backend/api/observations.py`, `src/backend/modules/export.py`, `src/backend/modules/interpret.py`, `src/backend/modules/rag.py`, `src/frontend/e2e/ui-full-verification.spec.ts`, `src/frontend/src/__tests__/VerificationWorkbench.test.tsx`, `src/frontend/src/pages/DocumentInbox.tsx`, `src/frontend/src/pages/ExplainAssistant.tsx`, `src/frontend/src/pages/ExportPage.tsx`, `src/frontend/src/pages/LabInterpreter.tsx`, `src/frontend/src/pages/TrendsDashboard.tsx`, `src/frontend/src/pages/VerificationWorkbench.tsx`, `src/frontend/src/services/documents.ts`, `src/frontend/src/services/observations.ts`, `src/frontend/src/services/types.ts`
+Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/backend/api/export.py`, `src/backend/api/observations.py`, `src/backend/modules/export.py`, `src/backend/modules/interpret.py`, `src/backend/modules/rag.py`, `src/frontend/e2e/ui-full-verification.spec.ts`, `src/frontend/src/__tests__/VerificationWorkbench.test.tsx`, `src/frontend/src/pages/DocumentInbox.tsx`, `src/frontend/src/pages/ExplainAssistant.tsx`, `src/frontend/src/pages/ExportPage.tsx`, `src/frontend/src/pages/ResultsPage.tsx`, `src/frontend/src/pages/VerificationWorkbench.tsx`, `src/frontend/src/services/documents.ts`, `src/frontend/src/services/observations.ts`, `src/frontend/src/services/types.ts`
 
 ## `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`
 
@@ -789,12 +993,6 @@ Links to: `src/backend/api/assistant.py`, `src/backend/api/documents.py`, `src/b
 ---
 
 Links to: `docs/archive/plans/2026-07-02-consolidated-findings-report.md`, `docs/features/TASK_LIST.md`
-
-## `docs/plans/2026-07-07-rename-audit-and-shortlist.md`
-
-**Product Rename: Surface Audit + Candidate Shortlist (HC-M10, stage 1)**
-
-Owner decision (2026-07-07): rename the product — "HealthCentral" collides with the existing health-media brand healthcentral.com. This document is stage 1 of the plan: how big the rename is, and a…
 
 ## `docs/plans/2026-07-10-post-visit-record-intelligence-roadmap.md`
 
@@ -952,7 +1150,7 @@ Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementa
 
 **CS4610 Senior Report — Stakeholder Showcase Update Plan**
 
-**Ref labels.** `main@40f590e` = main at the planning date. `B@7b2ff1f` = `origin/claude/healthcentral-agentic-research-r1n54x`. `A@692fdf3` = `origin/claude/asclexis-repo-audit-349pjq`.…
+**Refresh triggers fired since 2026-09-27:** P1 (both branches ancestors of main), W-1 (#35), P2 notifications (#31), W-3 (#136), W-4 (#72), W-5 (#34), W-6 (#32), W-8 (#168, #196), W-10 (#53), W-11a…
 
 Links to: `audit/2026-09-25/asclexis-showcase.html`, `docs/capstone-report/00-original-goal.md`, `docs/capstone-report/README.md`, `docs/capstone-report/architecture-engineering-contract.md`, `docs/capstone-report/architecture-overview.md`, `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/report-outline.md`, `docs/capstone-report/specs-compliance-matrix.md`, `docs/plans/2026-09-27-S01-sql-echo-phi-leak.md`
 
@@ -986,30 +1184,6 @@ Links to: `audit/2026-09-25/Devin-Audit-report.md`, `docs/capstone-report/owner-
 
 - **A. ORM cascade.** `Observation.interpretation` gets `cascade="all, delete"`. The existing `Document.observations` cascade (`models/document.py:73-77`, `"all, delete-orphan"`) then reaches the…
 
-## `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
-
-**NPM-MAJORS (b) — React Router 6 → 7 Migration Plan**
-
-1. On v6, turn on the 2 future flags that apply to a declarative-mode app. This is a separate, small commit, and it proves the behaviour change before the major. 2. Bump to v7 while keeping the…
-
-Links to: `audit/2026-09-25/waves/scaffold/REACT-ROUTER-7.md`, `audit/2026-09-25/waves/scaffold/REVIEWS-2026-10-07.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`, `docs/plans/2026-10-04-NPM-audit-fix.md`
-
-## `docs/plans/2026-10-04-NPM-MAJORS-tailwind4.md`
-
-**NPM-MAJORS (a) — Tailwind CSS 3 → 4 Migration Plan**
-
-- moves `tailwind.config.js` into CSS `@theme`; - swaps `@tailwind` directives for `@import "tailwindcss"`; - moves the PostCSS plugin to `@tailwindcss/postcss`; - renames the utilities whose…
-
-Links to: `docs/plans/2026-10-04-NPM-MAJORS-react-router7.md`
-
-## `docs/plans/2026-10-04-NPM-audit-fix.md`
-
-**NPM-AUDIT — Non-Breaking `npm audit fix` for the Frontend Implementation Plan**
-
-- Owner gate NPM-AUDIT-SCHED (2026-10-04), verbatim: "L1 measures, runs `npm audit fix` without --force, then Windows vitest + E2E. Any breaking major upgrade comes back to you." - Never `npm audit…
-
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
-
 ## `docs/plans/2026-10-04-PROHIBITED-PARAPHRASE.md`
 
 **PROHIBITED-PARAPHRASE — Measured Prohibited-Pattern Coverage — Plan**
@@ -1017,30 +1191,6 @@ Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-repor
 `PROHIBITED_PATTERNS` (`modules/interpret_safety.py:49-68` @`90c502a`) has three consumers:
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`
-
-## `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
-
-**RCC — Recovery Code Out of the TanStack Mutation Cache Implementation Plan**
-
-- Owner gate W3-SEC-SCHED (2026-10-04), verbatim: "RECOVERY-CODE-CACHE: `gcTime: 0` or `reset()` in `RecoveryCodeCard.tsx`." - Frontend only. No backend file, no auth/encryption backend code, no…
-
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
-
-## `docs/plans/2026-10-04-RCC2-secret-retention.md`
-
-**RCC-2 — Password and Recovery-Code Retention in Create, Recover and Delete Implementation Plan**
-
-- Owner gate RCC-2 (2026-10-04), verbatim: "Plan RCC-2 with the same fix (gcTime 0 + reset) and tests in all 3 hooks, plus clearing component state. One PR." - L0 scope note (2026-10-04):…
-
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`
-
-## `docs/plans/2026-10-04-RCC3-restore-backup.md`
-
-**RCC-3 — Restore Password Out of the Mutation Cache Implementation Plan**
-
-- Owner gate RCC-3 (2026-10-04), verbatim: "Same small fix as RCC-2, done by L1-B." L0 scope note: "useRestoreBackup (services/backup.ts:173, BackupCard.tsx:113) — gcTime 0 + reset() on settle,…
-
-Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-04-RCC-recovery-code-cache.md`, `docs/plans/2026-10-04-RCC2-secret-retention.md`
 
 ## `docs/plans/2026-10-04-SAFE-CHAT-legacy-prohibited-abstain.md`
 
@@ -1053,14 +1203,6 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 **SAFE-INTERP-GROUNDED — Escalate Prohibited Grounded Answers, Audit Interpretation Routes — Implementation Plan**
 
 - **A. Flag.** `ValidatedResponse.prohibited_advice` in `modules/rag.py` — **byte-identical** to SAFE-CHAT `f5961e7`'s hunk, so whichever of #44 / this PR merges second merges cleanly (Task 3 Step 5…
-
-## `docs/plans/2026-10-08-DEV-PS1-install-on-lockfile-change.md`
-
-**DEV-PS1-INSTALL — `dev.ps1` Reinstalls Frontend Dependencies When the Lockfile Changed**
-
-- Owner gate DEV-PS1-FIRST (2026-10-07), verbatim: "A small PR before Tailwind 4 (owner item DEV-PS1-INSTALL): dev.ps1 reinstalls when package-lock.json is newer than node_modules. Tailwind 4…
-
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`
 
 ## `docs/plans/2026-10-09-AUDIT-ORDER.md`
 
@@ -1232,7 +1374,7 @@ Links to: `docs/plans/2026-10-13-wearables-00-program.md`, `docs/plans/2026-10-1
 
 One item loop that **Claude Code, Codex CLI and Devin** run against the same queue, with GitHub as the only lock. It extends the tier model in orchestration.md §1–§5 and does not repeat it.…
 
-Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-program.js`, `.claude/workflows/build-wave.js`, `.claude/workflows/rsi-loop.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/reviews/2026-10-15/build-program-codex.md`
+Links to: `.claude/workflows/build-item.js`, `.claude/workflows/build-program.js`, `.claude/workflows/build-wave.js`, `.claude/workflows/rsi-loop.js`, `AGENT.md`, `CLAUDE.md`, `docs/agentic/orchestration.md`, `docs/agentic/recurring-failures.md`, `docs/architecture/ci-and-quality-gates.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/reviews/2026-10-15/build-program-codex.md`, `scripts/diag-kit/README.md`
 
 ## `docs/plans/2026-10-15-build-program/contracts.md`
 
@@ -1256,7 +1398,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C5.md`, `audit/2026-09-25/waves/wav
 
 **Collected-count slot on main:** `CLAUDE.md:30` and `:34` read **1574**; `AGENT.md:76` reads 1574. The orchestrator's "1501" is the slot on PR #95's branch, not main. Every count-changing PR in…
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/scaffold/PARA-1-R3.md`, `audit/2026-09-25/waves/scaffold/W-7.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W07-tiered-interpretation-via-modelrunner.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`
 
@@ -1264,7 +1406,7 @@ Links to: `audit/2026-09-25/waves/scaffold/G-C3a.md`, `audit/2026-09-25/waves/sc
 
 Lane C owns the profile schema chain, FK enforcement, the test-reset tuple, export persistence, backup robustness and two small evidence/audit fixes. It also publishes the profile-migration…
 
-Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/07-test-reset-tables.md`, `audit/2026-09-25/waves/scaffold/G-C1.md`, `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md`, `audit/2026-09-25/waves/scaffold/P6.md`, `audit/2026-09-25/waves/scaffold/P7.md`, `audit/2026-09-25/waves/wave-2-L1-C.md`, `docs/capstone-report/implementation-program.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/reviews/2026-10-13/BKUP-TORN-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`
+Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/07-test-reset-tables.md`, `audit/2026-09-25/waves/scaffold/G-C1.md`, `audit/2026-09-25/waves/scaffold/GAMIFICATION-V2.md`, `audit/2026-09-25/waves/scaffold/P6.md`, `audit/2026-09-25/waves/scaffold/P7.md`, `audit/2026-09-25/waves/wave-2-L1-C.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-08-sql-fk-001-foreign-key-audit.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/reviews/2026-10-13/BKUP-TORN-response.md`, `docs/reviews/2026-10-13/SQLITE-MIX-diff-response.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`
 
@@ -1278,7 +1420,7 @@ Links to: `audit/2026-09-25/plans/06-sql-fk-audit.md`, `audit/2026-09-25/plans/0
 
 ---
 
-Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-20c-session-handoff.md`
+Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-09-27-W01-harness-agents-branch-a.md`, `docs/plans/2026-09-27-W02-doctor-summary-redaction.md`, `docs/plans/2026-09-27-W11a-test-and-gate-hardening.md`, `docs/plans/2026-10-09-AUDIT-ORDER.md`, `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
 
 ## `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
 
@@ -1286,15 +1428,15 @@ Links to: `audit/2026-09-25/waves/briefs/TAILWIND-4-L1-brief.md`, `docs/capstone
 
 **Prior art reused, not repeated:** readiness packs P4-deferred, W-10b, G-C2, RTN, SHOWCASE (all measured 2026-10-07 @ `6b4dd84`). Their L1/L2 briefs stay usable once the deltas below are applied.
 
-Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/scaffold/P4-deferred.md`, `audit/2026-09-25/waves/scaffold/RTN.md`, `audit/2026-09-25/waves/scaffold/SHOWCASE.md`, `audit/2026-09-25/waves/scaffold/W-10b.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`
+Links to: `audit/2026-09-25/waves/scaffold/G-C2.md`, `audit/2026-09-25/waves/scaffold/P4-deferred.md`, `audit/2026-09-25/waves/scaffold/RTN.md`, `audit/2026-09-25/waves/scaffold/SHOWCASE.md`, `audit/2026-09-25/waves/scaffold/W-10b.md`, `docs/agentic/recurring-failures.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/features/TASK_LIST.md`, `docs/plans/2026-09-27-P04-doc-drift-sweep-amendment.md`, `docs/plans/2026-09-27-W10-governance-invariant-amendments.md`, `docs/plans/2026-09-27-W11b-roadmap-items-gc1-gc4.md`, `docs/plans/2026-09-27-nightly-doc-drift-routine-spec.md`, `docs/plans/2026-09-27-senior-report-showcase-plan.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`
 
 ## `docs/plans/2026-10-15-build-program/queue.md`
 
 **Build Program 2026-10-15 — Execution Queue**
 
-Rules: contracts.md §b (shared files), §c (migrations), §d (count slots). Path shorthand: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`; "slots" = the `CLAUDE.md` / `AGENT.md` collected-count…
+- 2026-11-17 (docs batch BATCH-1117B): two rows amended, files and status cells only, no status flips. LOGIN-OPEN-ORDER (#677): files cell adds `src/backend/tests/test_profile_recovery.py` (only…
 
-Links to: `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-18-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/archive/plans/2026-10-18-session-handoff.md`, `docs/archive/plans/2026-10-20c-session-handoff.md`, `docs/archive/plans/2026-10-21-session-handoff.md`, `docs/capstone-report/implementation-program.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/plans/2026-10-15-build-program/lane-C-schema-lifecycle.md`, `docs/plans/2026-10-15-build-program/lane-D-time-meds-gamification.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`, `docs/plans/2026-10-17-legacy-cite-prompt-constrained-decoding-plan.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-28-followups-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/plans/2026-11-01-harness-speedup-plan.md`, `docs/plans/2026-11-06-docs-audit-rows-plan.md`, `docs/plans/2026-11-06-owner-answers-rows-plan.md`, `docs/plans/2026-11-07-seven-rows-plan.md`, `docs/plans/2026-11-07-six-rows-plan.md`, `docs/plans/2026-11-07-three-rows-plan.md`, `docs/plans/2026-11-08-batch-1107e-plan.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`, `docs/plans/2026-11-08-seven-rows-plan.md`, `docs/plans/2026-11-10-batch-1110c-plan.md`, `docs/plans/2026-11-11-batch-1111a-plan.md`, `docs/plans/2026-11-11-batch-1111c-plan.md`, `docs/plans/2026-11-11-batch-1111g-plan.md`, `docs/plans/2026-11-11-batch-1111i-plan.md`, `docs/plans/archive/README.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`, `docs/research/2026-10-22-fit-decoder/00-README.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-11-06-judge-laya-ft/00-README.md`, `docs/research/2026-11-06-judge-nli-tune/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-28/qwen3-4b-tier.md`
 
 ## `docs/plans/2026-10-16-E1a-redaction-underscore-phi.md`
 
@@ -1328,14 +1470,6 @@ Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026
 
 Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
-## `docs/plans/2026-10-17-session-handoff.md`
-
-**Session handoff: 2026-10-16 → 2026-10-17 (L0, Opus 5.5)**
-
-**Superseded by 2026-10-18 handoff.**
-
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
-
 ## `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`
 
 **G-C5 HC-M11 NLI Cross-Encoder Behind a Default-Off Flag Implementation Plan**
@@ -1344,53 +1478,317 @@ Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09
 
 Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
 
-## `docs/plans/2026-10-18-session-handoff.md`
+## `docs/plans/2026-10-22-mvp-rows-plan.md`
 
-**Session handoff: 2026-10-17 → 2026-10-18 (L0, Opus 5.5)**
+**MVP rows 2026-10-22 — plans for the MVP pass, owner prompts 40-41 and the bug-fixer follow-ups**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-17 handoff. Owner answers quoted here are recorded in owner-decisions (rows dated 2026-10-17 and…
+Queue rows: queue.md, "Planned 2026-10-22, MVP rows". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`.
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-17-session-handoff.md`, `docs/plans/2026-10-19-session-handoff.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/plans/2026-10-26-session-handoff.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-rapidocr/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
 
-## `docs/plans/2026-10-19-session-handoff.md`
+## `docs/plans/2026-10-22-session-handoff.md`
 
-**Session handoff: 2026-10-18 → 2026-10-19 (L0, Opus 5.5)**
+**Session handoff: 2026-10-22 GPU-box L0 (RTX 3080) → next L0**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-18 handoff. Every PR number and sha below was checked with `gh pr view` when it was written, but treat this…
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-21c handoff. This session ran as the **GPU-box** L0 (RTX 3080, WSL, Ollama 0.40.5 with gemma4:e4b,…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-18-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/archive/plans/2026-10-21c-session-handoff.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-24-session-handoff.md`
 
-## `docs/plans/2026-10-20-session-handoff.md`
+## `docs/plans/2026-10-23-frontend-revamp-plan.md`
 
-**Session handoff: 2026-10-19 → 2026-10-20 (L0, Opus 5.5)**
+**Frontend revamp 2026-10-23 — merged plan: Ink & Paper on a Motion Gradient**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-19 handoff. The session ended because the owner moved development to another machine ("Please push…
+Queue rows: queue.md, "Planned 2026-10-23, frontend revamp". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`, `be/` =…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-19-session-handoff.md`, `docs/plans/2026-10-20b-session-handoff.md`
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-30-followups-plan.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
 
-## `docs/plans/2026-10-20b-session-handoff.md`
+## `docs/plans/2026-10-24-safety-mode-build-plan.md`
 
-**Session handoff: 2026-10-20 cloud session → local machine (L0)**
+**Safety Mode build plan: the stricter-mode toggle (2026-10-24)**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20 handoff. This session ran in a Claude Code cloud container; the owner moved development back to a local…
+Owner answer to SAFETY-MODE-BEHAVIOUR (prompt 51, multi-select), verbatim from the owner-decisions row: **"Stricter checks"**, **"Always-on citations view"**, **"Verified-only data"**.…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20-session-handoff.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/research/2026-10-20-rrsi-harness2/04-owner-questions.md`
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-safety-mode-real/00-README.md`
 
-## `docs/plans/2026-10-20c-session-handoff.md`
+## `docs/plans/2026-10-24-session-handoff.md`
 
-**Session handoff: 2026-10-20 local session → GPU machine (L0)**
+**Session handoff: 2026-10-24 GPU-box L0 (RTX 3080) → next L0**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20b handoff. This session ran on the owner's laptop (no GPU, no Ollama). The owner's instruction: "commit &…
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-22 handoff. This session continued the **GPU-box** L0 (RTX 3080, WSL, Ollama, llama.cpp tiers,…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20b-session-handoff.md`, `docs/plans/2026-10-21-session-handoff.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-22-session-handoff.md`, `docs/plans/2026-10-25-session-handoff.md`, `docs/research/2026-10-23-frontend-revamp/00-README.md`
 
-## `docs/plans/2026-10-21-session-handoff.md`
+## `docs/plans/2026-10-25-session-handoff.md`
 
-**Session handoff: 2026-10-21 GPU session → cloud L0 (merges), then next machine**
+**Session handoff: 2026-10-25 GPU-box L0 (RTX 3080) → next L0**
 
-Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-20c handoff. This session ran on the owner's GPU WSL box (RTX 3080, Ollama). The owner's instruction at the…
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-24 handoff. This session continued the **GPU-box** L0 (RTX 3080, WSL, Ollama, llama.cpp tiers,…
 
-Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-20c-session-handoff.md`, `docs/reviews/2026-10-21/b3-codex-plan-review.md`
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-24-safety-mode-build-plan.md`, `docs/plans/2026-10-24-session-handoff.md`
+
+## `docs/plans/2026-10-26-session-handoff.md`
+
+**Session handoff: 2026-10-26 GPU-box L0 (RTX 3080) → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-25 handoff. This session resumed the **GPU-box** L0 (RTX 3080, WSL, Ollama, `--plugin-dir…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/agentic/rsi-runs/README.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-25-session-handoff.md`
+
+## `docs/plans/2026-10-28-followups-plan.md`
+
+**Follow-ups 2026-10-28 — plans for VITEST-TZ-PIN, G1-VERIFY-TRACE-RACE, UIG006-PASS3-FLAKE and AUDIT-GUARD-ATTR-DYNAMIC**
+
+Queue rows: queue.md, "Planned 2026-10-28, follow-ups". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`, `e2e/` =…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`
+
+## `docs/plans/2026-10-29-session-handoff.md`
+
+**Session handoff: 2026-10-28/29 GPU-box L0 → next L0**
+
+Read this after CLAUDE.md, AGENT.md and the build-program RUNBOOK. It replaces the 2026-10-26 handoff. Main is at `144b5d4` (#411) when this was written. Treat everything below as a lead: verify it…
+
+Links to: `AGENT.md`, `CLAUDE.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-26-session-handoff.md`
+
+## `docs/plans/2026-10-30-followups-plan.md`
+
+**Follow-ups 2026-10-30 — plans for SOURCE-TRACE-WIRE, SHELL-NAVREF-DEAD and UIG002-TITLE; NAV70-CI-MISS, FOREIGN-CHROMIUM-ON-BOX and GH-READY-REFUSED**
+
+Queue rows: queue.md, "Planned 2026-10-30, planner". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`, `e2e/` = `src/frontend/e2e/`.
+
+Links to: `docs/agentic/recurring-failures.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/plans/2026-10-28-followups-plan.md`
+
+## `docs/plans/2026-10-31-harness-improvements-plan.md`
+
+**Harness improvements 2026-10-31 — plans for RSI-REPLAY-STRICT, RSI-GATE-ADVERSARIAL, RSI-ARCHIVE-LINEAGE and RSI-METRICS-VERSIONED**
+
+Queue rows: queue.md, "Planned 2026-10-31, harness improvements". Research and the full transfer matrix: harness landscape. Rules: RUNBOOK, contracts §b-§d.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`, `docs/research/2026-10-31-harness-landscape/01-hermes.md`, `docs/research/2026-10-31-harness-landscape/02-openclaw.md`, `docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md`, `docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md`, `docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md`
+
+## `docs/plans/2026-10-31-rsi-harness-plan.md`
+
+**RSI harness 2026-10-31 — plans for RSI-ERRCLASS-NONBASH, RSI-RULE-TOOLFIELD, RSI-MINE-OUTCOMES and RSI-OWNER-NOTES**
+
+Queue rows: queue.md, "Planned 2026-10-31, RSI harness". Rules: RUNBOOK, contracts §b-§d. Prior art: lane E §2.27 RSI-LOG-STDERR (the same `classifyError` extension for Bash), §2.25a…
+
+Links to: `docs/agentic/rsi-runs/2026-10-31-gpubox/summary.json`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/capstone-report/rsi-in-development-and-application.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/lane-E-privacy-gates-ci.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-01-harness-speedup-plan.md`
+
+**Harness speedup 2026-11-01 — plan for HARNESS-SPEEDUP**
+
+Queue row: queue.md, "Planned 2026-11-01, harness speedup". Rules: RUNBOOK, contracts §b-§d. CI doc: ci-and-quality-gates.
+
+Links to: `docs/architecture/ci-and-quality-gates.md`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-06-docs-audit-rows-plan.md`
+
+**Docs-audit rows 2026-11-06: plans for AUDIT-READ-ROUTES, AUDIT-CHAT-LEGACY, AUDIT-DB-SETTING-DEAD, MODEL-INT-TIER, MODELS-INIT-FEEDBACK, ONBOARDING-LANDS-OVERVIEW, FE-STALE-LINKS and DOCSTRINGS-1106**
+
+Queue rows: queue.md, "Planned 2026-11-06, docs-audit rows (#521)". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue: `be/` = `src/backend/`, `fe/` = `src/frontend/src/`.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-06-owner-answers-rows-plan.md`
+
+**Owner answers 2026-11-05 — plans for ADVICE-CLASSIFIER-FIX, OCR-OPT-IN-MIGRATION, KEPT-FLAG-DISAGREES, SEARCH-LOG-SCRUB and five candidate rows**
+
+Queue rows: queue.md, "Planned 2026-11-06, owner answers". Rules: RUNBOOK, contracts §b-§d. Path shorthand as in the queue.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-07-seven-rows-plan.md`
+
+**Plans for DOC-EXC-LOGGING, CPU-DEFAULT-PIN, SRE-002-WEAK, SAFETY-MODE-DUPROW, A11Y-LABEL-MINORS, DOC-OVERCLAIM-2 and HANDOFF-ARCHIVE-6**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the seven rows append at the end of that table; promoted from candidate bullets `IMPORT-FAILED-REASON` :549, `DOCS-VISIT-EXC-LOG` :558,…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-07-six-rows-plan.md`
+
+**Plans for FE-401-MOCKS, TEST-PLACEHOLDERS, PYSLOT-LOCK-GUARD, RANGE-ORDER, VERIFY-NONFINITE and TIMELINE-VERIFY-INVALIDATE**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the six rows sit at the end of that table; promoted from the candidate-pool bullets `RANGE-ORDER` :555, `TEST-PLACEHOLDERS` :563,…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-07-three-rows-plan.md`
+
+## `docs/plans/2026-11-07-three-rows-plan.md`
+
+**Plans for DELETED-DOC-NAMES-TIMELINE, PANEL-WITHHELD-FIRSTGEN and OCR-COPY-ENGINE**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the three rows sit at the end of that table). Rules: RUNBOOK (§10.1 planner checklist, §10.2 Codex CLI), contracts §b-§d. Path shorthand…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-08-batch-1107e-plan.md`
+
+**Plans for MED-NAME-LIST, ICON-RAIL-TABLET, CRIT-DEFAULT-KB-LIMITS, G3-JOB-LEFTOVERS, KV-THINK-RAG, RSI-LOG-CMD and TREND-MARKERS-RETIRE**
+
+Queue rows: queue.md — the seven rows append at the end of the newest ready table (the "Planned 2026-11-07" batch section); promoted from candidate bullets `MED-NAME-LIST` :752, `ICON-RAIL-TABLET`…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-08-batch-1107f-0-plan.md`
+
+**Plans for KV-LEFTOVERS, MOTION-EXPORTS-DELETE, SHOWCASE-PROVENANCE-MOVES, VERIFY-EDIT-LT-VALUE and EXPORT-QUESTIONS-CONTEXT**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** This file and the f-3 plan both planned FIT-REPORT-SECTION, RECOVER-ORDER and FALLBACK-COUNT-50. One plan section each is kept, and it is…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-3-plan.md`
+
+## `docs/plans/2026-11-08-batch-1107f-1-plan.md`
+
+**Plans for RULES-RANGE-VALUE, RSI-ARCHIVE-SIZE, TEST-RESET-ROUTE, EXPORT-RESTORE-PURGE, RECOVERY-CODE-RATELIMIT, EXTRACT-DOB-MINORS, ANALYTE-NAME-SWEEP and OCR-BOOT-COST**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** This file and the f-2 plan both planned TEST-RESET-ROUTE. One section is kept, the later file's (f-2); this file's section is removed. The…
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-2-plan.md`
+
+## `docs/plans/2026-11-08-batch-1107f-2-plan.md`
+
+**Plans for EXTRACT-LABEL-BOUNDARY, COUNT-ENV-VARIES, TEST-RESET-ROUTE, VERIFY-UNDO and SAFETY-VERIFIED-MINORS**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** TEST-RESET-ROUTE was planned here and in the f-1 plan. This file's section is the one kept (the later file; it agrees with the owner…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-1-plan.md`
+
+## `docs/plans/2026-11-08-batch-1107f-3-plan.md`
+
+**Plans for FIT-REPORT-SECTION, RECOVER-ORDER, FALLBACK-COUNT-50, PERF-POST-MVP-MEASURE, UI-GATES-TIMING-FLAKE and GATES-POPPER-TRANSFORM**
+
+**Reconciliation (BATCH-1110A, 2026-11-10; L0 ruling R5).** This file and the f-0 plan both planned FIT-REPORT-SECTION, RECOVER-ORDER and FALLBACK-COUNT-50. This file is the one kept for all three…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-11-08-batch-1107f-0-plan.md`
+
+## `docs/plans/2026-11-08-seven-rows-plan.md`
+
+**Plans for FHIR-DOSAGE-FORM, VKF-RANGE-EDIT-PIN, CRIT-LOG-ROUNDED, LOG-DOSE-BADGE-FAILURE, TOAST-TIMER-TEARDOWN, PROGRESS-CLIPPATH, IMPORT-SCANNED-MINORS (+ alternate BREAK-GLASS-320)**
+
+Queue rows: queue.md, "Planned 2026-11-01, harness speedup" (the seven rows append at the end of that table before its `**Done:**` line; promoted from the candidate bullets `IMPORT-SCANNED-MINORS`…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-10-batch-1110c-plan.md`
+
+**Plans for IWM-007-TIMESTAMP-FLAKE, E2E-TYPECHECK, FEEDBACK-MODEL-FIELDS-SET, ASK-FEEDBACK-FALSE-THANKS, OCR-MIXEDPDF-019 and DOCUMENT-REMOVE-NO-ALERT**
+
+**Base measured (planner, 2026-11-10):** a `git archive` export of `origin/main` `6afe55e3` in `/dev/shm/plan1110b` (not a worktree; the main checkout was not touched). Backend collected count on…
+
+Links to: `docs/plans/2026-10-15-build-program/RUNBOOK.md`, `docs/plans/2026-10-15-build-program/contracts.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/plans/2026-11-11-batch-1111a-plan.md`
+
+**Plans for G3-JOB-LEFTOVERS (licence extension), UIDOC-006A-FLAKE, VERIFIER-CONF-BOUND-COUNT, HOLD-SLOTS-IN-REPO, MODEL-MANIFEST-MID-PHI3 and TIMELINE-STALE-COMMENTS**
+
+**Base measured (planner, 2026-11-11):** `origin/main` **`66e0eb7d`** (the merge of #576). A `git archive` export in `/dev/shm/plan1111a` (the main checkout was not touched). Backend collected count…
+
+Links to: `docs/plans/2026-11-07-three-rows-plan.md`
+
+## `docs/plans/2026-11-11-batch-1111c-plan.md`
+
+**Plans for INTERPRET-FLAG-SCRUB, EXPORT-REF-NONE, PINBOARD-LOAD-FAIL, RESULTS-REGENERATE-FORCE, RESET-DOCS-SENTINEL and HARNESS-VITEST-MNT**
+
+**Base measured (planner, 2026-11-11):** `origin/main` **`7344d60edeeb562217cb1d90539d5725f9e43a6d`** (`7344d60e`, the merge of #586; `git ls-remote origin main` agrees). A `git archive` export in…
+
+## `docs/plans/2026-11-11-batch-1111g-plan.md`
+
+**Plans for AUDIT-VIEW-ANALYTE, PROFILE-MEMORY-PURGE, EXPORT-COPY-QUESTIONS, FLAG-OLD-ON-REWRITE, DOC-VERIFY-ALL-KEEPS, EXTRACT-LEGEND-LINES and VERIFY-UNDO-NOOP**
+
+**Base measured (planner, 2026-11-11):** `origin/main` **`c79b7fd1d9402eb5de0a641d96ca9a3945feb620`** (`c79b7fd1`, the merge of #615 EXPORT-QUESTIONS-CONTEXT; `git ls-remote origin main` agrees). A…
+
+## `docs/plans/2026-11-11-batch-1111i-plan.md`
+
+**Plans for EXTRACT-DOB-MINORS (re-plan), MEM-PURGE-RACE, MEM-PURGE-RESTORE-FAIL, EXPORT-DOWNLOAD-QUESTIONS, AUDIT-READ-ROUTES Task 3, TEST-RESET-PARTIAL, RECOVER-AUDIT-PRE-ROTATE and DISCLAIMER-GUARD-QUIRK**
+
+**Base measured (planner, 2026-11-11):** `origin/main` **`89c3811ee5fc91da6c27bd26ed78a8000ef37523`** (`89c3811e`, the merge of #620 FLAG-OLD-ON-REWRITE). It was exported with `git archive` to…
+
+## `docs/plans/archive/HUMAN-BLOCKERS.md`
+
+**Human blockers — Asclexis (HealthCentral)**
+
+Owner-only items that L0 deferred. L0 keeps this file updated as new blockers appear. Each item says **why it needs you**, **what unblocks it**, and **the exact command/steps**.
+
+## `docs/plans/archive/README.md`
+
+**Archived Off-Repo Plans (2026-11-16)**
+
+These files are local working notes (plans, diagnoses, owner-gate write-ups, handoffs) that the build program kept outside the repo under `~/hc-quiet-logs/`. Many docs and `queue.md` rows cite them…
+
+Links to: `docs/plans/archive/HUMAN-BLOCKERS.md`, `docs/plans/archive/plans-1112/agentic-eval-plan.md`, `docs/plans/archive/plans-1112/planner-summary.md`, `docs/plans/archive/plans-1113/sqlcipher-wheel-plan.md`, `docs/plans/archive/plans-1114/rows-1114-plan.md`, `docs/plans/archive/senior-report-doc/HANDOFF-SENIOR-REPORT-DOC.md`, `docs/plans/archive/senior-report-doc/STATUS.md`, `docs/plans/archive/staging-1111a/uidoc006a-diagnosis.md`, `docs/plans/archive/staging-1111c/meds-g-diagnosis.md`, `docs/plans/archive/staging-1111i/owner-gates-1111i.md`, `docs/plans/archive/stillness-nav-late-1107-result.md`, `docs/plans/archive/stillness-nav-late/RESULT.md`, `docs/plans/archive/uig006-pass3/RESULT.md`
+
+## `docs/plans/archive/plans-1112/agentic-eval-plan.md`
+
+**AGENTIC-EVAL plan (Opus planner, read-only, main dddf95b5, 2026-11-12) — summary kept by L0**
+
+Order (sequential; shared files): LICENCE (gate1, CI fail) -> SCORECARD (4, L0 script, record) -> EVIDENCE (3, record, scorecard column) -> WEAKEN (gate2, fail/warn table) -> JUDGE (5, L0 box,…
+
+## `docs/plans/archive/plans-1112/planner-summary.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/plans/archive/plans-1113/sqlcipher-wheel-plan.md`
+
+**SQLCIPHER-WHEEL plan (Opus planner, read-only, main after #316 a04ea85f, 2026-11-13) — L0 summary**
+
+Recommendation: Windows uses official `sqlcipher3==0.6.5` (coleifer; same import/API as Linux sqlcipher3-binary; no shim). Wheel sqlcipher3-0.6.5-cp311-cp311-win_amd64.whl sha256…
+
+## `docs/plans/archive/plans-1114/rows-1114-plan.md`
+
+**Rows 1114 plan: SQLC-LOGIN-ERROR-MAP and TREND-POINT-RANGE**
+
+Planner: Opus, 2026-11-14, read-only investigation on origin/main `c60be508`. Owner instruction (BUILD-1114, verbatim, last line of `~/hc-quiet-logs/plans-1112/owner-answers-1112b.md`): "Start both…
+
+## `docs/plans/archive/senior-report-doc/HANDOFF-SENIOR-REPORT-DOC.md`
+
+**HANDOFF — Senior report as a Claude doc (owner task SENIOR-REPORT-DOC, 2026-11-12/13)**
+
+Owner asked: turn the senior report Claude artifact into a Claude doc, and keep drafting it as things worth mentioning land. Blocker (2026-11-12): this needs the first-party Claude Docs connector;…
+
+## `docs/plans/archive/senior-report-doc/STATUS.md`
+
+**STATUS — Senior report Claude doc (SENIOR-REPORT-DOC), 2026-11-14**
+
+Doc: "Asclexis — Senior Report (MVP)" https://claude.ai/artifact/3dmFD3B2zsWcvF2d4J8tEm (doc id [redacted]; tab [redacted]; body node [redacted]; chart widget [redacted]) As-of chip 2026-11-14.…
+
+## `docs/plans/archive/staging-1111a/uidoc006a-diagnosis.md`
+
+**UIDOC-006A-FLAKE Task 1: diagnosis (no fix)**
+
+**Result.** The 42-50 ms sampling gap in HC-UIDOC-006 (a) comes from product work, not from the sampler. The cause is the import-complete React commit in `DocumentInbox`. That one task runs 17-23 ms…
+
+## `docs/plans/archive/staging-1111c/meds-g-diagnosis.md`
+
+**MEDS-G-FLAKE: diagnosis (no fix)**
+
+**Result.** Two separate harness-timing failures share the one test `e2e/ui-meds.spec.ts:254`. Neither is ICU, and neither is a G3 (INP) failure. CI's job is named "G3 on Production Build", but the…
+
+## `docs/plans/archive/staging-1111i/owner-gates-1111i.md`
+
+**Owner gates, wave 1111I (four questions, one AskUserQuestion prompt)**
+
+Plan: `2026-11-11-batch-1111i-plan.md` (same folder). Base `origin/main` `89c3811e`. Each question carries its options; the first option is the Recommended one.
+
+## `docs/plans/archive/stillness-nav-late-1107-result.md`
+
+**(untitled)**
+
+(no summary — see file)
+
+## `docs/plans/archive/stillness-nav-late/RESULT.md`
+
+**STILLNESS-NAV-LATE quiet-box result (2026-11-13; agent cut off by an API auth error, L0 wrote this from its logs)**
+
+Main abec056f (after #621 per-frame G10 sampler, #640 eager mono font). Spec = verbatim copy of e2e/ui-shell.spec.ts (+1 console.log line, +1 uncounted bare-timer describe), grep "HC-UISH-009: the…
+
+## `docs/plans/archive/uig006-pass3/RESULT.md`
+
+**UIG006-PASS3-FLAKE quiet-box result (2026-11-13)**
+
+**Cause found: the box's wall clock steps back about 1.05 s every ~31 s, and stillnessProbe's lazy-route wait and `elapsedMs` use Node `Date.now()`.** A step that lands inside the probe window…
 
 ## `docs/plans/implementation-log/2024-12-28_project-structure-setup.md`
 
@@ -1745,6 +2143,268 @@ Links to: `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`, `docs/researc
 What the report can claim, and how strongly:
 
 Links to: `docs/capstone-report/rsi-in-development-and-application.md`, `docs/research/2026-10-20-rrsi-harness2/01-harness2.md`, `docs/research/2026-10-20-rrsi-harness2/02-verdicts.md`
+
+## `docs/research/2026-10-22-fit-decoder/00-README.md`
+
+**FIT decoder research: which decoder may WEAR-11b use (2026-10-22)**
+
+This section quotes the owner's question that this note answers. Owner decision OW-W7 (`docs/capstone-report/owner-decisions-2026-09-27.md` line 385, prompt 35), verbatim:
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-F-docs-owner-wearables.md`
+
+## `docs/research/2026-10-22-installer/00-README.md`
+
+**Installer research for after the MVP (INSTALLER-POST-MVP)**
+
+After the 2026-10-31 showcase, what should "download Asclexis and double-click it" look like? Which shell, what ships in the box, what a stakeholder sees when the app is unsigned, and which owner…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`, `docs/research/2026-10-22-rapidocr/00-README.md`
+
+## `docs/research/2026-10-22-judge-laya/00-README.md`
+
+**Judge research: Laya and the local NLI model as the B-3 advice judge (2026-10-25)**
+
+Queue row **JUDGE-LAYA-RESEARCH** and its plan section, lane B: JUDGE-LAYA-RESEARCH. The gate it runs under, quoted verbatim from owner-decisions-2026-09-27.md line 389:
+
+Links to: `config/model_manifest.json`, `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`
+
+## `docs/research/2026-10-22-mvp/00-README.md`
+
+**MVP readiness research package (2026-10-22)**
+
+Before the 2026-10-31 showcase, stakeholders who are not developers will download Asclexis and try it: start it, import a lab PDF, see trends, chat, and export. What tools, open-source projects and…
+
+Links to: `CLAUDE.md`, `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`, `docs/research/2026-10-22-mvp/02-frontend-components.md`, `docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md`, `docs/research/2026-10-22-mvp/04-local-llm-serving.md`, `docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md`, `docs/research/2026-10-22-mvp/06-testing-tools.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
+
+**01 — Desktop packaging and one-click start**
+
+Measured installed footprint (Linux venv, CPU torch): 1.5 GB total, torch 741 MB **[A]** (agent `du` on `~/venvs/asclexis-311`). Embedding bundle: 88 MB in the HF cache **[A]**; the model card gives…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/04-local-llm-serving.md`
+
+## `docs/research/2026-10-22-mvp/02-frontend-components.md`
+
+**02 — Frontend component libraries, charts and accessibility**
+
+`src/frontend/package.json` at `d2843e8`: React 18, Tailwind 4, Vite 7, `@radix-ui/react-dropdown-menu`, `@radix-ui/react-slot`, `class-variance-authority`, `clsx`, `tailwind-merge` (the shadcn…
+
+Links to: `docs/research/2026-09-08/08-frontend.md`, `docs/research/2026-10-22-mvp/00-README.md`
+
+## `docs/research/2026-10-22-mvp/03-pdf-extraction-ocr.md`
+
+**03 — Local PDF, table and OCR extraction**
+
+- Text PDFs: `pdfplumber` (`page.extract_tables()` and `page.extract_text()`), in `modules/extract.py`. `pypdf` is declared in `requirements.txt:38`. - OCR: `pdf2image` + `pytesseract`, gated by…
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/04-local-llm-serving.md`
+
+**04 — Local LLM serving on laptops without a GPU**
+
+- Providers: `LlamaCppProvider` (default) and `OllamaProvider` (localhost), via `core/llm/factory.py`. - Tiers (`modules/model_selector.py`): low = Qwen2.5-0.5B, gemma4-e2b, gemma4-e4b, mid =…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/05-onboarding-errors-backups.md`
+
+**05 — First-run onboarding, local error reporting, crash-safe backups**
+
+What a stakeholder meets today (F-9 dry run and code at `d2843e8`):
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/06-testing-tools.md`
+
+**06 — Offline testing and quality tools**
+
+- CI jobs (`.github/workflows/ci.yml`): docs lint, backend tests (pytest + coverage, `--cov-fail-under=74`, no `--cov-branch`), ruff, frontend (tsc, eslint, vitest, build), security scan (bandit,…
+
+Links to: `docs/research/2026-10-22-mvp/00-README.md`, `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+## `docs/research/2026-10-22-mvp/07-owner-questions.md`
+
+**07 — Owner questions from the MVP research pass**
+
+On Windows and Mac, the app cannot install its encryption library today, so each profile's health data is saved without encryption. A newer package from the same author has the encryption built in…
+
+Links to: `docs/plans/2026-10-01-packaging-decision.md`, `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-mvp/01-desktop-packaging.md`
+
+## `docs/research/2026-10-22-rapidocr/00-README.md`
+
+**RapidOCR premises: licence, offline behaviour, size, accuracy (RAPIDOCR-RESEARCH)**
+
+Owner answer OCR-FOR-MVP (b) "Bundle RapidOCR" rested on four premises.
+
+## `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+**Frontend revamp research package (2026-10-23)**
+
+The owner asked for a complete, ambitious update of the frontend, "engaging, modern, active like how SaaS has smooth UI/UX experiences", researched against current component, motion and scroll…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md`, `docs/research/2026-10-23-frontend-revamp/comparison.md`, `docs/research/2026-10-23-frontend-revamp/framing.md`, `docs/research/2026-10-23-frontend-revamp/owner-direction.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`, `docs/research/2026-10-23-frontend-revamp/research-components.md`, `docs/research/2026-10-23-frontend-revamp/research-motion.md`, `docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md`, `docs/research/2026-10-23-frontend-revamp/research-skills.md`, `docs/research/2026-10-23-frontend-revamp/ui-review.md`
+
+## `docs/research/2026-10-23-frontend-revamp/COMPONENT_AUDIT.md`
+
+**Asclexis frontend: component, motion and token audit**
+
+Scope: `src/frontend/src/components/**`, `src/frontend/src/pages/**`, `src/App.tsx`, `src/styles/globals.css`, `src/hooks/useReducedMotion.ts`. Snapshot: branch `main`, HEAD `7749744`. Read-only…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/comparison.md`
+
+**Proposal A vs proposal B: what the merged plan takes from each**
+
+Two Opus 5.5 designers worked independently on 2026-10-23, from the same inputs and without seeing each other's work: proposal A "Ink & Paper" and proposal B "Quiet Instrument". Both built a…
+
+Links to: `docs/plans/2026-10-23-frontend-revamp-plan.md`, `docs/research/2026-10-23-frontend-revamp/proposal-A.md`, `docs/research/2026-10-23-frontend-revamp/proposal-B.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`, `docs/research/2026-10-23-frontend-revamp/shots/A-mobile-more-sheet-light-390.png`, `docs/research/2026-10-23-frontend-revamp/shots/A-results-light-390.png`, `docs/research/2026-10-23-frontend-revamp/shots/A-source-sheet-light-1440.png`, `docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-dark.png`, `docs/research/2026-10-23-frontend-revamp/shots/B-results-1440-light-peek-open.png`, `docs/research/2026-10-23-frontend-revamp/shots/B-results-390-light.png`, `docs/research/2026-10-23-frontend-revamp/shots/before-trends-1440.png`, `docs/research/2026-10-23-frontend-revamp/shots/before-trends-390.png`
+
+## `docs/research/2026-10-23-frontend-revamp/framing.md`
+
+**How Asclexis frames itself**
+
+Repo: `/mnt/e/Programming/Github Repo/HealthCentral` at `main` 7749744 (clean tree), read 2026-10-23. Searched CLAUDE.md, AGENT.md, README.md, `docs/capstone-report/**` and wider `docs/**` for…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/owner-direction.md`
+
+**Owner direction for the frontend revamp (2026-10-23, verbatim)**
+
+The owner's message, verbatim:
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/proposal-A.md`
+
+**Asclexis frontend revamp: proposal A ("Ink & Paper")**
+
+Designer A, 2026-10-23. Repo `main` @ 7749744. Nothing in the repo was edited. The prototype lives in `proto-A.patch` in this folder (a diff against `src/frontend` at `7749744`; it ran on port…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/proto-A.patch`
+
+## `docs/research/2026-10-23-frontend-revamp/proposal-B.md`
+
+**Proposal B: "Quiet Instrument", a frontend revamp for Asclexis**
+
+Author: Designer B (Opus 5.5). Date: 2026-10-23. Base: `main` @ 7749744. I read nothing written by Designer A. Inputs: `owner-direction.md`, `framing.md`, `ui-review.md`, `COMPONENT_AUDIT.md`,…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`, `docs/research/2026-10-23-frontend-revamp/proto-B.patch`
+
+## `docs/research/2026-10-23-frontend-revamp/research-components.md`
+
+**UI component sources: research for a local-first health app revamp**
+
+Date of research: 2026-10-23. Stack: React 18.2, Vite 7, Tailwind v4, framer-motion 10, Radix primitives, lucide. Constraints: no runtime CDN/remote fonts/telemetry; WCAG 2.2 AA;…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/research-motion.md`
+
+**Motion library research for the HealthCentral frontend (2026-10-23)**
+
+Scope: research only, no repo edits. Versions and licences from `npm view` (run 2026-10-23). Every fact cites a URL; anything not reachable is marked **not verified**.
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/research-scroll-3d.md`
+
+**Scroll and 3D/GPU options for the HealthCentral frontend (research, 2026-10-23)**
+
+Scope: research only, no repo edits. npm data from `npm view` / `npm pack` run on 2026-10-23. Items marked "not verified" could not be confirmed from a primary source in this pass.
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/research-skills.md`
+
+**Research: three Claude Code design skills (checked 2026-10-23)**
+
+Downloads (untrusted, not executed): `ui/skills-download/` in the L0 scratch directory (third-party skill text; deliberately not committed) - impeccable/, emil-kowalski/, awwwards-sandrohub/,…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-frontend-revamp/ui-review.md`
+
+**Asclexis UI review (current state, 2026-10-23)**
+
+These notes read the app twice: once as an Awwwards juror would, and once as a SaaS product manager. Every claim points at a screenshot in `shots/`, a measurement in `capture-metrics.json`,…
+
+Links to: `docs/research/2026-10-23-frontend-revamp/00-README.md`
+
+## `docs/research/2026-10-23-safety-mode-real/00-README.md`
+
+**Safety Mode research: what can the top-bar toggle really do (2026-10-23)**
+
+Owner answer **UI-SAFETY-TOGGLE = "Make it real"** (owner-decisions-2026-09-27.md, line 410) keeps a toggle and wires it to real behaviour. The plan (frontend revamp plan section 7.2, row…
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-23-frontend-revamp-plan.md`
+
+## `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+**Harness landscape (Hermes, OpenClaw, DeepMind, DeepSeek): research package (2026-10-31)**
+
+Owner instruction, 2026-10-31 (part of RSI-HARNESS-GO), verbatim: "Then plan out for more improvements over our own harness. Run research agents to find out how Hermes/OpenClaw/Google Deepmind RSI/…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-17-rsi-opt-in-data/00-README.md`, `docs/research/2026-10-20-rrsi-harness2/00-README.md`, `docs/research/2026-10-31-harness-landscape/01-hermes.md`, `docs/research/2026-10-31-harness-landscape/02-openclaw.md`, `docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md`, `docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md`, `docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md`
+
+## `docs/research/2026-10-31-harness-landscape/01-hermes.md`
+
+**Hermes Agent (Nous Research): self-improvement and its gates**
+
+Hermes Agent is Nous Research's open-source agent (https://github.com/NousResearch/hermes-agent). Its README says it creates skills from experience and improves them during use. A separate repo,…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/02-openclaw.md`
+
+**OpenClaw: self-authored skills, loop detection and the skill-market incidents**
+
+From https://docs.openclaw.ai/tools/skill-workshop?full=true [V]: - Modes: `"auto"` (default: background review, unused-skill cleanup, "skill diet"), `"propose"` (background review saves drafts for…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/03-deepmind-evaluator-loops.md`
+
+**Google DeepMind and evaluator-driven self-improvement loops**
+
+- **Evaluator owned by the user.** "the user must provide a mechanism for automatically assessing generated solutions", a function `h`; an "Evaluation cascade" where "new solutions are evaluated on…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-17-rsi-opt-in-data/01-rsi-self-improving-agents.md`, `docs/research/2026-10-17-rsi-opt-in-data/04-rsi-harness-engineering.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/04-deepseek-harness.md`
+
+**DeepSeek Harness (`dsh`) and DeepSeek's verifiable agent tasks**
+
+- `deepseek-ai/deepseek-harness`, created 2026-08-13T11:56:32Z, MIT (GitHub API) [V]. The README calls it "an open-source agent harness developed by DeepSeek AI", plugin-based, "developer preview",…
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/research/2026-10-31-harness-landscape/00-README.md`
+
+## `docs/research/2026-10-31-harness-landscape/05-transfer-matrix.md`
+
+**Transfer matrix: each idea against our RSI loop**
+
+(no summary — see file)
+
+Links to: `docs/plans/2026-10-31-harness-improvements-plan.md`, `docs/plans/2026-10-31-rsi-harness-plan.md`
+
+## `docs/research/2026-11-06-judge-laya-ft/00-README.md`
+
+**Judge measurement: fine-tuned Laya with a calibration split and repeated runs (2026-11-06)**
+
+Queue row **JUDGE-LAYA-FT**, plan section lane B: JUDGE-LAYA-FT. Source gate, owner JUDGE-SWAP, answered 2026-10-26, verbatim: "Try both Layla fine tune and NLI judge"…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
+
+## `docs/research/2026-11-06-judge-nli-tune/00-README.md`
+
+**Judge measurement: tuning the bundled NLI cross-encoder's hypothesis and threshold (2026-11-06)**
+
+Queue row **JUDGE-NLI-TUNE** and its plan section, lane B: JUDGE-NLI-TUNE. The gate: owner JUDGE-SWAP, answered 2026-10-26 by free text, verbatim: "Try both Layla fine tune and NLI judge"…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-B-interpretation-eval.md`, `docs/research/2026-10-22-judge-laya/00-README.md`
 
 ## `docs/reviews/2026-09-25/DDI-r1-prompt.md`
 
@@ -2996,6 +3656,50 @@ Plan: GC5 plan, Task 7. Follows the laptop run, 2026-10-20 report, which listed 
 
 Links to: `docs/plans/2026-10-18-GC5-hc-m11-nli-flag-off.md`, `docs/reviews/2026-10-20/gc5-evidence`, `docs/reviews/2026-10-20/gc5-real-model-evidence.md`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm.py`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_llama3.1_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/real_llm_qwen3_8b.json`, `docs/reviews/2026-10-21/gc5-host-evidence/trunc.json`
 
+## `docs/reviews/2026-10-22/kv-prefix-measure.md`
+
+**KV-PREFIX-MEASURE: prompt sizes, prefill timings, truncation and VRAM on the model host**
+
+Plan: KV-PREFIX-MEASURE; queue row `KV-PREFIX-MEASURE` in queue.md. Feeds the row `OLLAMA-NUM-CTX` (plan). Run by an agent on the owner's model host (WSL2, RTX 3080, Ollama 0.40.5), 2026-10-22 12:53…
+
+Links to: `docs/plans/2026-10-15-build-program/lane-A-rag-assistant.md`, `docs/plans/2026-10-15-build-program/queue.md`
+
+## `docs/reviews/2026-10-26/don-ner-measure.md`
+
+**DON-NER-MEASURE: on-device PHI detector candidates measured on the GPU box**
+
+Plan: RSI1-DONATE Delta 2026-10-22, DON-NER-MEASURE; queue row `DON-NER-MEASURE` in queue.md. Feeds the new owner gate **DON-NER-MODEL** (same plan, "New owner gate DON-NER-MODEL"). Run by a Claude…
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-17-rsi1-opt-in-donation-pipeline-plan.md`
+
+## `docs/reviews/2026-10-27/kv-numctx-verify.md`
+
+**KV-NUMCTX-VERIFY: Ollama runs the app's requests at num_ctx 8192 on the model host**
+
+Plan: KV-NUMCTX-VERIFY. Queue row: queue.md, Planned 2026-10-27. Baseline: kv-prefix-measure.md.
+
+Links to: `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`
+
+## `docs/reviews/2026-10-28/qwen3-4b-tier.md`
+
+**QWEN3-4B-TIER: Qwen3-4B vs Phi-4-mini on CPU (measurement only)**
+
+Plan: QWEN3-4B-TIER. Queue row: queue.md (`QWEN3-4B-TIER`). Judge context: judge research. Baseline for the KV and MM-4 prompts: kv-prefix-measure.md and kv-numctx-verify.
+
+Links to: `docs/capstone-report/owner-decisions-2026-09-27.md`, `docs/plans/2026-10-15-build-program/queue.md`, `docs/plans/2026-10-22-mvp-rows-plan.md`, `docs/research/2026-10-22-judge-laya/00-README.md`, `docs/reviews/2026-10-22/kv-prefix-measure.md`, `docs/reviews/2026-10-27`
+
+## `docs/reviews/2026-11-02/stillness-nav-evidence/README.md`
+
+**STILLNESS-NAV-LATE Task 1: why page changes run late under the stillness probe (MEASURE)**
+
+Row: STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "STILLNESS-NAV-LATE", Task 1) with NAV70-CI-MISS folded in (docs/plans/2026-10-30-followups-plan.md). Draft PR #469, branch…
+
+## `docs/reviews/2026-11-02/stillness-nav-evidence/l0-2026-10-27/RECOVERY.md`
+
+**L0 2026-10-27 evidence copy: recovery note and sha256 check**
+
+Task 1 step 1 of STILLNESS-NAV-LATE (docs/plans/2026-10-23-frontend-revamp-plan.md, "Evidence to keep").
+
 ## `docs/reviews/README.md`
 
 **Codex Review Archive**
@@ -3018,7 +3722,7 @@ Links to: `docs/00_architecture_plans_index.md`, `docs/INDEX.md`, `docs/architec
 
 The local-first LLM provider layer (`core/llm/`), hardware-tier model selection, RAG/grounding pipeline, the hand-rolled agent state machine (`modules/agent/` — **not** LangGraph), and its…
 
-Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
+Links to: `docs/04_local_models_inference_plan.md`, `docs/archive/prd-phases`, `docs/model_tiers/README.md`, `docs/model_tiers/tier1_low.md`, `docs/model_tiers/tier2_mid.md`, `docs/model_tiers/tier3_high.md`, `docs/plans/2026-06-30-tech-upgrade-survey-9-areas.md`, `docs/prd/PRD_agent_overhaul.md`, `docs/prd/phases/PHASE_7_lora_stretch.md`, `docs/roles/data-and-migrations.md`, `docs/roles/security-and-compliance.md`, `skills/asclexis-agent/SKILL.md`, `skills/asclexis-evals/SKILL.md`, `skills/asclexis-guardrails/SKILL.md`
 
 ## `docs/roles/backend-api.md`
 
@@ -3034,7 +3738,7 @@ Links to: `docs/01_backend_architecture_plan.md`, `docs/api/authentication.md`, 
 
 SQLAlchemy models, the **dual** Alembic migration environments (`migrations/master/` for profile-metadata/audit, `migrations/profile/` for per-profile encrypted vault schema — see CLAUDE.md's "Dual…
 
-Links to: `docs/03_data_confidentiality_pipeline_plan.md`, `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`, `docs/roles/backend-api.md`, `docs/roles/security-and-compliance.md`
+Links to: `docs/03_data_confidentiality_pipeline_plan.md`, `docs/architecture/backend.md`, `docs/plans/implementation-log/2026-02-04_alembic-dual-migrations.md`, `docs/roles/backend-api.md`, `docs/roles/security-and-compliance.md`
 
 ## `docs/roles/devops-and-ci.md`
 
@@ -3068,29 +3772,11 @@ HIPAA technical safeguards, PHI/PII redaction, encryption boundaries (SQLCipher,
 
 Links to: `SECURITY.md`, `docs/03_data_confidentiality_pipeline_plan.md`, `docs/compliance/audit-checklist.md`, `docs/compliance/data-privacy.md`, `docs/compliance/disaster-recovery.md`, `docs/compliance/f006-profile-id-removal-review.md`, `docs/compliance/hipaa-controls.md`, `docs/compliance/security-review-sprint06.md`, `docs/roles/ai-llm-pipeline-and-safety.md`, `docs/roles/data-and-migrations.md`
 
-## `docs/superpowers/plans/2026-05-11-dynamic-port-selection.md`
-
-**Dynamic Port Selection Implementation Plan**
-
----
-
-## `docs/superpowers/plans/2026-07-13-hc-m21-search.md`
-
-**HC-M21 Search & Filtering Implementation Plan**
-
----
-
 ## `docs/superpowers/plans/2026-07-30-phase-a-audit-fix-pass.md`
 
 **Phase A: Audit Fix Pass Implementation Plan**
 
 - Target **Python 3.11+**. Do not use 3.12-only syntax or APIs. - Use `core.time.utcnow` as the single timestamp helper. Never `datetime.utcnow()`. - All LLM calls go through the `ModelRunner`…
-
-## `docs/superpowers/plans/2026-07-30-phase-b-asclexis-rename.md`
-
-**Phase B: Asclexis Rename and Branding Implementation Plan**
-
-- **Preserve, do not rename:** `HC-*` ticket and test prefixes (111 identifiers), `HC_*` environment variables, vault filenames (`vaults/{profile_id}/vault.db`, `key.bin`, `key.method` — these never…
 
 ## `docs/superpowers/plans/2026-07-30-phase-c-agent-instructions.md`
 
@@ -3152,6 +3838,6 @@ Links to: `docs/compliance/disaster-recovery.md`
 
 **Asclexis Frontend**
 
-Web-based UI for Asclexis, designed to run within a Tauri desktop shell.
+Web-based UI for Asclexis: a Vite single-page app served on localhost (no desktop shell is in this repository).
 
 Links to: `docs/architecture/frontend.md`

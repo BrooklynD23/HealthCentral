@@ -31,7 +31,7 @@ const A1C_CSV =
   '2026-04-10,Hemoglobin A1c,5.9,%,4.0,5.6,H\n' +
   '2026-07-10,Hemoglobin A1c,6.1,%,4.0,5.6,H\n';
 
-test.use({ viewport: { width: 1280, height: 800 }, reducedMotion: 'reduce' });
+test.use({ viewport: { width: 1280, height: 800 }, contextOptions: { reducedMotion: 'reduce' } });
 
 async function shot(page: Page, name: string) {
   await page.screenshot({
@@ -132,20 +132,21 @@ test.describe('Tailwind 4 style guard', () => {
 
   test('TW4-RECOVER: default border and placeholder (unauthenticated)', async ({ page }) => {
     await page.goto('/recover');
-    // Target: RecoverProfile.tsx:136-143, bare border utility, no border colour or placeholder class.
+    // #recover-code is the Input primitive (UI-PG-AUTH): its border is the --line-strong token (rgb(138, 133, 123)),
+    // its placeholder keeps the --ink-tertiary token.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });
-    expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(229, 231, 235)');
+    expect(await input.evaluate((el) => getComputedStyle(el).borderTopColor)).toBe('rgb(138, 133, 123)');
     expect(await input.evaluate((el) => getComputedStyle(el, '::placeholder').color)).toBe(
-      'rgb(156, 163, 175)'
+      'rgb(104, 100, 93)'
     );
     await shot(page, 'recover');
   });
 
   test('TW4-FOCUS: global focus ring box-shadow (unauthenticated)', async ({ page }) => {
     await page.goto('/recover');
-    // Target: RecoverProfile.tsx:136-143 (`w-full rounded-md border px-3 py-2 text-sm font-mono`): no
-    // ring, shadow or outline class, so its focus box-shadow comes only from globals.css:288-290.
+    // Target: #recover-code, the Input primitive since UI-PG-AUTH. Its focus ring (focus-visible:ring-2, accent)
+    // is what this test reads; the assertions below are unchanged.
     // Own test so an earlier failing assert cannot mask it.
     const input = page.locator('#recover-code');
     await expect(input).toBeVisible({ timeout: 15000 });
@@ -175,10 +176,10 @@ test.describe('Tailwind 4 style guard', () => {
     // Collision guards: body (globals.css:49), rounded-lg (DoseLoggingModal.tsx:100 close button,
     // checked in the modal test), text-ink (Sidebar.tsx:48 heading).
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(
-      'rgb(250, 250, 248)'
+      'rgb(246, 245, 241)'
     );
-    const heading = page.locator('aside h1').first();
-    expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(31, 31, 31)');
+    const heading = page.locator('aside [data-brand]').first();
+    expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(28, 27, 25)');
 
     // Cursor: TopBar.tsx:68-78 Button (`h-10 w-10 rounded-xl` + border opacity class + Button.tsx cva) has
     // no cursor-* class and no ancestor in TopBar/layout carries one; enabled, so preflight gives pointer.
@@ -267,7 +268,7 @@ test.describe('Tailwind 4 style guard', () => {
 
     // Target: modal close button, explicit radius utility at DoseLoggingModal.tsx:100.
     const close = page.getByRole('button', { name: 'Close' });
-    expect(await close.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('8px');
+    expect(await close.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe('10px');
     await shot(page, 'dose-logging-modal');
   });
 });

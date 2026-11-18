@@ -4,6 +4,7 @@
  */
 import { cn } from '@/utils/cn';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui';
+import { Switch } from '@/components/ui/Switch';
 import { useModelSettings, useSaveAgentSettings } from '@/services';
 
 export function AgentSettingsCard() {
@@ -24,40 +25,24 @@ export function AgentSettingsCard() {
             Could not load this setting. Reload to try again.
           </p>
         ) : (
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label="Step-by-step assistant"
-            aria-describedby="agent-enabled-desc"
-            disabled={save.isPending}
-            onClick={() => save.mutate(!on)}
+          <div
             className={cn(
-              'w-full flex items-center justify-between gap-4 px-4 py-3 rounded-xl text-left',
-              'transition-all duration-300 ease-in-out',
-              on
-                ? 'bg-accent-subtle border border-accent/20'
-                : 'bg-surface-muted border border-transparent hover:bg-surface-sunken',
+              'w-full flex items-center justify-between gap-4 px-4 py-3 rounded-xl',
+              on ? 'bg-accent-subtle border border-accent/20' : 'bg-surface-muted border border-transparent',
             )}
           >
-            <span id="agent-enabled-desc" className="text-sm text-ink-secondary">
+            <label htmlFor="agent-enabled-switch" id="agent-enabled-desc" className="text-sm text-ink-secondary">
               Use the step-by-step assistant. When off, answers come from the simpler search path.
-            </span>
-            <span
-              aria-hidden
-              className={cn(
-                'w-10 h-6 shrink-0 rounded-full relative transition-colors duration-300',
-                on ? 'bg-accent' : 'bg-black/12',
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute w-4 h-4 rounded-full bg-white top-1 transition-transform duration-300',
-                  on ? 'translate-x-5' : 'translate-x-1',
-                )}
-              />
-            </span>
-          </button>
+            </label>
+            <Switch
+              id="agent-enabled-switch"
+              checked={on}
+              onCheckedChange={() => save.mutate(!on)}
+              aria-label="Step-by-step assistant"
+              aria-describedby="agent-enabled-desc"
+              disabled={save.isPending}
+            />
+          </div>
         )}
         {save.isError && (
           <p role="alert" className="mt-2 text-sm text-status-critical">
