@@ -410,13 +410,15 @@ async def test_hc_gc5_015_predict_failure_leaves_claims_unverified(dbs, monkeypa
     url = f"/interpretations/observations/{obs_id}/interpret-grounded"
 
     # Precondition (non-vacuous): flag off, the rules verify both claims.
-    with patch.object(I, "get_rag_module", return_value=_real_verifying_rag(False)):
+    with patch.object(I, "get_rag_module", return_value=_real_verifying_rag(False)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         off = _call(profile_db, master_db, "POST", url)
     assert off.status_code == 201, off.text
     assert off.json()["verification"]["verified_claims"] == 2
 
     monkeypatch.setattr("modules.embeddings.load_local_cross_encoder", lambda: encoder)
-    with patch.object(I, "get_rag_module", return_value=_real_verifying_rag(True)):
+    with patch.object(I, "get_rag_module", return_value=_real_verifying_rag(True)), \
+         patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         on = _call(profile_db, master_db, "POST", url)
     assert on.status_code == 201, on.text
     body = on.json()
