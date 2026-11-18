@@ -20,7 +20,7 @@ import pytest
 import api.interpretations as I
 from modules.agent.guardrails.templates import ABSTAIN_TEMPLATE
 from modules.rag import RAGModule, RetrievedChunk
-from tests.legacy_eval.harness import CHAT_PATH, build_chunks, legacy_chat_client
+from tests.legacy_eval.harness import CHAT_PATH, AllowJudge, build_chunks, legacy_chat_client
 from tests.test_safe_interp_grounded import CLEAN_ANSWER, _call, dbs  # noqa: F401
 
 # Measured on main b9d285e: the real verifier fails both claims of CLEAN_ANSWER
@@ -66,7 +66,8 @@ def _real_verification_rag(answer: str) -> RAGModule:
 
 async def _grounded(dbs, answer: str):  # noqa: F811
     profile_db, master_db, obs_id = dbs
-    with patch.object(I, "get_rag_module", return_value=_real_verification_rag(answer)):
+    with patch.object(I, "get_rag_module", return_value=_real_verification_rag(answer)), \
+            patch("modules.rag.get_model_runner", return_value=AllowJudge()):
         return _call(profile_db, master_db, "POST",
                      f"/interpretations/observations/{obs_id}/interpret-grounded")
 
