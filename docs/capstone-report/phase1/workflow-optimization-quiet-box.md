@@ -1,8 +1,9 @@
 # Workflow optimization: the quiet box and long-running tests
 
-**Last Updated:** 2026-11-11
+**Last Updated:** 2026-11-17 (status note and one dated figure; the body is unchanged)
 **Owner:** repository owner
 **Status:** DRAFT (Phase 1 input). A read-only consultant review (Fable 5.2); the figures are as dated in the body, measured against `origin/main` @ `c79b7fd1`. No option here is adopted until the owner answers section 8.
+**Update 2026-11-17:** after this review, options A and B were built (WF-CI-SHARD, #633, merged `189f0e53`) and `PYSLOTS` was raised to 6 (WF-PYSLOTS-6, #635, merged `eb22d019`); owner answers to the other options are in the `WORKFLOW-OPT` row of `docs/capstone-report/owner-decisions-2026-09-27.md`. Every figure in the body below is as of 2026-11-11 and was not re-measured.
 **Refresh Trigger:** an owner answer to any question in section 8; a change to the CI cycle time, `PYSLOTS` or the quiet-box rules; a change to a number cited from [report-draft.md](report-draft.md) section 6.5.
 
 **Date:** 2026-11-11 (PST). **Author:** PM consultant review (Fable 5.2), read-only. **For:** the repository owner; cited by the senior project report, section on optimizing workflows.
@@ -39,7 +40,7 @@ Recommendations 1 and 3 need an owner decision. Part of 2 does (see section 4).
 | RAM | 37 GiB total, 32 GiB free; 49 GiB swap (`free -h`) | "22 GiB WSL box", about 2 GB per pytest slot (`scripts/pyslot.sh` comment) |
 | GPU | RTX 3080, 10 GB; 3.4 GB in use, 8 % utilization, no Ollama model loaded (`nvidia-smi`, `/api/ps`) | Model host for 4 pulled models [O] |
 | Load | 3.28 / 3.66 / 2.72, up 2 h 23 min (`uptime`) | Quiet threshold is 1-minute load below 1.5 (`quiet_run.sh`) |
-| Disk | I/O pressure 0.00 (`/proc/pressure/io`); all 44 worktrees are under `/mnt/e` (`git worktree list`) | `/mnt/e` and slow fsync are known hazards [O] |
+| Disk | I/O pressure 0.00 (`/proc/pressure/io`); all 44 worktrees were under `/mnt/e` (`git worktree list`, as of 2026-11-11) | `/mnt/e` and slow fsync are known hazards [O] |
 
 Two findings matter here. First, **the sizing rules are calibrated to a smaller box than the one I measured.** Three slots, a workflow cap of `min(16, CPUs - 2)` = 4, and "about 7 builds" as a ceiling all date from the 6-vCPU figure. `.wslconfig` sets only memory and swap. I could not tell when the CPU count changed, so this is an open question, not a conclusion. Second, **the GPU is blocked, not strained, by the quiet box.** In my one snapshot it was near idle. The cost is indirect: no model-host row may run while the quiet-box lock is held (RUNBOOK §10.1), and model runs must not share the box with pytest, because the 60 s generation timeout skews abstain counts [O: `local-model-host-wsl`].
 

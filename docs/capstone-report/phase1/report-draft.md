@@ -1,15 +1,17 @@
 # Asclexis — Senior Project Report, Phase 1 Draft
 
-**Last Updated:** 2026-11-11
+**Phase-1 repo snapshot.** This file is the phase-1 snapshot of the senior report, kept in the repository and merged by owner decision (OLD-PRS-1117, 2026-11-17). The full senior report is a Word (.docx) document and a Claude Doc; both are kept outside the repository, so they may be ahead of this file. Numbers below were re-measured on `origin/main` @ `e979fb36` on 2026-11-17 where a row says "as of 2026-11-17"; every other number is as of `e5c7bf80` (2026-11-11).
+
+**Last Updated:** 2026-11-17 (re-measured headline counts, CI jobs, failure modes, count slot and MEDS-G status on `e979fb36`); 2026-11-11
 **Owner:** repository owner
-**Status:** DRAFT (Phase 1). Measured on `origin/main` @ `e5c7bf80` (2026-11-11, the merge of #598) unless a row says otherwise. Material from the owner's other projects will be added in Phase 2 wherever `[PHASE 2 PLACEHOLDER]` appears.
+**Status:** DRAFT (Phase 1). Measured on `origin/main` @ `e5c7bf80` (2026-11-11, the merge of #598) unless a row says otherwise; rows marked "as of 2026-11-17" were re-measured on `origin/main` @ `e979fb36`. Material from the owner's other projects will be added in Phase 2 wherever `[PHASE 2 PLACEHOLDER]` appears.
 **Refresh Trigger:** any change to a number in this file; a new owner decision cited here; the Phase 2 merge of other-project material.
 
 Companion files: [presentation-outline.md](presentation-outline.md) (slides) and [evidence-index.md](evidence-index.md) (claim → source table, evidence gaps, lineage). Load-bearing claims reuse the rows of the existing [claims ledger](../claims-ledger.md) (cited as "ledger C1", "ledger H12" and so on); this draft does not start a second ledger.
 
 **Rules this draft follows.** Every claim names a file path, PR number or commit. Where the repo holds no evidence, the text says `[evidence gap]`. Status words are strict: *merged* means on `origin/main`; *planned* means a plan exists and no code does; *case study* means an observation with no denominator, no comparison and no cost data, reported as an example and never as a rate (ledger verdict `CASE-STUDY`). Paths under `api/`, `core/`, `modules/`, `models/`, `migrations/` and `tests/` are relative to `src/backend/`. All data mentioned is synthetic; no patient data was used. Dates are the author's local time (US Pacific); GitHub shows some late-evening merges on the next UTC day.
 
-**This draft builds on earlier reports.** It carries forward and supersedes the May 2026 CS4610 Final Report and Technical Companion (`CS4610_Report_Demo/`), the capstone knowledge base in `docs/capstone-report/`, the 2026-09-25 repository audit (`audit/2026-09-25/Devin-Audit-report.md`), and the research and plan documents listed in the [evidence index, Lineage](evidence-index.md#lineage). Where a prior report was wrong, the correction is stated where the topic comes up and again in [Appendix A](#appendix-a--status-of-the-may-2026-report-claims).
+**This draft builds on earlier reports.** It carries forward and supersedes the May 2026 CS4610 Final Report and Technical Companion (`CS4610_Report_Demo/`), the capstone knowledge base in `docs/capstone-report/`, the 2026-09-25 repository audit (`audit/2026-09-25/Devin-Audit-report.md`), and the research and plan documents listed in the [evidence index, Lineage](evidence-index.md#3-lineage). Where a prior report was wrong, the correction is stated where the topic comes up and again in [Appendix A](#appendix-a--status-of-the-may-2026-report-claims).
 
 **ID legend.** The repo names work and decisions with short IDs, used throughout:
 
@@ -60,14 +62,14 @@ Companion files: [presentation-outline.md](presentation-outline.md) (slides) and
 
 | Measure | Value | Source |
 |---|---|---|
-| Backend tests collected | 4984 on `e5c7bf80` (Python 3.11 venv, WSL) | `pytest --collect-only`, run for this draft ([Appendix B](#appendix-b--reproducing-the-numbers)) |
+| Backend tests collected | 4984 on `e5c7bf80` (Python 3.11 venv, WSL); 5352 as of 2026-11-17 on `e979fb36` (same command) | `pytest --collect-only`, run for this draft ([Appendix B](#appendix-b--reproducing-the-numbers)) |
 | Backend tests, earlier | 621 on 2026-06-11 (Python 3.10); 1245 collected at `fd8984e7` (2026-08-03, first value of the `collected` slot); 1245 again on `40f590e` on 2026-09-27 with Windows Python 3.13 | `docs/plans/implementation-log/2026-06-11_verification-report.md` §2; `git log -G` on `CLAUDE.md`; audit addendum A-2; ledger M8 |
-| Merged pull requests | 593 (Feb 2026 – Nov 2026): 393 merged in October, 179 in November | `gh pr list --state merged` (Appendix B) |
-| Commits reachable from `main` | 3836 (first commit 2025-12-28) | `git log` (Appendix B) |
-| Commits with a Claude co-author trailer, Oct 2026 | 1567 of 2371 | `git log --grep` (Appendix B) |
-| Recurring failure modes documented | 21 | headings of `docs/agentic/recurring-failures.md` |
+| Merged pull requests | 660 as of 2026-11-17 (Feb 2026 – Nov 2026): 393 merged in October, 246 in November; 593 on 2026-11-11 (393 and 179) | `gh pr list --state merged` (Appendix B) |
+| Commits reachable from `main` | 4017 as of 2026-11-17 (first commit 2025-12-28); 3836 on `e5c7bf80` | `git log` (Appendix B) |
+| Commits with a Claude co-author trailer, Oct 2026 | 1585 of 2401 as of 2026-11-17; 1567 of 2371 on `e5c7bf80` (the October window grew because commits dated in October were pushed to `main` later) | `git log --grep` (Appendix B) |
+| Recurring failure modes documented | 24 as of 2026-11-17 (21 on `e5c7bf80`; §22 to §24 were added after it) | headings of `docs/agentic/recurring-failures.md` |
 | Skills shipped in the repo | 36: 32 process skills, 4 domain skills | `find .claude/skills skills -name SKILL.md` |
-| CI jobs on every PR | 11 in `.github/workflows/ci.yml` | `ci.yml` job list |
+| CI jobs on every PR | 12 job definitions in `.github/workflows/ci.yml` as of 2026-11-17 (11 on `e5c7bf80`; E2E now runs as 4 shards behind one `E2E Smoke Tests` check, WF-CI-SHARD, #633) | `ci.yml` job list |
 | Agent safety eval | 74 golden cases, six axes, absolute bars | `docs/agentic/evals.md:22`; `tests/agent/golden/` |
 
 The two test counts are not like for like: they come from different machines, interpreters and SQLCipher availability. They show growth in what is checked, not product quality (§5.5).
@@ -95,7 +97,7 @@ The motivation is unchanged from the May report: the author's mother receives au
 | Layer | Current fact | Evidence |
 |---|---|---|
 | Processes | `dev.ps1` / `dev.sh` start the backend on 8000 and the frontend on 3000; the backend binds `127.0.0.1` in local mode; CORS allows only `localhost:3000` and `127.0.0.1:3000` | `src/backend/main.py:121-123,180-191`; `architecture-overview.md` §1 |
-| Backend | FastAPI app factory `create_app()`; 19 routers mounted under `/api/v1` (profiles, documents, observations, interpretations, medications, notifications, assistant, export, model settings, memory, gamification, care tasks, timeline, medication reconciliation, pinboards, search, backup, feedback, donation); 45 Python files plus the `agent/` package in `modules/` | `main.py:104,167`; `api/__init__.py:48-72`; `git ls-files 'src/backend/modules/*.py'` |
+| Backend | FastAPI app factory `create_app()`; 19 routers mounted under `/api/v1` (profiles, documents, observations, interpretations, medications, notifications, assistant, export, model settings, memory, gamification, care tasks, timeline, medication reconciliation, pinboards, search, backup, feedback, donation); 45 top-level Python files in `modules/`, 78 counting the `agent/` package recursively (as of 2026-11-17) | `main.py:104,167`; `api/__init__.py:48-72`; `ls src/backend/modules/*.py` (45); `git ls-files 'src/backend/modules/*.py'` (78, the pathspec is recursive) |
 | Frontend | React 18.3.1, Vite 7, TypeScript 5, Tailwind 4, TanStack Query 5, Zustand, React Router 7; Vitest 4 and Playwright 1.58 with axe-core; 17 pages, routes in `App.tsx:233-267` | `src/frontend/package.json`; `src/frontend/src/App.tsx` |
 | Master database | plain SQLite `data/asclexis.db`, **not encrypted**: profiles (display names, password hashes), audit rows, backup schedules, the knowledge base | `core/config.py:41`; `core/database.py:62-71`; ledger C18 |
 | Per-profile vault | `data/vaults/<id>/vault.db`, opened through `sqlcipher3` with `PRAGMA key` on connect; profile migrations run on every open | `core/profile_database.py:136-139,264-393` |
@@ -189,7 +191,7 @@ The September overview is kept as a dated record (`architecture-overview.md`, ev
 | Foreign keys inert | enforced on both engines | `core/database.py:70-71`; `core/profile_database.py:380-382` |
 | Export artifacts lost on restart | persisted in the vault | migration 019 |
 | Frontend CI ran no build and no eslint | runs `tsc`, e2e typecheck, eslint, vitest and a production build | `.github/workflows/ci.yml:156-172` |
-| 6 CI jobs | 11 CI jobs, including ruff hard errors, the legacy RAG gate, a production-build UI gate (G3) and RSI replay | `ci.yml` |
+| 6 CI jobs | 11 CI jobs on `e5c7bf80` (12 job definitions as of 2026-11-17, after WF-CI-SHARD), including ruff hard errors, the legacy RAG gate, a production-build UI gate (G3) and RSI replay | `ci.yml` |
 | Profile chain 12 revisions | 19 revisions | `migrations/profile/versions/` |
 | Master DB unencrypted | **unchanged** | `core/config.py:41`; ledger C18 |
 | No desktop packaging or static serving | **unchanged** | no `StaticFiles` in `src/backend` (grep); ledger C8 |
@@ -253,7 +255,7 @@ The ledger divides the history into eras E0–E7 and counts commits per era by a
 | E6 | Sep | 65 | 24 | 58 |
 | E7 | Oct 1–21 | 1428 | 98 | 967 |
 
-Two corrections follow from this table. The audit's statement that E1 was "100% human" is contradicted by the 27 E1 commits with a Claude trailer (`audit/2026-09-25/Devin-Audit-report.md:167`; ledger H12). And the author name alone undercounts agent work: from October most commits carry a `Co-Authored-By: Claude` trailer under a human author name. Over the whole history, 2563 of 3836 commits reachable from `main` carry a Claude trailer (`git log -i --grep='Co-Authored-By: Claude'`, re-measured for this draft; Appendix B). The first Claude co-author trailer is on 2026-01-07 (`8f455663`).
+Two corrections follow from this table. The audit's statement that E1 was "100% human" is contradicted by the 27 E1 commits with a Claude trailer (`audit/2026-09-25/Devin-Audit-report.md:167`; ledger H12). And the author name alone undercounts agent work: from October most commits carry a `Co-Authored-By: Claude` trailer under a human author name. Over the whole history, 2563 of 3836 commits reachable from `main` carry a Claude trailer (2667 of 4017 as of 2026-11-17) (`git log -i --grep='Co-Authored-By: Claude'`, re-measured for this draft; Appendix B). The first Claude co-author trailer is on 2026-01-07 (`8f455663`).
 
 The harness itself accreted in a measurable order: docs lint (2026-02-12) and the security gate (2026-02-22) came first, then `CLAUDE.md` (2026-06-13), domain skills (06-23), the agent eval gate (06-24), vendored skills (07-01), the task ledger (07-07), `route_client` (07-30) and the failure catalogue (08-04) (ledger H13). Gates predate the constitution; the earlier outline's order was wrong.
 
@@ -321,7 +323,7 @@ This section comes before orchestration on purpose. Most orchestration rules in 
 
 ### 5.1 The failure catalogue
 
-`docs/agentic/recurring-failures.md` records 21 failure modes that this repository actually produced, each with the evidence that exposed it and a recheck phrased so a command can answer it. Its common thread, in its own words: "the check that was run was not the check that mattered. Every one of these coexisted with a passing signal" (`recurring-failures.md:12-13`). `CLAUDE.md` §4 tells every agent to read it before claiming done, and to add a new instance or a new mode in the same commit. It grew from eight modes on 2026-09-09 (`docs/research/2026-09-08/10-demonstration-artifact.md`, Summary) to 21 today.
+`docs/agentic/recurring-failures.md` records 24 failure modes that this repository actually produced (21 when this draft was measured on `e5c7bf80`; §22 to §24 are listed below), each with the evidence that exposed it and a recheck phrased so a command can answer it. Its common thread, in its own words: "the check that was run was not the check that mattered. Every one of these coexisted with a passing signal" (`recurring-failures.md:12-13`). `CLAUDE.md` §4 tells every agent to read it before claiming done, and to add a new instance or a new mode in the same commit. It grew from eight modes on 2026-09-09 (`docs/research/2026-09-08/10-demonstration-artifact.md`, Summary) to 24 as of 2026-11-17.
 
 | # | Mode | One example (source) |
 |---|---|---|
@@ -336,8 +338,9 @@ This section comes before orchestration on purpose. Most orchestration rules in 
 | 9 | An invariant enforced at one site, not across its class | an audit guard missed 17 handlers of one class (`:478-500`) |
 | 10 | A fully unit-tested feature that was never started | the notification scheduler (`:568-584`) |
 | 11–21 | Modes added during the build program: harness rule text broader than its plan (#142, #147); a gate merged beside PRs built before it (#160, #171); an agent returning while its own background run still edits the worktree (#356, #365); a probe charging its own cost to what it measures (#370); a test runner returning while its command is still queued (#398, #399, #454, #457); a deliberate break that never reached the loaded code (#464); a fixture that hides the second event (#464); a batch reporting done with 5 of 18 lines run; acceptance scoped to one spec (#535); a lock wrapper that enumerates fewer locks than the pool; a captured subprocess whose grandchild holds the pipe | `recurring-failures.md` §11–§21 |
+| 22–24 | Added after `e5c7bf80`: a fixer and its validator disagreeing on a threshold; `quiet_run` counting slot waiters as busy; a table-row edit that adds cells instead of replacing them | `recurring-failures.md` §22–§24 |
 
-Modes 11–21 are new since the September audit, and most of them are about the agent harness rather than the product (16, 17 and 19 are test-design modes). That shift is itself a finding: once many agents ran in parallel on one machine, the verification problem moved from "does the test check the right thing" to "did the test run at all, in the environment it claims".
+Modes 11–24 are new since the September audit, and most of them are about the agent harness rather than the product (16, 17 and 19 are test-design modes). That shift is itself a finding: once many agents ran in parallel on one machine, the verification problem moved from "does the test check the right thing" to "did the test run at all, in the environment it claims".
 
 ### 5.2 A green suite is evidence, not proof
 
@@ -360,7 +363,7 @@ Many agents share one WSL machine. Timing-sensitive UI checks (the G10 "stillnes
 
 **UIDOC-006A (diagnosed and fixed).** HC-UIDOC-006 (a), an e2e check that an import into an empty list stays still, failed CI with a single line, "sampling gap of 42-50 ms (must be <= 40 ms)". The planner re-pulled the per-job logs through the GitHub API and found that `gh run view --log-failed` had returned the green re-run's log, not the failed attempt's; the true count was 2 hard failures and 1 flaky run on 3 PRs, not 5 (`docs/plans/2026-11-11-batch-1111a-plan.md`, UIDOC-006A-FLAKE, Facts). On the quiet box, on `main`, it passed only 8 of 10 runs, so the miss was not caused by load alone. The diagnosis traced the gap to the first `toLocaleDateString()` call in the import-complete render, which loads ICU date data: 7-13 ms of a 17-23 ms render at normal CPU speed. An idle warm-up cut misses from 9/20 to 0/20 at normal speed; at 2× CPU throttle they stayed at 11/20, recorded as a known limit. The 40 ms bound did not move (`batch-1111a-plan.md:115-119`; owner answers UIDOC-006A-FIX and UIDOC-006A-X1; fix PR #591, merged 2026-11-11). The diagnosis file itself is off-repo (`~/hc-quiet-logs/staging-1111a/uidoc006a-diagnosis.md`) [evidence gap: the raw diagnosis is not in git; the plan records its result]. A sibling with the same cause in the assistant page became ASK-TIME-WARMUP (#592).
 
-**MEDS-G-FLAKE (diagnosed; fix awaiting an owner gate).** The medications G3 check (`e2e/ui-meds.spec.ts:254`) failed on unrelated PRs (#591 twice, #602, #610) in two ways, and the diagnosis shows both are harness timing, not ICU. The stillness sampler's 20 ms timer is delayed by the synchronous render of the tab switch, so the gap on the reminders tab lands near the 40 ms bound; and in dark mode the axe colour-contrast check starts while the theme transitions are still running and reads a blend of the two themes. The ICU warm-up A/B made no difference, so the UIDOC-006A hypothesis is refuted. Fix option A (`requestAnimationFrame` sampling plus waiting for the theme to settle, no bound moves) is not built and awaits the owner gate MEDS-G-X1. The diagnosis is recorded in `queue.md` row MEDS-G-FLAKE in docs batch BATCH-1111G (PR #619, open when this was written; the underlying report is off-repo) [evidence gap: the raw diagnosis report is off-repo; the queue row is not yet on `main`]. It matters because G3 cannot become a required check while it blocks unrelated PRs.
+**MEDS-G-FLAKE (diagnosed, then fixed).** The medications G3 check (`e2e/ui-meds.spec.ts:254`) failed on unrelated PRs (#591 twice, #602, #610) in two ways, and the diagnosis shows both are harness timing, not ICU. The stillness sampler's 20 ms timer is delayed by the synchronous render of the tab switch, so the gap on the reminders tab lands near the 40 ms bound; and in dark mode the axe colour-contrast check starts while the theme transitions are still running and reads a blend of the two themes. The ICU warm-up A/B made no difference, so the UIDOC-006A hypothesis is refuted. Fix option A (`requestAnimationFrame` sampling plus waiting for the theme to settle, no bound moves) was answered "Merge #621 (Recommended)" at owner gate MEDS-G-X1; #621 merged as `7c7ab592` and the mono-font fix #640 as `dddf95b5`, and the owner then made "G3 on Production Build" a required check (`queue.md` row MEDS-G-FLAKE, as of 2026-11-17). The diagnosis is recorded in that queue row, which reached `main` with docs batch BATCH-1111G (PR #619, merged 2026-11-12 as `44497ebe`) [evidence gap: the raw diagnosis report is off-repo]. When this draft was first written on 2026-11-11 the fix was unbuilt and #619 was open.
 
 ### 5.5 Test counts over time
 
@@ -379,9 +382,11 @@ Collected backend tests, from the count slot in `CLAUDE.md` (`git log -G 'backen
 | 2026-11-05 | 4318 | `24d7734a` |
 | 2026-11-11 | 4912 (slot) | `18e794b4` |
 | 2026-11-11 | **4984 (measured for this draft)** | Appendix B |
-| 2026-11-11 | 5003 (latest measured; slot value, +10 over 4993) | `queue.md` count slot, docs batch BATCH-1111G (PR #619, open when written) |
+| 2026-11-11 | 5003 (latest measured; slot value, +10 over 4993) | `queue.md` count slot, docs batch BATCH-1111G (PR #619, merged 2026-11-12) |
+| 2026-11-17 | **5352 (measured as of 2026-11-17 on `e979fb36`)** | `pytest --collect-only`, same command as Appendix B |
+| 2026-11-17 | 5114 (the `CLAUDE.md` and `AGENT.md` baseline on `main`; it lags merges, so the measured 5352 is 238 higher) | `CLAUDE.md` §4 |
 
-The slot lags merges by design (SLOT-RULE-2); docs batch #612 (merged) moved it, and BATCH-1111G (PR #619) moves it to 5003, the latest measured value. 4984 stays as this draft's own measurement at `e5c7bf80`. Two jumps are not explained in this draft: a one-day value of 1560 on 2026-10-13 (`5f6eaa07`) and 3066 → 4141 on 2026-11-05 (`9eb6fdc7`) [evidence gap: cause of the two jumps]. Counts measure what is checked, not what is correct, and they vary by environment (`recurring-failures.md` §4). Frontend counts were last recorded as 195 vitest tests and 36 Playwright tests on 2026-10-07 (`architecture-overview.md` §14) [evidence gap: no current frontend count; `node_modules` was absent in the worktree used for this draft].
+The slot lags merges by design (SLOT-RULE-2); docs batch #612 (merged) moved it, and BATCH-1111G (PR #619, merged) moved it to 5003. 4984 stays as this draft's own measurement at `e5c7bf80`. Two jumps are not explained in this draft: a one-day value of 1560 on 2026-10-13 (`5f6eaa07`) and 3066 → 4141 on 2026-11-05 (`9eb6fdc7`) [evidence gap: cause of the two jumps]. Counts measure what is checked, not what is correct, and they vary by environment (`recurring-failures.md` §4). Frontend counts were last recorded as 195 vitest tests and 36 Playwright tests on 2026-10-07 (`architecture-overview.md` §14) [evidence gap: no current frontend count; `node_modules` was absent in the worktree used for this draft].
 
 ---
 
@@ -452,7 +457,7 @@ The build program's own measurement on 2026-11-01: 18 `build-item` runs took abo
 
 ### 6.5 Optimizing the workflow (consultant review)
 
-A read-only review of the quiet box and long-running tests ([workflow-optimization-quiet-box.md](workflow-optimization-quiet-box.md)) names three time sinks. First, the quiet box froze pytest for about 7 h on 2026-11-11 (a 4 h 57 min batch, then a 2 h 06 min diagnosis). Second, the median CI cycle is 40.8 min over 157 green first-attempt runs. Third, flakes are diagnosed by repetition: about 333 runs for MEDS-G and about 360 for UIDOC-006A. It also measured the host at 24 CPUs and 37 GiB, against the 6 vCPU / 22 GiB the slot rules assumed; `PYSLOTS` stays 3 until the owner answers. The top recommendations are to shard the E2E job, cancel superseded runs and run ruff before push (cycle about 41 to about 24 min, an estimate [E]); to bound the quiet box with fixed windows and a 60-run-minute diagnosis budget; and to fix the two timing flakes at the harness before making G3 required. Most need an owner decision. The guardrail is that no bound moves: the 40 ms stillness bound, the 70 ms navigation bound, the coverage floor and the 0.7 embedding threshold stay, and the full suite still runs before merge. The figures are the reviewer's measurements and estimates, not re-run for this draft (`[evidence gap]` until the owner adopts and measures any option).
+A read-only review of the quiet box and long-running tests ([workflow-optimization-quiet-box.md](workflow-optimization-quiet-box.md)) names three time sinks. First, the quiet box froze pytest for about 7 h on 2026-11-11 (a 4 h 57 min batch, then a 2 h 06 min diagnosis). Second, the median CI cycle is 40.8 min over 157 green first-attempt runs. Third, flakes are diagnosed by repetition: about 333 runs for MEDS-G and about 360 for UIDOC-006A. It also measured the host at 24 CPUs and 37 GiB, against the 6 vCPU / 22 GiB the slot rules assumed. The owner then answered "Raise to 6 (Recommended)" (WF-PYSLOTS-6): `scripts/pyslot.sh:7` now defaults `PYSLOTS` to 6 (#635, merged `eb22d019`, as of 2026-11-17). The top recommendations were to shard the E2E job, cancel superseded runs and run ruff before push (cycle about 41 to about 24 min, an estimate [E]); the shard and the cancel-superseded `concurrency` group are built (WF-CI-SHARD, #633, merged 2026-11-12 as `189f0e53`), and the cycle time after them has not been re-measured [as of 2026-11-17]; to bound the quiet box with fixed windows and a 60-run-minute diagnosis budget; and to fix the two timing flakes at the harness before making G3 required. Most need an owner decision. The guardrail is that no bound moves: the 40 ms stillness bound, the 70 ms navigation bound, the coverage floor and the 0.7 embedding threshold stay, and the full suite still runs before merge. The figures are the reviewer's measurements and estimates, not re-run for this draft (`[evidence gap]` until the owner adopts and measures any option). Base: the review was written against `origin/main` @ `c79b7fd1` (2026-11-11, the merge of #615), not `e5c7bf80`; its "about 7 h", 40.8 min and flake-run figures come from off-repo logs and cannot be re-checked from the repository [as of 2026-11-11].
 
 ---
 
@@ -593,7 +598,7 @@ The project's related-work research is in `docs/capstone-report/research/`, four
 | Desktop packaging and an installer | decision spike; research done | `docs/plans/2026-10-01-packaging-decision.md`; `docs/research/2026-10-22-installer/` |
 | Encrypting the master database | not planned in this draft's sources | ledger C18 [evidence gap] |
 | Wearables (FIT files): decoder chosen, upstream work | decided direction, not done | `docs/capstone-report/fit-decoder-journey.md`; `docs/research/2026-10-12/` |
-| Fix MEDS-G-FLAKE at the harness (option A), then G3 as a required check | diagnosed; fix awaits owner gate MEDS-G-X1 | `queue.md` MEDS-G-FLAKE (PR #619, open) |
+| Fix MEDS-G-FLAKE at the harness (option A), then G3 as a required check | **done** as of 2026-11-17: #621 and #640 merged, G3 is a required check | `queue.md` MEDS-G-FLAKE (docs batch PR #619, merged) |
 | Re-score the compliance matrix; re-run the audit-coverage check | to do for the final report | §1.5, §3 |
 
 [PHASE 2 PLACEHOLDER: future work that spans projects.]
@@ -602,9 +607,9 @@ The project's related-work research is in `docs/capstone-report/research/`, four
 
 ## 12. Conclusion
 
-Asclexis set out to do two things: give a patient a private, cited view of her own lab history, and record what building software with coding agents is actually like. On the first, the product's flows are implemented and pass CI on `main` (run 43128414274 on `e5c7bf80`: backend, frontend, agent and legacy eval gates, G3 and RSI replay green; E2E smoke still running when this draft was written), with encrypted vaults, a verification step, cited answers that abstain when they cannot cite, and redaction before anything leaves; and it still has a plain-SQLite master database, no installer and no user study (§1, §3). On the second, the record is unusually complete because the project kept evidence in files that scripts check rather than in narrative.
+Asclexis set out to do two things: give a patient a private, cited view of her own lab history, and record what building software with coding agents is actually like. On the first, the product's flows are implemented and pass CI on `main` (run 43128414274 on `e5c7bf80`: backend, frontend, agent and legacy eval gates, G3 and RSI replay green; E2E smoke was still running when this draft was written; the run has since completed with every job `success`, as of 2026-11-17), with encrypted vaults, a verification step, cited answers that abstain when they cannot cite, and redaction before anything leaves; and it still has a plain-SQLite master database, no installer and no user study (§1, §3). On the second, the record is unusually complete because the project kept evidence in files that scripts check rather than in narrative.
 
-The thesis holds in a specific, testable form. **The harness was the deliverable**: 36 skills, a constitution, 11 CI jobs, 74 golden safety cases, a runbook that three runtimes follow, and a 21-entry failure catalogue were in place while one person directed 593 merged pull requests, most of them in under three months. **Its failures were the findings**: the restore endpoint that 400'd under a green suite, the backup that leaked hashes past a filename check, the May report's hook that never existed, the flake that was really ICU data loading, and the donation feature its own gate stopped. Each of those became a rule, and each rule is in the repo with the evidence that produced it.
+The thesis holds in a specific, testable form. **The harness was the deliverable**: 36 skills, a constitution, 11 CI jobs (12 as of 2026-11-17), 74 golden safety cases, a runbook that three runtimes follow, and a 21-entry failure catalogue (24 as of 2026-11-17) were in place while one person directed 593 merged pull requests (660 as of 2026-11-17), most of them in under three months. **Its failures were the findings**: the restore endpoint that 400'd under a green suite, the backup that leaked hashes past a filename check, the May report's hook that never existed, the flake that was really ICU data loading, and the donation feature its own gate stopped. Each of those became a rule, and each rule is in the repo with the evidence that produced it.
 
 The honest limit is that none of this is an experiment. The project shows what one developer and a set of agents did, and what checking it found; it does not show that this way is faster or better than another.
 
@@ -618,8 +623,8 @@ Every entry is cited somewhere in this repository; the right-hand column names w
 
 ### 13.1 Prior project reports (lineage; see the evidence index)
 
-- Tran, D. *HealthCentral: Privacy-First Health Records Assistant.* CS4610 Final Report, Cal Poly Pomona, May 2026. `CS4610_Report_Demo/HealthCentral_CS4610_Final_Report.pdf`.
-- Tran, D. *HealthCentral Technical Companion.* CS4610, May 2026. `CS4610_Report_Demo/HealthCentral_CS4610_Technical_Companion.pdf`.
+- Repository owner. *HealthCentral: Privacy-First Health Records Assistant.* CS4610 Final Report, Cal Poly Pomona, May 2026. `CS4610_Report_Demo/HealthCentral_CS4610_Final_Report.pdf`.
+- Repository owner. *HealthCentral Technical Companion.* CS4610, May 2026. `CS4610_Report_Demo/HealthCentral_CS4610_Technical_Companion.pdf`.
 - Repository audit, 2026-09-25, with correction addendum 2026-09-27. `audit/2026-09-25/Devin-Audit-report.md`.
 - Capstone knowledge base, 2026-09-25 onward. `docs/capstone-report/` (README, claims ledger, outline, architecture overview, engineering contract, compliance matrix, implementation program, owner decisions, RSI section, FIT decoder journey, research 01–04).
 
@@ -717,32 +722,36 @@ What the May report got right and this draft carries forward: the motivation; th
 
 ## Appendix B — Reproducing the numbers
 
-Run from a checkout of `e5c7bf80` on 2026-11-11.
+Run from a checkout of `e5c7bf80` on 2026-11-11. The comments give those values; where a second value is shown it was re-run on `origin/main` @ `e979fb36` on 2026-11-17 with the same command (the PR and commit counts depend on the date and on what has been pushed).
 
 ```bash
 # Backend tests collected (venv: Python 3.11, ~/venvs/asclexis-311)
 cd src/backend && python -m pytest tests/ -p no:cacheprovider -q --collect-only | tail -1
-# -> 4984 tests collected in 69.42s (0:01:09)
+# -> 4984 tests collected in 69.42s (0:01:09)     [as of 2026-11-17: 5352 tests collected in 16.00s]
 
 # Merged PRs, by month
-gh pr list --state merged --limit 1000 --json mergedAt --jq 'length'          # -> 593
-# by month: 2026-02 3, 06 3, 07 8, 09 7, 10 393, 11 179
+gh pr list --state merged --limit 1000 --json mergedAt --jq 'length'          # -> 593   [as of 2026-11-17: 660, with --limit 2000]
+# by month: 2026-02 3, 06 3, 07 8, 09 7, 10 393, 11 179   [as of 2026-11-17: 11 is 246]
 
 # Commits reachable from main; co-author trailers
-git log --oneline | wc -l                                                      # -> 3836
+git log --oneline | wc -l                                                      # -> 3836   [as of 2026-11-17: 4017]
 git log -i --grep='Co-Authored-By:' --format='%(trailers:key=Co-Authored-By,valueonly)' \
   | sed 's/<.*//' | sort | uniq -c | sort -rn
 # -> 1323 Claude Opus 5.5, 713 Claude Sonnet 5.5, 267 Claude Haiku 5.5, 107 Claude Fable 5, 77 Claude Opus 5, 9 Cursor, ...
-git log -i --grep='Co-Authored-By: Claude' --format=%h | wc -l              # -> 2563
-git log --since=2026-10-01 --until=2026-11-01 --format=%h | wc -l              # -> 2371
-git log --since=2026-10-01 --until=2026-11-01 -i --grep='Co-Authored-By: Claude' --format=%h | wc -l  # -> 1567
+#    [as of 2026-11-17: 1383 Opus 5.5, 754 Sonnet 5.5, 270 Haiku 5.5, 107 Fable 5, 77 Opus 5, 9 Cursor]
+git log -i --grep='Co-Authored-By: Claude' --format=%h | wc -l              # -> 2563   [as of 2026-11-17: 2667]
+git log --since=2026-10-01 --until=2026-11-01 --format=%h | wc -l              # -> 2371   [as of 2026-11-17: 2401]
+git log --since=2026-10-01 --until=2026-11-01 -i --grep='Co-Authored-By: Claude' --format=%h | wc -l  # -> 1567   [as of 2026-11-17: 1585]
 
 # Count-slot history
 git log --format='%h %ad' --date=short -G 'backend tests collected' -- CLAUDE.md
 
-# Skills, failure modes, migrations, golden cases
-find .claude/skills -name SKILL.md | wc -l; find skills -name SKILL.md | wc -l   # -> 32, 4
-grep -c '^## [0-9]' docs/agentic/recurring-failures.md                          # -> 21
-ls src/backend/migrations/master/versions/*.py src/backend/migrations/profile/versions/*.py | wc -l  # -> 3 + 19
-ls src/backend/tests/agent/golden | wc -l                                      # -> 74
+# Skills, failure modes, migrations, golden cases, modules, CI jobs
+find .claude/skills -name SKILL.md | wc -l; find skills -name SKILL.md | wc -l   # -> 32, 4 (unchanged as of 2026-11-17)
+grep -c '^## [0-9]' docs/agentic/recurring-failures.md                          # -> 21   [as of 2026-11-17: 24]
+ls src/backend/migrations/master/versions/*.py src/backend/migrations/profile/versions/*.py | wc -l  # -> 3 + 19 (22 files; unchanged as of 2026-11-17)
+ls src/backend/tests/agent/golden | wc -l                                      # -> 74 (unchanged as of 2026-11-17)
+ls src/backend/modules/*.py | wc -l                                            # -> 45 top-level (as of 2026-11-17)
+git ls-files 'src/backend/modules/*.py' | wc -l                                # -> 78 (recursive, includes agent/; as of 2026-11-17)
+awk '/^jobs:/{j=1;next} j&&/^  [a-z0-9-]+:$/' .github/workflows/ci.yml | wc -l   # -> 11 on e5c7bf80   [as of 2026-11-17: 12]
 ```

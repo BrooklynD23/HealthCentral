@@ -1,6 +1,6 @@
 # Senior Report Phase 1 — Evidence Index
 
-**Last Updated:** 2026-11-11
+**Last Updated:** 2026-11-17 (rows EI-P3, EI-P27, EI-M2, EI-M10, EI-M12, EI-M12b, EI-M15 and GAP-20 re-measured or closed on `e979fb36`)
 **Owner:** repository owner
 **Status:** DRAFT (Phase 1), measured on `origin/main` @ `e5c7bf80`.
 **Refresh Trigger:** any edit to [report-draft.md](report-draft.md) that adds or changes a claim; any change to a row of the [claims ledger](../claims-ledger.md) cited here.
@@ -17,7 +17,7 @@ Verification legend: **R** = re-run or re-read for this draft on 2026-11-11 at `
 |---|---|---|---|---|
 | EI-P1 | Backend binds `127.0.0.1`; CORS only the local frontend (§1.2) | `src/backend/main.py:121-123,180-191` | C30 | R |
 | EI-P2 | 19 routers under `/api/v1` (§1.2) | `src/backend/api/__init__.py:48-72` | H14 | R |
-| EI-P3 | 45 module files plus the `agent/` package; 17 pages (§1.2) | `git ls-files 'src/backend/modules/*.py'`; `ls src/frontend/src/pages/*.tsx` | H14 (16 pages at `a16dd51`) | R |
+| EI-P3 | 45 top-level module files, 78 counting the `agent/` package recursively (as of 2026-11-17); 17 pages (§1.2) | `ls src/backend/modules/*.py` (45); `git ls-files 'src/backend/modules/*.py'` (78, recursive); `ls src/frontend/src/pages/*.tsx` | H14 (16 pages at `a16dd51`) | R |
 | EI-P4 | Master DB is plain SQLite and holds names and password hashes (§1.2, App. A) | `core/config.py:41`; `core/database.py:62-71` | C18 | R |
 | EI-P5 | Vault opened through `sqlcipher3` with `PRAGMA key`; migrations run on every open (§1.2) | `core/profile_database.py:264-393` | C1 | R |
 | EI-P6 | PBKDF2-HMAC-SHA256 at 600,000 iterations; DPAPI or password sealing (§1.2) | `core/security.py:184-198,314-384` | — new | R |
@@ -41,7 +41,7 @@ Verification legend: **R** = re-run or re-read for this draft on 2026-11-11 at `
 | EI-P24 | Notification scheduler now started (§1.6) | `main.py:81-85`; `core/auth.py:414,445` | C31 | R |
 | EI-P25 | Export artifacts persisted in the vault (§1.6) | `models/export_artifact.py:34`; migration 019 | C11 | R (migration and model names; store code not read) |
 | EI-P26 | Restore 400 / credential leak under 32 green tests (§1.6, §5.2) | `842bc494`, `565f7085`, PR #18; `recurring-failures.md` §1 | H18 | R |
-| EI-P27 | 11 CI jobs; frontend job runs eslint and a build (§1.7) | `.github/workflows/ci.yml` | H14 (9 jobs at `a16dd51`) | R |
+| EI-P27 | 11 CI jobs on `e5c7bf80`, 12 job definitions as of 2026-11-17 (E2E sharded, WF-CI-SHARD #633); frontend job runs eslint and a build (§1.7) | `.github/workflows/ci.yml` | H14 (9 jobs at `a16dd51`) | R |
 | EI-P33 | CI green on `e5c7bf80` except E2E, still running at writing (§12) | `gh run view 43128414274` | — new | R |
 | EI-P28 | Ollama provider localhost-only at construction (§2) | `core/llm/ollama_provider.py:34-78`; `api/model_settings.py:940-946` | H11 | R |
 | EI-P29 | External runner off by default; strict always; break-glass audit row or refusal (§2) | `models/model_settings.py:79-82`; `core/external_runner.py:95-317` | C10 | R |
@@ -54,7 +54,7 @@ Verification legend: **R** = re-run or re-read for this draft on 2026-11-11 at `
 | # | Claim (report section) | Source | Ledger | Check |
 |---|---|---|---|---|
 | EI-M1 | Per-era authorship counts E0–E7 (§4.1) | ledger H12 command at `a16dd51` | H12 | L |
-| EI-M2 | 2563 of 3836 commits carry a Claude trailer (§4.1) | `git log -i --grep='Co-Authored-By: Claude'` | — new | R |
+| EI-M2 | 2563 of 3836 commits carry a Claude trailer (§4.1); 2667 of 4017 as of 2026-11-17 | `git log -i --grep='Co-Authored-By: Claude'` | — new | R |
 | EI-M3 | Harness layer order (§4.1) | ledger H13 | H13 | L |
 | EI-M4 | Codex reviewed 14 plans in 51 rounds, no fallback (§4.3) | `docs/reviews/2026-09-27-swarm/reviewer-log.tsv` | M6 | L |
 | EI-M5 | 80 Codex review files; 76 commits mention Codex (§4.3) | `find docs/reviews -iname '*codex*'`; `git log -i --grep=codex` | — new | R |
@@ -62,13 +62,13 @@ Verification legend: **R** = re-run or re-read for this draft on 2026-11-11 at `
 | EI-M7 | Audit file has no Devin content; research/04 claim contradicted (§4.4) | `audit/2026-09-25/Devin-Audit-report.md:3`; `research/04-papers-evals.md:220`; `git log --author='Devin AI'` | — new | R |
 | EI-M8 | Devin record: smoke test, #53 refresh, PARA branch, MCP failures (§4.4) | `audit/2026-09-25/waves/wave-4-L0-notes.md:35-43`; `wave-4.md:47`; `handoff-2026-10-12-wave5.md:51` | — new | R |
 | EI-M9 | Interim Cursor session merged #333, #329, #338 (§4.5) | `docs/plans/2026-10-24-session-handoff.md:11` | — new | R |
-| EI-M10 | 21 failure modes (§5.1) | `docs/agentic/recurring-failures.md` | H14 (12 at `a16dd51`) | R |
+| EI-M10 | 21 failure modes on `e5c7bf80`, 24 as of 2026-11-17 (§5.1) | `docs/agentic/recurring-failures.md` | H14 (12 at `a16dd51`) | R |
 | EI-M11 | Count slot history (§5.5) | `git log -G 'backend tests collected' -- CLAUDE.md` | M3 | R |
-| EI-M12 | 4984 collected on `e5c7bf80` (§5.5, summary) | Haiku test runner, `pytest --collect-only` output (Appendix B) | — new | R |
-| EI-M12b | 5003 latest measured count slot value (§5.5) | `queue.md` count slot, BATCH-1111G (open PR #619) | — new | D (not re-run for this draft) |
+| EI-M12 | 4984 collected on `e5c7bf80`; 5352 as of 2026-11-17 on `e979fb36` (§5.5, summary) | Haiku test runner, `pytest --collect-only` output (Appendix B) | — new | R |
+| EI-M12b | 5003 count slot value on 2026-11-11 (§5.5); the slot on `main` is now 5114 (`CLAUDE.md` §4), which lags merges by design | `queue.md` count slot, BATCH-1111G (PR #619, merged 2026-11-12) | — new | D (slot not re-run; the 5352 measure is EI-M12) |
 | EI-M13 | 621 tests on 2026-06-11 (§5.5) | `docs/plans/implementation-log/2026-06-11_verification-report.md` §2 | — | R |
 | EI-M14 | UIDOC-006A diagnosis and fix (§5.4) | `docs/plans/2026-11-11-batch-1111a-plan.md:75-119`; PR #591 | — new | R |
-| EI-M15 | MEDS-G-FLAKE diagnosed as harness timing, not ICU; option A awaits owner gate MEDS-G-X1 (§5.4) | `queue.md` row MEDS-G-FLAKE, docs batch BATCH-1111G (open PR #619; `origin/docs/batch-1111g`) | — new | R (PR branch, not `main`) |
+| EI-M15 | MEDS-G-FLAKE diagnosed as harness timing, not ICU; option A built (#621, #640 merged) and G3 made required, as of 2026-11-17 (§5.4) | `queue.md` row MEDS-G-FLAKE, docs batch BATCH-1111G (PR #619, merged 2026-11-12) | — new | R |
 | EI-M16 | Three-tier L0/L1/L2 model; nesting depth measured (§6.1) | `docs/agentic/orchestration.md` §1 | — | R |
 | EI-M17 | Build-program scripts and Task 0 (§6.2) | `RUNBOOK.md` §4, §10.1; `.claude/workflows/build-program.js` | — | R |
 | EI-M18 | Docs batch must merge before the item's PR (§6.2) | `RUNBOOK.md` §10.1, L0 duty #5 | — | R |
@@ -111,7 +111,7 @@ Each gap is marked `[evidence gap]` at its place in the draft. IDs are prefixed 
 | GAP-17 | Which Codex model version ran in each review | §4.3 | record the model in each review file |
 | GAP-18 | Why the audit file is named "Devin" | §4.4 | owner answer |
 | GAP-19 | UIDOC-006A raw diagnosis is off-repo | §5.4 | commit the diagnosis file |
-| GAP-20 | MEDS-G-FLAKE diagnosis is recorded only on an open PR (#619) and in an off-repo report; the fix awaits owner gate MEDS-G-X1 | §5.4 | merge of #619; commit the diagnosis report; owner answer to MEDS-G-X1 |
+| GAP-20 | MEDS-G-FLAKE diagnosis is recorded in the `queue.md` row (PR #619 merged) and in an off-repo report; the fix is merged (#621, #640), so only the raw off-repo report is still a gap | §5.4 | commit the diagnosis report |
 | GAP-21 | Causes of the 1560 spike (2026-10-13) and 3066 → 4141 jump (2026-11-05) | §5.5 | diff the commits around each slot change |
 | GAP-22 | No current frontend test count | §5.5 | `npx vitest run` and `npx playwright test --list` on `main` |
 | GAP-23 | No time log of the author's own hours per era | §10 | none retrospectively |
@@ -149,7 +149,7 @@ Each prior report, the commit or date it was measured at, and the sections of th
 | `docs/capstone-report/README.md` | 2026-11-08 | maintenance rules, open threads | — | header; §13.1 |
 | `docs/capstone-report/00-original-goal.md` | 2026-09-27 | product and research goals; non-negotiables | the "partly met" list is updated by §1.7 | §1.1, Summary |
 | `docs/capstone-report/report-outline.md` | 2026-11-08 | thesis; sections; case-study framing (F-11); limitations | section order (product first, verification before orchestration, per advisor); harness-layer order (ledger H13) | whole draft |
-| `docs/capstone-report/claims-ledger.md` | 2026-10-22 | every C, H and M row cited | stale counts in H14 (pages 16 → 17, CI jobs 9 → 11, failure modes 12 → 21) noted, ledger not edited | this index §1 |
+| `docs/capstone-report/claims-ledger.md` | 2026-10-22 | every C, H and M row cited | stale counts in H14 (pages 16 → 17, CI jobs 9 → 11 (12 as of 2026-11-17), failure modes 12 → 21 (24 as of 2026-11-17)) noted, ledger not edited | this index §1 |
 | `docs/capstone-report/architecture-overview.md` | 2026-10-20, `40f590e` | the subsystem, data, path and boundary picture | 12 rows changed (§1.7), including 403 → 401, FK, export artifacts, scheduler, doctor summary, CI | §1, §1.7, §2 |
 | `docs/capstone-report/architecture-engineering-contract.md` | 2026-10-02 | rules as stated | C-SCHED-2, C-MIG-3, C-REDACT-1 status changed (§1.7) | §1.7 |
 | `docs/capstone-report/specs-compliance-matrix.md` | 2026-10-09/20 | scorecard (ledger M4) | not re-scored (GAP-3) | §3 |

@@ -1,6 +1,6 @@
 # Senior Report Phase 1 — Presentation Outline
 
-**Last Updated:** 2026-11-11
+**Last Updated:** 2026-11-17 (counts re-measured on `e979fb36`)
 **Owner:** repository owner
 **Status:** DRAFT (Phase 1). 18 slides, about 20 minutes plus demo. Numbers are from [report-draft.md](report-draft.md) and are sourced in [evidence-index.md](evidence-index.md).
 **Refresh Trigger:** any change to a number in the report draft; the Phase 2 merge of other-project material.
@@ -44,7 +44,7 @@ Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Fi
 - FastAPI backend on 127.0.0.1, React frontend, started by a script
 - Master DB (plain SQLite) + one SQLCipher vault per profile
 - Dual Alembic chains: 3 master, 19 profile revisions
-- 19 routers, 45 module files plus the agent package, 17 pages; 11 CI jobs
+- 19 routers, 45 top-level module files (78 with the agent package), 17 pages; 12 CI jobs (11 on `e5c7bf80`; E2E now sharded)
 
 **Visual:** integration diagram (showcase §02, or `architecture-overview.md` §2 Mermaid), with the master DB marked "unencrypted".
 **Speaker notes:** Report §1.2. Point at the master DB yourself; it is the main open privacy gap.
@@ -91,9 +91,9 @@ Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Fi
 
 ### Slide 9 — The development story in numbers
 
-- 3836 commits; 593 merged PRs; 393 merged in October alone
-- 2563 commits co-authored by Claude; Opus 1323, Sonnet 713, Haiku 267
-- Backend tests: 621 (June) → 1245 (Sept) → 4984 (Nov)
+- 4017 commits; 660 merged PRs; 393 merged in October alone (as of 2026-11-17; 3836 and 593 on 2026-11-11)
+- 2667 commits co-authored by Claude as of 2026-11-17; Opus 1383, Sonnet 754, Haiku 270 (2563; 1323, 713, 267 on 2026-11-11)
+- Backend tests: 621 (June) → 1245 (Sept) → 5352 (Nov 17; 4984 on Nov 11)
 - Counts show what is checked, not quality
 
 **Visual:** test-count line chart over time (report §5.5 table) and a monthly merged-PR bar chart.
@@ -119,14 +119,14 @@ Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Fi
 **Visual:** a green test bar next to a red HTTP 400 response; then the file-name assertion versus the leaked row.
 **Speaker notes:** Report §5.2; commits `842bc494`, `565f7085`. This is the single most important slide in the methodology half.
 
-### Slide 12 — 21 ways a check can lie
+### Slide 12 — 24 ways a check can lie
 
 - "The check that was run was not the check that mattered"
 - Modes 1-10: product and test design (mocks, one-site invariants, unstarted features)
-- Modes 11-21: mostly harness-level, appeared once many agents shared one machine
+- Modes 11-24: mostly harness-level, appeared once many agents shared one machine
 - New instance → added in the same commit
 
-**Visual:** 21-tile grid, coloured product vs harness.
+**Visual:** 24-tile grid, coloured product vs harness.
 **Speaker notes:** Report §5.1. The shift from product failures to harness failures is a finding in itself.
 
 ### Slide 13 — The quiet box and a flake that was ICU data
@@ -181,7 +181,7 @@ Each slide lists a title, 3-5 bullets, a suggested visual, and speaker notes. Fi
 
 ### Slide 18 — What it shows, what it doesn't, what's next
 
-- Shows: one developer directing agents through 593 merged PRs, with every rule tied to a failure it answers
+- Shows: one developer directing agents through 660 merged PRs (as of 2026-11-17), with every rule tied to a failure it answers
 - Doesn't show: speed or quality versus another method; no user study; no cost in dollars
 - Next: constrained decoding for citations, encrypted master DB decision, installer, MEDS-G fix (option A, awaiting owner gate MEDS-G-X1)
 - [PHASE 2 PLACEHOLDER: other projects]

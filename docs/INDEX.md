@@ -776,7 +776,7 @@ Links to: `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report
 
 **Asclexis — Senior Project Report, Phase 1 Draft**
 
-Companion files: presentation-outline.md (slides) and evidence-index.md (claim → source table, evidence gaps, lineage). Load-bearing claims reuse the rows of the existing claims ledger (cited as…
+**Phase-1 repo snapshot.** This file is the phase-1 snapshot of the senior report, kept in the repository and merged by owner decision (OLD-PRS-1117, 2026-11-17). The full senior report is a Word…
 
 Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/evidence-index.md`, `docs/capstone-report/phase1/presentation-outline.md`, `docs/capstone-report/phase1/workflow-optimization-quiet-box.md`
 
@@ -784,7 +784,7 @@ Links to: `docs/capstone-report/claims-ledger.md`, `docs/capstone-report/phase1/
 
 **Workflow optimization: the quiet box and long-running tests**
 
-One machine does five jobs: it builds, runs pytest, runs the timing gates, drives Playwright and hosts the local models. The quiet box makes timing measurements trustworthy by stopping everything…
+**Update 2026-11-17:** after this review, options A and B were built (WF-CI-SHARD, #633, merged `189f0e53`) and `PYSLOTS` was raised to 6 (WF-PYSLOTS-6, #635, merged `eb22d019`); owner answers to…
 
 Links to: `docs/capstone-report/phase1/report-draft.md`
 
