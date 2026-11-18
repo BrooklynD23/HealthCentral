@@ -34,7 +34,20 @@ from .security import (
     KeySealingError,
     EncryptionManager,
 )
-from .profile_database import get_profile_db_manager, ProfileDatabaseConnection
+from .profile_database import (
+    get_profile_db_manager,
+    ProfileDatabaseConnection,
+    ProfileDatabaseEncryptionError,
+)
+from .vault_conversion import (
+    FIXED_MESSAGE,
+    MSG_BUSY,
+    MSG_HELD,
+    MSG_PENDING,
+    MSG_RECOVER,
+    MSG_REPLACE_LOST,
+    MSG_UNVERIFIED,
+)
 
 # Deferred import to avoid circular dependency
 if TYPE_CHECKING:
@@ -47,6 +60,22 @@ def _get_profile_class():
     return Profile
 
 logger = logging.getLogger(__name__)
+
+# The only vault errors whose text is safe to show a user (fixed, path-free, step-accurate).
+_USER_SAFE_VAULT_MESSAGES = frozenset(
+    {
+        FIXED_MESSAGE,
+        MSG_UNVERIFIED,
+        MSG_RECOVER,
+        MSG_PENDING,
+        MSG_HELD,
+        MSG_BUSY,
+        MSG_REPLACE_LOST,
+    }
+)
+_VAULT_OPEN_GENERIC = (
+    "Encrypted storage could not be opened for this profile. Your data was not changed."
+)
 
 
 # HTTP Bearer token scheme
@@ -377,7 +406,9 @@ async def open_profile_database_on_login(
         ProfileDatabaseConnection for the profile
 
     Raises:
-        HTTPException 500: If database cannot be opened
+        HTTPException 503: If the vault cannot be opened for an encryption reason
+            (a fixed user-safe message, or one generic sentence; never raw text)
+        HTTPException 500: If database cannot be opened for any other reason
     """
     db_manager = get_profile_db_manager()
     try:
@@ -395,6 +426,14 @@ async def open_profile_database_on_login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Profile vault not found",
         )
+    except ProfileDatabaseEncryptionError as e:
+        logger.error(
+            "Profile vault could not be opened for %s (%s)", profile_id, type(e).__name__
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e) if str(e) in _USER_SAFE_VAULT_MESSAGES else _VAULT_OPEN_GENERIC,
+        ) from None
     except Exception as e:
         logger.error(f"Failed to open profile database for {profile_id}: {e}")
         raise HTTPException(
