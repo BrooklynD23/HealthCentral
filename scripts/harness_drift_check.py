@@ -112,6 +112,30 @@ def find_drift(repo_root: Path) -> list[str]:
                     if not _resolve(repo_root, token):
                         errors.append(f"{rel_doc}:{line_no}: missing path '{token}'")
 
+    return errors + find_unrouted_agents(repo_root)
+
+
+WORKFLOWS_GLOB = ".claude/workflows/*.js"
+_AGENT_CALL = re.compile(r"\bagent\(")
+_OPTIONS = re.compile(r"\blabel:[^\n]*")
+_MODEL = re.compile(r"\bmodel:\s*'(haiku|sonnet|opus)'")
+
+
+def find_unrouted_agents(repo_root: Path) -> list[str]:
+    """Every workflow agent() call must name its model (owner MODEL-ROUTING-SONNET).
+
+    A call without `model:` inherits the orchestrator's model (Opus), which is
+    how non-review work silently ends up on Opus.
+    """
+    errors: list[str] = []
+    for path in sorted(repo_root.glob(WORKFLOWS_GLOB)):
+        rel = path.relative_to(repo_root).as_posix()
+        text = path.read_text(encoding="utf-8")
+        for call in _AGENT_CALL.finditer(text):
+            line_no = text.count("\n", 0, call.start()) + 1
+            options = _OPTIONS.search(text, call.end())
+            if not options or not _MODEL.search(options.group(0)):
+                errors.append(f"{rel}:{line_no}: agent() call without model: 'haiku'|'sonnet'|'opus'")
     return errors
 
 

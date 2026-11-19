@@ -27,19 +27,21 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 ## 4. Loop toward verifiable success criteria
 
 - Write or extend a test first, then make it pass. Tests live in `src/backend/tests/` (pytest, `HC-XXX-NNN` naming) and `src/frontend` (vitest + Playwright e2e).
-- Baseline: **5114 backend tests collected.** Since W-8 the embedding model is
-  a fetched, gitignored bundle. Without it, exactly 5 tests fail:
-  `test_embedding_bundle.py::test_hc_emb_002_fetched_model_loads_offline`, and
-  in `test_rag_pipeline.py` `test_api_rag_index_002`, `test_api_rag_index_002b`,
-  `test_api_rag_index_002c` and `test_search_vectors_async_calculates_similarity`.
-  Those failures are environmental — they are not yours; fix them by fetching
-  the model (`cd src/backend && python scripts/download_models.py embedding`), and you must not
-  "fix" them by lowering the 0.7 threshold. Judge yourself on the
-  **collected** count, which can vary by installed optional deps (e.g. ±2 for
-  `sentence-transformers`): judge on your own measured count + delta against
-  the posted baseline; if it still differs from
-  5114, the line may lag merges: PRs never edit it; the orchestrator updates
-  it in a post-merge batch (SLOT-RULE-2). Report your measured count and delta.
+- Baseline: **5114 backend tests collected.** Without the fetched embedding
+  model exactly 5 tests fail; the list and the fix are in
+  [AGENT.md](AGENT.md#commands-windows-is-the-native-dev-environment) (Known
+  env-only failure). They are environmental — they are not yours; fetch the
+  model, and never "fix" them by lowering the 0.7 threshold. Judge yourself on
+  your own measured **collected** count and its delta against this baseline
+  (optional deps such as `sentence-transformers` move it by about ±2). If it
+  still differs from 5114, the line may lag merges: PRs never edit it; the
+  orchestrator updates it in a post-merge batch (SLOT-RULE-2). Report your
+  measured count and delta.
+- **Run focused tests locally.** Run the test files your diff adds or changes,
+  plus the plan's acceptance commands. CI runs the full suite on the PR head
+  (owner WF-FOCUSED-LOCAL, see Definition of done), so do not run the full
+  backend suite locally just to be sure, and do not re-run a passing command
+  when the code has not changed.
 - **Run verification; never assert it.** Report the command and its actual
   output. "Tests pass" without the output is not a result. If a check was
   skipped, say which and why.
@@ -71,12 +73,13 @@ Behavioral rules for AI agents working in this repo. Repo facts, commands, and a
 
 ## OpenWiki usage
 
-`openwiki/` is reserved for OpenWiki-generated repo-navigation docs, but generation has not run yet — see `openwiki/README.md` for status and regeneration commands. Until it has, use `docs/architecture/` for hand-maintained navigation instead. Once generated, use OpenWiki output to locate code, trace dependencies, and identify likely files for a task, but never as authority over safety, privacy, medical, compliance, architecture decisions, or backlog state. If OpenWiki ever conflicts with `CLAUDE.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
+`openwiki/` is not generated yet (status and regeneration commands: `openwiki/README.md`); use `docs/architecture/` for navigation until it is. Once generated it is advisory only: use it to locate code and trace dependencies, never as authority over safety, privacy, medical, compliance, architecture decisions, or backlog state. If it conflicts with `CLAUDE.md`, `AGENT.md`, `docs/00_architecture_plans_index.md`, or `docs/roles/00_roles_index.md`, the hand-maintained docs win.
 
 ## Skills
 
-This repo ships 36 skills — process skills in `.claude/skills/`, project-domain
-skills in `skills/`. The routing table is in [AGENT.md](AGENT.md#skills).
+This repo ships 5 skills: 1 process skill in `.claude/skills/` and 4
+project-domain skills in `skills/`. The other process skills come from the
+superpowers plugin. The routing table is in [AGENT.md](AGENT.md#skills).
 
 - Check for a covering skill **before** improvising a workflow. A skill exists
   because someone already worked out the right approach and wrote it down.

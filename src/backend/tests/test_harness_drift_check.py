@@ -75,3 +75,20 @@ def test_resolves_paths_via_source_root_fallback(tmp_path: Path) -> None:
     _write_doc(tmp_path, "Ask before touching `modules/redaction.py`.\n")
 
     assert find_drift(tmp_path) == []
+
+
+def test_flags_workflow_agent_call_without_model(tmp_path: Path) -> None:
+    """A workflow agent() call that omits model: falls back to Opus and must be flagged."""
+    wf = tmp_path / ".claude" / "workflows"
+    wf.mkdir(parents=True)
+    (wf / "w.js").write_text(
+        "await agent('scan (read-only)', { label: 'scan', model: 'haiku', effort: 'xhigh' })\n"
+        "await agent('fix it', { label: 'fix', effort: 'high' })\n",
+        encoding="utf-8",
+    )
+
+    errors = find_drift(tmp_path)
+
+    assert errors == [
+        ".claude/workflows/w.js:2: agent() call without model: 'haiku'|'sonnet'|'opus'"
+    ]
