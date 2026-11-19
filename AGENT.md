@@ -18,63 +18,45 @@ Local-first, privacy-first desktop app: patients import lab PDFs/medical documen
   - `src/App.tsx` (every route; `/` redirects to `/overview`), `src/components/layout/navConfig.ts` (every nav name, sidebar groups and the phone tab bar), `src/pages/` (OverviewPage, ResultsPage, ExplainAssistant, VerificationWorkbench, SettingsPage…; `/trends` and `/interpret` redirect to `/results`), `src/services/` (API client + React Query hooks, one file per backend area; export everything through the `services/index.ts` barrel — `backup`, `donation`, `interpretations` and `medications` are not re-exported there today), `e2e/` Playwright. Map: [`docs/architecture/frontend.md`](docs/architecture/frontend.md)
 - **Docs** `docs/` — start at [`docs/00_architecture_plans_index.md`](docs/00_architecture_plans_index.md) (canonical order) or [`docs/roles/00_roles_index.md`](docs/roles/00_roles_index.md) (domain-based "which doc for X"); `docs/plans/` (active + historical plans/decisions log, incl. `implementation-log/` for point-in-time notes). Skills live in `.claude/skills/` and `skills/` — see [Skills](#skills) below.
 - **Generated repo map** [`openwiki/`](openwiki/README.md) — reserved home for a repo-navigation layer that OpenWiki would generate for coding agents (**not yet generated**; README-only stub). Advisory only once generated: it never overrides CLAUDE.md, this file, or `docs/`. See `openwiki/README.md` for regeneration commands and review rules.
-- **Agent model routing** (owner, 2026-10-29): Sonnet 5.5 implements; Haiku 5.5 at effort `medium` runs test scripts only and never edits; Haiku 5.5 at effort `xhigh` does exploration, web search, finding files and symbols, scanning/triage, summarization and other tasks that do not implement or write code; Opus reviews and orchestrates. Workflow scripts in `.claude/workflows/` use `model: 'sonnet', effort: 'high'` for implementers, `model: 'haiku', effort: 'medium'` for test runners and `model: 'haiku', effort: 'xhigh'` for exploration and scans. Full rule in [CLAUDE.md](CLAUDE.md) (Hard invariants).
+- **Agent model routing** (owner, 2026-10-29): the rule is in [CLAUDE.md](CLAUDE.md) (Hard invariants). Workflow scripts in `.claude/workflows/` apply it as `model: 'sonnet', effort: 'high'` for implementers, `model: 'haiku', effort: 'medium'` for test runners and `model: 'haiku', effort: 'xhigh'` for exploration and scans.
 
 ## Skills
 
-Two directories, different purposes. `.claude/skills/` holds vendored **process**
-skills; `skills/` (no dot) holds this project's **domain** skills. Invoke by name.
+Two directories, different purposes. `.claude/skills/` holds 1 vendored
+**process** skill; `skills/` (no dot) holds this project's 4 **domain** skills.
+The other process skills come from the superpowers plugin.
+Invoke by name. Each skill's `description:` front matter says when to use it,
+and the Skill tool already lists those, so they are not repeated here.
 
-| Skill | Reach for it when |
+Domain skills — read the matching one before editing its area:
+
+| Skill | Area |
 |---|---|
-| `test-driven-development` | Implementing any feature or bugfix, before writing implementation code |
-| `systematic-debugging` | Encountering any bug, test failure, or unexpected behavior, before proposing fixes |
-| `writing-plans` | You have a spec or requirements for a multi-step task, before touching code |
-| `executing-plans` | You have a written implementation plan to execute in a separate session with review checkpoints |
-| `subagent-driven-development` | Executing an implementation plan whose tasks are independent, in the current session |
-| `brainstorming` | Before any creative work — creating features, building components, adding functionality, or modifying behavior |
-| `verification-before-completion` | About to claim work is complete, fixed, or passing, before committing or creating PRs — evidence before assertions |
-| `requesting-code-review` | Completing a task or major feature, or before merging, to verify the work meets requirements |
-| `receiving-code-review` | Receiving review feedback, before implementing suggestions — especially if it seems unclear or technically questionable |
-| `dispatching-parallel-agents` | Facing 2+ independent tasks with no shared state or sequential dependencies |
-| `using-git-worktrees` | Starting feature work that needs isolation from the current workspace, or before executing a plan |
-| `finishing-a-development-branch` | Implementation is complete and tests pass, and you need to decide how to integrate the work |
-| `writing-skills` | Creating a new skill, editing an existing one, or verifying a skill works before deployment |
-| `using-superpowers` | Starting any conversation — establishes how to find and use skills before any other response |
-| `asclexis-backend` | Backend routes, feature modules under `src/backend/modules/`, SQLAlchemy models, Pydantic schemas, the SQLCipher per-profile vault, the dual Alembic chains, security/monitoring middleware, LLMOps (semantic cache, model tiers, llama.cpp serving, timing/token tracking), or the proof bundle |
-| `asclexis-agent` | Anything under `src/backend/modules/agent/` — the graph runner, plan/act/reflect/draft nodes, the tool registry, read-only tools over the profile vault, the step budget, audit hooks, or wiring the agent into the `/assistant/` route |
-| `asclexis-guardrails` | The guard node, advice classifier, abstention/escalation templates, groundedness and claim-to-source mapping, confidence thresholds, or the PHI redaction gate before any opt-in external LLM call |
-| `asclexis-evals` | Golden eval cases, synthetic vault states, the six scoring axes (groundedness, citation accuracy, abstention correctness, advice leakage, injection resistance, PHI leakage), or the CI workflow that gates PRs on agent behavior |
+| `asclexis-backend` | Backend routes, `src/backend/modules/`, models and schemas, the per-profile vault, the dual Alembic chains, middleware, LLMOps, the proof bundle |
+| `asclexis-agent` | `src/backend/modules/agent/`: graph runner, nodes, tool registry, step budget, audit hooks, the `/assistant/` wiring |
+| `asclexis-guardrails` | Guard node, advice classifier, abstention templates, groundedness, confidence thresholds, the PHI redaction gate |
+| `asclexis-evals` | Golden eval cases, synthetic vault states, the six scoring axes, the CI gate on agent behavior |
 
-The `.claude/skills/` directory also vendors
-[mattpocock/skills](https://github.com/mattpocock/skills)' engineering set
-(18 skills, MIT). The ones that fill a genuine gap here:
+Process skills:
 
-| Skill | Reach for it when |
-|---|---|
-| `improve-codebase-architecture` | Scanning for deepening opportunities across a module or the whole repo, then working through the one you pick |
-| `codebase-design` | Designing or improving a module's interface, deciding where a seam goes, making code more testable |
-| `domain-modeling` | Working on codebase terminology, a CONTEXT.md, or recording an ADR |
-| `wayfinder` | Navigating an area of the codebase you don't know yet |
-| `triage` / `to-tickets` / `to-spec` | Turning a plan or a pile of findings into independently-grabbable work items |
-| `prototype` | Sanity-checking whether a state model or UI shape feels right, throwaway |
+- [obra/superpowers](https://github.com/obra/superpowers) plugin (install with
+  `/plugin install superpowers@claude-plugins-official`): `test-driven-development`, `systematic-debugging`,
+  `writing-plans`, `executing-plans`, `subagent-driven-development`, `brainstorming`,
+  `verification-before-completion`, `requesting-code-review`, `receiving-code-review`,
+  `dispatching-parallel-agents`, `using-git-worktrees`, `finishing-a-development-branch`,
+  `writing-skills`. CLAUDE.md and the definition of done below are written against its
+  vocabulary.
+- Vendored: `resolving-merge-conflicts` (mattpocock/skills, MIT).
 
-Four of that set overlap with the superpowers skills above (`tdd`,
-`diagnosing-bugs`, `code-review`, and the `to-spec`/`to-tickets` pair).
-**Prefer the superpowers skill by default** — CLAUDE.md and the definition of
-done below are written against its vocabulary. The disambiguation table is in
-[`.claude/skills/README.md`](.claude/skills/README.md).
-
-Each skill's full description is the `description:` front matter in its own
-`SKILL.md`. For where the two directories come from and why they are separate,
-see [`.claude/skills/README.md`](.claude/skills/README.md) and
-[`skills/README.md`](skills/README.md).
+Sources and why the directories are separate:
+[`.claude/skills/README.md`](.claude/skills/README.md) and [`skills/README.md`](skills/README.md).
 
 ## Commands (Windows is the native dev environment)
 
 ```powershell
 .\dev.ps1                                  # full stack; if 8000/3000 are busy it first stops the listeners (UAC retry), then falls back to the next free port
-cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # backend tests (5114 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
+cd src/backend; python -m pytest tests/test_<area>.py -p no:cacheprovider -q   # focused: the test files your diff touches (the local default)
+cd src/backend; python -m pytest tests/ -p no:cacheprovider -q   # full backend suite, optional locally: CI runs it on the PR (5114 collected; 5 tests fail without the fetched embedding model, see Known env-only failure)
 cd src/frontend; npm run dev               # frontend only
 cd src/frontend; npx tsc --noEmit; npm run build; npx vitest run
 cd src/frontend; npx playwright test       # e2e
